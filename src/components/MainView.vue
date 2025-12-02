@@ -147,6 +147,7 @@ const roomTags = ref([]); // 存储所有房间标签对象
 const areTagsVisible = ref(true); // 全局显隐控制
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
+let isManualSelection = false; // 防止递归调用的标志
 
 // Viewer 状态
 const viewerContainer = ref(null);
@@ -423,8 +424,14 @@ const removeRoomStyle = () => {
 
 // 5. 选择变更
 const onSelectionChanged = (event) => {
+  // 如果是手动选择，跳过处理避免递归
+  if (isManualSelection) {
+    isManualSelection = false;
+    return;
+  }
+
   const dbIds = event.dbIdArray;
-  
+
   if (dbIds && dbIds.length > 0) {
     // 选中模式
     const selectedId = dbIds[0];
@@ -443,14 +450,93 @@ const updateAllTagPositions = () => {
   if (!areTagsVisible.value) return;
   roomTags.value.forEach(tag => {
     const p = viewer.worldToClient(tag.worldPos);
-    if (p.z > 1) tag.visible = false;
-    else {
-      tag.visible = true;
+    if (p.z > 1) {
+      tag.visible = false;
+    } else {
+      // 只更新位置，不改变 visible 状态（由其他逻辑控制）
       tag.x = p.x;
       tag.y = p.y;
+      // 如果没有被特殊设置，默认可见
+      if (tag.visible === undefined || tag.visible === null) {
+        tag.visible = true;
+      }
     }
   });
 };
+
+// 7. 孤立并定位到指定房间（支持多选，供外部调用）
+const isolateAndFocusRooms = (dbIds) => {
+  if (!viewer || !dbIds || dbIds.length === 0) return;
+
+  // 设置标志，防止 onSelectionChanged 递归调用
+  isManualSelection = true;
+
+  // 孤立选中的房间（隐藏其他所有构件）
+  viewer.isolate(dbIds);
+
+  // 确保选中的所有房间保持蓝色材质
+  const mat = getRoomMaterial();
+  const fragList = viewer.model.getFragmentList();
+  const tree = viewer.model.getInstanceTree();
+
+  dbIds.forEach(dbId => {
+    tree.enumNodeFragments(dbId, (fragId) => {
+      fragList.setMaterial(fragId, mat);
+    });
+  });
+
+  viewer.impl.invalidate(true);
+
+  // 只显示选中房间的温度标签，隐藏其他
+  roomTags.value.forEach(tag => {
+    tag.visible = dbIds.includes(tag.dbId);
+  });
+  areTagsVisible.value = true;
+
+  // 定位到选中的房间（如果是多个，会自动调整视角包含所有房间）
+  viewer.fitToView(dbIds, viewer.model);
+
+  // 等待视角调整后更新标签位置
+  setTimeout(() => {
+    dbIds.forEach(dbId => {
+      const selectedTag = roomTags.value.find(tag => tag.dbId === dbId);
+      if (selectedTag) {
+        const p = viewer.worldToClient(selectedTag.worldPos);
+        selectedTag.x = p.x;
+        selectedTag.y = p.y;
+        selectedTag.visible = true;
+      }
+    });
+  }, 100);
+
+  // 清除选择（不触发高亮边框）
+  viewer.clearSelection();
+};
+
+// 8. 恢复显示所有房间（供外部调用）
+const showAllRooms = () => {
+  if (!viewer) return;
+
+  // 取消孤立，显示所有构件
+  viewer.isolate([]);
+
+  // 恢复所有房间的蓝色材质
+  applyRoomStyle();
+
+  // 显示所有房间的温度标签
+  roomTags.value.forEach(tag => {
+    tag.visible = true;
+  });
+
+  // 更新所有标签位置
+  updateAllTagPositions();
+};
+
+// 暴露方法给父组件
+defineExpose({
+  isolateAndFocusRooms,
+  showAllRooms
+});
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
 

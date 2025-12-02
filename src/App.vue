@@ -6,14 +6,21 @@
       
       <!-- 左侧面板 -->
       <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
-        <LeftPanel :rooms="roomList" @open-properties="openRightPanel" />
+        <LeftPanel
+          :rooms="roomList"
+          @open-properties="openRightPanel"
+          @rooms-selected="onRoomsSelected"
+        />
       </div>
 
       <div class="resizer" @mousedown="startResize($event, 'left')"></div>
 
       <!-- 中间主视图 -->
       <div class="main-content">
-        <MainView @rooms-loaded="onRoomsLoaded" />
+        <MainView
+          ref="mainViewRef"
+          @rooms-loaded="onRoomsLoaded"
+        />
       </div>
 
       <!-- 右侧拖拽条 -->
@@ -47,9 +54,27 @@ const leftWidth = ref(300);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const roomList = ref([]);
+const mainViewRef = ref(null);
 
 const onRoomsLoaded = (rooms) => {
   roomList.value = rooms;
+};
+
+const onRoomsSelected = (dbIds) => {
+  // 调用 MainView 的方法来孤立并定位房间
+  if (mainViewRef.value) {
+    if (dbIds.length === 0) {
+      // 未选中任何房间，显示所有房间
+      if (mainViewRef.value.showAllRooms) {
+        mainViewRef.value.showAllRooms();
+      }
+    } else {
+      // 选中了一个或多个房间
+      if (mainViewRef.value.isolateAndFocusRooms) {
+        mainViewRef.value.isolateAndFocusRooms(dbIds);
+      }
+    }
+  }
 };
 
 const openRightPanel = () => {

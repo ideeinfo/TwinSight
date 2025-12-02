@@ -26,17 +26,17 @@
           v-for="(item, index) in items"
           :key="item.dbId || index"
           class="list-item"
-          :class="{ selected: selectedIndex === index }"
+          :class="{ selected: isSelected(index) }"
           @click="selectItem(index)"
         >
           <!-- 修改点：Checkbox 增加 checked 样式和内部 SVG -->
           <div
             class="checkbox"
-            :class="{ checked: selectedIndex === index }"
+            :class="{ checked: isSelected(index) }"
             @click.stop="selectItem(index)"
           >
             <!-- 对勾图标，仅在选中时显示 -->
-            <svg v-if="selectedIndex === index" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4">
+            <svg v-if="isSelected(index)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
           </div>
@@ -59,7 +59,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['open-properties']);
+const emit = defineEmits(['open-properties', 'rooms-selected']);
 
 // 使用从模型获取的房间列表，如果为空则显示加载提示
 const items = computed(() => {
@@ -73,10 +73,33 @@ const items = computed(() => {
   return [];
 });
 
-const selectedIndex = ref(-1);
+// 改为多选：存储选中的索引数组
+const selectedIndices = ref([]);
+
+// 判断某个索引是否被选中
+const isSelected = (index) => {
+  return selectedIndices.value.includes(index);
+};
+
+// 切换选中状态（支持多选）
 const selectItem = (index) => {
-  selectedIndex.value = index;
-  emit('open-properties');
+  const idx = selectedIndices.value.indexOf(index);
+
+  if (idx > -1) {
+    // 已选中，取消选中
+    selectedIndices.value.splice(idx, 1);
+  } else {
+    // 未选中，添加到选中列表
+    selectedIndices.value.push(index);
+  }
+
+  // 发送选中的房间 dbId 数组到父组件
+  const selectedDbIds = selectedIndices.value.map(i => items.value[i].dbId);
+  emit('rooms-selected', selectedDbIds);
+
+  if (selectedDbIds.length > 0) {
+    emit('open-properties');
+  }
 };
 </script>
 
