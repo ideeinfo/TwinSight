@@ -6,14 +6,14 @@
       
       <!-- 左侧面板 -->
       <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
-        <LeftPanel @open-properties="openRightPanel" />
+        <LeftPanel :rooms="roomList" @open-properties="openRightPanel" />
       </div>
 
       <div class="resizer" @mousedown="startResize($event, 'left')"></div>
 
       <!-- 中间主视图 -->
       <div class="main-content">
-        <MainView />
+        <MainView @rooms-loaded="onRoomsLoaded" />
       </div>
 
       <!-- 右侧拖拽条 -->
@@ -46,6 +46,11 @@ import MainView from './components/MainView.vue';
 const leftWidth = ref(300);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
+const roomList = ref([]);
+
+const onRoomsLoaded = (rooms) => {
+  roomList.value = rooms;
+};
 
 const openRightPanel = () => {
   isRightPanelOpen.value = true;

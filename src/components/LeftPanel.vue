@@ -17,16 +17,21 @@
       <div class="status-bar"><span>Status</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
       
       <div class="item-list">
-        <div 
-          v-for="(item, index) in items" 
-          :key="index" 
-          class="list-item" 
-          :class="{ selected: selectedIndex === index }" 
+        <!-- 加载提示 -->
+        <div v-if="items.length === 0" class="loading-hint">
+          正在加载房间列表...
+        </div>
+
+        <div
+          v-for="(item, index) in items"
+          :key="item.dbId || index"
+          class="list-item"
+          :class="{ selected: selectedIndex === index }"
           @click="selectItem(index)"
         >
           <!-- 修改点：Checkbox 增加 checked 样式和内部 SVG -->
-          <div 
-            class="checkbox" 
+          <div
+            class="checkbox"
             :class="{ checked: selectedIndex === index }"
             @click.stop="selectItem(index)"
           >
@@ -35,7 +40,7 @@
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
           </div>
-          
+
           <div class="item-content"><div class="item-name">{{ item.name }}</div><div class="item-code">{{ item.code }}</div></div>
           <svg class="link-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
         </div>
@@ -45,19 +50,34 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+
+const props = defineProps({
+  rooms: {
+    type: Array,
+    default: () => []
+  }
+});
+
 const emit = defineEmits(['open-properties']);
-const items = ref([
-  { name: '温度-工具间 Q-F2-006 (工具间 Q-F2-006)', code: '(工具间 Q-F2-006)' },
-  { name: '温度-过厅 Q-F2-009 (过厅 Q-F2-009)', code: '(过厅 Q-F2-009)' },
-  { name: '温度-合用前室 Q-F1-007', code: '(合用前室 Q-F1-007)' },
-  { name: '温度-弱电间 Q-F3-010', code: '(弱电间 Q-F3-010)' }, 
-  { name: '温度-弱电间 Q-F4-007', code: '(弱电间 Q-F4-007)' },
-  { name: '多功能厅 Q-F2-003', code: '(多功能厅 Q-F2-003)' }, 
-  { name: '温度-卫生间 Q-F2-014', code: '(卫生间 Q-F2-014)' },
-]);
-const selectedIndex = ref(1); // 默认选中第二项(过厅)
-const selectItem = (index) => { selectedIndex.value = index; emit('open-properties'); };
+
+// 使用从模型获取的房间列表，如果为空则显示加载提示
+const items = computed(() => {
+  if (props.rooms && props.rooms.length > 0) {
+    return props.rooms.map(room => ({
+      name: room.name,
+      code: room.code,
+      dbId: room.dbId
+    }));
+  }
+  return [];
+});
+
+const selectedIndex = ref(-1);
+const selectItem = (index) => {
+  selectedIndex.value = index;
+  emit('open-properties');
+};
 </script>
 
 <style scoped>
@@ -103,4 +123,5 @@ const selectItem = (index) => { selectedIndex.value = index; emit('open-properti
 .item-name { color: #ddd; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-code { color: #777; font-size: 10px; margin-top: 2px; }
 .link-icon { opacity: 0.5; flex-shrink: 0; }
+.loading-hint { padding: 20px 12px; color: #888; font-size: 12px; text-align: center; }
 </style>

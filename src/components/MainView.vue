@@ -127,6 +127,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
 import BottomChart from './BottomChart.vue';
 
+// 定义事件发射
+const emit = defineEmits(['rooms-loaded']);
+
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
 // UI 状态
@@ -287,13 +290,15 @@ const onModelLoaded = () => {
   });
 };
 
-// 2. 处理房间 (缓存材质 + 生成标签)
+// 2. 处理房间 (缓存材质 + 生成标签 + 获取属性)
 const processRooms = (dbIds) => {
   foundRoomDbIds = dbIds;
   const fragList = viewer.model.getFragmentList();
   const tree = viewer.model.getInstanceTree();
-  
+
   const newTags = [];
+  const roomList = []; // 存储房间列表用于左侧面板
+  let pendingProps = dbIds.length;
 
   dbIds.forEach(dbId => {
     // A. 缓存材质 (重要：保留原始引用)
@@ -312,11 +317,13 @@ const processRooms = (dbIds) => {
       fragList.getWorldBounds(f, b);
       bounds.union(b);
     });
-    
+
+    let worldPos = null;
     if (!bounds.isEmpty()) {
       const center = new window.THREE.Vector3();
       bounds.getCenter(center);
-      
+      worldPos = center;
+
       newTags.push({
         dbId: dbId,
         worldPos: center,
@@ -325,6 +332,51 @@ const processRooms = (dbIds) => {
         currentTemp: 25
       });
     }
+
+    // C. 获取房间属性（名称、编号）
+    viewer.getProperties(dbId, (result) => {
+      let name = '';
+      let code = '';
+
+      if (result && result.properties) {
+        result.properties.forEach(prop => {
+          // 匹配"名称"属性
+          if (prop.displayName === '名称' || prop.displayName === 'Name' || prop.displayName === 'name') {
+            name = prop.displayValue || '';
+          }
+          // 匹配"编号"属性
+          if (prop.displayName === '编号' || prop.displayName === 'Number' || prop.displayName === 'number') {
+            code = prop.displayValue || '';
+          }
+        });
+      }
+
+      // 如果没有找到名称，使用节点名称
+      if (!name && result && result.name) {
+        name = result.name;
+      }
+
+      // 只添加有"编号"属性的房间
+      if (code) {
+        roomList.push({
+          dbId: dbId,
+          name: name || `房间 ${dbId}`,
+          code: code
+        });
+      }
+
+      pendingProps--;
+      if (pendingProps === 0) {
+        // 所有属性获取完成，发送房间列表
+        emit('rooms-loaded', roomList);
+      }
+    }, (err) => {
+      // 属性获取失败，跳过该房间（没有编号）
+      pendingProps--;
+      if (pendingProps === 0) {
+        emit('rooms-loaded', roomList);
+      }
+    });
   });
 
   roomTags.value = newTags;
