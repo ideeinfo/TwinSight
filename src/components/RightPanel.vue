@@ -8,7 +8,7 @@
         <svg class="icon-btn close-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" @click="$emit('close-properties')"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </div>
     </div>
-    <div class="breadcrumb-row"><span class="breadcrumb-text">幕墙嵌板 : 系统面板 1 : 玻璃</span><svg class="link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
+    <div class="breadcrumb-row"><span class="breadcrumb-text">{{ breadcrumbText }}</span><svg class="link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
     <div class="tabs">
       <div class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">ELEMENT</div>
       <div class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">TYPE</div>
@@ -18,7 +18,20 @@
       <div v-if="activeTab === 'ELEMENT'">
         <div class="group-header" @click="toggleGroup('element_asset')"><span>ASSET PROPERTIES</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_asset">
-          <div class="form-group"><div class="sub-label">Common</div><div class="row"><label>Name</label><div class="val-box">系统面板 1</div></div><div class="row"><label>Level</label><div class="val-box">Q-1F</div></div><div class="row"><label>Assembly Code</label><div class="val-box placeholder">Select Uniformat</div></div><div class="row"><label>Tandem Category</label><div class="val-box">Panel</div></div></div>
+          <div class="form-group" v-if="roomProperties">
+            <div class="sub-label">Common</div>
+            <div class="row"><label>编号</label><div class="val-box">{{ roomProperties.code || '--' }}</div></div>
+            <div class="row"><label>名称</label><div class="val-box">{{ roomProperties.name || '--' }}</div></div>
+            <div class="row"><label>面积</label><div class="val-box">{{ roomProperties.area || '--' }}</div></div>
+            <div class="row"><label>周长</label><div class="val-box">{{ roomProperties.perimeter || '--' }}</div></div>
+          </div>
+          <div class="form-group" v-else>
+            <div class="sub-label">Common</div>
+            <div class="row"><label>Name</label><div class="val-box">系统面板 1</div></div>
+            <div class="row"><label>Level</label><div class="val-box">Q-1F</div></div>
+            <div class="row"><label>Assembly Code</label><div class="val-box placeholder">Select Uniformat</div></div>
+            <div class="row"><label>Tandem Category</label><div class="val-box">Panel</div></div>
+          </div>
         </div>
         <div class="group-header" @click="toggleGroup('element_rel')"><span>RELATIONSHIPS</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_rel }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_rel">
@@ -38,11 +51,30 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
+
+const props = defineProps({
+  roomProperties: {
+    type: Object,
+    default: null
+  }
+});
+
 const emit = defineEmits(['close-properties']);
 const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
+
+// 计算面包屑文本
+const breadcrumbText = computed(() => {
+  if (props.roomProperties) {
+    if (props.roomProperties.isMultiple) {
+      return '房间 : 多个';
+    }
+    return `房间 : ${props.roomProperties.name || '未命名'}`;
+  }
+  return '幕墙嵌板 : 系统面板 1 : 玻璃';
+});
 </script>
 
 <style scoped>

@@ -31,12 +31,15 @@
       ></div>
 
       <!-- 右侧面板 -->
-      <div 
-        v-if="isRightPanelOpen" 
-        class="panel-wrapper" 
+      <div
+        v-if="isRightPanelOpen"
+        class="panel-wrapper"
         :style="{ width: rightWidth + 'px' }"
       >
-        <RightPanel @close-properties="closeRightPanel" />
+        <RightPanel
+          :roomProperties="selectedRoomProperties"
+          @close-properties="closeRightPanel"
+        />
       </div>
       
     </div>
@@ -55,6 +58,7 @@ const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const roomList = ref([]);
 const mainViewRef = ref(null);
+const selectedRoomProperties = ref(null);
 
 const onRoomsLoaded = (rooms) => {
   roomList.value = rooms;
@@ -65,14 +69,34 @@ const onRoomsSelected = (dbIds) => {
   if (mainViewRef.value) {
     if (dbIds.length === 0) {
       // 未选中任何房间，显示所有房间
+      selectedRoomProperties.value = null;
       if (mainViewRef.value.showAllRooms) {
         mainViewRef.value.showAllRooms();
       }
-    } else {
-      // 选中了一个或多个房间
+    } else if (dbIds.length === 1) {
+      // 选中了一个房间，显示该房间的属性
       if (mainViewRef.value.isolateAndFocusRooms) {
         mainViewRef.value.isolateAndFocusRooms(dbIds);
       }
+
+      if (mainViewRef.value.getRoomProperties) {
+        mainViewRef.value.getRoomProperties(dbIds[0]).then(props => {
+          selectedRoomProperties.value = props;
+        });
+      }
+    } else {
+      // 选中了多个房间，显示"多个"
+      if (mainViewRef.value.isolateAndFocusRooms) {
+        mainViewRef.value.isolateAndFocusRooms(dbIds);
+      }
+
+      selectedRoomProperties.value = {
+        code: '多个',
+        name: '多个',
+        area: '多个',
+        perimeter: '多个',
+        isMultiple: true
+      };
     }
   }
 };

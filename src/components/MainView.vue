@@ -96,14 +96,13 @@
       
       <!-- IoT 数据标签覆盖层 (所有房间) -->
       <div class="overlay-tags">
-        <div 
-          v-for="tag in roomTags" 
+        <div
+          v-for="tag in roomTags"
           :key="tag.dbId"
           v-show="areTagsVisible && tag.visible"
-          class="tag-wrapper" 
+          class="tag-wrapper"
           :style="{ top: tag.y + 'px', left: tag.x + 'px' }"
         >
-          <div class="heatmap-glow" :style="getHeatmapStyle(tag.currentTemp)"></div>
           <div class="tag-pin selected">
             <div class="pin-val blue" :style="getTagStyle(tag.currentTemp)">
               {{ tag.currentTemp }} °C
@@ -112,7 +111,23 @@
         </div>
       </div>
 
-      <div class="heatmap-btn">Select heatmap</div>
+      <div
+        class="heatmap-btn"
+        :class="{ active: isHeatmapEnabled }"
+        @click="toggleHeatmap"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 6px;">
+          <defs>
+            <linearGradient id="heatGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#4FC3F7;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#FFA726;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#EF5350;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <rect x="2" y="2" width="12" height="12" rx="2" fill="url(#heatGradient)" opacity="0.8"/>
+        </svg>
+        热力图
+      </div>
     </div>
 
     <div class="resizer-y" @mousedown="startVerticalResize"></div>
@@ -148,6 +163,7 @@ const areTagsVisible = ref(true); // 全局显隐控制
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
+const isHeatmapEnabled = ref(false); // 热力图开关状态
 
 // Viewer 状态
 const viewerContainer = ref(null);
@@ -204,6 +220,11 @@ watch(currentTemp, (val) => {
     roomTags.value.forEach(tag => {
       tag.currentTemp = (val + tag.offset).toFixed(1);
     });
+
+    // 如果热力图开启，更新房间颜色
+    if (isHeatmapEnabled.value && viewer) {
+      applyHeatmapStyle();
+    }
   }
 });
 
@@ -230,22 +251,9 @@ const calendarDays = computed(() => { const y = calendarViewDate.value.getFullYe
 
 // 辅助样式计算
 const getTagStyle = (t) => {
-  if (t > 35) return { backgroundColor: '#ff4d4d', borderColor: '#d32f2f' }; 
-  if (t > 30) return { backgroundColor: '#4caf50', borderColor: '#388e3c' }; 
-  return { backgroundColor: '#0078d4', borderColor: '#005a9e' }; 
-};
-const getHeatmapStyle = (tempVal) => {
-  const minT = 25, maxT = 35;
-  let t = (tempVal - minT) / (maxT - minT);
-  t = Math.max(0, Math.min(1, t));
-  let hue = 200 - (t * 200); 
-  const color = `hsla(${hue}, 100%, 50%, 0.6)`;
-  const centerColor = `hsla(${hue}, 100%, 60%, 0.9)`;
-  return {
-    background: `radial-gradient(circle, ${centerColor} 0%, ${color} 40%, transparent 70%)`,
-    transform: `translate(-50%, -50%) scale(${0.8 + t * 0.4})`,
-    opacity: 0.8
-  };
+  if (t > 35) return { backgroundColor: '#ff4d4d', borderColor: '#d32f2f' };
+  if (t > 30) return { backgroundColor: '#4caf50', borderColor: '#388e3c' };
+  return { backgroundColor: '#0078d4', borderColor: '#005a9e' };
 };
 
 // ================== 3. Viewer 逻辑 ==================
@@ -270,12 +278,80 @@ const initViewer = () => {
 let customRoomMat = null;
 const getRoomMaterial = () => {
   if (customRoomMat) return customRoomMat;
+  // 浅紫色：#B39DDB (RGB: 179, 157, 219)
   customRoomMat = new window.THREE.MeshBasicMaterial({
-    color: 0x43ABC9, opacity: 0.5, transparent: true, 
-    side: window.THREE.DoubleSide, depthWrite: false, depthTest: true 
+    color: 0xB39DDB, opacity: 0.5, transparent: true,
+    side: window.THREE.DoubleSide, depthWrite: false, depthTest: true
   });
   viewer.impl.matman().addMaterial('custom-room-mat', customRoomMat, true);
   return customRoomMat;
+};
+
+// 热力图材质缓存
+const heatmapMaterialCache = {};
+
+// 根据温度生成热力图材质
+const getHeatmapMaterial = (temperature) => {
+  // 使用缓存避免重复创建材质
+  const tempKey = Math.round(temperature * 10) / 10; // 精确到0.1度
+  if (heatmapMaterialCache[tempKey]) {
+    return heatmapMaterialCache[tempKey];
+  }
+
+  const minT = 25, maxT = 35;
+  let t = (temperature - minT) / (maxT - minT);
+  t = Math.max(0, Math.min(1, t));
+
+  // 从蓝色(冷)到红色(热)
+  let hue = 200 - (t * 200); // 200(蓝) -> 0(红)
+
+  // 转换 HSL 到 RGB
+  const hslToRgb = (h, s, l) => {
+    h = h / 360;
+    s = s / 100;
+    l = l / 100;
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  };
+
+  const [r, g, b] = hslToRgb(hue, 100, 50);
+  const color = (r << 16) | (g << 8) | b;
+
+  const mat = new window.THREE.MeshPhongMaterial({
+    color: color,
+    opacity: 0.8,
+    transparent: true,
+    side: window.THREE.DoubleSide,
+    depthWrite: true,
+    depthTest: true,
+    shininess: 30
+  });
+
+  // 注册到材质管理器
+  const matman = viewer.impl.matman();
+  matman.addMaterial(`heatmap-${tempKey}`, mat, true);
+
+  // 缓存材质
+  heatmapMaterialCache[tempKey] = mat;
+
+  return mat;
 };
 
 // 1. 模型加载
@@ -328,7 +404,7 @@ const processRooms = (dbIds) => {
       newTags.push({
         dbId: dbId,
         worldPos: center,
-        x: 0, y: 0, visible: false,
+        x: 0, y: 0, visible: true,  // 默认显示温度标签
         offset: (Math.random() - 0.5) * 2,
         currentTemp: 25
       });
@@ -370,23 +446,36 @@ const processRooms = (dbIds) => {
       if (pendingProps === 0) {
         // 所有属性获取完成，发送房间列表
         emit('rooms-loaded', roomList);
+
+        // 延迟应用样式，确保所有属性加载完成
+        setTimeout(() => {
+          applyRoomStyle();
+        }, 100);
       }
     }, (err) => {
       // 属性获取失败，跳过该房间（没有编号）
       pendingProps--;
       if (pendingProps === 0) {
         emit('rooms-loaded', roomList);
+
+        // 延迟应用样式，确保所有属性加载完成
+        setTimeout(() => {
+          applyRoomStyle();
+        }, 100);
       }
     });
   });
 
   roomTags.value = newTags;
-  applyRoomStyle();
 };
 
-// 3. 应用样式
+// 3. 应用浅紫色样式到所有房间
 const applyRoomStyle = () => {
-  if (foundRoomDbIds.length === 0) return;
+  if (!viewer || foundRoomDbIds.length === 0) return;
+
+  // 清除所有主题颜色
+  viewer.clearThemingColors();
+
   const mat = getRoomMaterial();
   const fragList = viewer.model.getFragmentList();
   const tree = viewer.model.getInstanceTree();
@@ -396,10 +485,14 @@ const applyRoomStyle = () => {
       fragList.setMaterial(fragId, mat);
     });
   });
-  
-  viewer.impl.invalidate(true);
+
+  // 孤立房间（隐藏其他构件）
   viewer.isolate(foundRoomDbIds);
-  areTagsVisible.value = true; // 显示标签
+
+  // 强制刷新渲染
+  viewer.impl.invalidate(true, true, true);
+
+  areTagsVisible.value = true;
   updateAllTagPositions();
 };
 
@@ -422,7 +515,7 @@ const removeRoomStyle = () => {
   viewer.impl.invalidate(true);
 };
 
-// 5. 选择变更
+// 5. 选择变更（在模型上直接点击时触发）
 const onSelectionChanged = (event) => {
   // 如果是手动选择，跳过处理避免递归
   if (isManualSelection) {
@@ -433,15 +526,15 @@ const onSelectionChanged = (event) => {
   const dbIds = event.dbIdArray;
 
   if (dbIds && dbIds.length > 0) {
-    // 选中模式
+    // 在模型上选中了某个构件
     const selectedId = dbIds[0];
-    areTagsVisible.value = false; // 隐藏标签
-    removeRoomStyle();            // 卸载材质
-    viewer.isolate([selectedId]); // 孤立
+    areTagsVisible.value = false;
+    removeRoomStyle();
+    viewer.isolate([selectedId]);
     viewer.fitToView([selectedId]);
   } else {
-    // 默认模式
-    applyRoomStyle(); // 挂载材质 + 显示标签
+    // 取消选择：恢复显示所有房间
+    showAllRooms();
   }
 };
 
@@ -474,18 +567,61 @@ const isolateAndFocusRooms = (dbIds) => {
   // 孤立选中的房间（隐藏其他所有构件）
   viewer.isolate(dbIds);
 
-  // 确保选中的所有房间保持蓝色材质
-  const mat = getRoomMaterial();
-  const fragList = viewer.model.getFragmentList();
-  const tree = viewer.model.getInstanceTree();
+  // 根据热力图状态应用不同颜色
+  if (isHeatmapEnabled.value) {
+    // 热力图模式：使用 setThemingColor
+    dbIds.forEach(dbId => {
+      const tag = roomTags.value.find(t => t.dbId === dbId);
+      const temperature = tag ? parseFloat(tag.currentTemp) : 28; // 确保是数字
 
-  dbIds.forEach(dbId => {
-    tree.enumNodeFragments(dbId, (fragId) => {
-      fragList.setMaterial(fragId, mat);
+      // 计算热力图颜色
+      const minT = 25, maxT = 35;
+      let t = (temperature - minT) / (maxT - minT);
+      t = Math.max(0, Math.min(1, t));
+      let hue = 200 - (t * 200);
+
+      const hslToRgb = (h, s, l) => {
+        h = h / 360; s = s / 100; l = l / 100;
+        let r, g, b;
+        if (s === 0) {
+          r = g = b = l;
+        } else {
+          const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+          };
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          r = hue2rgb(p, q, h + 1/3);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1/3);
+        }
+        return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+      };
+
+      const [r, g, b] = hslToRgb(hue, 100, 50);
+      const color = new window.THREE.Vector4(r / 255, g / 255, b / 255, 0.8);
+      viewer.setThemingColor(dbId, color);
     });
-  });
+  } else {
+    // 普通模式：应用蓝色材质
+    const mat = getRoomMaterial();
+    const fragList = viewer.model.getFragmentList();
+    const tree = viewer.model.getInstanceTree();
 
-  viewer.impl.invalidate(true);
+    dbIds.forEach(dbId => {
+      tree.enumNodeFragments(dbId, (fragId) => {
+        fragList.setMaterial(fragId, mat);
+      });
+    });
+  }
+
+  // 强制刷新渲染
+  viewer.impl.invalidate(true, true, true);
 
   // 只显示选中房间的温度标签，隐藏其他
   roomTags.value.forEach(tag => {
@@ -493,7 +629,7 @@ const isolateAndFocusRooms = (dbIds) => {
   });
   areTagsVisible.value = true;
 
-  // 定位到选中的房间（如果是多个，会自动调整视角包含所有房间）
+  // 定位到选中的房间
   viewer.fitToView(dbIds, viewer.model);
 
   // 等待视角调整后更新标签位置
@@ -517,11 +653,29 @@ const isolateAndFocusRooms = (dbIds) => {
 const showAllRooms = () => {
   if (!viewer) return;
 
-  // 取消孤立，显示所有构件
-  viewer.isolate([]);
+  // 孤立所有房间（隐藏其他构件）
+  viewer.isolate(foundRoomDbIds);
 
-  // 恢复所有房间的蓝色材质
-  applyRoomStyle();
+  // 根据热力图状态应用不同颜色
+  if (isHeatmapEnabled.value) {
+    applyHeatmapStyle();
+  } else {
+    // 清除所有主题颜色
+    viewer.clearThemingColors();
+
+    // 应用蓝色材质
+    const mat = getRoomMaterial();
+    const fragList = viewer.model.getFragmentList();
+    const tree = viewer.model.getInstanceTree();
+
+    foundRoomDbIds.forEach(dbId => {
+      tree.enumNodeFragments(dbId, (fragId) => {
+        fragList.setMaterial(fragId, mat);
+      });
+    });
+
+    viewer.impl.invalidate(true, true, true);
+  }
 
   // 显示所有房间的温度标签
   roomTags.value.forEach(tag => {
@@ -532,10 +686,136 @@ const showAllRooms = () => {
   updateAllTagPositions();
 };
 
+// 9. 切换热力图
+const toggleHeatmap = () => {
+  isHeatmapEnabled.value = !isHeatmapEnabled.value;
+
+  if (isHeatmapEnabled.value) {
+    // 启用热力图：应用温度颜色
+    applyHeatmapStyle();
+  } else {
+    // 关闭热力图：清除主题颜色，恢复蓝色材质
+    viewer.clearThemingColors();
+
+    const mat = getRoomMaterial();
+    const fragList = viewer.model.getFragmentList();
+    const tree = viewer.model.getInstanceTree();
+
+    foundRoomDbIds.forEach(dbId => {
+      tree.enumNodeFragments(dbId, (fragId) => {
+        fragList.setMaterial(fragId, mat);
+      });
+    });
+
+    viewer.impl.invalidate(true, true, true);
+  }
+
+  // 显示所有温度标签
+  roomTags.value.forEach(tag => {
+    tag.visible = true;
+  });
+
+  updateAllTagPositions();
+};
+
+// 10. 应用热力图样式
+const applyHeatmapStyle = () => {
+  if (foundRoomDbIds.length === 0) return;
+
+  foundRoomDbIds.forEach(dbId => {
+    // 找到对应的房间标签获取温度
+    const tag = roomTags.value.find(t => t.dbId === dbId);
+    const temperature = tag ? parseFloat(tag.currentTemp) : 28; // 默认温度，确保是数字
+
+    // 计算热力图颜色
+    const minT = 25, maxT = 35;
+    let t = (temperature - minT) / (maxT - minT);
+    t = Math.max(0, Math.min(1, t));
+
+    // 从蓝色(冷)到红色(热)
+    let hue = 200 - (t * 200); // 200(蓝) -> 0(红)
+
+    // 转换 HSL 到 RGB
+    const hslToRgb = (h, s, l) => {
+      h = h / 360;
+      s = s / 100;
+      l = l / 100;
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    };
+
+    const [r, g, b] = hslToRgb(hue, 100, 50);
+    const color = new window.THREE.Vector4(r / 255, g / 255, b / 255, 0.8);
+
+    // 使用 setThemingColor 而不是 setMaterial
+    viewer.setThemingColor(dbId, color);
+  });
+
+  // 强制刷新渲染
+  viewer.impl.invalidate(true, true, true);
+};
+
+// 11. 获取房间属性
+const getRoomProperties = async (dbId) => {
+  if (!viewer) return null;
+
+  return new Promise((resolve) => {
+    viewer.getProperties(dbId, (result) => {
+      const props = {
+        code: '--',
+        name: result.name || '--',
+        area: '--',
+        perimeter: '--'
+      };
+
+      // 从属性中提取信息
+      if (result.properties) {
+        result.properties.forEach(prop => {
+          const name = prop.displayName || prop.attributeName;
+          const value = prop.displayValue;
+
+          // 匹配编号
+          if (name === '编号' || name === 'Number' || name === 'Mark') {
+            props.code = value;
+          }
+          // 匹配面积
+          else if (name === '面积' || name === 'Area') {
+            props.area = value;
+          }
+          // 匹配周长
+          else if (name === '周长' || name === 'Perimeter') {
+            props.perimeter = value;
+          }
+        });
+      }
+
+      resolve(props);
+    });
+  });
+};
+
 // 暴露方法给父组件
 defineExpose({
   isolateAndFocusRooms,
-  showAllRooms
+  showAllRooms,
+  getRoomProperties
 });
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
@@ -675,12 +955,39 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 :deep(.adsk-viewing-viewer) { background: #111; }
 .overlay-tags { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
 .tag-wrapper { position: absolute; transform: translate(-50%, -100%); margin-top: -10px; pointer-events: auto; }
-.heatmap-glow { position: absolute; top: 50%; left: 50%; width: 120px; height: 120px; border-radius: 50%; filter: blur(20px); mix-blend-mode: screen; z-index: -1; transition: all 0.2s ease-out; }
 .tag-pin { position: relative; }
 .pin-val { background: rgba(30,30,30,0.8); backdrop-filter: blur(4px); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #555; white-space: nowrap; }
 .pin-val.blue { background: #0078d4; border-color: #005a9e; font-weight: bold; }
 .pin-val.alert-bg { background: #ff4d4d; border-color: #d32f2f; font-weight: bold; }
-.heatmap-btn { position: absolute; bottom: 20px; left: 20px; background: #333; color: #fff; padding: 6px 12px; border-radius: 2px; font-size: 12px; cursor: pointer; z-index: 20; }
+.heatmap-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: #333;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  border: 1px solid #555;
+  user-select: none;
+}
+.heatmap-btn:hover {
+  background: #444;
+  border-color: #666;
+}
+.heatmap-btn.active {
+  background: #0078d4;
+  border-color: #005a9e;
+  box-shadow: 0 0 10px rgba(0, 120, 212, 0.5);
+}
+.heatmap-btn.active:hover {
+  background: #006cbd;
+}
 .resizer-y { height: 5px; background: #111; cursor: row-resize; z-index: 60; flex-shrink: 0; border-top: 1px solid #333; border-bottom: 1px solid #000; transition: background 0.2s; }
 .resizer-y:hover { background: #0078d4; }
 .bottom-pane-wrapper { background: #1e1e1e; z-index: 50; flex-shrink: 0; }
