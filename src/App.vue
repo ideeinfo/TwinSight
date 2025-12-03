@@ -1,32 +1,42 @@
 <template>
   <div class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
     <TopBar />
-    
+
     <div class="main-body" ref="mainBody" @mousemove="onResize">
-      
+
       <!-- 左侧面板 -->
       <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
         <LeftPanel
           :rooms="roomList"
           @open-properties="openRightPanel"
           @rooms-selected="onRoomsSelected"
+          @toggle-streams="toggleChartPanel"
         />
       </div>
 
       <div class="resizer" @mousedown="startResize($event, 'left')"></div>
 
-      <!-- 中间主视图 -->
+      <!-- 中间主视图区域 -->
       <div class="main-content">
-        <MainView
-          ref="mainViewRef"
-          @rooms-loaded="onRoomsLoaded"
-        />
+        <!-- 3D 视图 -->
+        <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
+          <MainView
+            ref="mainViewRef"
+            @rooms-loaded="onRoomsLoaded"
+            @chart-data-update="onChartDataUpdate"
+          />
+        </div>
+
+        <!-- 底部图表面板 -->
+        <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
+          <ChartPanel :data="chartData" @close="closeChartPanel" />
+        </div>
       </div>
 
       <!-- 右侧拖拽条 -->
-      <div 
-        v-if="isRightPanelOpen" 
-        class="resizer" 
+      <div
+        v-if="isRightPanelOpen"
+        class="resizer"
         @mousedown="startResize($event, 'right')"
       ></div>
 
@@ -41,27 +51,35 @@
           @close-properties="closeRightPanel"
         />
       </div>
-      
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted, nextTick } from 'vue';
+import { ref, onUnmounted, nextTick, watch } from 'vue';
 import TopBar from './components/TopBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
+import ChartPanel from './components/ChartPanel.vue';
 
 const leftWidth = ref(300);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
+const isChartPanelOpen = ref(false);
+const chartPanelHeight = ref(300);
 const roomList = ref([]);
 const mainViewRef = ref(null);
 const selectedRoomProperties = ref(null);
+const chartData = ref([]);
 
 const onRoomsLoaded = (rooms) => {
   roomList.value = rooms;
+};
+
+const onChartDataUpdate = (data) => {
+  chartData.value = data;
 };
 
 const onRoomsSelected = (dbIds) => {
@@ -104,6 +122,44 @@ const onRoomsSelected = (dbIds) => {
 const openRightPanel = () => {
   isRightPanelOpen.value = true;
   triggerResize(); // 面板出现时，强制刷新布局
+};
+
+// 切换图表面板
+const toggleChartPanel = (isOpen) => {
+  isChartPanelOpen.value = isOpen;
+  // 使用 nextTick 确保 DOM 更新后再 resize
+  nextTick(() => {
+    if (mainViewRef.value?.resizeViewer) {
+      mainViewRef.value.resizeViewer();
+    }
+    triggerResize();
+  });
+  // 动画完成后再触发一次（0.3s 是 CSS transition 时间）
+  setTimeout(() => {
+    if (mainViewRef.value?.resizeViewer) {
+      mainViewRef.value.resizeViewer();
+    }
+    triggerResize();
+  }, 350);
+};
+
+// 关闭图表面板
+const closeChartPanel = () => {
+  isChartPanelOpen.value = false;
+  // 使用 nextTick 确保 DOM 更新后再 resize
+  nextTick(() => {
+    if (mainViewRef.value?.resizeViewer) {
+      mainViewRef.value.resizeViewer();
+    }
+    triggerResize();
+  });
+  // 动画完成后再触发一次
+  setTimeout(() => {
+    if (mainViewRef.value?.resizeViewer) {
+      mainViewRef.value.resizeViewer();
+    }
+    triggerResize();
+  }, 350);
 };
 
 const closeRightPanel = () => {
@@ -159,6 +215,15 @@ const stopResize = () => {
   triggerResize(); // 结束时再次确认
 };
 
+// 监听图表面板状态变化，确保 viewer 及时 resize
+watch(isChartPanelOpen, () => {
+  nextTick(() => {
+    if (mainViewRef.value?.resizeViewer) {
+      mainViewRef.value.resizeViewer();
+    }
+  });
+});
+
 onUnmounted(() => {
   stopResize();
 });
@@ -173,6 +238,8 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .main-body { display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; }
 .panel-wrapper { flex-shrink: 0; height: 100%; overflow: hidden; position: relative; z-index: 20; transition: width 0.05s ease-out; }
 .main-content { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; display: flex; flex-direction: column; }
+.viewer-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; }
+.bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }
 .resizer { width: 5px; background: #111; cursor: col-resize; flex-shrink: 0; z-index: 50; transition: background 0.2s; }
 .resizer:hover, .resizer:active { background: #0078d4; }
 </style>

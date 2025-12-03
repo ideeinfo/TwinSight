@@ -1,7 +1,7 @@
 <template>
   <div class="right-panel">
     <div class="header-row">
-      <span>PROPERTIES</span>
+      <span>{{ t('rightPanel.properties') }}</span>
       <div class="header-icons">
         <svg class="icon-btn" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
         <svg class="icon-btn" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -10,41 +10,41 @@
     </div>
     <div class="breadcrumb-row"><span class="breadcrumb-text">{{ breadcrumbText }}</span><svg class="link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
     <div class="tabs">
-      <div class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">ELEMENT</div>
-      <div class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">TYPE</div>
-      <div class="add-action">+ Add <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+      <div class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">{{ t('rightPanel.element') }}</div>
+      <div class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">{{ t('rightPanel.type') }}</div>
+      <div class="add-action">+ {{ t('common.add') }} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
     </div>
     <div class="scroll-content">
       <div v-if="activeTab === 'ELEMENT'">
-        <div class="group-header" @click="toggleGroup('element_asset')"><span>ASSET PROPERTIES</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
+        <div class="group-header" @click="toggleGroup('element_asset')"><span>{{ t('rightPanel.assetProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_asset">
           <div class="form-group" v-if="roomProperties">
-            <div class="sub-label">Common</div>
-            <div class="row"><label>编号</label><div class="val-box">{{ roomProperties.code || '--' }}</div></div>
-            <div class="row"><label>名称</label><div class="val-box">{{ roomProperties.name || '--' }}</div></div>
-            <div class="row"><label>面积</label><div class="val-box">{{ roomProperties.area || '--' }}</div></div>
-            <div class="row"><label>周长</label><div class="val-box">{{ roomProperties.perimeter || '--' }}</div></div>
+            <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.code') }}</label><div class="val-box">{{ roomProperties.code || t('common.none') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ roomProperties.name || t('common.none') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.area') }}</label><div class="val-box">{{ roomProperties.area || t('common.none') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.perimeter') }}</label><div class="val-box">{{ roomProperties.perimeter || t('common.none') }}</div></div>
           </div>
           <div class="form-group" v-else>
-            <div class="sub-label">Common</div>
-            <div class="row"><label>Name</label><div class="val-box">系统面板 1</div></div>
-            <div class="row"><label>Level</label><div class="val-box">Q-1F</div></div>
-            <div class="row"><label>Assembly Code</label><div class="val-box placeholder">Select Uniformat</div></div>
-            <div class="row"><label>Tandem Category</label><div class="val-box">Panel</div></div>
+            <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ t('rightPanel.systemPanel') }} 1</div></div>
+            <div class="row"><label>{{ t('rightPanel.level') }}</label><div class="val-box">Q-1F</div></div>
+            <div class="row"><label>{{ t('rightPanel.assemblyCode') }}</label><div class="val-box placeholder">{{ t('rightPanel.selectUniformat') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.tandemCategory') }}</label><div class="val-box">{{ t('rightPanel.panel') }}</div></div>
           </div>
         </div>
-        <div class="group-header" @click="toggleGroup('element_rel')"><span>RELATIONSHIPS</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_rel }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
+        <div class="group-header" @click="toggleGroup('element_rel')"><span>{{ t('rightPanel.relationships') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_rel }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_rel">
-          <div class="form-group"><div class="row"><label>Rooms</label><div class="val-box placeholder">Select Room(s)</div></div><div class="row"><label>Parent</label><div class="link-text">幕墙</div></div></div>
+          <div class="form-group"><div class="row"><label>{{ t('rightPanel.rooms') }}</label><div class="val-box placeholder">{{ t('rightPanel.selectRooms') }}</div></div><div class="row"><label>{{ t('rightPanel.parent') }}</label><div class="link-text">{{ t('rightPanel.curtainWall') }}</div></div></div>
         </div>
       </div>
       <div v-if="activeTab === 'TYPE'">
-        <div class="group-header" @click="toggleGroup('type_asset')"><span>ASSET PROPERTIES</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
+        <div class="group-header" @click="toggleGroup('type_asset')"><span>{{ t('rightPanel.assetProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.type_asset">
-          <div class="form-group"><div class="sub-label">Common</div><div class="row"><label>Name</label><div class="val-box">玻璃</div></div><div class="row"><label>Assembly Code <span class="info-i">i</span></label><div class="val-box placeholder dropdown">Select Uniformat<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row"><label>Tandem Category</label><div class="val-box dropdown">Panel<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row" style="height: auto; align-items: flex-start; margin-top: 6px;"><label style="margin-top: 4px;">Classification <span class="info-i">i</span></label><div class="val-box placeholder dropdown multiline">Select CAClass-20241024<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div></div>
+          <div class="form-group"><div class="sub-label">{{ t('rightPanel.common') }}</div><div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ t('rightPanel.glass') }}</div></div><div class="row"><label>{{ t('rightPanel.assemblyCode') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown">{{ t('rightPanel.selectUniformat') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row"><label>{{ t('rightPanel.tandemCategory') }}</label><div class="val-box dropdown">{{ t('rightPanel.panel') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row" style="height: auto; align-items: flex-start; margin-top: 6px;"><label style="margin-top: 4px;">{{ t('rightPanel.classification') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown multiline">{{ t('rightPanel.selectClassification') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div></div>
         </div>
-        <div class="group-header" @click="toggleGroup('type_design')"><span>DESIGN PROPERTIES</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_design }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
-        <div class="group-body" v-show="!collapsedState.type_design"><div class="form-group"><div class="row"><label>Manufacturer</label><div class="val-box placeholder">--</div></div><div class="row"><label>Model</label><div class="val-box placeholder">--</div></div></div></div>
+        <div class="group-header" @click="toggleGroup('type_design')"><span>{{ t('rightPanel.designProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_design }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
+        <div class="group-body" v-show="!collapsedState.type_design"><div class="form-group"><div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div><div class="row"><label>{{ t('rightPanel.model') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div></div></div>
       </div>
     </div>
   </div>
@@ -52,6 +52,9 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   roomProperties: {
@@ -69,11 +72,11 @@ const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
 const breadcrumbText = computed(() => {
   if (props.roomProperties) {
     if (props.roomProperties.isMultiple) {
-      return '房间 : 多个';
+      return `${t('rightPanel.room')} : ${t('common.multiple')}`;
     }
-    return `房间 : ${props.roomProperties.name || '未命名'}`;
+    return `${t('rightPanel.room')} : ${props.roomProperties.name || t('common.unnamed')}`;
   }
-  return '幕墙嵌板 : 系统面板 1 : 玻璃';
+  return `${t('rightPanel.curtainWallPanel')} : ${t('rightPanel.systemPanel')} 1 : ${t('rightPanel.glass')}`;
 });
 </script>
 

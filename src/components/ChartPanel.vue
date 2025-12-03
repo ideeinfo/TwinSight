@@ -3,13 +3,15 @@
     <!-- 图表头部 -->
     <div class="chart-header">
       <div class="title-section">
-        <span class="info-icon">i</span>
-        <span class="label">温度 (°C)</span>
-        <span class="target">系统面板 1 (GUID: 09D$0z7$51pel$M$ODiYUo)</span>
+        <svg class="chart-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+        <span class="label">{{ t('chartPanel.temperature') }}</span>
+        <span class="target" v-if="displayData.length > 0">{{ t('chartPanel.systemPanel') }} 1 (GUID: 09D$0z7$51pel$M$ODiYUo)</span>
       </div>
       <div class="tools">
         <span class="date-range">{{ dateRangeText }}</span>
-        <button class="close">×</button>
+        <button class="close" @click="$emit('close')">×</button>
       </div>
     </div>
 
@@ -19,10 +21,10 @@
       <div class="grid-line" style="bottom: 25%"></div>
       <div class="grid-line" style="bottom: 50%"></div>
       <div class="grid-line" style="bottom: 75%"></div>
-      
+
       <!-- 阈值线 -->
       <div class="threshold-line" :style="{ bottom: thresholdBottom + '%' }">
-        <span class="threshold-label">30°C Alert</span>
+        <span class="threshold-label">30°C {{ t('chartPanel.alert') }}</span>
       </div>
 
       <!-- SVG 曲线 -->
@@ -39,14 +41,14 @@
         </defs>
         <path :d="areaPath" fill="url(#areaGradBottom)" stroke="none" />
         <path :d="linePath" fill="none" stroke="url(#strokeGradBottom)" stroke-width="2" vector-effect="non-scaling-stroke" />
-        
+
         <!-- 悬浮交互 -->
         <g v-if="hoverX > 0">
           <line :x1="hoverX" y1="0" :x2="hoverX" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
           <circle :cx="hoverX" :cy="hoverY" r="4" :fill="parseFloat(hoverValue) >= 30 ? '#ff4d4d' : '#00b0ff'" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
         </g>
       </svg>
-      
+
       <!-- Tooltip -->
       <div v-if="hoverX > 0" class="tooltip-box" :style="{ left: tooltipLeft, top: tooltipTop }">
         <div class="val" :class="{ 'alert-val': parseFloat(hoverValue) >= 30 }">
@@ -55,7 +57,7 @@
         </div>
         <div class="time">{{ hoverTime }}</div>
       </div>
-      
+
       <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
     </div>
 
@@ -65,8 +67,8 @@
         <span v-for="(label, index) in xLabels" :key="index">{{ label }}</span>
       </div>
       <div class="legend">
-        <span class="warn red">⚠️ Alert > 30°C</span>
-        <span class="warn blue">● Normal</span>
+        <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }}</span>
+        <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
       </div>
     </div>
   </div>
@@ -74,10 +76,15 @@
 
 <script setup>
 import { ref, computed, toRefs } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   data: { type: Array, default: () => [] }
 });
+
+const emit = defineEmits(['close']);
 
 const { data: displayData } = toRefs(props);
 
@@ -142,17 +149,17 @@ const onMouseMove = (e) => {
   const percent = Math.max(0, Math.min(1, svgX / 1000));
   const index = Math.round(percent * (displayData.value.length - 1));
   const point = displayData.value[index];
-  
+
   const ratio = (point.value - MIN_Y) / (MAX_Y - MIN_Y);
   const svgY = 100 - (ratio * 100);
-  
+
   hoverX.value = (index / (displayData.value.length - 1)) * 1000;
   hoverY.value = svgY;
-  
+
   hoverValue.value = Number(point.value).toFixed(1);
-  
+
   hoverTime.value = new Date(point.timestamp).toLocaleString();
-  
+
   tooltipPxX.value = mouseX;
   tooltipPxY.value = rect.height * (1 - ratio);
 };
@@ -169,25 +176,207 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
 </script>
 
 <style scoped>
-.chart-container { display: flex; flex-direction: column; height: 100%; color: #ccc; font-size: 11px; background: #1e1e1e; position: relative; user-select: none; }
-.chart-header { height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #333; background: #252526; }
-.info-icon { background: #0078d4; color: #fff; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; border-radius: 2px; margin-right: 6px; font-weight: bold; }
-.target { color: #00b0ff; margin-left: 6px; }
-.close { background: none; border: none; color: #ccc; cursor: pointer; font-size: 16px; }
-.chart-body { flex: 1; position: relative; background: #1e1e1e; overflow: hidden; cursor: crosshair; }
-.grid-line { position: absolute; left: 0; right: 0; height: 1px; background: #333; border-top: 1px dashed #444; }
-.threshold-line { position: absolute; left: 0; right: 0; height: 1px; border-top: 1px dashed #ff4d4d; z-index: 5; pointer-events: none; }
-.threshold-label { position: absolute; right: 10px; bottom: 2px; color: #ff4d4d; font-size: 10px; font-weight: bold; background: rgba(30,30,30,0.8); padding: 0 4px; }
-.svg-chart { width: 100%; height: 100%; position: absolute; top: 0; left: 0; overflow: visible; }
-.tooltip-box { position: absolute; background: rgba(30,30,30,0.95); border: 1px solid #555; padding: 6px 10px; border-radius: 4px; z-index: 20; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5); transition: top 0.05s ease, left 0.05s ease; }
-.val { font-size: 14px; font-weight: bold; color: #00b0ff; }
-.val.alert-val { color: #ff4d4d; }
-.alert-badge { margin-left: 4px; font-size: 12px; }
-.time { color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; }
-.interaction-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-.chart-footer { height: 36px; background: #1e1e1e; padding: 0 16px; flex-shrink: 0; border-top: 1px solid #333; display: flex; flex-direction: column; justify-content: center; }
-.axis-labels { display: flex; justify-content: space-between; color: #666; font-size: 10px; }
-.legend { display: flex; justify-content: center; gap: 20px; margin-top: 2px; }
-.warn { display: flex; align-items: center; gap: 4px; font-size: 10px; }
-.warn.red { color: #ff4d4d; } .warn.blue { color: #00b0ff; }
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: #ccc;
+  font-size: 11px;
+  background: #1e1e1e;
+  position: relative;
+  user-select: none;
+}
+
+.chart-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #333;
+  background: #252526;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-icon {
+  color: #0078d4;
+  flex-shrink: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #eee;
+}
+
+.target {
+  color: #00b0ff;
+  font-size: 11px;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date-range {
+  font-size: 11px;
+  color: #888;
+}
+
+.close {
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.close:hover {
+  color: #f48771;
+}
+
+.chart-body {
+  flex: 1;
+  position: relative;
+  background: #1e1e1e;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #333;
+  border-top: 1px dashed #444;
+}
+
+.threshold-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed #ff4d4d;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.threshold-label {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  color: #ff4d4d;
+  font-size: 10px;
+  font-weight: bold;
+  background: rgba(30,30,30,0.8);
+  padding: 0 4px;
+}
+
+.svg-chart {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+
+.tooltip-box {
+  position: absolute;
+  background: rgba(30,30,30,0.95);
+  border: 1px solid #555;
+  padding: 6px 10px;
+  border-radius: 4px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  transition: top 0.05s ease, left 0.05s ease;
+}
+
+.val {
+  font-size: 14px;
+  font-weight: bold;
+  color: #00b0ff;
+}
+
+.val.alert-val {
+  color: #ff4d4d;
+}
+
+.alert-badge {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+.time {
+  color: #888;
+  font-size: 10px;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.interaction-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.chart-footer {
+  height: 36px;
+  background: #1e1e1e;
+  padding: 0 16px;
+  flex-shrink: 0;
+  border-top: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.axis-labels {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 10px;
+}
+
+.legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 2px;
+}
+
+.warn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.warn.red {
+  color: #ff4d4d;
+}
+
+.warn.blue {
+  color: #00b0ff;
+}
 </style>
+

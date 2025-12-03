@@ -2,24 +2,34 @@
   <div class="left-container">
     <!-- Icon Bar -->
     <div class="icon-bar">
-      <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">Filters</span></div>
-      <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">Assets</span></div>
-      <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">Files</span></div>
-      <div class="spacer"></div>
-      <div class="nav-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">Systems</span></div>
-      <div class="nav-item active-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00b0ff" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label" style="color:#00b0ff">Connect</span></div>
+      <!-- 上部按钮组 -->
+      <div class="nav-group-top">
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
+        <div class="spacer"></div>
+        <div class="nav-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
+        <div class="nav-item active-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00b0ff" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label" style="color:#00b0ff">{{ t('leftPanel.connect') }}</span></div>
+      </div>
+
+      <!-- 下部按钮组 -->
+      <div class="nav-group-bottom">
+        <div class="nav-item" :class="{ 'active-blue': isStreamsActive }" @click="toggleStreams"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isStreamsActive ? '#00b0ff' : 'currentColor'" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg><span class="label" :style="{ color: isStreamsActive ? '#00b0ff' : '' }">{{ t('leftPanel.streams') }}</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span class="label">{{ t('leftPanel.history') }}</span></div>
+        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span class="label">{{ t('leftPanel.inventory') }}</span></div>
+      </div>
     </div>
 
     <!-- List Panel -->
     <div class="list-panel">
-      <div class="panel-header"><span class="title">CONNECTIONS</span><div class="actions"><span class="plus">+</span> Create</div></div>
-      <div class="search-row"><div class="search-input-wrapper"><svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><input type="text" placeholder="Search" /></div><div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div></div>
-      <div class="status-bar"><span>Status</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+      <div class="panel-header"><span class="title">{{ t('leftPanel.connections') }}</span><div class="actions"><span class="plus">+</span> {{ t('common.create') }}</div></div>
+      <div class="search-row"><div class="search-input-wrapper"><svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><input type="text" :placeholder="t('common.search')" /></div><div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div></div>
+      <div class="status-bar"><span>{{ t('common.status') }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
       
       <div class="item-list">
         <!-- 加载提示 -->
         <div v-if="items.length === 0" class="loading-hint">
-          正在加载房间列表...
+          {{ t('leftPanel.noRooms') }}
         </div>
 
         <div
@@ -51,6 +61,9 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   rooms: {
@@ -59,7 +72,16 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['open-properties', 'rooms-selected']);
+const emit = defineEmits(['open-properties', 'rooms-selected', 'toggle-streams']);
+
+// 数据流按钮激活状态
+const isStreamsActive = ref(false);
+
+// 切换数据流面板
+const toggleStreams = () => {
+  isStreamsActive.value = !isStreamsActive.value;
+  emit('toggle-streams', isStreamsActive.value);
+};
 
 // 使用从模型获取的房间列表，如果为空则显示加载提示
 const items = computed(() => {
@@ -105,7 +127,9 @@ const selectItem = (index) => {
 
 <style scoped>
 .left-container { display: flex; height: 100%; width: 100%; background: #252526; border-right: 1px solid #1e1e1e; }
-.icon-bar { width: 48px; flex-shrink: 0; background: #2b2b2b; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
+.icon-bar { width: 48px; flex-shrink: 0; background: #2b2b2b; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+.nav-group-top { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
+.nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
 .nav-item:hover { color: #fff; } .nav-item.active { color: #fff; border-left: 2px solid transparent; } .nav-item.active-blue { border-left: 2px solid #00b0ff; }
 .nav-item .label { font-size: 9px; margin-top: 4px; }

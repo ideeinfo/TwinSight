@@ -16,7 +16,7 @@
         </div>
         <div class="divider"></div>
         <div class="live-status-box">
-          <div class="live-btn" :class="{ active: isLive }"><span class="dot">●</span> Live</div>
+          <div class="live-btn" :class="{ active: isLive }"><span class="dot">●</span> {{ t('timeline.live') }}</div>
         </div>
       </div>
 
@@ -30,16 +30,16 @@
               <svg class="cal-icon-sm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               <span class="info-text">{{ currentDateStr }} &nbsp; <strong>{{ currentTimeStr }}</strong></span>
             </div>
-            <div class="live-indicator" :class="{ active: isLive }" @click="goLive"><span class="dot">●</span> Live</div>
+            <div class="live-indicator" :class="{ active: isLive }" @click="goLive"><span class="dot">●</span> {{ t('timeline.live') }}</div>
           </div>
           <div class="toolbar-right">
             <div class="time-range-wrapper" ref="dropdownRef">
-              <div class="dropdown-trigger" @click="toggleTimeRangeMenu">{{ selectedTimeRange.label }} <svg class="arrow" :class="{ rotated: isTimeRangeMenuOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+              <div class="dropdown-trigger" @click="toggleTimeRangeMenu">{{ selectedTimeRangeLabel }} <svg class="arrow" :class="{ rotated: isTimeRangeMenuOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
               <transition name="fade">
                 <div v-if="isTimeRangeMenuOpen" class="dropdown-menu">
                   <div v-for="option in timeOptions" :key="option.value" class="menu-item" :class="{ active: selectedTimeRange.value === option.value }" @click="selectTimeRange(option)">{{ option.label }}<svg v-if="selectedTimeRange.value === option.value" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
                   <div class="menu-divider"></div>
-                  <div class="menu-item" :class="{ active: selectedTimeRange.value === 'custom' }" @click="openCustomRangeModal">Custom range...<svg v-if="selectedTimeRange.value === 'custom'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                  <div class="menu-item" :class="{ active: selectedTimeRange.value === 'custom' }" @click="openCustomRangeModal">{{ t('timeline.custom') }}...<svg v-if="selectedTimeRange.value === 'custom'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
                 </div>
               </transition>
             </div>
@@ -77,16 +77,16 @@
     <!-- Custom Range Modal -->
     <div v-if="isCustomModalOpen" class="modal-overlay">
       <div class="custom-modal">
-        <div class="modal-header"><span>Select Date Range</span><button class="close-btn" @click="closeCustomModal">×</button></div>
+        <div class="modal-header"><span>{{ t('timeline.selectDateRange') }}</span><button class="close-btn" @click="closeCustomModal">×</button></div>
         <div class="calendar-widget">
           <div class="cal-header"><button @click="changeMonth(-1)">&#9664;</button><span>{{ calendarTitle }}</span><button @click="changeMonth(1)">&#9654;</button></div>
           <div class="cal-grid">
-            <div class="cal-day-name" v-for="d in ['Su','Mo','Tu','We','Th','Fr','Sa']" :key="d">{{d}}</div>
+            <div class="cal-day-name" v-for="(d, idx) in calendarDayNames" :key="idx">{{d}}</div>
             <div v-for="(day, idx) in calendarDays" :key="idx" class="cal-day" :class="{ 'empty': !day.inMonth, 'selected': isDaySelected(day.date), 'in-range': isDayInRange(day.date) }" @click="handleDayClick(day)">{{ day.date ? day.date.getDate() : '' }}</div>
           </div>
-          <div class="range-preview"><div class="preview-box"><label>Start</label><span :class="{ placeholder: !tempStart }">{{ formatDate(tempStart) || 'Select date' }}</span></div><div class="arrow">→</div><div class="preview-box"><label>End</label><span :class="{ placeholder: !tempEnd }">{{ formatDate(tempEnd) || 'Select date' }}</span></div></div>
+          <div class="range-preview"><div class="preview-box"><label>{{ t('timeline.startDate') }}</label><span :class="{ placeholder: !tempStart }">{{ formatDate(tempStart) || t('common.select') }}</span></div><div class="arrow">→</div><div class="preview-box"><label>{{ t('timeline.endDate') }}</label><span :class="{ placeholder: !tempEnd }">{{ formatDate(tempEnd) || t('common.select') }}</span></div></div>
         </div>
-        <div class="modal-footer"><button class="btn-cancel" @click="closeCustomModal">Cancel</button><button class="btn-apply" @click="applyCustomRange" :disabled="!tempStart || !tempEnd">Apply</button></div>
+        <div class="modal-footer"><button class="btn-cancel" @click="closeCustomModal">{{ t('common.cancel') }}</button><button class="btn-apply" @click="applyCustomRange" :disabled="!tempStart || !tempEnd">{{ t('common.apply') }}</button></div>
       </div>
     </div>
 
@@ -126,24 +126,21 @@
           </defs>
           <rect x="2" y="2" width="12" height="12" rx="2" fill="url(#heatGradient)" opacity="0.8"/>
         </svg>
-        热力图
+        {{ t('header.heatmap') }}
       </div>
     </div>
 
-    <div class="resizer-y" @mousedown="startVerticalResize"></div>
-
-    <div class="bottom-pane-wrapper" :style="{ height: chartHeight + 'px' }">
-      <BottomChart :data="chartData" />
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
-import BottomChart from './BottomChart.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded']);
+const emit = defineEmits(['rooms-loaded', 'chart-data-update']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -155,7 +152,6 @@ const isDragging = ref(false);
 const playbackSpeed = ref(1);
 const progress = ref(95);
 const trackRef = ref(null);
-const chartHeight = ref(240);
 
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
@@ -178,14 +174,41 @@ const startDate = ref(new Date(MOCK_NOW.getTime() - 3 * 24 * 60 * 60 * 1000));
 // Dropdown & Modal 状态
 const isTimeRangeMenuOpen = ref(false);
 const dropdownRef = ref(null);
-const selectedTimeRange = ref({ label: 'Last 3 days', value: '3d' });
+const selectedTimeRange = ref({ label: '', value: '3d' });
 const isCustomModalOpen = ref(false);
 const calendarViewDate = ref(new Date());
 const tempStart = ref(null);
 const tempEnd = ref(null);
-const timeOptions = [{ label: 'Last 24 hours', value: '24h' }, { label: 'Last 3 days', value: '3d' }, { label: 'Last 7 days', value: '7d' }, { label: 'Last 30 days', value: '30d' }];
 
 // ================== 2. 计算属性 (Computed) ==================
+
+// 时间范围选项（支持多语言）
+const timeOptions = computed(() => [
+  { label: t('timeline.24h'), value: '24h' },
+  { label: t('timeline.3d'), value: '3d' },
+  { label: t('timeline.7d'), value: '7d' },
+  { label: t('timeline.30d'), value: '30d' }
+]);
+
+// 当前选中的时间范围标签（支持多语言）
+const selectedTimeRangeLabel = computed(() => {
+  if (selectedTimeRange.value.value === 'custom') {
+    return t('timeline.custom');
+  }
+  const option = timeOptions.value.find(o => o.value === selectedTimeRange.value.value);
+  return option ? option.label : '';
+});
+
+// 日历星期名称（支持多语言）
+const calendarDayNames = computed(() => [
+  t('calendar.sun'),
+  t('calendar.mon'),
+  t('calendar.tue'),
+  t('calendar.wed'),
+  t('calendar.thu'),
+  t('calendar.fri'),
+  t('calendar.sat')
+]);
 
 // 必须放在 isLive 之前
 const chartData = computed(() => {
@@ -213,6 +236,11 @@ const currentTemp = computed(() => {
   const point = chartData.value[index];
   return point ? parseFloat(point.value.toFixed(1)) : 0;
 });
+
+// 监听图表数据变化，发射给父组件
+watch(chartData, (newData) => {
+  emit('chart-data-update', newData);
+}, { immediate: true });
 
 // 监听温度变化，更新房间标签数值
 watch(currentTemp, (val) => {
@@ -811,11 +839,20 @@ const getRoomProperties = async (dbId) => {
   });
 };
 
+// 手动触发 viewer resize
+const resizeViewer = () => {
+  if (viewer) {
+    viewer.resize();
+    updateAllTagPositions();
+  }
+};
+
 // 暴露方法给父组件
 defineExpose({
   isolateAndFocusRooms,
   showAllRooms,
-  getRoomProperties
+  getRoomProperties,
+  resizeViewer
 });
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
@@ -829,7 +866,7 @@ const isDaySelected = (d) => isSameDay(d, tempStart.value) || isSameDay(d, tempE
 const isDayInRange = (d) => d && tempStart.value && tempEnd.value && d > tempStart.value && d < tempEnd.value;
 const handleDayClick = (d) => { if (!d.date) return; if (!tempStart.value || (tempStart.value && tempEnd.value)) { tempStart.value = d.date; tempEnd.value = null; } else { if (d.date < tempStart.value) { tempEnd.value = tempStart.value; tempStart.value = d.date; } else tempEnd.value = d.date; } };
 const formatDate = (d) => d ? d.toLocaleDateString() : '';
-const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: 'Custom', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
+const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: '', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
 const closeCustomModal = () => isCustomModalOpen.value = false;
 const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; } };
 const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); };
@@ -843,10 +880,6 @@ const startDrag = (e) => { isDragging.value=true; isPlaying.value=false; updateP
 const onDrag = (e) => isDragging.value && updateP(e);
 const stopDrag = () => { isDragging.value=false; window.removeEventListener('mousemove',onDrag); window.removeEventListener('mouseup',stopDrag); };
 const updateP = (e) => { if(!trackRef.value)return; const r=trackRef.value.getBoundingClientRect(); progress.value=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100)); };
-let startY=0, startH=0;
-const startVerticalResize = (e) => { startY=e.clientY; startH=chartHeight.value; document.addEventListener('mousemove',onVResize); document.addEventListener('mouseup',stopVResize); document.body.style.cursor='row-resize'; };
-const onVResize = (e) => { const h = startH + (startY - e.clientY); if(h>50 && h<600) chartHeight.value = h; if(viewer) viewer.resize(); };
-const stopVResize = () => { document.removeEventListener('mousemove',onVResize); document.removeEventListener('mouseup',stopVResize); document.body.style.cursor=''; if(viewer) viewer.resize(); };
 const openTimeline = () => isTimelineOpen.value=true;
 const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false; };
 const handleClickOutside = (e) => { if(dropdownRef.value && !dropdownRef.value.contains(e.target)) isTimeRangeMenuOpen.value=false; };
@@ -988,8 +1021,5 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 .heatmap-btn.active:hover {
   background: #006cbd;
 }
-.resizer-y { height: 5px; background: #111; cursor: row-resize; z-index: 60; flex-shrink: 0; border-top: 1px solid #333; border-bottom: 1px solid #000; transition: background 0.2s; }
-.resizer-y:hover { background: #0078d4; }
-.bottom-pane-wrapper { background: #1e1e1e; z-index: 50; flex-shrink: 0; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
