@@ -88,7 +88,7 @@ const assetList = ref([]);
 const mainViewRef = ref(null);
 const selectedRoomProperties = ref(null);
 const chartData = ref([]);
-const currentView = ref('connect'); // 'connect' or 'assets'
+const currentView = ref('assets'); // 'connect' or 'assets' - 默认加载资产页面
 
 const onRoomsLoaded = (rooms) => {
   roomList.value = rooms;
@@ -213,6 +213,7 @@ const onAssetsSelected = async (dbIds) => {
           name: allProps[0].name,
           mcCode: allProps[0].mcCode,
           level: allProps[0].level,
+          room: allProps[0].room,
           omniClass21Number: allProps[0].omniClass21Number,
           omniClass21Description: allProps[0].omniClass21Description,
           category: allProps[0].category,
@@ -229,6 +230,7 @@ const onAssetsSelected = async (dbIds) => {
           if (mergedProps.name !== props.name) mergedProps.name = VARIES_VALUE;
           if (mergedProps.mcCode !== props.mcCode) mergedProps.mcCode = VARIES_VALUE;
           if (mergedProps.level !== props.level) mergedProps.level = VARIES_VALUE;
+          if (mergedProps.room !== props.room) mergedProps.room = VARIES_VALUE;
           if (mergedProps.omniClass21Number !== props.omniClass21Number) mergedProps.omniClass21Number = VARIES_VALUE;
           if (mergedProps.omniClass21Description !== props.omniClass21Description) mergedProps.omniClass21Description = VARIES_VALUE;
           if (mergedProps.category !== props.category) mergedProps.category = VARIES_VALUE;

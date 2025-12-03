@@ -44,7 +44,15 @@
         </div>
         <div class="group-header" @click="toggleGroup('element_rel')"><span>{{ t('rightPanel.relationships') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_rel }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_rel">
-          <div class="form-group"><div class="row"><label>{{ t('rightPanel.rooms') }}</label><div class="val-box placeholder">{{ t('rightPanel.selectRooms') }}</div></div><div class="row"><label>{{ t('rightPanel.parent') }}</label><div class="link-text">{{ t('rightPanel.curtainWall') }}</div></div></div>
+          <!-- 资产模式 -->
+          <div class="form-group" v-if="isAssetMode">
+            <div class="row"><label>{{ t('rightPanel.rooms') }}</label><div class="val-box">{{ formatValue(roomProperties?.room) }}</div></div>
+          </div>
+          <!-- 默认关系 -->
+          <div class="form-group" v-else>
+            <div class="row"><label>{{ t('rightPanel.rooms') }}</label><div class="val-box placeholder">{{ t('rightPanel.selectRooms') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.parent') }}</label><div class="link-text">{{ t('rightPanel.curtainWall') }}</div></div>
+          </div>
         </div>
       </div>
       <div v-if="activeTab === 'TYPE'">

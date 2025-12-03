@@ -163,7 +163,7 @@ const trackRef = ref(null);
 
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
-const areTagsVisible = ref(true); // 全局显隐控制
+const areTagsVisible = ref(props.currentView === 'connect'); // 根据当前视图决定初始显隐状态
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
@@ -490,9 +490,11 @@ const processRooms = (dbIds) => {
         // 所有属性获取完成，发送房间列表
         emit('rooms-loaded', roomList);
 
-        // 延迟应用样式，确保所有属性加载完成
+        // 根据当前视图决定是否应用房间样式
         setTimeout(() => {
-          applyRoomStyle();
+          if (props.currentView === 'connect') {
+            applyRoomStyle();
+          }
         }, 100);
       }
     }, (err) => {
@@ -501,9 +503,11 @@ const processRooms = (dbIds) => {
       if (pendingProps === 0) {
         emit('rooms-loaded', roomList);
 
-        // 延迟应用样式，确保所有属性加载完成
+        // 根据当前视图决定是否应用房间样式
         setTimeout(() => {
-          applyRoomStyle();
+          if (props.currentView === 'connect') {
+            applyRoomStyle();
+          }
         }, 100);
       }
     });
@@ -564,6 +568,13 @@ const extractAssets = () => {
       pendingProps--;
       if (pendingProps === 0) {
         emit('assets-loaded', assetList);
+
+        // 如果当前是资产视图，立即显示资产
+        setTimeout(() => {
+          if (props.currentView === 'assets') {
+            showAllAssets();
+          }
+        }, 100);
       }
     });
   });
@@ -665,11 +676,17 @@ const isolateAndFocusRooms = (dbIds) => {
   // 设置标志，防止 onSelectionChanged 递归调用
   isManualSelection = true;
 
-  // 孤立选中的房间（隐藏其他所有构件）
-  viewer.isolate(dbIds);
+  // 清除选择（避免蓝色高亮）
+  viewer.clearSelection();
 
-  // 选中这些房间
-  viewer.select(dbIds);
+  // 隐藏未选中的房间
+  const roomsToHide = foundRoomDbIds.filter(id => !dbIds.includes(id));
+  if (roomsToHide.length > 0) {
+    viewer.hide(roomsToHide);
+  }
+
+  // 显示选中的房间
+  viewer.show(dbIds);
 
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
@@ -712,17 +729,28 @@ const isolateAndFocusRooms = (dbIds) => {
       viewer.setThemingColor(dbId, color);
     });
   } else {
-    // 普通模式：应用蓝色材质
+    // 普通模式：清除主题颜色，应用浅紫色材质
+    viewer.clearThemingColors();
+
     const mat = getRoomMaterial();
     const fragList = viewer.model.getFragmentList();
     const tree = viewer.model.getInstanceTree();
 
+    // 先清除所有房间的主题颜色
+    foundRoomDbIds.forEach(dbId => {
+      viewer.setThemingColor(dbId, null);
+    });
+
+    // 然后只对选中的房间应用浅紫色材质
     dbIds.forEach(dbId => {
       tree.enumNodeFragments(dbId, (fragId) => {
         fragList.setMaterial(fragId, mat);
       });
     });
   }
+
+  // 定位到选中的房间
+  viewer.fitToView(dbIds, viewer.model);
 
   // 强制刷新渲染
   viewer.impl.invalidate(true, true, true);
@@ -732,9 +760,6 @@ const isolateAndFocusRooms = (dbIds) => {
     tag.visible = dbIds.includes(tag.dbId);
   });
   areTagsVisible.value = true;
-
-  // 定位到选中的房间
-  viewer.fitToView(dbIds, viewer.model);
 
   // 等待视角调整后更新标签位置
   setTimeout(() => {
@@ -748,9 +773,6 @@ const isolateAndFocusRooms = (dbIds) => {
       }
     });
   }, 100);
-
-  // 清除选择（不触发高亮边框）
-  viewer.clearSelection();
 };
 
 // 8. 恢复显示所有房间（供外部调用）
@@ -760,8 +782,8 @@ const showAllRooms = () => {
   // 设置手动选择标志
   isManualSelection = true;
 
-  // 孤立所有房间（隐藏其他构件）
-  viewer.isolate(foundRoomDbIds);
+  // 显示所有房间
+  viewer.show(foundRoomDbIds);
 
   // 清除选择
   viewer.clearSelection();
@@ -773,7 +795,12 @@ const showAllRooms = () => {
     // 清除所有主题颜色
     viewer.clearThemingColors();
 
-    // 应用蓝色材质
+    // 逐个清除房间的主题颜色
+    foundRoomDbIds.forEach(dbId => {
+      viewer.setThemingColor(dbId, null);
+    });
+
+    // 应用浅紫色材质
     const mat = getRoomMaterial();
     const fragList = viewer.model.getFragmentList();
     const tree = viewer.model.getInstanceTree();
@@ -967,6 +994,7 @@ const getAssetProperties = (dbId) => {
         name: '',
         mcCode: '',
         level: '',
+        room: '',
         omniClass21Number: '',
         omniClass21Description: '',
         category: '',
@@ -983,6 +1011,7 @@ const getAssetProperties = (dbId) => {
         name: result.name || '',
         mcCode: '',
         level: '',
+        room: '',
         omniClass21Number: '',
         omniClass21Description: '',
         category: '',
@@ -995,6 +1024,7 @@ const getAssetProperties = (dbId) => {
       if (result && result.properties) {
         result.properties.forEach(prop => {
           const name = prop.displayName;
+          const category = prop.displayCategory;
           const value = prop.displayValue || '';
 
           // 元素属性
@@ -1003,6 +1033,10 @@ const getAssetProperties = (dbId) => {
           }
           else if (name === '标高' || name === 'Level') {
             props.level = value;
+          }
+          // 关系属性 - 房间名称（在"房间"分组下的"名称"字段）
+          else if ((category === '房间' || category === 'Room') && (name === '名称' || name === 'Name')) {
+            props.room = value;
           }
           // 类型属性
           else if (name === 'Classification.OmniClass.21.Number') {
