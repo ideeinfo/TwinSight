@@ -9,6 +9,7 @@ const messages = {
       select: '选择日期',
       add: '添加',
       multiple: '多个',
+      varies: '多个',
       unnamed: '未命名',
       none: '--',
       create: '创建',
@@ -59,10 +60,18 @@ const messages = {
       classification: '分类',
       selectClassification: '选择分类',
       room: '房间',
+      asset: '资产',
       curtainWallPanel: '幕墙嵌板',
       systemPanel: '系统面板',
       glass: '玻璃',
-      curtainWall: '幕墙'
+      curtainWall: '幕墙',
+      mcCode: 'MC编码',
+      omniClass21Number: 'OmniClass 21 编号',
+      omniClass21Description: 'OmniClass 21 描述',
+      category: '类别',
+      family: '族',
+      typeLabel: '类型',
+      typeComments: '类型注释'
     },
     timeline: {
       live: 'LIVE',
@@ -97,6 +106,11 @@ const messages = {
       alert: '警报',
       alertAbove30: '警报 > 30°C',
       normal: '正常'
+    },
+    assetPanel: {
+      assets: '资产',
+      loading: '正在加载资产...',
+      uncategorized: '未分类'
     }
   },
   en: {
@@ -107,6 +121,7 @@ const messages = {
       select: 'Select date',
       add: 'Add',
       multiple: 'Multiple',
+      varies: 'Varies',
       unnamed: 'Unnamed',
       none: '--',
       create: 'Create',
@@ -157,10 +172,18 @@ const messages = {
       classification: 'Classification',
       selectClassification: 'Select CAClass-20241024',
       room: 'Room',
+      asset: 'Asset',
       curtainWallPanel: 'Curtain Wall Panel',
       systemPanel: 'System Panel',
       glass: 'Glass',
-      curtainWall: 'Curtain Wall'
+      curtainWall: 'Curtain Wall',
+      mcCode: 'MC Code',
+      omniClass21Number: 'OmniClass 21 Number',
+      omniClass21Description: 'OmniClass 21 Description',
+      category: 'Category',
+      family: 'Family',
+      typeLabel: 'Type',
+      typeComments: 'Type Comments'
     },
     timeline: {
       live: 'LIVE',
@@ -195,6 +218,11 @@ const messages = {
       alert: 'Alert',
       alertAbove30: 'Alert > 30°C',
       normal: 'Normal'
+    },
+    assetPanel: {
+      assets: 'Assets',
+      loading: 'Loading assets...',
+      uncategorized: 'Uncategorized'
     }
   }
 }

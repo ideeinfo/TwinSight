@@ -18,13 +18,22 @@
       <div v-if="activeTab === 'ELEMENT'">
         <div class="group-header" @click="toggleGroup('element_asset')"><span>{{ t('rightPanel.assetProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.element_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.element_asset">
-          <div class="form-group" v-if="roomProperties">
+          <!-- 资产模式 -->
+          <div class="form-group" v-if="isAssetMode">
+            <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ formatValue(roomProperties?.name) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.mcCode') }}</label><div class="val-box">{{ formatValue(roomProperties?.mcCode) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.level') }}</label><div class="val-box">{{ formatValue(roomProperties?.level) }}</div></div>
+          </div>
+          <!-- 房间模式 -->
+          <div class="form-group" v-else-if="roomProperties">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
             <div class="row"><label>{{ t('rightPanel.code') }}</label><div class="val-box">{{ roomProperties.code || t('common.none') }}</div></div>
             <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ roomProperties.name || t('common.none') }}</div></div>
             <div class="row"><label>{{ t('rightPanel.area') }}</label><div class="val-box">{{ roomProperties.area || t('common.none') }}</div></div>
             <div class="row"><label>{{ t('rightPanel.perimeter') }}</label><div class="val-box">{{ roomProperties.perimeter || t('common.none') }}</div></div>
           </div>
+          <!-- 默认属性 -->
           <div class="form-group" v-else>
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
             <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ t('rightPanel.systemPanel') }} 1</div></div>
@@ -41,7 +50,25 @@
       <div v-if="activeTab === 'TYPE'">
         <div class="group-header" @click="toggleGroup('type_asset')"><span>{{ t('rightPanel.assetProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.type_asset">
-          <div class="form-group"><div class="sub-label">{{ t('rightPanel.common') }}</div><div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ t('rightPanel.glass') }}</div></div><div class="row"><label>{{ t('rightPanel.assemblyCode') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown">{{ t('rightPanel.selectUniformat') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row"><label>{{ t('rightPanel.tandemCategory') }}</label><div class="val-box dropdown">{{ t('rightPanel.panel') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div><div class="row" style="height: auto; align-items: flex-start; margin-top: 6px;"><label style="margin-top: 4px;">{{ t('rightPanel.classification') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown multiline">{{ t('rightPanel.selectClassification') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div></div>
+          <!-- 资产模式 -->
+          <div class="form-group" v-if="isAssetMode">
+            <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.omniClass21Number') }}</label><div class="val-box">{{ formatValue(roomProperties?.omniClass21Number) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.omniClass21Description') }}</label><div class="val-box">{{ formatValue(roomProperties?.omniClass21Description) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.category') }}</label><div class="val-box">{{ formatValue(roomProperties?.category) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.family') }}</label><div class="val-box">{{ formatValue(roomProperties?.family) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.typeLabel') }}</label><div class="val-box">{{ formatValue(roomProperties?.type) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.typeComments') }}</label><div class="val-box">{{ formatValue(roomProperties?.typeComments) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box">{{ formatValue(roomProperties?.manufacturer) }}</div></div>
+          </div>
+          <!-- 默认类型属性 -->
+          <div class="form-group" v-else>
+            <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box">{{ t('rightPanel.glass') }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.assemblyCode') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown">{{ t('rightPanel.selectUniformat') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div>
+            <div class="row"><label>{{ t('rightPanel.tandemCategory') }}</label><div class="val-box dropdown">{{ t('rightPanel.panel') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div>
+            <div class="row" style="height: auto; align-items: flex-start; margin-top: 6px;"><label style="margin-top: 4px;">{{ t('rightPanel.classification') }} <span class="info-i">i</span></label><div class="val-box placeholder dropdown multiline">{{ t('rightPanel.selectClassification') }}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div></div>
+          </div>
         </div>
         <div class="group-header" @click="toggleGroup('type_design')"><span>{{ t('rightPanel.designProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_design }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.type_design"><div class="form-group"><div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div><div class="row"><label>{{ t('rightPanel.model') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div></div></div>
@@ -60,6 +87,10 @@ const props = defineProps({
   roomProperties: {
     type: Object,
     default: null
+  },
+  viewMode: {
+    type: String,
+    default: 'connect' // 'connect' or 'assets'
   }
 });
 
@@ -68,15 +99,40 @@ const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
 
+// 判断是否为资产模式
+const isAssetMode = computed(() => {
+  return props.viewMode === 'assets';
+});
+
+// 格式化属性值，处理 VARIES 标记
+const formatValue = (value) => {
+  if (value === '__VARIES__') {
+    return t('common.varies');
+  }
+  return value || '';
+};
+
 // 计算面包屑文本
 const breadcrumbText = computed(() => {
-  if (props.roomProperties) {
-    if (props.roomProperties.isMultiple) {
-      return `${t('rightPanel.room')} : ${t('common.multiple')}`;
+  if (isAssetMode.value) {
+    // 资产模式
+    if (props.roomProperties) {
+      if (props.roomProperties.isMultiple) {
+        return `${t('rightPanel.asset')} : ${t('common.multiple')}`;
+      }
+      return `${t('rightPanel.asset')} : ${props.roomProperties.name || t('common.unnamed')}`;
     }
-    return `${t('rightPanel.room')} : ${props.roomProperties.name || t('common.unnamed')}`;
+    return t('rightPanel.asset');
+  } else {
+    // 房间模式
+    if (props.roomProperties) {
+      if (props.roomProperties.isMultiple) {
+        return `${t('rightPanel.room')} : ${t('common.multiple')}`;
+      }
+      return `${t('rightPanel.room')} : ${props.roomProperties.name || t('common.unnamed')}`;
+    }
+    return `${t('rightPanel.curtainWallPanel')} : ${t('rightPanel.systemPanel')} 1 : ${t('rightPanel.glass')}`;
   }
-  return `${t('rightPanel.curtainWallPanel')} : ${t('rightPanel.systemPanel')} 1 : ${t('rightPanel.glass')}`;
 });
 </script>
 

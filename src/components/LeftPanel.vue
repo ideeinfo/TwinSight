@@ -4,12 +4,12 @@
     <div class="icon-bar">
       <!-- 上部按钮组 -->
       <div class="nav-group-top">
-        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
-        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
-        <div class="nav-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
+        <div class="nav-item" @click="$emit('switch-view', 'filters')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
+        <div class="nav-item" @click="$emit('switch-view', 'assets')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
+        <div class="nav-item" @click="$emit('switch-view', 'files')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
         <div class="spacer"></div>
-        <div class="nav-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
-        <div class="nav-item active-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00b0ff" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label" style="color:#00b0ff">{{ t('leftPanel.connect') }}</span></div>
+        <div class="nav-item" @click="$emit('switch-view', 'systems')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
+        <div class="nav-item active-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
       </div>
 
       <!-- 下部按钮组 -->
@@ -72,7 +72,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['open-properties', 'rooms-selected', 'toggle-streams']);
+const emit = defineEmits(['open-properties', 'rooms-selected', 'toggle-streams', 'switch-view']);
 
 // 数据流按钮激活状态
 const isStreamsActive = ref(false);
@@ -131,7 +131,8 @@ const selectItem = (index) => {
 .nav-group-top { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
 .nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
-.nav-item:hover { color: #fff; } .nav-item.active { color: #fff; border-left: 2px solid transparent; } .nav-item.active-blue { border-left: 2px solid #00b0ff; }
+.nav-item:hover { color: #fff; } .nav-item.active { color: #fff; border-left: 2px solid transparent; } .nav-item.active-blue { border-left: 2px solid #00b0ff; background: #2a2d2e; color: #00b0ff; }
+.nav-item.active-blue svg { stroke: #00b0ff; }
 .nav-item .label { font-size: 9px; margin-top: 4px; }
 .list-panel { width: 100%; display: flex; flex-direction: column; background: #252526; overflow: hidden; }
 .panel-header { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #333; flex-shrink: 0; }
@@ -171,4 +172,10 @@ const selectItem = (index) => {
 .item-code { color: #777; font-size: 10px; margin-top: 2px; }
 .link-icon { opacity: 0.5; flex-shrink: 0; }
 .loading-hint { padding: 20px 12px; color: #888; font-size: 12px; text-align: center; }
+
+/* 滚动条样式 */
+.item-list::-webkit-scrollbar { width: 10px; }
+.item-list::-webkit-scrollbar-track { background: #1e1e1e; }
+.item-list::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 5px; }
+.item-list::-webkit-scrollbar-thumb:hover { background: #4e4e52; }
 </style>

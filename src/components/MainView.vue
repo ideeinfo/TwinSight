@@ -139,8 +139,16 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
+// 定义 props
+const props = defineProps({
+  currentView: {
+    type: String,
+    default: 'connect'
+  }
+});
+
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'chart-data-update']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -160,6 +168,10 @@ let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
 const isHeatmapEnabled = ref(false); // 热力图开关状态
+
+// 资产状态
+let foundAssetDbIds = [];
+let assetFragData = {}; // 资产材质缓存
 
 // Viewer 状态
 const viewerContainer = ref(null);
@@ -393,6 +405,9 @@ const onModelLoaded = () => {
       processRooms(dbIds);
     }
   });
+
+  // 同时提取资产
+  extractAssets();
 };
 
 // 2. 处理房间 (缓存材质 + 生成标签 + 获取属性)
@@ -497,6 +512,63 @@ const processRooms = (dbIds) => {
   roomTags.value = newTags;
 };
 
+// 2.5 提取资产
+const extractAssets = () => {
+  if (!viewer || !viewer.model) return;
+
+  const instanceTree = viewer.model.getInstanceTree();
+  if (!instanceTree) return;
+
+  const assetList = [];
+  const allDbIds = [];
+
+  // 获取所有 dbId
+  instanceTree.enumNodeChildren(instanceTree.getRootId(), (dbId) => {
+    allDbIds.push(dbId);
+  }, true);
+
+  let pendingProps = allDbIds.length;
+  if (pendingProps === 0) {
+    emit('assets-loaded', []);
+    return;
+  }
+
+  allDbIds.forEach(dbId => {
+    viewer.getProperties(dbId, (result) => {
+      let mcCode = '';
+      let classification = '';
+      let name = result.name || '';
+
+      if (result && result.properties) {
+        result.properties.forEach(prop => {
+          if (prop.displayName === 'MC编码' || prop.displayName === 'MC Code') {
+            mcCode = prop.displayValue || '';
+          }
+          if (prop.displayName === 'Classification.OmniClass.23.Number') {
+            classification = prop.displayValue || '';
+          }
+        });
+      }
+
+      // 只添加 MC编码 非空的构件
+      if (mcCode) {
+        assetList.push({
+          dbId,
+          name,
+          mcCode,
+          classification: classification || 'Uncategorized'
+        });
+        foundAssetDbIds.push(dbId);
+      }
+
+      pendingProps--;
+      if (pendingProps === 0) {
+        emit('assets-loaded', assetList);
+      }
+    });
+  });
+};
+
 // 3. 应用浅紫色样式到所有房间
 const applyRoomStyle = () => {
   if (!viewer || foundRoomDbIds.length === 0) return;
@@ -554,15 +626,16 @@ const onSelectionChanged = (event) => {
   const dbIds = event.dbIdArray;
 
   if (dbIds && dbIds.length > 0) {
-    // 在模型上选中了某个构件
+    // 在模型上选中了某个构件 - 不调用 isolate，只聚焦
     const selectedId = dbIds[0];
-    areTagsVisible.value = false;
-    removeRoomStyle();
-    viewer.isolate([selectedId]);
     viewer.fitToView([selectedId]);
   } else {
-    // 取消选择：恢复显示所有房间
-    showAllRooms();
+    // 取消选择：根据当前视图恢复显示
+    if (props.currentView === 'assets') {
+      showAllAssets();
+    } else {
+      showAllRooms();
+    }
   }
 };
 
@@ -594,6 +667,9 @@ const isolateAndFocusRooms = (dbIds) => {
 
   // 孤立选中的房间（隐藏其他所有构件）
   viewer.isolate(dbIds);
+
+  // 选中这些房间
+  viewer.select(dbIds);
 
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
@@ -681,8 +757,14 @@ const isolateAndFocusRooms = (dbIds) => {
 const showAllRooms = () => {
   if (!viewer) return;
 
+  // 设置手动选择标志
+  isManualSelection = true;
+
   // 孤立所有房间（隐藏其他构件）
   viewer.isolate(foundRoomDbIds);
+
+  // 清除选择
+  viewer.clearSelection();
 
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
@@ -847,12 +929,133 @@ const resizeViewer = () => {
   }
 };
 
+// 资产相关方法
+const isolateAndFocusAssets = (dbIds) => {
+  if (!viewer || !dbIds || dbIds.length === 0) return;
+
+  // 设置手动选择标志，防止 onSelectionChanged 干扰
+  isManualSelection = true;
+
+  viewer.isolate(dbIds);
+  viewer.select(dbIds);
+  viewer.fitToView(dbIds);
+  viewer.impl.invalidate(true, true, true);
+};
+
+const showAllAssets = () => {
+  if (!viewer) return;
+
+  // 设置手动选择标志
+  isManualSelection = true;
+
+  if (foundAssetDbIds.length > 0) {
+    viewer.isolate(foundAssetDbIds);
+  } else {
+    viewer.isolate([]);
+  }
+
+  // 清除选择
+  viewer.clearSelection();
+
+  viewer.impl.invalidate(true, true, true);
+};
+
+const getAssetProperties = (dbId) => {
+  return new Promise((resolve) => {
+    if (!viewer) {
+      resolve({
+        name: '',
+        mcCode: '',
+        level: '',
+        omniClass21Number: '',
+        omniClass21Description: '',
+        category: '',
+        family: '',
+        type: '',
+        typeComments: '',
+        manufacturer: ''
+      });
+      return;
+    }
+
+    viewer.getProperties(dbId, (result) => {
+      const props = {
+        name: result.name || '',
+        mcCode: '',
+        level: '',
+        omniClass21Number: '',
+        omniClass21Description: '',
+        category: '',
+        family: '',
+        type: '',
+        typeComments: '',
+        manufacturer: ''
+      };
+
+      if (result && result.properties) {
+        result.properties.forEach(prop => {
+          const name = prop.displayName;
+          const value = prop.displayValue || '';
+
+          // 元素属性
+          if (name === 'MC编码' || name === 'MC Code') {
+            props.mcCode = value;
+          }
+          else if (name === '标高' || name === 'Level') {
+            props.level = value;
+          }
+          // 类型属性
+          else if (name === 'Classification.OmniClass.21.Number') {
+            props.omniClass21Number = value;
+          }
+          else if (name === 'Classification.OmniClass.21.Description') {
+            props.omniClass21Description = value;
+          }
+          else if (name === '类别' || name === 'Category') {
+            props.category = value;
+          }
+          else if (name === '族' || name === 'Family') {
+            props.family = value;
+          }
+          else if (name === '类型' || name === 'Type') {
+            props.type = value;
+          }
+          else if (name === '类型注释' || name === 'Type Comments') {
+            props.typeComments = value;
+          }
+          else if (name === '制造商' || name === 'Manufacturer') {
+            props.manufacturer = value;
+          }
+        });
+      }
+
+      resolve(props);
+    });
+  });
+};
+
+// 显示温度标签
+const showTemperatureTags = () => {
+  areTagsVisible.value = true;
+  updateAllTagPositions();
+};
+
+// 隐藏温度标签
+const hideTemperatureTags = () => {
+  areTagsVisible.value = false;
+};
+
 // 暴露方法给父组件
 defineExpose({
   isolateAndFocusRooms,
   showAllRooms,
   getRoomProperties,
-  resizeViewer
+  resizeViewer,
+  isolateAndFocusAssets,
+  showAllAssets,
+  getAssetProperties,
+  showTemperatureTags,
+  hideTemperatureTags
 });
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
@@ -986,8 +1189,8 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 .canvas-3d { flex: 1; position: relative; display: block; min-height: 0; background: #111; }
 #forgeViewer { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
 :deep(.adsk-viewing-viewer) { background: #111; }
-.overlay-tags { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-.tag-wrapper { position: absolute; transform: translate(-50%, -100%); margin-top: -10px; pointer-events: auto; }
+.overlay-tags { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.tag-wrapper { position: absolute; transform: translate(-50%, -100%); margin-top: -10px; pointer-events: none; }
 .tag-pin { position: relative; }
 .pin-val { background: rgba(30,30,30,0.8); backdrop-filter: blur(4px); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #555; white-space: nowrap; }
 .pin-val.blue { background: #0078d4; border-color: #005a9e; font-weight: bold; }

@@ -7,10 +7,20 @@
       <!-- 左侧面板 -->
       <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
         <LeftPanel
+          v-if="currentView === 'connect'"
           :rooms="roomList"
           @open-properties="openRightPanel"
           @rooms-selected="onRoomsSelected"
           @toggle-streams="toggleChartPanel"
+          @switch-view="switchView"
+        />
+        <AssetPanel
+          v-else-if="currentView === 'assets'"
+          :assets="assetList"
+          @open-properties="openRightPanel"
+          @assets-selected="onAssetsSelected"
+          @toggle-streams="toggleChartPanel"
+          @switch-view="switchView"
         />
       </div>
 
@@ -22,7 +32,9 @@
         <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
           <MainView
             ref="mainViewRef"
+            :currentView="currentView"
             @rooms-loaded="onRoomsLoaded"
+            @assets-loaded="onAssetsLoaded"
             @chart-data-update="onChartDataUpdate"
           />
         </div>
@@ -48,6 +60,7 @@
       >
         <RightPanel
           :roomProperties="selectedRoomProperties"
+          :viewMode="currentView"
           @close-properties="closeRightPanel"
         />
       </div>
@@ -60,6 +73,7 @@
 import { ref, onUnmounted, nextTick, watch } from 'vue';
 import TopBar from './components/TopBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
+import AssetPanel from './components/AssetPanel.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
@@ -70,16 +84,58 @@ const isRightPanelOpen = ref(true);
 const isChartPanelOpen = ref(false);
 const chartPanelHeight = ref(300);
 const roomList = ref([]);
+const assetList = ref([]);
 const mainViewRef = ref(null);
 const selectedRoomProperties = ref(null);
 const chartData = ref([]);
+const currentView = ref('connect'); // 'connect' or 'assets'
 
 const onRoomsLoaded = (rooms) => {
   roomList.value = rooms;
 };
 
+const onAssetsLoaded = (assets) => {
+  assetList.value = assets;
+
+  // 如果当前是资产视图，自动显示资产并隐藏温度标签
+  if (currentView.value === 'assets' && mainViewRef.value) {
+    if (mainViewRef.value.showAllAssets) {
+      mainViewRef.value.showAllAssets();
+    }
+    if (mainViewRef.value.hideTemperatureTags) {
+      mainViewRef.value.hideTemperatureTags();
+    }
+  }
+};
+
 const onChartDataUpdate = (data) => {
   chartData.value = data;
+};
+
+const switchView = (view) => {
+  currentView.value = view;
+  // 切换视图时清除选择
+  selectedRoomProperties.value = null;
+
+  // 切换到资产视图时，显示所有资产并隐藏温度标签
+  if (view === 'assets' && mainViewRef.value) {
+    if (mainViewRef.value.showAllAssets) {
+      mainViewRef.value.showAllAssets();
+    }
+    if (mainViewRef.value.hideTemperatureTags) {
+      mainViewRef.value.hideTemperatureTags();
+    }
+  }
+
+  // 切换到连接视图时，显示所有房间并显示温度标签
+  if (view === 'connect' && mainViewRef.value) {
+    if (mainViewRef.value.showAllRooms) {
+      mainViewRef.value.showAllRooms();
+    }
+    if (mainViewRef.value.showTemperatureTags) {
+      mainViewRef.value.showTemperatureTags();
+    }
+  }
 };
 
 const onRoomsSelected = (dbIds) => {
@@ -115,6 +171,75 @@ const onRoomsSelected = (dbIds) => {
         perimeter: '多个',
         isMultiple: true
       };
+    }
+  }
+};
+
+const onAssetsSelected = async (dbIds) => {
+  // 调用 MainView 的方法来孤立并定位资产
+  if (mainViewRef.value) {
+    if (dbIds.length === 0) {
+      // 未选中任何资产，显示所有资产
+      selectedRoomProperties.value = null;
+      if (mainViewRef.value.showAllAssets) {
+        mainViewRef.value.showAllAssets();
+      }
+    } else if (dbIds.length === 1) {
+      // 选中了一个资产，显示该资产的属性
+      if (mainViewRef.value.isolateAndFocusAssets) {
+        mainViewRef.value.isolateAndFocusAssets(dbIds);
+      }
+
+      if (mainViewRef.value.getAssetProperties) {
+        mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
+          selectedRoomProperties.value = props;
+        });
+      }
+    } else {
+      // 选中了多个资产，比较属性值
+      if (mainViewRef.value.isolateAndFocusAssets) {
+        mainViewRef.value.isolateAndFocusAssets(dbIds);
+      }
+
+      if (mainViewRef.value.getAssetProperties) {
+        // 获取所有选中资产的属性
+        const allProps = await Promise.all(
+          dbIds.map(dbId => mainViewRef.value.getAssetProperties(dbId))
+        );
+
+        // 比较属性值，相同则显示值，不同则显示 VARIES_VALUE
+        const VARIES_VALUE = '__VARIES__';
+        const mergedProps = {
+          name: allProps[0].name,
+          mcCode: allProps[0].mcCode,
+          level: allProps[0].level,
+          omniClass21Number: allProps[0].omniClass21Number,
+          omniClass21Description: allProps[0].omniClass21Description,
+          category: allProps[0].category,
+          family: allProps[0].family,
+          type: allProps[0].type,
+          typeComments: allProps[0].typeComments,
+          manufacturer: allProps[0].manufacturer,
+          isMultiple: true
+        };
+
+        // 比较每个属性
+        for (let i = 1; i < allProps.length; i++) {
+          const props = allProps[i];
+          if (mergedProps.name !== props.name) mergedProps.name = VARIES_VALUE;
+          if (mergedProps.mcCode !== props.mcCode) mergedProps.mcCode = VARIES_VALUE;
+          if (mergedProps.level !== props.level) mergedProps.level = VARIES_VALUE;
+          if (mergedProps.omniClass21Number !== props.omniClass21Number) mergedProps.omniClass21Number = VARIES_VALUE;
+          if (mergedProps.omniClass21Description !== props.omniClass21Description) mergedProps.omniClass21Description = VARIES_VALUE;
+          if (mergedProps.category !== props.category) mergedProps.category = VARIES_VALUE;
+          if (mergedProps.family !== props.family) mergedProps.family = VARIES_VALUE;
+          if (mergedProps.type !== props.type) mergedProps.type = VARIES_VALUE;
+          if (mergedProps.typeComments !== props.typeComments) mergedProps.typeComments = VARIES_VALUE;
+          if (mergedProps.manufacturer !== props.manufacturer) mergedProps.manufacturer = VARIES_VALUE;
+        }
+
+        selectedRoomProperties.value = mergedProps;
+      }
     }
   }
 };
