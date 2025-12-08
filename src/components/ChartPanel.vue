@@ -1,19 +1,9 @@
 <template>
   <div class="chart-container">
     <!-- 图表头部 -->
-    <div class="chart-header">
-      <div class="title-section">
-        <svg class="chart-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-        </svg>
-        <span class="label">{{ t('chartPanel.temperature') }}</span>
-        <span class="target" v-if="displayData.length > 0">{{ t('chartPanel.systemPanel') }} 1 (GUID: 09D$0z7$51pel$M$ODiYUo)</span>
-      </div>
-      <div class="tools">
-        <span class="date-range">{{ dateRangeText }}</span>
-        <button class="close" @click="$emit('close')">×</button>
-      </div>
-    </div>
+    <ChartHeader :label-text="labelText || t('chartPanel.average')" :range="range" :fallback-start-ms="displayData.length?displayData[0].timestamp:0" :fallback-end-ms="displayData.length?displayData[displayData.length-1].timestamp:0">
+      <button class="close" @click="$emit('close')">×</button>
+    </ChartHeader>
 
     <!-- 图表主体 -->
     <div class="chart-body" ref="chartRef">
@@ -42,6 +32,20 @@
         <path :d="areaPath" fill="url(#areaGradBottom)" stroke="none" />
         <path :d="linePath" fill="none" stroke="url(#strokeGradBottom)" stroke-width="2" vector-effect="non-scaling-stroke" />
 
+        <g class="threshold-markers">
+          <circle
+            v-for="i in overSegments"
+            :key="'m'+i"
+            :cx="(i / (displayData.length - 1)) * 1000"
+            :cy="100 - (((displayData[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
+            r="3"
+            fill="#ff4d4d"
+            stroke="#fff"
+            stroke-width="1.5"
+            vector-effect="non-scaling-stroke"
+          />
+        </g>
+
         <!-- 悬浮交互 -->
         <g v-if="hoverX > 0">
           <line :x1="hoverX" y1="0" :x2="hoverX" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
@@ -61,30 +65,33 @@
       <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
     </div>
 
-    <!-- 底部标签 -->
-    <div class="chart-footer">
-      <div class="axis-labels">
-        <span v-for="(label, index) in xLabels" :key="index">{{ label }}</span>
+      <!-- 底部标签 -->
+      <div class="chart-footer">
+        <div class="axis-labels">
+          <span v-for="(label, index) in xLabels" :key="index">{{ label }}</span>
+        </div>
+        <div class="legend">
+          <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ overCount }})</span>
+          <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
+        </div>
       </div>
-      <div class="legend">
-        <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }}</span>
-        <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, toRefs } from 'vue';
 import { useI18n } from 'vue-i18n';
+import ChartHeader from './ChartHeader.vue';
 
 const { t } = useI18n();
 
 const props = defineProps({
-  data: { type: Array, default: () => [] }
+  data: { type: Array, default: () => [] },
+  range: { type: Object, default: null },
+  labelText: { type: String, default: '' }
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close','hover-sync']);
 
 const { data: displayData } = toRefs(props);
 
@@ -121,7 +128,25 @@ const areaPath = computed(() => {
   return `${linePath.value} L 1000 100 L 0 100 Z`;
 });
 
+const overSegments = computed(() => {
+  const res = [];
+  if (!displayData.value.length) return res;
+  for (let i = 1; i < displayData.value.length; i++) {
+    const prev = displayData.value[i-1];
+    const cur = displayData.value[i];
+    if (prev.value < THRESHOLD && cur.value >= THRESHOLD) res.push(i);
+  }
+  return res;
+});
+
+const overCount = computed(() => overSegments.value.length);
+
 const dateRangeText = computed(() => {
+  if (props.range && props.range.startMs && props.range.endMs) {
+    const s = new Date(props.range.startMs);
+    const e = new Date(props.range.endMs);
+    return `${s.toLocaleDateString()} - ${e.toLocaleDateString()}`;
+  }
   if (!displayData.value.length) return '';
   const s = new Date(displayData.value[0].timestamp);
   const e = new Date(displayData.value[displayData.value.length-1].timestamp);
@@ -153,7 +178,8 @@ const onMouseMove = (e) => {
   const ratio = (point.value - MIN_Y) / (MAX_Y - MIN_Y);
   const svgY = 100 - (ratio * 100);
 
-  hoverX.value = (index / (displayData.value.length - 1)) * 1000;
+  const anchorPercent = index / (displayData.value.length - 1);
+  hoverX.value = anchorPercent * 1000;
   hoverY.value = svgY;
 
   hoverValue.value = Number(point.value).toFixed(1);
@@ -162,6 +188,8 @@ const onMouseMove = (e) => {
 
   tooltipPxX.value = mouseX;
   tooltipPxY.value = rect.height * (1 - ratio);
+
+  emit('hover-sync', { time: point.timestamp, percent: anchorPercent });
 };
 
 const onMouseLeave = () => { hoverX.value = -1; };
@@ -187,48 +215,7 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
   user-select: none;
 }
 
-.chart-header {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #333;
-  background: #252526;
-}
 
-.title-section {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chart-icon {
-  color: #0078d4;
-  flex-shrink: 0;
-}
-
-.label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #eee;
-}
-
-.target {
-  color: #00b0ff;
-  font-size: 11px;
-}
-
-.tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.date-range {
-  font-size: 11px;
-  color: #888;
-}
 
 .close {
   background: none;

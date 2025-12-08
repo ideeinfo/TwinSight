@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
-    <TopBar />
+    <TopBar @open-data-export="openDataExportPanel" />
 
     <div class="main-body" ref="mainBody" @mousemove="onResize">
 
@@ -9,6 +9,8 @@
         <LeftPanel
           v-if="currentView === 'connect'"
           :rooms="roomList"
+          :currentView="currentView"
+          :selectedDbIds="savedRoomSelections"
           @open-properties="openRightPanel"
           @rooms-selected="onRoomsSelected"
           @toggle-streams="toggleChartPanel"
@@ -17,6 +19,8 @@
         <AssetPanel
           v-else-if="currentView === 'assets'"
           :assets="assetList"
+          :currentView="currentView"
+          :selectedDbIds="savedAssetSelections"
           @open-properties="openRightPanel"
           @assets-selected="onAssetsSelected"
           @toggle-streams="toggleChartPanel"
@@ -36,12 +40,30 @@
             @rooms-loaded="onRoomsLoaded"
             @assets-loaded="onAssetsLoaded"
             @chart-data-update="onChartDataUpdate"
+            @time-range-changed="onTimeRangeChanged"
           />
         </div>
 
         <!-- 底部图表面板 -->
         <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
-          <ChartPanel :data="chartData" @close="closeChartPanel" />
+          <template v-if="selectedRoomSeries.length">
+            <ChartPanel
+              v-if="selectedRoomSeries.length === 1"
+              :data="selectedRoomSeries[0].points"
+              :range="currentRange"
+              :label-text="$t('chartPanel.individual')"
+              @hover-sync="onHoverSync"
+              @close="closeChartPanel"
+            />
+            <MultiChartPanel
+              v-else
+              :seriesList="selectedRoomSeries"
+              :range="currentRange"
+              @hover-sync="onHoverSync"
+              @close="closeChartPanel"
+            />
+          </template>
+          <ChartPanel v-else :data="chartData" :range="currentRange" :label-text="$t('chartPanel.average')" @close="closeChartPanel" @hover-sync="onHoverSync" />
         </div>
       </div>
 
@@ -66,19 +88,41 @@
       </div>
 
     </div>
+
+    <!-- 数据导出面板弹窗 -->
+    <Teleport to="body">
+      <div v-if="isDataExportOpen" class="modal-overlay" @click.self="closeDataExportPanel">
+        <div class="modal-container">
+          <DataExportPanel
+            :getFullAssetData="getFullAssetDataFromMainView"
+            :getFullSpaceData="getFullSpaceDataFromMainView"
+          />
+          <button class="modal-close-btn" @click="closeDataExportPanel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted, nextTick, watch } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import TopBar from './components/TopBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
+import MultiChartPanel from './components/MultiChartPanel.vue';
+import DataExportPanel from './components/DataExportPanel.vue';
+import { queryRoomSeries } from './services/influx';
+import { checkApiHealth, getAssets, getSpaces } from './services/postgres.js';
 
-const leftWidth = ref(300);
+const leftWidth = ref(400);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const isChartPanelOpen = ref(false);
@@ -89,17 +133,139 @@ const mainViewRef = ref(null);
 const selectedRoomProperties = ref(null);
 const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' - 默认加载资产页面
+const selectedRoomSeries = ref([]);
+const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
+const savedRoomSelections = ref([]);
+const savedAssetSelections = ref([]);
+const isDataExportOpen = ref(false);
+const isLoadingFromDb = ref(false);
+const dbDataLoaded = ref(false);
+
+// 模型数据缓存（用于 dbId 映射）
+const modelRoomDbIds = ref([]);
+const modelAssetDbIds = ref([]);
+
+// 数据导出面板方法
+const openDataExportPanel = () => {
+  isDataExportOpen.value = true;
+};
+
+const closeDataExportPanel = () => {
+  isDataExportOpen.value = false;
+};
+
+// 从 MainView 获取完整资产数据
+const getFullAssetDataFromMainView = async () => {
+  if (mainViewRef.value && mainViewRef.value.getFullAssetData) {
+    return await mainViewRef.value.getFullAssetData();
+  }
+  return [];
+};
+
+// 从 MainView 获取完整空间数据
+const getFullSpaceDataFromMainView = async () => {
+  if (mainViewRef.value && mainViewRef.value.getFullSpaceData) {
+    return await mainViewRef.value.getFullSpaceData();
+  }
+  return [];
+};
+
+// 从数据库加载数据
+const loadDataFromDatabase = async () => {
+  isLoadingFromDb.value = true;
+  try {
+    const isApiHealthy = await checkApiHealth();
+    if (!isApiHealthy) {
+      console.log('⚠️ API 服务未连接，将使用模型数据');
+      return false;
+    }
+
+    // 从数据库获取空间（房间）数据
+    const dbSpaces = await getSpaces();
+    if (dbSpaces && dbSpaces.length > 0) {
+      // 转换为组件需要的格式
+      roomList.value = dbSpaces.map(space => ({
+        dbId: space.db_id,
+        name: space.name,
+        code: space.space_code,
+        classificationCode: space.classification_code,
+        classificationDesc: space.classification_desc,
+        floor: space.floor,
+        area: space.area,
+        perimeter: space.perimeter
+      }));
+      console.log(`📊 从数据库加载 ${roomList.value.length} 个空间`);
+    }
+
+    // 从数据库获取资产数据
+    const dbAssets = await getAssets();
+    if (dbAssets && dbAssets.length > 0) {
+      // 转换为组件需要的格式
+      assetList.value = dbAssets.map(asset => ({
+        dbId: asset.db_id,
+        name: asset.name,
+        mcCode: asset.asset_code,
+        classification: asset.classification_code || 'Uncategorized',
+        classification_code: asset.classification_code || '',
+        classification_desc: asset.classification_desc || '',
+        specCode: asset.spec_code,
+        floor: asset.floor,
+        room: asset.room,
+        category: asset.category,
+        family: asset.family,
+        type: asset.type,
+        manufacturer: asset.manufacturer,
+        address: asset.address,
+        phone: asset.phone
+      }));
+      console.log(`📊 从数据库加载 ${assetList.value.length} 个资产`);
+    }
+
+    dbDataLoaded.value = true;
+    return true;
+  } catch (error) {
+    console.error('❌ 从数据库加载数据失败:', error);
+    return false;
+  } finally {
+    isLoadingFromDb.value = false;
+  }
+};
 
 const onRoomsLoaded = (rooms) => {
-  roomList.value = rooms;
+  // 保存模型中的 dbId 列表
+  modelRoomDbIds.value = rooms.map(r => r.dbId);
+  
+  // 如果数据库数据已加载，则使用数据库数据；否则使用模型数据
+  if (!dbDataLoaded.value) {
+    roomList.value = rooms;
+  }
+  
+  if (currentView.value === 'connect' && mainViewRef.value) {
+    if (savedRoomSelections.value.length > 0 && mainViewRef.value.isolateAndFocusRooms) {
+      mainViewRef.value.isolateAndFocusRooms(savedRoomSelections.value);
+    } else if (mainViewRef.value.showAllRooms) {
+      mainViewRef.value.showAllRooms();
+    }
+    if (mainViewRef.value.showTemperatureTags) {
+      mainViewRef.value.showTemperatureTags();
+    }
+  }
 };
 
 const onAssetsLoaded = (assets) => {
-  assetList.value = assets;
+  // 保存模型中的 dbId 列表
+  modelAssetDbIds.value = assets.map(a => a.dbId);
+  
+  // 如果数据库数据已加载，则使用数据库数据；否则使用模型数据
+  if (!dbDataLoaded.value) {
+    assetList.value = assets;
+  }
 
   // 如果当前是资产视图，自动显示资产并隐藏温度标签
   if (currentView.value === 'assets' && mainViewRef.value) {
-    if (mainViewRef.value.showAllAssets) {
+    if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
+      mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
+    } else if (mainViewRef.value.showAllAssets) {
       mainViewRef.value.showAllAssets();
     }
     if (mainViewRef.value.hideTemperatureTags) {
@@ -110,6 +276,9 @@ const onAssetsLoaded = (assets) => {
 
 const onChartDataUpdate = (data) => {
   chartData.value = data;
+  if (mainViewRef.value?.getTimeRange) {
+    currentRange.value = mainViewRef.value.getTimeRange();
+  }
 };
 
 const switchView = (view) => {
@@ -119,7 +288,9 @@ const switchView = (view) => {
 
   // 切换到资产视图时，显示所有资产并隐藏温度标签
   if (view === 'assets' && mainViewRef.value) {
-    if (mainViewRef.value.showAllAssets) {
+    if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
+      mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
+    } else if (mainViewRef.value.showAllAssets) {
       mainViewRef.value.showAllAssets();
     }
     if (mainViewRef.value.hideTemperatureTags) {
@@ -129,7 +300,9 @@ const switchView = (view) => {
 
   // 切换到连接视图时，显示所有房间并显示温度标签
   if (view === 'connect' && mainViewRef.value) {
-    if (mainViewRef.value.showAllRooms) {
+    if (savedRoomSelections.value.length > 0 && mainViewRef.value.isolateAndFocusRooms) {
+      mainViewRef.value.isolateAndFocusRooms(savedRoomSelections.value);
+    } else if (mainViewRef.value.showAllRooms) {
       mainViewRef.value.showAllRooms();
     }
     if (mainViewRef.value.showTemperatureTags) {
@@ -139,6 +312,7 @@ const switchView = (view) => {
 };
 
 const onRoomsSelected = (dbIds) => {
+  savedRoomSelections.value = dbIds.slice();
   // 调用 MainView 的方法来孤立并定位房间
   if (mainViewRef.value) {
     if (dbIds.length === 0) {
@@ -146,6 +320,9 @@ const onRoomsSelected = (dbIds) => {
       selectedRoomProperties.value = null;
       if (mainViewRef.value.showAllRooms) {
         mainViewRef.value.showAllRooms();
+      }
+      if (mainViewRef.value.showTemperatureTags) {
+        mainViewRef.value.showTemperatureTags();
       }
     } else if (dbIds.length === 1) {
       // 选中了一个房间，显示该房间的属性
@@ -159,23 +336,60 @@ const onRoomsSelected = (dbIds) => {
         });
       }
     } else {
-      // 选中了多个房间，显示"多个"
+      // 选中了多个房间，合并属性：相同显示实际值，不同显示 VARIES
       if (mainViewRef.value.isolateAndFocusRooms) {
         mainViewRef.value.isolateAndFocusRooms(dbIds);
       }
 
-      selectedRoomProperties.value = {
-        code: '多个',
-        name: '多个',
-        area: '多个',
-        perimeter: '多个',
-        isMultiple: true
-      };
+      if (mainViewRef.value?.getRoomProperties) {
+        const VARIES_VALUE = '__VARIES__';
+        Promise.all(dbIds.map(id => mainViewRef.value.getRoomProperties(id))).then(allProps => {
+          const base = allProps[0] || {};
+          const merged = {
+            code: base.code,
+            name: base.name,
+            area: base.area,
+            perimeter: base.perimeter,
+            spaceNumber: base.spaceNumber,
+            spaceDescription: base.spaceDescription,
+            isMultiple: true
+          };
+          for (let i = 1; i < allProps.length; i++) {
+            const p = allProps[i] || {};
+            if (merged.code !== p.code) merged.code = VARIES_VALUE;
+            if (merged.name !== p.name) merged.name = VARIES_VALUE;
+            if (merged.area !== p.area) merged.area = VARIES_VALUE;
+            if (merged.perimeter !== p.perimeter) merged.perimeter = VARIES_VALUE;
+            if (merged.spaceNumber !== p.spaceNumber) merged.spaceNumber = VARIES_VALUE;
+            if (merged.spaceDescription !== p.spaceDescription) merged.spaceDescription = VARIES_VALUE;
+          }
+          selectedRoomProperties.value = merged;
+        });
+      } else {
+        selectedRoomProperties.value = { isMultiple: true };
+      }
     }
+  }
+
+  // 更新底部图表：按选中房间显示多图
+  const selectedRooms = roomList.value.filter(r => dbIds.includes(r.dbId));
+  if (mainViewRef.value?.setSelectedRooms) {
+    mainViewRef.value.setSelectedRooms(selectedRooms.map(r => r.code));
+  }
+  if (selectedRooms.length === 0) {
+    selectedRoomSeries.value = [];
+    return;
+  }
+  if (mainViewRef.value?.getTimeRange) {
+    const { startMs, endMs, windowMs } = mainViewRef.value.getTimeRange();
+    Promise.all(selectedRooms.map(r => queryRoomSeries(r.code, startMs, endMs, windowMs).then(points => ({ room: r.code, name: r.name, points }))))
+      .then(list => { selectedRoomSeries.value = list; })
+      .catch(() => { selectedRoomSeries.value = []; });
   }
 };
 
 const onAssetsSelected = async (dbIds) => {
+  savedAssetSelections.value = dbIds.slice();
   // 调用 MainView 的方法来孤立并定位资产
   if (mainViewRef.value) {
     if (dbIds.length === 0) {
@@ -184,13 +398,35 @@ const onAssetsSelected = async (dbIds) => {
       if (mainViewRef.value.showAllAssets) {
         mainViewRef.value.showAllAssets();
       }
+      if (mainViewRef.value.hideTemperatureTags) {
+        mainViewRef.value.hideTemperatureTags();
+      }
     } else if (dbIds.length === 1) {
-      // 选中了一个资产，显示该资产的属性
+      // 选中了一个资产，从 assetList 中获取属性
       if (mainViewRef.value.isolateAndFocusAssets) {
         mainViewRef.value.isolateAndFocusAssets(dbIds);
       }
 
-      if (mainViewRef.value.getAssetProperties) {
+      // 优先从 assetList（数据库数据）获取属性
+      const dbAsset = assetList.value.find(a => a.dbId === dbIds[0]);
+      if (dbAsset) {
+        selectedRoomProperties.value = {
+          name: dbAsset.name || '',
+          mcCode: dbAsset.mcCode || '',
+          level: dbAsset.floor || '',
+          room: dbAsset.room || '',
+          omniClass21Number: dbAsset.classification_code || '',
+          omniClass21Description: dbAsset.classification_desc || '',
+          category: dbAsset.category || '',
+          family: dbAsset.family || '',
+          type: dbAsset.type || '',
+          typeComments: dbAsset.specCode || '',
+          manufacturer: dbAsset.manufacturer || '',
+          address: dbAsset.address || '',
+          phone: dbAsset.phone || ''
+        };
+      } else if (mainViewRef.value.getAssetProperties) {
+        // 回退到模型数据
         mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
           selectedRoomProperties.value = props;
         });
@@ -201,12 +437,30 @@ const onAssetsSelected = async (dbIds) => {
         mainViewRef.value.isolateAndFocusAssets(dbIds);
       }
 
-      if (mainViewRef.value.getAssetProperties) {
-        // 获取所有选中资产的属性
-        const allProps = await Promise.all(
-          dbIds.map(dbId => mainViewRef.value.getAssetProperties(dbId))
-        );
+      // 从 assetList 获取所有选中资产的属性
+      const allProps = dbIds.map(dbId => {
+        const dbAsset = assetList.value.find(a => a.dbId === dbId);
+        if (dbAsset) {
+          return {
+            name: dbAsset.name || '',
+            mcCode: dbAsset.mcCode || '',
+            level: dbAsset.floor || '',
+            room: dbAsset.room || '',
+            omniClass21Number: dbAsset.classification_code || '',
+            omniClass21Description: dbAsset.classification_desc || '',
+            category: dbAsset.category || '',
+            family: dbAsset.family || '',
+            type: dbAsset.type || '',
+            typeComments: dbAsset.specCode || '',
+            manufacturer: dbAsset.manufacturer || '',
+            address: dbAsset.address || '',
+            phone: dbAsset.phone || ''
+          };
+        }
+        return null;
+      }).filter(Boolean);
 
+      if (allProps.length > 0) {
         // 比较属性值，相同则显示值，不同则显示 VARIES_VALUE
         const VARIES_VALUE = '__VARIES__';
         const mergedProps = {
@@ -221,6 +475,8 @@ const onAssetsSelected = async (dbIds) => {
           type: allProps[0].type,
           typeComments: allProps[0].typeComments,
           manufacturer: allProps[0].manufacturer,
+          address: allProps[0].address,
+          phone: allProps[0].phone,
           isMultiple: true
         };
 
@@ -238,9 +494,13 @@ const onAssetsSelected = async (dbIds) => {
           if (mergedProps.type !== props.type) mergedProps.type = VARIES_VALUE;
           if (mergedProps.typeComments !== props.typeComments) mergedProps.typeComments = VARIES_VALUE;
           if (mergedProps.manufacturer !== props.manufacturer) mergedProps.manufacturer = VARIES_VALUE;
+          if (mergedProps.address !== props.address) mergedProps.address = VARIES_VALUE;
+          if (mergedProps.phone !== props.phone) mergedProps.phone = VARIES_VALUE;
         }
 
         selectedRoomProperties.value = mergedProps;
+      } else {
+        selectedRoomProperties.value = { isMultiple: true };
       }
     }
   }
@@ -338,8 +598,24 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize);
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
-  currentResizeSide = '';
-  triggerResize(); // 结束时再次确认
+};
+
+const onHoverSync = ({ time, percent }) => {
+  if (mainViewRef.value && typeof mainViewRef.value.syncTimelineHover === 'function') {
+    mainViewRef.value.syncTimelineHover(time, percent);
+  }
+};
+
+const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
+  currentRange.value = { startMs, endMs, windowMs };
+  if (!selectedRoomSeries.value.length) return;
+  const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name }));
+  if (mainViewRef.value?.setSelectedRooms) {
+    mainViewRef.value.setSelectedRooms(rooms.map(r => r.room));
+  }
+  Promise.all(rooms.map(r => queryRoomSeries(r.room, startMs, endMs, windowMs).then(points => ({ room: r.room, name: r.name, points }))))
+    .then(list => { selectedRoomSeries.value = list; })
+    .catch(() => {});
 };
 
 // 监听图表面板状态变化，确保 viewer 及时 resize
@@ -349,6 +625,11 @@ watch(isChartPanelOpen, () => {
       mainViewRef.value.resizeViewer();
     }
   });
+});
+
+// 组件挂载时从数据库加载数据
+onMounted(async () => {
+  await loadDataFromDatabase();
 });
 
 onUnmounted(() => {
@@ -369,4 +650,62 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }
 .resizer { width: 5px; background: #111; cursor: col-resize; flex-shrink: 0; z-index: 50; transition: background 0.2s; }
 .resizer:hover, .resizer:active { background: #0078d4; }
+
+/* 数据导出弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.modal-container {
+  position: relative;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: modal-appear 0.2s ease-out;
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
 </style>

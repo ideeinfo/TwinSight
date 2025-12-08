@@ -43,6 +43,8 @@ const messages = {
       relationships: '关系',
       designProperties: '设计属性',
       common: '通用',
+      spaceNumber: '分类编码',
+      spaceDescription: '分类描述',
       code: '编号',
       name: '名称',
       area: '面积',
@@ -71,7 +73,9 @@ const messages = {
       category: '类别',
       family: '族',
       typeLabel: '类型',
-      typeComments: '类型注释'
+      typeComments: '类型注释',
+      address: '地址',
+      phone: '电话'
     },
     timeline: {
       live: 'LIVE',
@@ -103,6 +107,8 @@ const messages = {
       placeholder: '暂无数据流图表',
       temperature: '温度 (°C)',
       systemPanel: '系统面板',
+      average: '平均值',
+      individual: '个体值',
       alert: '警报',
       alertAbove30: '警报 > 30°C',
       normal: '正常'
@@ -111,6 +117,23 @@ const messages = {
       assets: '资产',
       loading: '正在加载资产...',
       uncategorized: '未分类'
+    },
+    dataExport: {
+      button: '数据',
+      title: '数据导出到 PostgreSQL',
+      description: '将从模型中提取资产和空间数据，并存储到 PostgreSQL 数据库中。',
+      extractAndExport: '提取并导出数据',
+      exporting: '正在导出...',
+      checkConnection: '检测连接',
+      connected: '已连接',
+      disconnected: '未连接',
+      checking: '检测中...',
+      success: '数据导出成功！',
+      failed: '导出失败',
+      assets: '资产',
+      spaces: '空间',
+      specs: '规格',
+      classifications: '分类'
     }
   },
   en: {
@@ -155,6 +178,8 @@ const messages = {
       relationships: 'RELATIONSHIPS',
       designProperties: 'DESIGN PROPERTIES',
       common: 'Common',
+      spaceNumber: 'Classification Number',
+      spaceDescription: 'Classification Description',
       code: 'Code',
       name: 'Name',
       area: 'Area',
@@ -183,7 +208,9 @@ const messages = {
       category: 'Category',
       family: 'Family',
       typeLabel: 'Type',
-      typeComments: 'Type Comments'
+      typeComments: 'Type Comments',
+      address: 'Address',
+      phone: 'Phone'
     },
     timeline: {
       live: 'LIVE',
@@ -215,6 +242,8 @@ const messages = {
       placeholder: 'No stream data available',
       temperature: 'Temperature (°C)',
       systemPanel: 'System Panel',
+      average: 'Average',
+      individual: 'Individual',
       alert: 'Alert',
       alertAbove30: 'Alert > 30°C',
       normal: 'Normal'
@@ -223,6 +252,23 @@ const messages = {
       assets: 'Assets',
       loading: 'Loading assets...',
       uncategorized: 'Uncategorized'
+    },
+    dataExport: {
+      button: 'Data',
+      title: 'Export to PostgreSQL',
+      description: 'Extract asset and space data from the model and store in PostgreSQL database.',
+      extractAndExport: 'Extract and Export',
+      exporting: 'Exporting...',
+      checkConnection: 'Check Connection',
+      connected: 'Connected',
+      disconnected: 'Disconnected',
+      checking: 'Checking...',
+      success: 'Data exported successfully!',
+      failed: 'Export failed',
+      assets: 'Assets',
+      spaces: 'Spaces',
+      specs: 'Specs',
+      classifications: 'Classifications'
     }
   }
 }

@@ -5,11 +5,10 @@
       <!-- 上部按钮组 -->
       <div class="nav-group-top">
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
-        <div class="nav-item active-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
+        <div class="nav-item" :class="{ 'active-blue': currentView === 'assets' }"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
-        <div class="spacer"></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
-        <div class="nav-item" @click="$emit('switch-view', 'connect')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
+        <div class="nav-item" :class="{ 'active-blue': currentView === 'connect' }" @click="$emit('switch-view', 'connect')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
       </div>
 
       <!-- 下部按钮组 -->
@@ -50,7 +49,10 @@
               <svg class="chevron" :class="{ expanded: expandedGroups[index] }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-              <span class="group-name">{{ group.name }}</span>
+              <span class="group-name">
+                <span class="classification-code">{{ group.code }}</span>
+                <span v-if="group.description" class="classification-desc">{{ group.description }}</span>
+              </span>
               <span class="group-count">{{ group.items.length }}</span>
             </div>
           </div>
@@ -89,16 +91,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const props = defineProps({
-  assets: {
-    type: Array,
-    default: () => []
-  }
+  assets: { type: Array, default: () => [] },
+  currentView: { type: String, default: 'assets' },
+  selectedDbIds: { type: Array, default: () => [] }
 });
 
 const emit = defineEmits(['open-properties', 'assets-selected', 'toggle-streams', 'switch-view']);
@@ -128,16 +129,25 @@ const assetTree = computed(() => {
   const tree = {};
   
   props.assets.forEach(asset => {
-    const classification = asset.classification || t('assetPanel.uncategorized');
-    if (!tree[classification]) {
-      tree[classification] = [];
+    // 使用分类编码作为 key
+    const classificationCode = asset.classification || asset.classification_code || t('assetPanel.uncategorized');
+    const classificationDesc = asset.classification_desc || '';
+    
+    if (!tree[classificationCode]) {
+      tree[classificationCode] = {
+        code: classificationCode,
+        description: classificationDesc,
+        items: []
+      };
     }
-    tree[classification].push(asset);
+    tree[classificationCode].items.push(asset);
   });
 
   return Object.keys(tree).sort().map(key => ({
-    name: key,
-    items: tree[key]
+    code: tree[key].code,
+    description: tree[key].description,
+    name: tree[key].code, // 保持后向兼容
+    items: tree[key].items
   }));
 });
 
@@ -157,39 +167,45 @@ const filteredTree = computed(() => {
   })).filter(group => group.items.length > 0);
 });
 
-// 选中的资产 dbId 数组
-const selectedDbIds = ref([]);
+// 选中的资产 dbId 数组（由父级传入以在视图切换时保留）
+const selectedDbIdsLocal = ref([...(props.selectedDbIds || [])]);
+
+// 同步父级选择（视图切换或外部更新）
+watch(() => props.selectedDbIds, (val) => {
+  selectedDbIdsLocal.value = [...(val || [])];
+});
+// 当资产列表变化时，过滤不存在的选择
+watch(assetTree, (tree) => {
+  const ids = new Set(tree.flatMap(g => g.items.map(i => i.dbId)));
+  selectedDbIdsLocal.value = selectedDbIdsLocal.value.filter(id => ids.has(id));
+});
 
 // 判断某个 dbId 是否被选中
 const isSelected = (dbId) => {
-  return selectedDbIds.value.includes(dbId);
+  return selectedDbIdsLocal.value.includes(dbId);
 };
 
 // 选择/取消选择资产
 const selectItem = (dbId) => {
-  const index = selectedDbIds.value.indexOf(dbId);
+  const index = selectedDbIdsLocal.value.indexOf(dbId);
   if (index > -1) {
-    selectedDbIds.value.splice(index, 1);
+    selectedDbIdsLocal.value.splice(index, 1);
   } else {
-    selectedDbIds.value.push(dbId);
+    selectedDbIdsLocal.value.push(dbId);
   }
-
-  emit('assets-selected', selectedDbIds.value);
-
-  if (selectedDbIds.value.length > 0) {
-    emit('open-properties');
-  }
+  emit('assets-selected', selectedDbIdsLocal.value);
+  if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
 
 // 判断分组是否全选
 const isGroupChecked = (group) => {
   if (group.items.length === 0) return false;
-  return group.items.every(item => selectedDbIds.value.includes(item.dbId));
+  return group.items.every(item => selectedDbIdsLocal.value.includes(item.dbId));
 };
 
 // 判断分组是否部分选中
 const isGroupIndeterminate = (group) => {
-  const selectedCount = group.items.filter(item => selectedDbIds.value.includes(item.dbId)).length;
+  const selectedCount = group.items.filter(item => selectedDbIdsLocal.value.includes(item.dbId)).length;
   return selectedCount > 0 && selectedCount < group.items.length;
 };
 
@@ -204,27 +220,17 @@ const toggleGroupSelection = (group) => {
   const allSelected = isGroupChecked(group);
 
   if (allSelected) {
-    // 取消选中该分组的所有资产
     group.items.forEach(item => {
-      const index = selectedDbIds.value.indexOf(item.dbId);
-      if (index > -1) {
-        selectedDbIds.value.splice(index, 1);
-      }
+      const index = selectedDbIdsLocal.value.indexOf(item.dbId);
+      if (index > -1) selectedDbIdsLocal.value.splice(index, 1);
     });
   } else {
-    // 选中该分组的所有资产
     group.items.forEach(item => {
-      if (!selectedDbIds.value.includes(item.dbId)) {
-        selectedDbIds.value.push(item.dbId);
-      }
+      if (!selectedDbIdsLocal.value.includes(item.dbId)) selectedDbIdsLocal.value.push(item.dbId);
     });
   }
-
-  emit('assets-selected', selectedDbIds.value);
-
-  if (selectedDbIds.value.length > 0) {
-    emit('open-properties');
-  }
+  emit('assets-selected', selectedDbIdsLocal.value);
+  if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
 </script>
 
@@ -240,7 +246,6 @@ const toggleGroupSelection = (group) => {
 .nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 .nav-item svg { margin-bottom: 4px; }
 .nav-item .label { font-size: 10px; text-align: center; }
-.spacer { height: 1px; width: 80%; background: #444; margin: 8px 0; }
 .list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; }
 .panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
 .title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; }
@@ -273,8 +278,11 @@ const toggleGroupSelection = (group) => {
 .group-label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .chevron { transition: transform 0.2s; stroke: #888; }
 .chevron.expanded { transform: rotate(90deg); }
-.group-name { flex: 1; font-size: 11px; color: #ccc; font-weight: 600; }
-.group-count { font-size: 10px; color: #888; background: #1e1e1e; padding: 2px 6px; border-radius: 10px; }
+.group-name { flex: 1; font-size: 11px; color: #ccc; display: flex; align-items: center; gap: 6px; overflow: hidden; }
+.classification-code { font-weight: 600; white-space: nowrap; }
+.classification-desc { color: #888; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.classification-desc::before { content: '-'; margin-right: 6px; color: #555; }
+.group-count { font-size: 10px; color: #888; background: #1e1e1e; padding: 2px 6px; border-radius: 10px; flex-shrink: 0; }
 .tree-items { background: #252526; }
 .list-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px 8px 32px; cursor: pointer; border-bottom: 1px solid #1e1e1e; }
 .list-item:hover { background: #2a2a2a; }

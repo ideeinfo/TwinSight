@@ -5,11 +5,10 @@
       <!-- 上部按钮组 -->
       <div class="nav-group-top">
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
-        <div class="nav-item" @click="$emit('switch-view', 'assets')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
+<div class="nav-item" :class="{ 'active-blue': currentView === 'assets' }" @click="$emit('switch-view', 'assets')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
-        <div class="spacer"></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
-        <div class="nav-item" @click="$emit('switch-view', 'connect')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
+<div class="nav-item" :class="{ 'active-blue': currentView === 'connect' }" @click="$emit('switch-view', 'connect')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
       </div>
 
       <!-- 下部按钮组 -->
@@ -60,16 +59,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
 const props = defineProps({
-  rooms: {
-    type: Array,
-    default: () => []
-  }
+  rooms: { type: Array, default: () => [] },
+  currentView: { type: String, default: 'connect' },
+  selectedDbIds: { type: Array, default: () => [] }
 });
 
 const emit = defineEmits(['open-properties', 'rooms-selected', 'toggle-streams', 'switch-view']);
@@ -95,34 +93,40 @@ const items = computed(() => {
   return [];
 });
 
-// 改为多选：存储选中的索引数组
-const selectedIndices = ref([]);
+// 多选：存储选中的 dbId 数组（由父级传入以在视图切换时保留）
+const selectedDbIdsLocal = ref([...(props.selectedDbIds || [])]);
+
+// 同步父级选择（在视图切换或外部更新时保留）
+watch(() => props.selectedDbIds, (val) => {
+  selectedDbIdsLocal.value = [...(val || [])];
+});
+// 当房间列表变化时，过滤不存在的选择
+watch(items, (list) => {
+  if (!list || list.length === 0) return;
+  const ids = new Set(list.map(i => i.dbId));
+  selectedDbIdsLocal.value = selectedDbIdsLocal.value.filter(id => ids.has(id));
+});
 
 // 判断某个索引是否被选中
 const isSelected = (index) => {
-  return selectedIndices.value.includes(index);
+  const dbId = items.value[index]?.dbId;
+  return selectedDbIdsLocal.value.includes(dbId);
 };
 
 // 切换选中状态（支持多选）
 const selectItem = (index) => {
-  const idx = selectedIndices.value.indexOf(index);
-
+  const dbId = items.value[index]?.dbId;
+  if (!dbId) return;
+  const idx = selectedDbIdsLocal.value.indexOf(dbId);
   if (idx > -1) {
-    // 已选中，取消选中
-    selectedIndices.value.splice(idx, 1);
+    selectedDbIdsLocal.value.splice(idx, 1);
   } else {
-    // 未选中，添加到选中列表
-    selectedIndices.value.push(index);
+    selectedDbIdsLocal.value.push(dbId);
   }
-
-  // 发送选中的房间 dbId 数组到父组件
-  const selectedDbIds = selectedIndices.value.map(i => items.value[i].dbId);
-  emit('rooms-selected', selectedDbIds);
-
-  if (selectedDbIds.length > 0) {
-    emit('open-properties');
-  }
+  emit('rooms-selected', selectedDbIdsLocal.value);
+  if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
+
 </script>
 
 <style scoped>

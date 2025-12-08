@@ -58,11 +58,12 @@
           <button class="nav-arrow left" @click="panTimeline(-1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
           <div class="track-container" ref="trackRef" @mousedown="startDrag">
             <div class="mini-chart-layer">
-              <svg class="svg-mini" viewBox="0 0 1000 100" preserveAspectRatio="none">
+      <svg class="svg-mini" viewBox="0 0 1000 100" preserveAspectRatio="none">
                 <defs><linearGradient id="miniAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.2" /><stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" /></linearGradient><linearGradient id="miniStrokeGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0.24" stop-color="#ff4d4d" /><stop offset="0.26" stop-color="#00b0ff" /></linearGradient></defs>
-                <path :d="miniAreaPath" fill="url(#miniAreaGrad)" stroke="none" />
-                <path :d="miniLinePath" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
-              </svg>
+        <path v-if="!miniOverlayPaths.length" :d="miniAreaPath" fill="url(#miniAreaGrad)" stroke="none" />
+        <path v-if="!miniOverlayPaths.length" :d="miniLinePath" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+        <path v-for="(p, idx) in miniOverlayPaths" :key="idx" :d="p" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+      </svg>
             </div>
             <div class="ticks-layer">
               <div v-for="(tick, index) in generatedTicks" :key="index" class="tick" :class="[tick.type, { 'text-white': tick.highlight }]" :style="{ left: tick.percent + '%' }"><span v-if="tick.label">{{ tick.label }}</span></div>
@@ -135,20 +136,18 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
+import { isInfluxConfigured, writeRoomHistory, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
 import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // 定义 props
 const props = defineProps({
-  currentView: {
-    type: String,
-    default: 'connect'
-  }
+  currentView: { type: String, default: 'connect' }
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -177,6 +176,35 @@ let assetFragData = {}; // 资产材质缓存
 const viewerContainer = ref(null);
 let viewer = null;
 const MODEL_URL = '/models/my-building/output/3d.svf';
+let defaultView = null;
+const animateToDefaultView = (duration = 800) => {
+  if (!defaultView || !viewer || !viewer.navigation) return;
+  const nav = viewer.navigation;
+  const sp = nav.getPosition().clone();
+  const st = nav.getTarget().clone();
+  const ep = defaultView.pos.clone();
+  const et = defaultView.target.clone();
+  const start = performance.now();
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const e = ease(t);
+    const ip = new window.THREE.Vector3(
+      sp.x + (ep.x - sp.x) * e,
+      sp.y + (ep.y - sp.y) * e,
+      sp.z + (ep.z - sp.z) * e
+    );
+    const it = new window.THREE.Vector3(
+      st.x + (et.x - st.x) * e,
+      st.y + (et.y - st.y) * e,
+      st.z + (et.z - st.z) * e
+    );
+    nav.setView(ip, it);
+    if (defaultView.up) nav.setWorldUpVector(defaultView.up.clone());
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+};
 
 // 时间状态
 const MOCK_NOW = new Date(); 
@@ -222,25 +250,69 @@ const calendarDayNames = computed(() => [
   t('calendar.sat')
 ]);
 
-// 必须放在 isLive 之前
-const chartData = computed(() => {
+// 图表数据改为可写 ref，通过 InfluxDB 拉取，失败时退回本地模拟
+const chartData = ref([]);
+const overlaySeries = ref([]);
+const isCacheReady = ref(false);
+let heatmapTimer = null;
+let lastAppliedTemps = {};
+const HEATMAP_EPS = 0.3;
+let uiObserver = null;
+const selectedRoomCodes = ref([]);
+let roomSeriesCache = {};
+let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
+
+const computeValue = (timestamp) => {
+  const d = new Date(timestamp);
+  const h = d.getHours() + d.getMinutes() / 60;
+  const base = 26.5 + 2.2 * Math.sin(((h - 14) / 24) * 2 * Math.PI);
+  const noise = (Math.random() - 0.5) * 0.4;
+  return Math.max(24, Math.min(29, base + noise));
+};
+
+const genLocalSeries = () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const points = [];
-  const count = 300; 
+  const count = 300;
   const step = (end - start) / (count - 1);
   for (let i = 0; i < count; i++) {
-    const timestamp = start + i * step;
-    const time = new Date(timestamp);
-    const hour = time.getHours() + time.getMinutes() / 60;
-    const dailyComponent = Math.sin(((hour - 8) / 24) * 2 * Math.PI) * 4; 
-    const noise = (Math.random() - 0.5) * 2;
-    let value = 28 + dailyComponent + noise;
-    value = Math.max(20, Math.min(38, value));
-    points.push({ timestamp, value });
+    const ts = start + i * step;
+    points.push({ timestamp: ts, value: computeValue(ts) });
   }
-  return points;
-});
+  chartData.value = points;
+};
+
+const loadChartData = async () => {
+  const start = startDate.value.getTime();
+  const end = endDate.value.getTime();
+  const windowMs = Math.max(60_000, Math.round((end - start) / 300));
+  if (isInfluxConfigured()) {
+    try {
+      const pts = await queryAverageSeries(start, end, windowMs);
+      if (pts.length) {
+        chartData.value = pts;
+        return;
+      }
+    } catch {}
+  }
+  genLocalSeries();
+};
+
+const refreshRoomSeriesCache = async (codes) => {
+  isCacheReady.value = false;
+  if (!isInfluxConfigured()) { roomSeriesCache = {}; isCacheReady.value = true; return; }
+  const start = startDate.value.getTime();
+  const end = endDate.value.getTime();
+  const windowMs = Math.max(60_000, Math.round((end - start)/300));
+  roomSeriesRange = { startMs: start, endMs: end, windowMs };
+  const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
+  const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
+  const cache = {};
+  list.forEach(({ code, pts }) => { cache[code] = pts || []; });
+  roomSeriesCache = cache;
+  isCacheReady.value = true;
+};
 
 const currentTemp = computed(() => {
   if (!chartData.value.length) return 0;
@@ -255,38 +327,73 @@ watch(chartData, (newData) => {
 }, { immediate: true });
 
 // 监听温度变化，更新房间标签数值
-watch(currentTemp, (val) => {
-  if (roomTags.value.length > 0) {
-    roomTags.value.forEach(tag => {
-      tag.currentTemp = (val + tag.offset).toFixed(1);
-    });
+const valueAtTime = (pts, ms) => {
+  if (!pts || !pts.length) return undefined;
+  let l = 0, r = pts.length - 1;
+  while (l < r) { const m = (l + r) >> 1; if (pts[m].timestamp < ms) l = m + 1; else r = m; }
+  const i = l;
+  const prev = pts[Math.max(0, i-1)], cur = pts[i];
+  const pick = !prev ? cur : (!cur ? prev : (Math.abs(prev.timestamp - ms) <= Math.abs(cur.timestamp - ms) ? prev : cur));
+  return pick?.value;
+};
 
-    // 如果热力图开启，更新房间颜色
-    if (isHeatmapEnabled.value && viewer) {
-      applyHeatmapStyle();
+const setTagTempsAtCurrentTime = () => {
+  if (!roomTags.value.length) return;
+  const percent = Math.max(0, Math.min(1, progress.value / 100));
+  roomTags.value.forEach(tag => {
+    const pts = roomSeriesCache[tag.code];
+    if (pts && pts.length) {
+      const idx = Math.round(percent * (pts.length - 1));
+      const v = pts[idx]?.value;
+      if (v !== undefined) tag.currentTemp = Number(v).toFixed(1);
+    } else if (!isInfluxConfigured()) {
+      tag.currentTemp = Number(currentTemp.value + tag.offset).toFixed(1);
+    }
+  });
+  if (isHeatmapEnabled.value && viewer) {
+    if (!heatmapTimer) {
+      heatmapTimer = setTimeout(() => { heatmapTimer = null; applyHeatmapStyle(); }, 400);
     }
   }
-});
+};
+
+watch(currentTemp, () => setTagTempsAtCurrentTime());
+
+watch(progress, () => setTagTempsAtCurrentTime());
 
 // isLive 放在这里，确保 progress 已定义
 const isLive = computed(() => progress.value > 99.5);
 
 const currentDisplayDate = computed(() => new Date(startDate.value.getTime() + (progress.value/100)*(endDate.value-startDate.value)));
-const currentDateStr = computed(() => currentDisplayDate.value.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-const currentTimeStr = computed(() => currentDisplayDate.value.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) + ' EDT');
+const currentDateStr = computed(() => {
+  const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
+  return currentDisplayDate.value.toLocaleDateString(localeCode, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+});
+const currentTimeStr = computed(() => {
+  const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
+  const timeStr = currentDisplayDate.value.toLocaleTimeString(localeCode, { hour: 'numeric', minute: '2-digit', hour12: locale.value !== 'zh' });
+  return locale.value === 'zh' ? timeStr : timeStr + ' EDT';
+});
 
 const miniLinePath = computed(() => chartData.value.length ? chartData.value.map((p, i) => `${i===0?'M':'L'} ${(i/(chartData.value.length-1))*1000} ${100-((p.value-0)/40)*100}`).join(' ') : '');
 const miniAreaPath = computed(() => miniLinePath.value ? `${miniLinePath.value} L 1000 100 L 0 100 Z` : '');
+const miniOverlayPaths = computed(() => {
+  return overlaySeries.value.map(series => series.map((p, i) => `${i===0?'M':'L'} ${(i/(series.length-1))*1000} ${100-((p.value-0)/40)*100}`).join(' '));
+});
 
 const generatedTicks = computed(() => {
   const s = startDate.value.getTime(), e = endDate.value.getTime(), d = e - s; if(d<=0) return [];
+  const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
   const steps = [{v:36e5},{v:72e5},{v:144e5},{v:216e5},{v:432e5},{v:864e5},{v:1728e5},{v:6048e5},{v:2592e6},{v:31536e6}];
   const step = steps.find(x => x.v >= d/10) || steps[steps.length-1]; const interval = step.v;
   const ticks = []; let c = Math.floor(s/interval)*interval; if(c<s) c+=interval;
-  while(c<=e) { const p=((c-s)/d)*100; const dt=new Date(c); let l='', h=false, t='major'; if(interval<864e5){ if(dt.getHours()===0){l=dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});h=true;}else{l=dt.toLocaleTimeString('en-US',{hour:'numeric'}).replace(' ','');t='minor';}}else{l=dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});h=true;} ticks.push({percent:p,type:t,label:l,highlight:h}); c+=interval; } return ticks;
+  while(c<=e) { const p=((c-s)/d)*100; const dt=new Date(c); let l='', h=false, t='major'; if(interval<864e5){ if(dt.getHours()===0){l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;}else{l=dt.toLocaleTimeString(localeCode,{hour:'numeric'}).replace(' ','');t='minor';}}else{l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;} ticks.push({percent:p,type:t,label:l,highlight:h}); c+=interval; } return ticks;
 });
 
-const calendarTitle = computed(() => calendarViewDate.value.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
+const calendarTitle = computed(() => {
+  const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
+  return calendarViewDate.value.toLocaleDateString(localeCode, { month: 'long', year: 'numeric' });
+});
 const calendarDays = computed(() => { const y = calendarViewDate.value.getFullYear(), m = calendarViewDate.value.getMonth(), fd = new Date(y, m, 1), ld = new Date(y, m + 1, 0), g = []; for(let i=0; i<fd.getDay(); i++) g.push({ date: null, inMonth: false }); for(let i=1; i<=ld.getDate(); i++) g.push({ date: new Date(y, m, i), inMonth: true }); return g; });
 
 // 辅助样式计算
@@ -310,7 +417,31 @@ const initViewer = () => {
     viewer.addEventListener(window.Autodesk.Viewing.viewerResizeEvent, updateAllTagPositions);
     
     if (viewer.start() > 0) return;
-    viewer.loadModel(MODEL_URL, {}, () => { viewer.setTheme('dark-theme'); });
+    viewer.loadModel(MODEL_URL, {}, () => { 
+      viewer.setTheme('dark-theme');
+      // 设置默认环境主题为 Field
+      viewer.setLightPreset(17); // 17 = "Field" environment preset
+      if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
+      if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+      const root = viewerContainer.value;
+      if (root) {
+        const checkOpen = () => {
+          let open = false;
+          const panels = root.querySelectorAll('.docking-panel, .settings-panel, .adsk-settings, .adsk-viewing-settings');
+          panels.forEach(el => {
+            const cs = window.getComputedStyle(el);
+            const opacity = parseFloat(cs.opacity || '1');
+            if (cs.display !== 'none' && cs.visibility !== 'hidden' && opacity > 0.1 && el.offsetWidth > 0 && el.offsetHeight > 0) {
+              open = true;
+            }
+          });
+          areTagsVisible.value = !open;
+        };
+        uiObserver = new MutationObserver(checkOpen);
+        uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+        checkOpen();
+      }
+    });
   });
 };
 
@@ -396,6 +527,14 @@ const getHeatmapMaterial = (temperature) => {
 
 // 1. 模型加载
 const onModelLoaded = () => {
+  if (!defaultView && viewer && viewer.navigation) {
+    try {
+      const pos = viewer.navigation.getPosition().clone();
+      const target = viewer.navigation.getTarget().clone();
+      const up = viewer.navigation.getWorldUpVector().clone();
+      defaultView = { pos, target, up };
+    } catch {}
+  }
   viewer.search('Rooms', (dbIds) => {
     if (!dbIds || dbIds.length === 0) {
       viewer.search('房间', (cnDbIds) => {
@@ -483,12 +622,19 @@ const processRooms = (dbIds) => {
           name: name || `房间 ${dbId}`,
           code: code
         });
+        const tag = newTags.find(t => t.dbId === dbId);
+        if (tag) tag.code = code;
       }
 
       pendingProps--;
       if (pendingProps === 0) {
         // 所有属性获取完成，发送房间列表
-        emit('rooms-loaded', roomList);
+emit('rooms-loaded', roomList);
+seedRoomHistory(roomList);
+
+        // 预取所有房间的时序缓存，确保首次播放就绪
+        const allCodes = roomList.map(r => r.code).filter(Boolean);
+        refreshRoomSeriesCache(allCodes).then(() => setTagTempsAtCurrentTime()).catch(() => {});
 
         // 根据当前视图决定是否应用房间样式
         setTimeout(() => {
@@ -821,6 +967,7 @@ const showAllRooms = () => {
 
   // 更新所有标签位置
   updateAllTagPositions();
+  animateToDefaultView();
 };
 
 // 9. 切换热力图
@@ -833,6 +980,7 @@ const toggleHeatmap = () => {
   } else {
     // 关闭热力图：清除主题颜色，恢复蓝色材质
     viewer.clearThemingColors();
+    lastAppliedTemps = {};
 
     const mat = getRoomMaterial();
     const fragList = viewer.model.getFragmentList();
@@ -855,14 +1003,22 @@ const toggleHeatmap = () => {
   updateAllTagPositions();
 };
 
+onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null; } });
+
 // 10. 应用热力图样式
 const applyHeatmapStyle = () => {
   if (foundRoomDbIds.length === 0) return;
 
+  let changed = false;
   foundRoomDbIds.forEach(dbId => {
     // 找到对应的房间标签获取温度
     const tag = roomTags.value.find(t => t.dbId === dbId);
     const temperature = tag ? parseFloat(tag.currentTemp) : 28; // 默认温度，确保是数字
+
+    const prev = lastAppliedTemps[dbId];
+    if (prev !== undefined && Math.abs(prev - temperature) < HEATMAP_EPS) {
+      return;
+    }
 
     // 计算热力图颜色
     const minT = 25, maxT = 35;
@@ -903,10 +1059,12 @@ const applyHeatmapStyle = () => {
 
     // 使用 setThemingColor 而不是 setMaterial
     viewer.setThemingColor(dbId, color);
+    lastAppliedTemps[dbId] = temperature;
+    changed = true;
   });
 
   // 强制刷新渲染
-  viewer.impl.invalidate(true, true, true);
+  if (changed) viewer.impl.invalidate(false, false, false);
 };
 
 // 11. 获取房间属性
@@ -919,7 +1077,10 @@ const getRoomProperties = async (dbId) => {
         code: '--',
         name: result.name || '--',
         area: '--',
-        perimeter: '--'
+        perimeter: '--',
+        level: '--',
+        spaceNumber: '',
+        spaceDescription: ''
       };
 
       // 从属性中提取信息
@@ -939,6 +1100,16 @@ const getRoomProperties = async (dbId) => {
           // 匹配周长
           else if (name === '周长' || name === 'Perimeter') {
             props.perimeter = value;
+          }
+          // 匹配标高
+          else if (name === '标高' || name === 'Level') {
+            props.level = value;
+          }
+          else if (name === 'Classification.Space.Number') {
+            props.spaceNumber = value;
+          }
+          else if (name === 'Classification.Space.Description') {
+            props.spaceDescription = value;
           }
         });
       }
@@ -985,6 +1156,7 @@ const showAllAssets = () => {
   viewer.clearSelection();
 
   viewer.impl.invalidate(true, true, true);
+  animateToDefaultView();
 };
 
 const getAssetProperties = (dbId) => {
@@ -1079,6 +1251,209 @@ const hideTemperatureTags = () => {
   areTagsVisible.value = false;
 };
 
+// 获取完整的资产数据（用于导出到数据库）
+const getFullAssetData = async () => {
+  if (!viewer || !viewer.model) return [];
+
+  const instanceTree = viewer.model.getInstanceTree();
+  if (!instanceTree) return [];
+
+  const allDbIds = [];
+  instanceTree.enumNodeChildren(instanceTree.getRootId(), (dbId) => {
+    allDbIds.push(dbId);
+  }, true);
+
+  const assets = [];
+
+  // 逐个获取资产属性
+  for (const dbId of allDbIds) {
+    try {
+      const props = await new Promise((resolve) => {
+        viewer.getProperties(dbId, (result) => {
+          if (!result || !result.properties) {
+            resolve(null);
+            return;
+          }
+
+          const assetData = {
+            dbId,
+            name: '',
+            mcCode: '',
+            floor: '',
+            room: '',
+            omniClass21Number: '',
+            omniClass21Description: '',
+            category: '',
+            family: '',
+            type: '',
+            typeComments: '',
+            manufacturer: '',
+            address: '',
+            phone: ''
+          };
+
+          // 先获取基本信息
+          result.properties.forEach(prop => {
+            const name = prop.displayName;
+            const category = prop.displayCategory;
+            const value = prop.displayValue || '';
+
+            // 标识分组下的名称
+            if ((category === '标识数据' || category === 'Identity Data') && (name === '名称' || name === 'Name')) {
+              assetData.name = value;
+            }
+            // MC编码
+            else if (name === 'MC编码' || name === 'MC Code') {
+              assetData.mcCode = value;
+            }
+            // 楼层
+            else if (name === '楼层' || name === 'Level') {
+              assetData.floor = value;
+            }
+            // 房间分组下的名称
+            else if ((category === '房间' || category === 'Room') && (name === '名称' || name === 'Name')) {
+              assetData.room = value;
+            }
+            // OmniClass 21 编号
+            else if (name === 'Classification.OmniClass.21.Number') {
+              assetData.omniClass21Number = value;
+            }
+            // OmniClass 21 描述
+            else if (name === 'Classification.OmniClass.21.Description') {
+              assetData.omniClass21Description = value;
+            }
+            // 类别
+            else if (name === '类别' || name === 'Category') {
+              assetData.category = value;
+            }
+            // 族
+            else if (name === '族' || name === 'Family') {
+              assetData.family = value;
+            }
+            // 类型
+            else if (name === '类型' || name === 'Type') {
+              assetData.type = value;
+            }
+            // 类型注释（规格编码）
+            else if (name === '类型注释' || name === 'Type Comments') {
+              assetData.typeComments = value;
+            }
+            // 制造商
+            else if (name === '制造商' || name === 'Manufacturer') {
+              assetData.manufacturer = value;
+            }
+            // 地址
+            else if (name === '地址' || name === 'Address') {
+              assetData.address = value;
+            }
+            // 电话
+            else if (name === '电话' || name === 'Phone') {
+              assetData.phone = value;
+            }
+          });
+
+          // 只添加有 MC编码 的构件
+          if (assetData.mcCode) {
+            resolve(assetData);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+      if (props) {
+        assets.push(props);
+      }
+    } catch (e) {
+      console.error('获取资产属性失败:', e);
+    }
+  }
+
+  console.log(`📊 已提取 ${assets.length} 个资产数据`);
+  return assets;
+};
+
+// 获取完整的空间数据（用于导出到数据库）
+const getFullSpaceData = async () => {
+  if (!viewer || foundRoomDbIds.length === 0) return [];
+
+  const spaces = [];
+
+  for (const dbId of foundRoomDbIds) {
+    try {
+      const props = await new Promise((resolve) => {
+        viewer.getProperties(dbId, (result) => {
+          if (!result || !result.properties) {
+            resolve(null);
+            return;
+          }
+
+          const spaceData = {
+            dbId,
+            spaceCode: '',
+            name: result.name || '',
+            classificationCode: '',
+            classificationDesc: '',
+            floor: '',
+            area: '',
+            perimeter: ''
+          };
+
+          result.properties.forEach(prop => {
+            const name = prop.displayName || prop.attributeName;
+            const value = prop.displayValue;
+
+            // 空间编码（编号）
+            if (name === '编号' || name === 'Number' || name === 'Mark') {
+              spaceData.spaceCode = value;
+            }
+            // 名称
+            else if (name === '名称' || name === 'Name') {
+              if (!spaceData.name) spaceData.name = value;
+            }
+            // 分类编码
+            else if (name === 'Classification.Space.Number') {
+              spaceData.classificationCode = value;
+            }
+            // 分类描述
+            else if (name === 'Classification.Space.Description') {
+              spaceData.classificationDesc = value;
+            }
+            // 楼层（标高）
+            else if (name === '标高' || name === 'Level') {
+              spaceData.floor = value;
+            }
+            // 面积
+            else if (name === '面积' || name === 'Area') {
+              spaceData.area = value;
+            }
+            // 周长
+            else if (name === '周长' || name === 'Perimeter') {
+              spaceData.perimeter = value;
+            }
+          });
+
+          // 只添加有编号的空间
+          if (spaceData.spaceCode) {
+            resolve(spaceData);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+      if (props) {
+        spaces.push(props);
+      }
+    } catch (e) {
+      console.error('获取空间属性失败:', e);
+    }
+  }
+
+  console.log(`📊 已提取 ${spaces.length} 个空间数据`);
+  return spaces;
+};
+
 // 暴露方法给父组件
 defineExpose({
   isolateAndFocusRooms,
@@ -1089,14 +1464,37 @@ defineExpose({
   showAllAssets,
   getAssetProperties,
   showTemperatureTags,
-  hideTemperatureTags
+  hideTemperatureTags,
+  syncTimelineHover,
+  getFullAssetData,
+  getFullSpaceData,
+  getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
+  setSelectedRooms: async (codes) => {
+    if (!isInfluxConfigured() || !codes?.length) {
+      overlaySeries.value = [];
+      await refreshRoomSeriesCache().catch(() => {});
+      setTagTempsAtCurrentTime();
+      return;
+    }
+    const start = startDate.value.getTime();
+    const end = endDate.value.getTime();
+    const windowMs = Math.max(60_000, Math.round((end - start)/300));
+    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
+    const list = await Promise.all(promises);
+    overlaySeries.value = list;
+    selectedRoomCodes.value = codes.slice();
+    await refreshRoomSeriesCache(codes).catch(() => {});
+    setTagTempsAtCurrentTime();
+  }
 });
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
 
-const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); };
+const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDate.value.getTime(); const w = Math.max(60_000, Math.round((e - s) / 300)); emit('time-range-changed', { startMs: s, endMs: e, windowMs: w }); };
+const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); emitRangeChanged(); };
+function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
 const toggleTimeRangeMenu = () => isTimeRangeMenuOpen.value = !isTimeRangeMenuOpen.value;
-const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; };
+const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 const changeMonth = (d) => calendarViewDate.value = new Date(calendarViewDate.value.setMonth(calendarViewDate.value.getMonth() + d));
 const isSameDay = (d1, d2) => d1 && d2 && d1.toDateString() === d2.toDateString();
 const isDaySelected = (d) => isSameDay(d, tempStart.value) || isSameDay(d, tempEnd.value);
@@ -1105,23 +1503,64 @@ const handleDayClick = (d) => { if (!d.date) return; if (!tempStart.value || (te
 const formatDate = (d) => d ? d.toLocaleDateString() : '';
 const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: '', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
 const closeCustomModal = () => isCustomModalOpen.value = false;
-const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; } };
-const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); };
-const zoomOut = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d * 1.5); };
+const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); } };
+const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
+const zoomOut = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d * 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 let fId;
 const animate = () => { if(!isPlaying.value) return; const step=0.05*playbackSpeed.value; if(progress.value+step>=100) { if(isLooping.value) progress.value=0; else {progress.value=100; isPlaying.value=false;} } else progress.value+=step; fId=requestAnimationFrame(animate); };
-const togglePlay = () => { isPlaying.value=!isPlaying.value; if(isPlaying.value) { if(progress.value>=100) progress.value=0; animate(); } else cancelAnimationFrame(fId); };
+const togglePlay = async () => { isPlaying.value=!isPlaying.value; if(isPlaying.value) { if(progress.value>=100) progress.value=0; await refreshRoomSeriesCache(selectedRoomCodes.value).catch(()=>{}); animate(); } else cancelAnimationFrame(fId); };
 const cycleSpeed = () => { const s=[1,2,4,8]; playbackSpeed.value=s[(s.indexOf(playbackSpeed.value)+1)%4]; };
 const goLive = () => { progress.value=100; isPlaying.value=false; };
 const startDrag = (e) => { isDragging.value=true; isPlaying.value=false; updateP(e); window.addEventListener('mousemove',onDrag); window.addEventListener('mouseup',stopDrag); };
 const onDrag = (e) => isDragging.value && updateP(e);
 const stopDrag = () => { isDragging.value=false; window.removeEventListener('mousemove',onDrag); window.removeEventListener('mouseup',stopDrag); };
-const updateP = (e) => { if(!trackRef.value)return; const r=trackRef.value.getBoundingClientRect(); progress.value=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100)); };
+const updateP = (e) => { if(!trackRef.value)return; const r=trackRef.value.getBoundingClientRect(); progress.value=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100)); emitRangeChanged(); };
 const openTimeline = () => isTimelineOpen.value=true;
 const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false; };
 const handleClickOutside = (e) => { if(dropdownRef.value && !dropdownRef.value.contains(e.target)) isTimeRangeMenuOpen.value=false; };
 watch(isTimelineOpen, (newVal) => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
-onMounted(() => { document.addEventListener('click', handleClickOutside); nextTick(() => initViewer()); });
+watch([startDate, endDate], () => { loadChartData(); });
+let seeded = false;
+const seedRoomHistory = async (rooms) => {
+  if (!isInfluxConfigured() || seeded) return;
+  const now = Date.now();
+  const start = now - 30 * 24 * 60 * 60 * 1000;
+  const every = 15 * 60 * 1000;
+  for (const r of rooms) {
+    const nm = r.name || '';
+    const isExcluded = /泵房|格栅机间/.test(nm);
+    const isRest = /休息室/.test(nm);
+    if (isExcluded) continue;
+    const points = [];
+    for (let t = start; t <= now; t += every) {
+      let v = computeValue(t);
+      if (isRest) v = Math.max(23, Math.min(28, v - (1 + Math.random())));
+      points.push({ timestamp: t, value: v });
+    }
+    try { await writeRoomHistory(r.code, points); } catch {}
+  }
+  seeded = true;
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+  nextTick(() => initViewer());
+  loadChartData();
+  setTimeout(() => {
+    if (isInfluxConfigured()) {
+      const codes = roomTags.value.map(t => t.code).filter(Boolean);
+      if (codes.length) {
+        refreshRoomSeriesCache(codes).catch(() => {});
+        queryLatestByRooms(codes, 60 * 60 * 1000).then(map => {
+          roomTags.value.forEach(tag => {
+            const v = map[tag.code];
+            if (v !== undefined) tag.currentTemp = v.toFixed(1);
+          });
+        }).catch(() => {});
+      }
+    }
+  }, 1500);
+});
 onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('click', handleClickOutside); window.removeEventListener('mousemove',onDrag); window.removeEventListener('mouseup',stopDrag); if(viewer) { viewer.finish(); viewer=null; } });
 </script>
 
@@ -1146,6 +1585,7 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 .timeline-toolbar { height: 44px; display: flex; justify-content: space-between; align-items: center; padding: 0 8px; background: #202020; user-select: none; }
 .toolbar-left, .toolbar-right { display: flex; align-items: center; height: 100%; }
 .toolbar-right { gap: 12px; padding-right: 8px; }
+.time-range-wrapper { position: relative; }
 .tool-btn { background: transparent; border: none; color: #aaa; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; }
 .tool-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .divider-v { width: 1px; height: 20px; background: #444; margin: 0 8px; }
@@ -1260,3 +1700,4 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
+// 叠加曲线颜色与默认一致：按阈值渐变

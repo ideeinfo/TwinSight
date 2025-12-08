@@ -1,0 +1,50 @@
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: tandem-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tandem
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # pgAdmin 4 - PostgreSQL 数据库管理界面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tandem-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tandem.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+    # ============================================
+    # 服务说明:
+    # ============================================
+    # PostgreSQL: localhost:5432
+    #   - 用户: postgres
+    #   - 密码: password
+    #   - 数据库: tandem
+    #
+    # pgAdmin: http://localhost:5050
+    #   - 邮箱: admin@tandem.com
+    #   - 密码: admin123
+    #   - 连接数据库时 Host 填: postgres (容器名)
+    #
+    # API 服务 (server/): npm run dev
+    #   - 端口: 3001
+    #   - 初始化数据库: cd server && npm run db:init
