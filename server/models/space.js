@@ -134,12 +134,73 @@ export async function deleteAllSpaces() {
     return result.rowCount;
 }
 
+/**
+ * 根据文件 ID 获取空间列表
+ */
+export async function getSpacesByFileId(fileId) {
+    const sql = 'SELECT * FROM spaces WHERE file_id = $1 ORDER BY space_code';
+    const result = await query(sql, [fileId]);
+    return result.rows;
+}
+
+/**
+ * 批量插入空间（带文件关联）
+ */
+export async function batchUpsertSpacesWithFile(spaces, fileId) {
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        for (const space of spaces) {
+            if (space.spaceCode) {
+                await client.query(`
+          INSERT INTO spaces (
+            space_code, name, classification_code, classification_desc,
+            floor, area, perimeter, db_id, file_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (space_code, file_id)
+          DO UPDATE SET
+            name = EXCLUDED.name,
+            classification_code = EXCLUDED.classification_code,
+            classification_desc = EXCLUDED.classification_desc,
+            floor = EXCLUDED.floor,
+            area = EXCLUDED.area,
+            perimeter = EXCLUDED.perimeter,
+            db_id = EXCLUDED.db_id,
+            updated_at = CURRENT_TIMESTAMP
+        `, [
+                    space.spaceCode,
+                    space.name,
+                    space.classificationCode,
+                    space.classificationDesc,
+                    space.floor,
+                    space.area,
+                    space.perimeter,
+                    space.dbId,
+                    fileId
+                ]);
+            }
+        }
+
+        await client.query('COMMIT');
+        console.log(`✅ 成功插入/更新 ${spaces.length} 条空间 (文件ID: ${fileId})`);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 export default {
     upsertSpace,
     batchUpsertSpaces,
+    batchUpsertSpacesWithFile,
     getAllSpaces,
     getSpaceByCode,
     getSpacesByFloor,
     getSpacesByClassification,
+    getSpacesByFileId,
     deleteAllSpaces
 };

@@ -24,15 +24,7 @@
     </div>
 
     <div class="right-section">
-      <!-- 数据导出按钮 -->
-      <div class="data-btn" @click="$emit('open-data-export')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-        <span>{{ $t('dataExport.button') }}</span>
-      </div>
+
 
       <!-- 语言切换下拉列表 -->
       <div class="language-dropdown" ref="langDropdownRef">
@@ -240,33 +232,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* 数据导出按钮样式 */
-.data-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #1f1f1f;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 4px 10px;
-  height: 28px;
-  font-size: 12px;
-  color: #ccc;
-  cursor: pointer;
-  transition: all 0.2s;
-  user-select: none;
-  margin-right: 12px;
-}
 
-.data-btn:hover {
-  background: #0078d4;
-  border-color: #0078d4;
-  color: #fff;
-}
-
-.data-btn:active {
-  background: #006cbd;
-}
 
 /* 语言切换下拉列表样式 */
 .language-dropdown {

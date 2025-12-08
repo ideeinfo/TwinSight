@@ -26,6 +26,13 @@
           @toggle-streams="toggleChartPanel"
           @switch-view="switchView"
         />
+        <FilePanel
+          v-else-if="currentView === 'files'"
+          :currentView="currentView"
+          @switch-view="switchView"
+          @file-activated="onFileActivated"
+          @open-data-export="openDataExportPanel"
+        />
       </div>
 
       <div class="resizer" @mousedown="startResize($event, 'left')"></div>
@@ -114,6 +121,7 @@ import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import TopBar from './components/TopBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
+import FilePanel from './components/FilePanel.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
@@ -308,6 +316,75 @@ const switchView = (view) => {
     if (mainViewRef.value.showTemperatureTags) {
       mainViewRef.value.showTemperatureTags();
     }
+  }
+
+  // 切换到文件视图时，隐藏温度标签
+  if (view === 'files' && mainViewRef.value) {
+    if (mainViewRef.value.hideTemperatureTags) {
+      mainViewRef.value.hideTemperatureTags();
+    }
+  }
+};
+
+// 文件激活后加载对应的资产和空间数据
+const onFileActivated = async (file) => {
+  console.log('📂 文件已激活:', file);
+  
+  try {
+    // 从数据库加载该文件的资产和空间
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    
+    // 获取该文件的资产
+    const assetsRes = await fetch(`${API_BASE}/api/files/${file.id}/assets`);
+    const assetsData = await assetsRes.json();
+    if (assetsData.success && assetsData.data.length > 0) {
+      assetList.value = assetsData.data.map(asset => ({
+        dbId: asset.db_id,
+        name: asset.name,
+        mcCode: asset.asset_code,
+        classification: asset.classification_code || 'Uncategorized',
+        classification_code: asset.classification_code || '',
+        classification_desc: asset.classification_desc || '',
+        specCode: asset.spec_code,
+        floor: asset.floor,
+        room: asset.room,
+        category: asset.category,
+        family: asset.family,
+        type: asset.type,
+        manufacturer: asset.manufacturer,
+        address: asset.address,
+        phone: asset.phone
+      }));
+      console.log(`📊 加载了 ${assetList.value.length} 个资产`);
+    }
+
+    // 获取该文件的空间
+    const spacesRes = await fetch(`${API_BASE}/api/files/${file.id}/spaces`);
+    const spacesData = await spacesRes.json();
+    if (spacesData.success && spacesData.data.length > 0) {
+      roomList.value = spacesData.data.map(space => ({
+        dbId: space.db_id,
+        name: space.name,
+        code: space.space_code,
+        classificationCode: space.classification_code,
+        classificationDesc: space.classification_desc,
+        floor: space.floor,
+        area: space.area,
+        perimeter: space.perimeter
+      }));
+      console.log(`📊 加载了 ${roomList.value.length} 个空间`);
+    }
+
+    // 加载对应的 3D 模型
+    if (file.extracted_path && mainViewRef.value && mainViewRef.value.loadModel) {
+      mainViewRef.value.loadModel(file.extracted_path);
+    }
+
+    // 切换到资产视图
+    switchView('assets');
+    
+  } catch (error) {
+    console.error('加载文件数据失败:', error);
   }
 };
 

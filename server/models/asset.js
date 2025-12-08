@@ -157,13 +157,73 @@ export async function deleteAllAssets() {
     return result.rowCount;
 }
 
+/**
+ * 根据文件 ID 获取资产列表
+ */
+export async function getAssetsByFileId(fileId) {
+    const sql = `
+    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    FROM assets a
+    LEFT JOIN asset_specs s ON a.spec_code = s.spec_code AND a.file_id = s.file_id
+    WHERE a.file_id = $1
+    ORDER BY a.asset_code
+  `;
+    const result = await query(sql, [fileId]);
+    return result.rows;
+}
+
+/**
+ * 批量插入资产（带文件关联）
+ */
+export async function batchUpsertAssetsWithFile(assets, fileId) {
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        for (const asset of assets) {
+            if (asset.assetCode) {
+                await client.query(`
+          INSERT INTO assets (asset_code, spec_code, name, floor, room, db_id, file_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (asset_code, file_id)
+          DO UPDATE SET
+            spec_code = EXCLUDED.spec_code,
+            name = EXCLUDED.name,
+            floor = EXCLUDED.floor,
+            room = EXCLUDED.room,
+            db_id = EXCLUDED.db_id,
+            updated_at = CURRENT_TIMESTAMP
+        `, [
+                    asset.assetCode,
+                    asset.specCode,
+                    asset.name,
+                    asset.floor,
+                    asset.room,
+                    asset.dbId,
+                    fileId
+                ]);
+            }
+        }
+
+        await client.query('COMMIT');
+        console.log(`✅ 成功插入/更新 ${assets.length} 条资产 (文件ID: ${fileId})`);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 export default {
     upsertAsset,
     batchUpsertAssets,
+    batchUpsertAssetsWithFile,
     getAllAssets,
     getAssetByCode,
     getAssetsBySpecCode,
     getAssetsByFloor,
     getAssetsByRoom,
+    getAssetsByFileId,
     deleteAllAssets
 };

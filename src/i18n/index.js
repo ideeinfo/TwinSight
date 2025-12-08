@@ -14,7 +14,8 @@ const messages = {
       none: '--',
       create: '创建',
       search: '搜索',
-      status: '状态'
+      status: '状态',
+      saving: '保存中...'
     },
     header: {
       properties: '属性',
@@ -134,6 +135,35 @@ const messages = {
       spaces: '空间',
       specs: '规格',
       classifications: '分类'
+    },
+    filePanel: {
+      files: '文件',
+      uploadModel: '上传模型',
+      fileTitle: '文件标题',
+      fileTitlePlaceholder: '请输入文件标题',
+      selectFile: '选择文件',
+      dropHint: '点击选择或拖放 SVF ZIP 文件',
+      upload: '上传',
+      uploading: '上传中...',
+      loading: '正在加载文件...',
+      noFiles: '暂无文件',
+      active: '激活',
+      activate: '激活',
+      edit: '编辑',
+      editTitle: '编辑文件标题',
+      extractData: '提取数据',
+      delete: '删除',
+      extracting: '正在解压',
+      extractingHint: '正在解压模型文件，请稍候...',
+      needExtractFirst: '请先解压并提取数据',
+      confirmDelete: '确定要删除文件 "{title}" 吗？相关数据也会被删除。',
+      confirmReExtract: '文件 "{title}" 已经提取过数据，再次提取将覆盖现有数据。确定继续吗？',
+      saveFailed: '保存失败',
+      extractFailed: '解压失败',
+      statusUploaded: '已上传',
+      statusExtracting: '解压中',
+      statusReady: '就绪',
+      statusError: '错误'
     }
   },
   en: {
@@ -144,6 +174,7 @@ const messages = {
       select: 'Select date',
       add: 'Add',
       multiple: 'Multiple',
+      saving: 'Saving...',
       varies: 'Varies',
       unnamed: 'Unnamed',
       none: '--',
@@ -269,6 +300,35 @@ const messages = {
       spaces: 'Spaces',
       specs: 'Specs',
       classifications: 'Classifications'
+    },
+    filePanel: {
+      files: 'Files',
+      uploadModel: 'Upload Model',
+      fileTitle: 'File Title',
+      fileTitlePlaceholder: 'Enter file title',
+      selectFile: 'Select File',
+      dropHint: 'Click to select or drop SVF ZIP file',
+      upload: 'Upload',
+      uploading: 'Uploading...',
+      loading: 'Loading files...',
+      noFiles: 'No files',
+      active: 'Active',
+      activate: 'Activate',
+      edit: 'Edit',
+      editTitle: 'Edit File Title',
+      extractData: 'Extract Data',
+      delete: 'Delete',
+      extracting: 'Extracting',
+      extractingHint: 'Extracting model file, please wait...',
+      needExtractFirst: 'Please extract data first',
+      confirmDelete: 'Are you sure to delete "{title}"? Related data will also be deleted.',
+      confirmReExtract: 'File "{title}" has already been extracted. Extracting again will overwrite existing data. Continue?',
+      saveFailed: 'Save failed',
+      extractFailed: 'Extract failed',
+      statusUploaded: 'Uploaded',
+      statusExtracting: 'Extracting',
+      statusReady: 'Ready',
+      statusError: 'Error'
     }
   }
 }

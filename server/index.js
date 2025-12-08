@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from 'dotenv';
 import apiRoutes from './routes/api.js';
+import fileRoutes from './routes/files.js';
 
 // 加载环境变量
 config();
@@ -29,6 +30,7 @@ app.use((req, res, next) => {
 
 // API 路由
 app.use('/api', apiRoutes);
+app.use('/api/files', fileRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -46,6 +48,7 @@ app.get('/', (req, res) => {
             assetSpecs: 'GET /api/asset-specs',
             assets: 'GET /api/assets',
             spaces: 'GET /api/spaces',
+            files: 'GET /api/files',
             importModelData: 'POST /api/import/model-data'
         }
     });
