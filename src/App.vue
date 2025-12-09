@@ -391,19 +391,32 @@ const onViewerReady = async () => {
 };
 
 const onRoomsLoaded = (rooms) => {
+  console.log(`📦 onRoomsLoaded 被调用: 模型提取了 ${rooms.length} 个空间`);
+  
   // 保存模型中的 dbId 列表
   modelRoomDbIds.value = rooms.map(r => r.dbId);
   
   // 如果数据库数据已加载，则使用数据库数据；否则使用模型数据
   if (!dbDataLoaded.value) {
+    console.log('⚠️ 数据库数据未加载，使用模型提取的空间数据');
     roomList.value = rooms;
+  } else {
+    console.log(`✅ 数据库数据已加载 (${roomList.value.length} 个空间)，保持使用数据库数据`);
   }
   
   if (currentView.value === 'connect' && mainViewRef.value) {
+    console.log(`🎯 当前是连接视图，准备显示空间 (数据库数据: ${dbDataLoaded.value ? '是' : '否'})`);
+    
     if (savedRoomSelections.value.length > 0 && mainViewRef.value.isolateAndFocusRooms) {
       mainViewRef.value.isolateAndFocusRooms(savedRoomSelections.value);
     } else if (mainViewRef.value.showAllRooms) {
-      mainViewRef.value.showAllRooms();
+      // 延迟调用，确保 props 已经更新
+      setTimeout(() => {
+        if (mainViewRef.value && mainViewRef.value.showAllRooms) {
+          console.log('🔄 调用 showAllRooms()');
+          mainViewRef.value.showAllRooms();
+        }
+      }, 100);
     }
     if (mainViewRef.value.showTemperatureTags) {
       mainViewRef.value.showTemperatureTags();
@@ -412,20 +425,33 @@ const onRoomsLoaded = (rooms) => {
 };
 
 const onAssetsLoaded = (assets) => {
+  console.log(`📦 onAssetsLoaded 被调用: 模型提取了 ${assets.length} 个资产`);
+  
   // 保存模型中的 dbId 列表
   modelAssetDbIds.value = assets.map(a => a.dbId);
   
   // 如果数据库数据已加载，则使用数据库数据；否则使用模型数据
   if (!dbDataLoaded.value) {
+    console.log('⚠️ 数据库数据未加载，使用模型提取的资产数据');
     assetList.value = assets;
+  } else {
+    console.log(`✅ 数据库数据已加载 (${assetList.value.length} 个资产)，保持使用数据库数据`);
   }
 
   // 如果当前是资产视图，自动显示资产并隐藏温度标签
   if (currentView.value === 'assets' && mainViewRef.value) {
+    console.log(`🎯 当前是资产视图，准备显示资产 (数据库数据: ${dbDataLoaded.value ? '是' : '否'})`);
+    
     if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
       mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
     } else if (mainViewRef.value.showAllAssets) {
-      mainViewRef.value.showAllAssets();
+      // 延迟调用，确保 props 已经更新
+      setTimeout(() => {
+        if (mainViewRef.value && mainViewRef.value.showAllAssets) {
+          console.log('🔄 调用 showAllAssets()');
+          mainViewRef.value.showAllAssets();
+        }
+      }, 100);
     }
     if (mainViewRef.value.hideTemperatureTags) {
       mainViewRef.value.hideTemperatureTags();
