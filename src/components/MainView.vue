@@ -149,7 +149,7 @@ const props = defineProps({
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 

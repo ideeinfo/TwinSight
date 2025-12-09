@@ -467,40 +467,34 @@ const onChartDataUpdate = (data) => {
 };
 
 const switchView = (view) => {
+  console.log(`🔄 切换视图到: ${view}`);
   currentView.value = view;
   // 切换视图时清除选择
   selectedRoomProperties.value = null;
 
-  // 切换到资产视图时，显示所有资产并隐藏温度标签
+  // 注意：不在这里立即调用 showAllAssets/showAllRooms
+  // 因为可能模型还没加载完成，让 onAssetsLoaded/onRoomsLoaded 处理
+  
+  // 只处理温度标签的显示/隐藏（不依赖模型加载状态）
   if (view === 'assets' && mainViewRef.value) {
-    if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
-      mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
-    } else if (mainViewRef.value.showAllAssets) {
-      mainViewRef.value.showAllAssets();
-    }
     if (mainViewRef.value.hideTemperatureTags) {
       mainViewRef.value.hideTemperatureTags();
     }
   }
 
-  // 切换到连接视图时，显示所有房间并显示温度标签
   if (view === 'connect' && mainViewRef.value) {
-    if (savedRoomSelections.value.length > 0 && mainViewRef.value.isolateAndFocusRooms) {
-      mainViewRef.value.isolateAndFocusRooms(savedRoomSelections.value);
-    } else if (mainViewRef.value.showAllRooms) {
-      mainViewRef.value.showAllRooms();
-    }
     if (mainViewRef.value.showTemperatureTags) {
       mainViewRef.value.showTemperatureTags();
     }
   }
 
-  // 切换到文件视图时，隐藏温度标签
   if (view === 'files' && mainViewRef.value) {
     if (mainViewRef.value.hideTemperatureTags) {
       mainViewRef.value.hideTemperatureTags();
     }
   }
+  
+  console.log(`✅ 视图切换完成，等待模型加载后触发显示逻辑`);
 };
 
 // 文件激活后加载对应的资产和空间数据
