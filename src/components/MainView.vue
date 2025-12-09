@@ -179,6 +179,8 @@ const viewerContainer = ref(null);
 let viewer = null;
 const MODEL_URL = '/models/my-building/output/3d.svf';
 let modelLoaded = false; // 追踪模型是否已加载完成
+let currentModelPath = null; // 当前加载或已加载的模型路径
+let isLoadingModel = false; // 是否正在加载模型
 let defaultView = null;
 const animateToDefaultView = (duration = 800) => {
   if (!defaultView || !viewer || !viewer.navigation) return;
@@ -366,22 +368,18 @@ watch(progress, () => setTagTempsAtCurrentTime());
 
 // 监听数据库数据变化，当数据加载后重新应用孤立效果
 watch(() => [props.assets, props.rooms, props.currentView], ([newAssets, newRooms, newView]) => {
-  console.log(`👀 监听到数据变化: assets=${newAssets.length}, rooms=${newRooms.length}, view=${newView}, modelLoaded=${modelLoaded}, viewer=${!!viewer}`);
   
   // 必须等待 viewer 和模型都加载完成
   if (!viewer || !modelLoaded) {
-    console.log('⏳ Viewer或模型未加载完成，跳过');
     return;
   }
   
   // 数据加载完成后，根据当前视图重新应用显示逻辑
   if (newView === 'assets' && newAssets.length > 0) {
-    console.log('🔄 数据库资产数据已加载，重新应用孤立效果');
     setTimeout(() => {
       showAllAssets();
     }, 200);
   } else if (newView === 'connect' && newRooms.length > 0) {
-    console.log('🔄 数据库空间数据已加载，重新应用房间样式');
     setTimeout(() => {
       applyRoomStyle();
     }, 200);
@@ -481,6 +479,14 @@ const initViewer = () => {
 // 新增：加载新模型
 const loadNewModel = async (modelPath) => {
   if (!viewer) return;
+  
+  // 防止重复加载同一个模型
+  if (isLoadingModel || currentModelPath === modelPath) {
+    console.log(`⏭️ 模型正在加载或已加载，跳过: ${modelPath}`);
+    return;
+  }
+  
+  isLoadingModel = true;
   console.log('🔄 开始加载新模型:', modelPath);
   
   // 构造候选路径
@@ -536,6 +542,10 @@ const loadNewModel = async (modelPath) => {
         hasGeometry: model.getGeometryList ? 'Yes' : 'No',
         rootId: model.getRootId ? model.getRootId() : 'N/A'
       });
+      
+      // 标记模型路径和重置加载状态
+      currentModelPath = modelPath;
+      isLoadingModel = false;
       
       // 其他初始化设置
       viewer.setTheme('dark-theme');
@@ -758,7 +768,8 @@ const processRooms = (dbIds) => {
       if (pendingProps === 0) {
         // 所有属性获取完成，发送房间列表
 emit('rooms-loaded', roomList);
-seedRoomHistory(roomList);
+// 异步写入 InfluxDB，不阻塞主流程
+seedRoomHistory(roomList).catch(err => console.warn('⚠️ InfluxDB 写入失败:', err));
 
         // 预取所有房间的时序缓存，确保首次播放就绪
         const allCodes = roomList.map(r => r.code).filter(Boolean);
@@ -872,11 +883,9 @@ const applyRoomStyle = () => {
   if (props.rooms && props.rooms.length > 0) {
     // 使用数据库中的空间列表
     dbIdsToShow = props.rooms.map(r => r.dbId).filter(Boolean);
-    console.log(`🎯 使用数据库空间列表，共 ${dbIdsToShow.length} 个空间`);
   } else if (foundRoomDbIds.length > 0) {
     // 回退到模型提取的房间列表（基于"编号"属性）
     dbIdsToShow = foundRoomDbIds;
-    console.log(`🔄 回退到模型空间列表（编号属性），共 ${dbIdsToShow.length} 个空间`);
   }
 
   if (dbIdsToShow.length === 0) return;
@@ -1084,11 +1093,9 @@ const showAllRooms = () => {
   if (props.rooms && props.rooms.length > 0) {
     // 使用数据库中的空间列表
     dbIdsToShow = props.rooms.map(r => r.dbId).filter(Boolean);
-    console.log(`🎯 showAllRooms: 使用数据库空间列表，共 ${dbIdsToShow.length} 个空间`);
   } else if (foundRoomDbIds.length > 0) {
     // 回退到模型提取的房间列表
     dbIdsToShow = foundRoomDbIds;
-    console.log(`🔄 showAllRooms: 回退到模型空间列表，共 ${dbIdsToShow.length} 个空间`);
   }
 
   // 显示所有房间
@@ -1381,18 +1388,12 @@ const showAllAssets = () => {
   // 优先使用从数据库传入的资产列表
   let dbIdsToShow = [];
   if (props.assets && props.assets.length > 0) {
-    // 使用数据库中的资产列表
     dbIdsToShow = props.assets.map(a => a.dbId).filter(Boolean);
-    console.log(`🎯 使用数据库资产列表，共 ${dbIdsToShow.length} 个资产`);
   } else if (foundAssetDbIds.length > 0) {
-    // 回退到模型提取的资产列表（基于MC编码）
     dbIdsToShow = foundAssetDbIds;
-    console.log(`🔄 回退到模型资产列表（MC编码），共 ${dbIdsToShow.length} 个资产`);
   }
 
   if (dbIdsToShow.length > 0) {
-    console.log(`🔒 执行 viewer.isolate()，孤立 ${dbIdsToShow.length} 个构件`);
-    console.log(`📋 前5个 dbId:`, dbIdsToShow.slice(0, 5));
     viewer.isolate(dbIdsToShow);
   } else {
     console.log('⚠️ dbIdsToShow 为空，清除孤立');
@@ -1403,7 +1404,6 @@ const showAllAssets = () => {
   viewer.clearSelection();
 
   viewer.impl.invalidate(true, true, true);
-  console.log('✅ showAllAssets 执行完成');
   animateToDefaultView();
 };
 
