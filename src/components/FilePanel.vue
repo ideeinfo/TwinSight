@@ -43,10 +43,7 @@
         </div>
       </div>
 
-      <div class="status-row">
-        <span class="status-label">{{ t('common.status') }}</span>
-        <div class="status-dots"><span class="dot green"></span><span class="dot yellow"></span><span class="dot red"></span></div>
-      </div>
+
 
       <div class="list-content">
         <!-- 加载提示 -->
@@ -485,9 +482,9 @@ const handleExtract = async () => {
 
   // 检查是否已经提取过数据
   if (file.status === 'ready') {
-    if (!confirm(t('filePanel.confirmReExtract', { title: file.title }))) {
-      return;
-    }
+    // 如果已就绪，直接打开导出面板，不再重复解压
+    emit('open-data-export', file);
+    return;
   }
 
   isExtracting.value = true;
@@ -563,8 +560,8 @@ onUnmounted(() => {
 .list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; }
 .panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
 .title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; }
-.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #00b0ff; cursor: pointer; }
-.actions:hover { color: #4fc3f7; }
+.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; }
+.actions:hover { color: #00b0ff; }
 .plus { font-size: 14px; font-weight: bold; }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; }
 .search-input-wrapper { flex: 1; position: relative; }
@@ -572,18 +569,14 @@ onUnmounted(() => {
 .search-input-wrapper input:focus { outline: none; border-color: #00b0ff; }
 .search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
 .filter-icon { cursor: pointer; padding: 4px; }
-.status-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; }
-.status-label { font-size: 10px; color: #888; text-transform: uppercase; }
-.status-dots { display: flex; gap: 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.dot.green { background: #4caf50; }
-.dot.yellow { background: #ffc107; }
-.dot.red { background: #f44336; }
+.filter-icon:hover svg { stroke: #00b0ff; }
+/* Status Row Removed */
+
 .list-content { flex: 1; overflow-y: auto; }
 .empty-state { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
 
 /* 文件列表项 */
-.list-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #1e1e1e; }
+.list-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #1e1e1e; }
 .list-item:hover { background: #2a2a2a; }
 .list-item.active { background: #2a2d2e; border-left: 2px solid #00b0ff; }
 .file-icon { flex-shrink: 0; color: #888; }

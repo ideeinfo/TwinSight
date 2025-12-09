@@ -336,11 +336,7 @@ async function extractAndExport() {
        // 由于后端目前是 Upsert 逻辑（On Conflict Update），这已经是在“更新”数据。
        // 但用户明确要求“先删除”，可能是为了清除那些在模型中已被删除但数据库中还残留的数据。
        
-       const confirmOverwrite = confirm(t('dataExport.confirmOverwrite') || '确认覆盖该文件的已有数据吗？');
-       if (!confirmOverwrite) {
-           isExporting.value = false;
-           return;
-       }
+
 
        // 调用删除接口 (需要新加或复用)
        // 目前没有独立的删除接口，但我们可以通过特定的标志或新接口来实现。

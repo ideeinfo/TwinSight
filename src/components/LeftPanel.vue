@@ -23,7 +23,7 @@
     <div class="list-panel">
       <div class="panel-header"><span class="title">{{ t('leftPanel.connections') }}</span><div class="actions"><span class="plus">+</span> {{ t('common.create') }}</div></div>
       <div class="search-row"><div class="search-input-wrapper"><svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><input type="text" :placeholder="t('common.search')" /></div><div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div></div>
-      <div class="status-bar"><span>{{ t('common.status') }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+
       
       <div class="item-list">
         <!-- 加载提示 -->
@@ -135,52 +135,42 @@ const selectItem = (index) => {
 .nav-group-top { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
 .nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
-.nav-item:hover { color: #fff; } .nav-item.active { color: #fff; border-left: 2px solid transparent; } .nav-item.active-blue { border-left: 2px solid #00b0ff; background: #2a2d2e; color: #00b0ff; }
+.nav-item:hover { background: #333; }
+.nav-item.active-blue { border-left: 2px solid #00b0ff; background: #2a2d2e; color: #00b0ff; }
 .nav-item.active-blue svg { stroke: #00b0ff; }
 .nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-.nav-item .label { font-size: 9px; margin-top: 4px; }
-.list-panel { width: 100%; display: flex; flex-direction: column; background: #252526; overflow: hidden; }
-.panel-header { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #333; flex-shrink: 0; }
-.title { font-size: 11px; font-weight: 600; color: #eee; } .actions { color: #0099ff; font-size: 11px; cursor: pointer; display: flex; align-items: center; } .plus { font-size: 14px; margin-right: 2px; }
-.search-row { padding: 8px 12px; display: flex; gap: 8px; flex-shrink: 0; }
-.search-input-wrapper { flex: 1; display: flex; align-items: center; border: 1px solid #3e3e42; border-radius: 2px; background: #1e1e1e; height: 24px; }
-.search-icon-sm { margin-left: 6px; flex-shrink: 0; } .search-input-wrapper input { width: 100%; background: transparent; border: none; color: #fff; font-size: 11px; padding-left: 6px; outline: none; }
-.filter-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.status-bar { padding: 4px 12px; font-size: 11px; color: #888; border-bottom: 1px solid #333; display: flex; justify-content: flex-end; align-items: center; gap: 4px; flex-shrink: 0; }
-.item-list { flex: 1; overflow-y: auto; overflow-x: hidden; }
-.list-item { display: flex; align-items: center; height: 44px; padding: 0 12px; border-bottom: 1px solid #2d2d2d; cursor: pointer; }
-.list-item:hover { background: #2a2d2e; } 
-.list-item.selected { background: #37373d; }
+.nav-item .label { font-size: 10px; text-align: center; } /* Unified font size */
+.list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; } /* Match AssetPanel flex */
+.panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
+.title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; } /* Unified title */
+.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; } /* Unified actions */
+.actions:hover { color: #00b0ff; }
+.plus { font-size: 14px; font-weight: bold; }
+.search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; } /* Unified search row */
+.search-input-wrapper { flex: 1; position: relative; } /* Unified search wrapper */
+.search-input-wrapper input { width: 100%; background: #1e1e1e; border: 1px solid #333; border-radius: 3px; padding: 4px 8px 4px 24px; color: #ccc; font-size: 11px; }
+.search-input-wrapper input:focus { outline: none; border-color: #00b0ff; }
+.search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
+.filter-icon { cursor: pointer; padding: 4px; }
+.filter-icon:hover svg { stroke: #00b0ff; }
 
-/* Checkbox 样式更新 */
-.checkbox { 
-  width: 14px; height: 14px; 
-  border: 1px solid #888; 
-  border-radius: 2px; 
-  margin-right: 12px; 
-  flex-shrink: 0; 
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.1s;
-}
-/* 选中状态：蓝色背景，白色勾 */
-.checkbox.checked {
-  background: #0078d4;
-  border-color: #0078d4;
-  color: #fff;
-}
-.checkbox:hover { border-color: #fff; }
-/* 对勾 SVG 大小 */
-.checkbox svg { width: 10px; height: 10px; }
-
-.item-content { flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; margin-right: 8px; }
-.item-name { color: #ddd; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-code { color: #777; font-size: 10px; margin-top: 2px; }
-.link-icon { opacity: 0.5; flex-shrink: 0; }
-.loading-hint { padding: 20px 12px; color: #888; font-size: 12px; text-align: center; }
+.item-list { flex: 1; overflow-y: auto; }
+.list-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; cursor: pointer; } /* Tweaked to be visually similar but LeftPanel lacks indentation for tree */
+.list-item:hover { background: #2a2a2a; }
+.list-item.selected { background: #2a2d2e; border-left: 2px solid #00b0ff; }
+.checkbox { width: 16px; height: 16px; border: 1px solid #555; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-right: 8px; }
+.checkbox:hover { border-color: #00b0ff; }
+.checkbox.checked { background: #00b0ff; border-color: #00b0ff; }
+.checkbox svg { width: 12px; height: 12px; stroke: #fff; }
+.item-content { flex: 1; min-width: 0; }
+.item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-code { font-size: 10px; color: #888; margin-top: 2px; }
+.link-icon { flex-shrink: 0; opacity: 0.5; }
+.link-icon:hover { opacity: 1; stroke: #00b0ff; }
+.loading-hint { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
 
 /* 滚动条样式 */
 .item-list::-webkit-scrollbar { width: 10px; }
 .item-list::-webkit-scrollbar-track { background: #1e1e1e; }
 .item-list::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 5px; }
-.item-list::-webkit-scrollbar-thumb:hover { background: #4e4e52; }
 </style>

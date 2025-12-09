@@ -167,9 +167,12 @@ const pendingActiveFile = ref(null);
 const viewerReady = ref(false);
 
 // 数据导出面板方法
-const openDataExportPanel = (file) => {
+const openDataExportPanel = async (file) => {
   if (file && file.id) {
     currentExportFileId.value = file.id;
+    // 关键修复：打开导出面板时，自动加载该文件的模型到 Viewer
+    // 确保“所见即所得”，防止提取旧模型数据
+    await onFileActivated(file);
   } else {
     currentExportFileId.value = null;
   }
@@ -435,7 +438,7 @@ const onFileActivated = async (file) => {
     if (spacesData.success) {
       roomList.value = spacesData.data.map(space => ({
         dbId: space.db_id,
-        name: space.name,
+        name: (space.name || '').replace(/\[.*?\]/g, '').trim(),
         code: space.space_code,
         classificationCode: space.classification_code,
         classificationDesc: space.classification_desc,

@@ -24,10 +24,7 @@
       <div class="panel-header"><span class="title">{{ t('assetPanel.assets') }}</span><div class="actions"><span class="plus">+</span> {{ t('common.create') }}</div></div>
       <div class="search-row"><div class="search-input-wrapper"><svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><input type="text" :placeholder="t('common.search')" v-model="searchText" /></div><div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div></div>
 
-      <div class="status-row">
-        <span class="status-label">{{ t('common.status') }}</span>
-        <div class="status-dots"><span class="dot green"></span><span class="dot yellow"></span><span class="dot red"></span></div>
-      </div>
+
 
       <div class="list-content">
         <!-- 树形结构 -->
@@ -152,6 +149,7 @@ const assetTree = computed(() => {
 });
 
 // 过滤后的树形结构
+// 过滤后的树形结构
 const filteredTree = computed(() => {
   if (!searchText.value) {
     return assetTree.value;
@@ -159,12 +157,31 @@ const filteredTree = computed(() => {
   
   const search = searchText.value.toLowerCase();
   return assetTree.value.map(group => ({
-    name: group.name,
+    ...group, // 保留 group 的所有原始属性 (code, description 等)
     items: group.items.filter(item => 
-      item.name.toLowerCase().includes(search) || 
-      item.mcCode.toLowerCase().includes(search)
+      (item.name || '').toLowerCase().includes(search) || 
+      (item.mcCode || '').toLowerCase().includes(search) ||
+      (item.classification_code || '').toLowerCase().includes(search) ||
+      (item.classification_desc || '').toLowerCase().includes(search) ||
+      // 同时如果搜索词匹配该组的分类描述，也应该显示该组的所有项吗？
+      // 用户需求是"将资产分类编码、分类描述也加入检索范围"
+      // 通常是指搜这些词能出结果。
+      // 上面的 item.classification_code 检查已经覆盖了 item 级别。
+      // 如果 item 自身没有这些字段，而是继承自 group？
+      // 在 App.vue 中 asset 对象就有 classification_code/desc，所以上面的 item 检查是正确的。
+      (group.code || '').toLowerCase().includes(search) ||
+      (group.description || '').toLowerCase().includes(search)
     )
   })).filter(group => group.items.length > 0);
+});
+
+// 监听搜索结果变化，自动展开所有分组
+watch(filteredTree, (val) => {
+  if (searchText.value && val.length > 0) {
+    const newState = {};
+    val.forEach((_, idx) => newState[idx] = true);
+    expandedGroups.value = newState;
+  }
 });
 
 // 选中的资产 dbId 数组（由父级传入以在视图切换时保留）
@@ -259,13 +276,7 @@ const toggleGroupSelection = (group) => {
 .search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
 .filter-icon { cursor: pointer; padding: 4px; }
 .filter-icon:hover svg { stroke: #00b0ff; }
-.status-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; }
-.status-label { font-size: 10px; color: #888; text-transform: uppercase; }
-.status-dots { display: flex; gap: 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; }
-.dot.green { background: #4caf50; }
-.dot.yellow { background: #ffc107; }
-.dot.red { background: #f44336; }
+
 .list-content { flex: 1; overflow-y: auto; }
 .tree-group { border-bottom: 1px solid #1e1e1e; }
 .tree-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #2a2a2a; }

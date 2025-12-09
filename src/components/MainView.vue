@@ -440,8 +440,74 @@ const initViewer = () => {
         uiObserver = new MutationObserver(checkOpen);
         uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
         checkOpen();
+        
+        // Viewer 就绪，通知父组件（用于处理 pendingActiveFile）
+        emit('viewer-ready');
       }
     });
+  });
+};
+
+
+// 新增：加载新模型
+const loadNewModel = async (modelPath) => {
+  if (!viewer) return;
+  console.log('🔄 开始加载新模型:', modelPath);
+  
+  // 构造候选路径
+  let candidates = [];
+  if (modelPath.endsWith('.svf')) {
+    candidates.push(modelPath);
+  } else {
+    // 优先尝试 /output/3d.svf (标准结构)
+    candidates.push(`${modelPath}/output/3d.svf`);
+    // 备用尝试 /3d.svf (扁平结构)
+    candidates.push(`${modelPath}/3d.svf`);
+  }
+  
+  let finalPath = candidates[0];
+  
+  // 预检路径，防止 Viewer 弹出错误提示
+  try {
+    let found = false;
+    for (const p of candidates) {
+      const res = await fetch(p, { method: 'HEAD' });
+      if (res.ok) {
+        finalPath = p;
+        found = true;
+        break;
+      }
+    }
+    // 如果 HEAD 请求失败但没有报错（比如404），我们已经选到了正确路径（如果有的话）
+    // 如果没有任何路径 ok，保留默认的第一个路径去让 viewer 报错
+  } catch (e) {
+    console.warn('⚠️ 模型路径预检失败，将尝试默认路径:', e);
+  }
+  
+  // 卸载当前模型
+  if (viewer.model) {
+      viewer.unloadModel(viewer.model);
+  }
+  
+  // 加载新模型
+  viewer.loadModel(finalPath, {}, (model) => {
+      console.log('✅ 新模型加载成功:', finalPath);
+      // 其他初始化设置
+      viewer.setTheme('dark-theme');
+      viewer.setLightPreset(17); // Field
+      if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
+      if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+      
+      // 重置状态
+      roomTags.value = [];
+      roomFragData = {};
+      foundRoomDbIds = [];
+      foundAssetDbIds = [];
+      
+      // 注意：onModelLoaded 会通过事件自动触发
+  }, (errorCode) => {
+      console.error('❌ 模型加载失败:', errorCode, finalPath);
+      // 如果预检都通过了还失败，那就没办法了
   });
 };
 
@@ -1852,7 +1918,8 @@ defineExpose({
     selectedRoomCodes.value = codes.slice();
     await refreshRoomSeriesCache(codes).catch(() => {});
     setTagTempsAtCurrentTime();
-  }
+  },
+  loadNewModel // 暴露方法
 });
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
