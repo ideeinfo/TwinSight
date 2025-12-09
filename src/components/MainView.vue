@@ -363,6 +363,26 @@ watch(currentTemp, () => setTagTempsAtCurrentTime());
 
 watch(progress, () => setTagTempsAtCurrentTime());
 
+// 监听数据库数据变化，当数据加载后重新应用孤立效果
+watch(() => [props.assets, props.rooms, props.currentView], ([newAssets, newRooms, newView]) => {
+  if (!viewer) return;
+  
+  console.log(`👀 监听到数据变化: assets=${newAssets.length}, rooms=${newRooms.length}, view=${newView}`);
+  
+  // 数据加载完成后，根据当前视图重新应用显示逻辑
+  if (newView === 'assets' && newAssets.length > 0) {
+    console.log('🔄 数据库资产数据已加载，重新应用孤立效果');
+    setTimeout(() => {
+      showAllAssets();
+    }, 200);
+  } else if (newView === 'connect' && newRooms.length > 0) {
+    console.log('🔄 数据库空间数据已加载，重新应用房间样式');
+    setTimeout(() => {
+      applyRoomStyle();
+    }, 200);
+  }
+}, { deep: true });
+
 // isLive 放在这里，确保 progress 已定义
 const isLive = computed(() => progress.value > 99.5);
 
