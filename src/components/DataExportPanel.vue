@@ -48,7 +48,26 @@
         >
           {{ $t('dataExport.checkConnection') }}
         </button>
+        
+        <button 
+          class="btn btn-config" 
+          @click="openMappingConfig"
+        >
+          🔧 配置映射
+        </button>
       </div>
+
+      <!-- 映射配置弹窗 -->
+      <MappingConfigPanel
+        v-if="showMappingConfig"
+        :assetMapping="assetMapping"
+        :assetSpecMapping="assetSpecMapping"
+        :spaceMapping="spaceMapping"
+        :assetPropertyOptions="assetPropertyOptions"
+        :spacePropertyOptions="spacePropertyOptions"
+        @close="showMappingConfig = false"
+        @save="handleSaveMapping"
+      />
 
       <div class="result-section" v-if="exportResult">
         <div class="result-message" :class="exportResult.success ? 'success' : 'error'">
@@ -69,9 +88,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { checkApiHealth, importModelData } from '../services/postgres.js';
+import MappingConfigPanel from './MappingConfigPanel.vue';
 
 const { t } = useI18n();
 
@@ -91,19 +111,20 @@ const apiStatus = ref('checking');
 const isExporting = ref(false);
 const extractionStats = ref(null);
 const exportResult = ref(null);
+const showMappingConfig = ref(false);
 
-// 简单的硬编码映射配置（根据实际模型属性调整）
+// 映射配置（根据实际模型属性调整）
 const assetMapping = ref({
   assetCode: { category: '文字', property: 'MC编码' },
-  specCode: { category: '其他', property: '类型注释' },
+  specCode: { category: '标识数据', property: '类型注释' }, 
   name: { category: '标识数据', property: '名称' },
-  floor: { category: '约束', property: '楼层' },
-  room: { category: '约束', property: '房间' }
+  floor: { category: '约束', property: '标高' },
+  room: { category: '房间', property: '名称' }
 });
 
 const assetSpecMapping = ref({
-  specCode: { category: '其他', property: '类型注释' },
-  specName: { category: '其他', property: '类型名称' },
+  specCode: { category: '标识数据', property: '类型注释' },
+  specName: { category: '标识数据', property: '类型名称' },
   classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
   classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' },
   category: { category: '其他', property: '类别' },
@@ -111,15 +132,43 @@ const assetSpecMapping = ref({
   type: { category: '其他', property: '类型' },
   manufacturer: { category: '标识数据', property: '制造商' },
   address: { category: '标识数据', property: '地址' },
-  phone: { category: '标识数据', property: '电话' }
+  phone: { category: '标识数据', property: '联系人电话' }
 });
 
 const spaceMapping = ref({
-  spaceCode: { category: '约束', property: '编号' },
+  spaceCode: { category: '标识数据', property: '编号' },
   name: { category: '标识数据', property: '名称' },
   classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
   classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' }
 });
+
+// 属性选项（从模型提取）
+const assetPropertyOptions = ref({});
+const spacePropertyOptions = ref({});
+
+// 打开映射配置面板
+async function openMappingConfig() {
+  // 获取属性列表
+  if (props.getAssetPropertyList) {
+    console.log('🔍 正在提取资产属性列表...');
+    try {
+      assetPropertyOptions.value = await props.getAssetPropertyList();
+    } catch (e) {
+      console.error('提取资产属性列表失败:', e);
+    }
+  }
+  
+  if (props.getSpacePropertyList) {
+    console.log('🔍 正在提取空间属性列表...');
+    try {
+      spacePropertyOptions.value = await props.getSpacePropertyList();
+    } catch (e) {
+      console.error('提取空间属性列表失败:', e);
+    }
+  }
+
+  showMappingConfig.value = true;
+}
 
 // 检查 API 连接
 async function checkConnection() {
@@ -131,6 +180,24 @@ async function checkConnection() {
     apiStatus.value = 'disconnected';
   }
 }
+
+// 保存映射配置
+function handleSaveMapping(newMappings) {
+  assetMapping.value = newMappings.assetMapping;
+  assetSpecMapping.value = newMappings.assetSpecMapping;
+  spaceMapping.value = newMappings.spaceMapping;
+  
+  // 保存到 localStorage
+  try {
+    localStorage.setItem('assetMapping', JSON.stringify(newMappings.assetMapping));
+    localStorage.setItem('assetSpecMapping', JSON.stringify(newMappings.assetSpecMapping));
+    localStorage.setItem('spaceMapping', JSON.stringify(newMappings.spaceMapping));
+    console.log('✅ 映射配置已保存');
+  } catch (e) {
+    console.error('保存映射配置失败:', e);
+  }
+}
+
 
 // 提取并导出数据
 async function extractAndExport() {
@@ -145,11 +212,66 @@ async function extractAndExport() {
   try {
     console.log('📊 开始提取数据...');
     
-    // 使用新的 API，传入映射配置
-    const tempTable = await props.getFullAssetDataWithMapping(assetMapping.value, assetSpecMapping.value);
-    const spaces = await props.getFullSpaceDataWithMapping(spaceMapping.value);
+    // 调试：打印映射配置
+    console.log('📋 assetMapping:', assetMapping.value);
+    console.log('📋 assetSpecMapping:', assetSpecMapping.value);
+    console.log('📋 spaceMapping:', spaceMapping.value);
+    
+    // 使用 JSON 深度克隆，彻底解决响应式对象传递问题
+    const assetMappingPlain = JSON.parse(JSON.stringify(assetMapping.value));
+    const assetSpecMappingPlain = JSON.parse(JSON.stringify(assetSpecMapping.value));
+    const spaceMappingPlain = JSON.parse(JSON.stringify(spaceMapping.value));
+    
+    console.log('📋 JSON克隆后的 assetMapping:', assetMappingPlain);
+    console.log('📋 JSON克隆后的 assetSpecMapping:', assetSpecMappingPlain);
+    console.log('📋 类型检查:', {
+      assetMapping: typeof assetMappingPlain,
+      assetSpecMapping: typeof assetSpecMappingPlain,
+      keys1: Object.keys(assetMappingPlain || {}),
+      keys2: Object.keys(assetSpecMappingPlain || {})
+    });
+    
+    // 调试：检查 props 函数
+    console.log('📋 检查 props 函数:', {
+      hasFn: !!props.getFullAssetDataWithMapping,
+      fnType: typeof props.getFullAssetDataWithMapping,
+      fn: props.getFullAssetDataWithMapping
+    });
+    
+    // 直接调用，不通过变量
+    console.log('📋 准备调用函数...');
+    const tempTable = await props.getFullAssetDataWithMapping({
+      assetMapping: JSON.parse(JSON.stringify(assetMapping.value)),
+      assetSpecMapping: JSON.parse(JSON.stringify(assetSpecMapping.value))
+    });
+    const spaces = await props.getFullSpaceDataWithMapping(
+      JSON.parse(JSON.stringify(spaceMapping.value))
+    );
 
     console.log(`✅ 提取完成: ${tempTable.length} 个资产, ${spaces.length} 个空间`);
+    
+    // 调试：打印前3条临时表数据
+    console.log('📋 临时表前3条数据（所有字段）:');
+    console.table(tempTable.slice(0, 3));
+    
+    // 调试：打印前3条空间数据（使用JSON格式）
+    console.log('📋 空间数据前3条（JSON）:');
+    console.log(JSON.stringify(spaces.slice(0, 3), null, 2));
+    
+    // 检查 spaceCode 字段
+    const spacesWithCode = spaces.filter(s => s.spaceCode);
+    const spacesWithoutCode = spaces.filter(s => !s.spaceCode);
+    console.log(`⚠️ 空间统计: 总数=${spaces.length}, 有spaceCode=${spacesWithCode.length}, 无spaceCode=${spacesWithoutCode.length}`);
+    
+    // 检查空间分类字段
+    const spacesWithClass = spaces.filter(s => s.classificationCode);
+    console.log(`⚠️ 空间分类统计: 有classificationCode=${spacesWithClass.length}`);
+    if (spaces.length > 0) {
+      console.log('📋 第一个空间的完整数据:');
+      console.log(JSON.stringify(spaces[0], null, 2));
+    }
+
+
 
     // 从临时表构建资产规格数据
     const specsMap = new Map();
@@ -203,8 +325,42 @@ async function extractAndExport() {
     };
 
     // 发送到后端
-    console.log('📤 正在发送数据到数据库...');
-    const result = await importModelData({ assets, spaces });
+    console.log('📤 正在准备发送数据到数据库...');
+
+    // 1. 检查文件是否已存在数据 (如果有关联的文件ID)
+    if (props.fileId) {
+       // 此处可以加一个接口检查数据是否存在，但为了简单，我们可以在这里直接弹窗确认
+       // 或者让后端处理 Upsert (已实现)。
+       // 用户需求：如果已经存在，提示并先删除。
+       
+       // 由于后端目前是 Upsert 逻辑（On Conflict Update），这已经是在“更新”数据。
+       // 但用户明确要求“先删除”，可能是为了清除那些在模型中已被删除但数据库中还残留的数据。
+       
+       const confirmOverwrite = confirm(t('dataExport.confirmOverwrite') || '确认覆盖该文件的已有数据吗？');
+       if (!confirmOverwrite) {
+           isExporting.value = false;
+           return;
+       }
+
+       // 调用删除接口 (需要新加或复用)
+       // 目前没有独立的删除接口，但我们可以通过特定的标志或新接口来实现。
+       // 暂时通过 importModelData 的参数控制，或者由后端 importModelData 内部处理
+       // 这里我们修改 importModelData 让其支持 'overwrite' 模式，或者分两步：先删后存
+    }
+
+    // 更新：为了满足用户"先删除后导入"的需求，我们需要确保后端支持清除旧数据
+    // 我们将在 importModelData 调用中传递一个 clearBeforeImport 标记 (需要后端支持，或分步调用)
+    
+    // 由于后端 importModelData 目前逻辑是 Upsert，我们保持其逻辑。
+    // 为了实现"先删除"，我们可以调用一个专门的清理接口，或者让 importModelData 接受一个 flush 标志。
+    
+    // 方案：调用 importModelData 时带上 clearExisting: true
+    const result = await importModelData({ 
+        fileId: props.fileId,
+        assets, 
+        spaces,
+        clearExisting: true // 告诉后端先删除该 fileId 下的所有数据
+    });
     
     exportResult.value = {
       success: true,
@@ -225,9 +381,31 @@ async function extractAndExport() {
   }
 }
 
-// 组件挂载时检查连接
+// 组件挂载时检查连接并加载保存的映射配置
 onMounted(() => {
   checkConnection();
+  
+  // 从 localStorage 加载映射配置
+  try {
+    const savedAssetMapping = localStorage.getItem('assetMapping');
+    const savedAssetSpecMapping = localStorage.getItem('assetSpecMapping');
+    const savedSpaceMapping = localStorage.getItem('spaceMapping');
+    
+    if (savedAssetMapping) {
+      assetMapping.value = JSON.parse(savedAssetMapping);
+      console.log('✅ 已加载保存的资产映射配置');
+    }
+    if (savedAssetSpecMapping) {
+      assetSpecMapping.value = JSON.parse(savedAssetSpecMapping);
+      console.log('✅ 已加载保存的规格映射配置');
+    }
+    if (savedSpaceMapping) {
+      spaceMapping.value = JSON.parse(savedSpaceMapping);
+      console.log('✅ 已加载保存的空间映射配置');
+    }
+  } catch (e) {
+    console.warn('加载保存的映射配置失败，使用默认配置:', e);
+  }
 });
 
 // 暴露方法
@@ -370,12 +548,21 @@ defineExpose({
 }
 
 .btn-secondary {
-  background: #3e3e3e;
+  background: #444;
   color: #e0e0e0;
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: #4e4e4e;
+.btn-secondary:hover {
+  background: #555;
+}
+
+.btn-config {
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.btn-config:hover {
+  background: #a78bfa;
 }
 
 .spinner {

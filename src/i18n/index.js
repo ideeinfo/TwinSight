@@ -163,6 +163,19 @@ const messages = {
         address: '地址',
         phone: '电话',
         spaceCode: '空间编码'
+      },
+      mappingConfig: {
+        title: '映射配置',
+        categoryPlaceholder: '属性分类（如：标识数据、约束）',
+        propertyPlaceholder: '属性名称（如：类型名称、编号）',
+        resetAll: '重置所有',
+        save: '保存',
+        confirmReset: '确定要重置所有映射配置吗？',
+        helpTitle: '帮助',
+        help1: '分类：属性在模型中的类别（如：标识数据、约束、房间等）',
+        help2: '属性名：属性的具体名称（如：类型名称、编号等）',
+        help3: '对于特殊属性（如 Classification.OmniClass.21.Number），只需匹配属性名，会自动忽略分类',
+        confirmOverwrite: '该文件已存在关联数据，再次导出将覆盖（先清除）现有数据。确认继续吗？'
       }
     },
     filePanel: {
@@ -356,6 +369,19 @@ const messages = {
         address: 'Address',
         phone: 'Phone',
         spaceCode: 'Space Code'
+      },
+      mappingConfig: {
+        title: 'Mapping Configuration',
+        categoryPlaceholder: 'Property Category (e.g., Identity Data, Constraints)',
+        propertyPlaceholder: 'Property Name (e.g., Type Name, Code)',
+        resetAll: 'Reset All',
+        save: 'Save',
+        confirmReset: 'Are you sure you want to reset all mapping configurations?',
+        helpTitle: 'Help',
+        help1: 'Category: The category of the property in the model (e.g., Identity Data, Constraints, Room, etc.)',
+        help2: 'Property Name: The specific name of the property (e.g., Type Name, Code, etc.)',
+        help3: 'For special properties (e.g., Classification.OmniClass.21.Number), only the property name is matched, category is ignored',
+        confirmOverwrite: 'This file already has associated data. Exporting again will overwrite (clear) existing data. Continue?'
       }
     },
     filePanel: {

@@ -14,16 +14,6 @@ export async function upsertSpace(space) {
       floor, area, perimeter, db_id
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    ON CONFLICT (space_code)
-    DO UPDATE SET
-      name = EXCLUDED.name,
-      classification_code = EXCLUDED.classification_code,
-      classification_desc = EXCLUDED.classification_desc,
-      floor = EXCLUDED.floor,
-      area = EXCLUDED.area,
-      perimeter = EXCLUDED.perimeter,
-      db_id = EXCLUDED.db_id,
-      updated_at = CURRENT_TIMESTAMP
     RETURNING *
   `;
     const result = await query(sql, [
@@ -56,16 +46,6 @@ export async function batchUpsertSpaces(spaces) {
             floor, area, perimeter, db_id
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-          ON CONFLICT (space_code)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            classification_code = EXCLUDED.classification_code,
-            classification_desc = EXCLUDED.classification_desc,
-            floor = EXCLUDED.floor,
-            area = EXCLUDED.area,
-            perimeter = EXCLUDED.perimeter,
-            db_id = EXCLUDED.db_id,
-            updated_at = CURRENT_TIMESTAMP
         `, [
                     space.spaceCode,
                     space.name,

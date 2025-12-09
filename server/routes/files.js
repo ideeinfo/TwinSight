@@ -413,6 +413,7 @@ router.get('/:id/assets', async (req, res) => {
         const assets = await assetModel.getAssetsByFileId(req.params.id);
         res.json({ success: true, data: assets });
     } catch (error) {
+        console.error('获取资产失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -426,6 +427,7 @@ router.get('/:id/spaces', async (req, res) => {
         const spaces = await spaceModel.getSpacesByFileId(req.params.id);
         res.json({ success: true, data: spaces });
     } catch (error) {
+        console.error('获取空间失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

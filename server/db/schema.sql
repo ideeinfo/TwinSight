@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS classifications (
 -- 存储资产构件的规格（类型）信息
 CREATE TABLE IF NOT EXISTS asset_specs (
     id SERIAL PRIMARY KEY,
-    spec_code VARCHAR(100) NOT NULL UNIQUE,         -- 规格编码：类型注释
+    file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
+    spec_code VARCHAR(100) NOT NULL,                -- 规格编码：类型注释
+    spec_name VARCHAR(200),                         -- 规格名称：类型名称
     classification_code VARCHAR(100),               -- 分类编码：OmniClass 21 编号
     classification_desc VARCHAR(500),               -- 分类描述：OmniClass 21 描述
     category VARCHAR(200),                          -- 类别
@@ -29,14 +31,16 @@ CREATE TABLE IF NOT EXISTS asset_specs (
     address VARCHAR(500),                           -- 地址
     phone VARCHAR(50),                              -- 电话
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (file_id, spec_code)
 );
 
 -- 3. 资产表
 -- 存储资产构件的数据
 CREATE TABLE IF NOT EXISTS assets (
     id SERIAL PRIMARY KEY,
-    asset_code VARCHAR(100) NOT NULL UNIQUE,        -- 编码（主键）：MC编码
+    file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
+    asset_code VARCHAR(100) NOT NULL,               -- 编码（主键）：MC编码
     spec_code VARCHAR(100),                         -- 规格编码（外键引用资产规格表的"规格编码"字段）：类型注释
     name VARCHAR(200),                              -- 名称：名称（标识分组下）
     floor VARCHAR(100),                             -- 楼层
@@ -44,14 +48,15 @@ CREATE TABLE IF NOT EXISTS assets (
     db_id INTEGER,                                  -- Viewer 中的 dbId，用于关联
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (spec_code) REFERENCES asset_specs(spec_code) ON DELETE SET NULL ON UPDATE CASCADE
+    UNIQUE (file_id, asset_code)
 );
 
 -- 4. 空间表
 -- 存储房间构件的数据
 CREATE TABLE IF NOT EXISTS spaces (
     id SERIAL PRIMARY KEY,
-    space_code VARCHAR(100) NOT NULL UNIQUE,        -- 空间编码：编号
+    file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
+    space_code VARCHAR(100) NOT NULL,               -- 空间编码：编号
     name VARCHAR(200),                              -- 名称
     classification_code VARCHAR(100),               -- 分类编码：Classification.Space.Number
     classification_desc VARCHAR(500),               -- 分类描述：Classification.Space.Description
@@ -60,7 +65,8 @@ CREATE TABLE IF NOT EXISTS spaces (
     perimeter DECIMAL(15, 4),                       -- 周长
     db_id INTEGER,                                  -- Viewer 中的 dbId，用于关联
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (file_id, space_code)
 );
 
 -- ========================================
@@ -72,6 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_classifications_code ON classifications(classific
 CREATE INDEX IF NOT EXISTS idx_classifications_type ON classifications(classification_type);
 
 -- 资产规格表索引
+CREATE INDEX IF NOT EXISTS idx_asset_specs_name ON asset_specs(spec_name);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_classification ON asset_specs(classification_code);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_category ON asset_specs(category);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_family ON asset_specs(family);
@@ -138,6 +145,7 @@ COMMENT ON COLUMN classifications.classification_desc IS '分类描述：资产�
 COMMENT ON COLUMN classifications.classification_type IS '分类类型：asset表示资产分类，space表示空间分类';
 
 COMMENT ON COLUMN asset_specs.spec_code IS '规格编码：取自构件的类型注释属性';
+COMMENT ON COLUMN asset_specs.spec_name IS '规格名称：取自构件的类型名称属性';
 COMMENT ON COLUMN asset_specs.classification_code IS '分类编码：取自OmniClass 21 编号';
 COMMENT ON COLUMN asset_specs.classification_desc IS '分类描述：取自OmniClass 21 描述';
 

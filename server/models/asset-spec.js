@@ -14,18 +14,6 @@ export async function upsertAssetSpec(spec) {
       category, family, type, manufacturer, address, phone
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    ON CONFLICT (spec_code)
-    DO UPDATE SET
-      spec_name = EXCLUDED.spec_name,
-      classification_code = EXCLUDED.classification_code,
-      classification_desc = EXCLUDED.classification_desc,
-      category = EXCLUDED.category,
-      family = EXCLUDED.family,
-      type = EXCLUDED.type,
-      manufacturer = EXCLUDED.manufacturer,
-      address = EXCLUDED.address,
-      phone = EXCLUDED.phone,
-      updated_at = CURRENT_TIMESTAMP
     RETURNING *
   `;
     const result = await query(sql, [
@@ -60,18 +48,6 @@ export async function batchUpsertAssetSpecs(specs) {
             category, family, type, manufacturer, address, phone
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          ON CONFLICT (spec_code)
-          DO UPDATE SET
-            spec_name = EXCLUDED.spec_name,
-            classification_code = EXCLUDED.classification_code,
-            classification_desc = EXCLUDED.classification_desc,
-            category = EXCLUDED.category,
-            family = EXCLUDED.family,
-            type = EXCLUDED.type,
-            manufacturer = EXCLUDED.manufacturer,
-            address = EXCLUDED.address,
-            phone = EXCLUDED.phone,
-            updated_at = CURRENT_TIMESTAMP
         `, [
                     spec.specCode,
                     spec.specName,
@@ -134,42 +110,27 @@ export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
         await client.query('BEGIN');
 
         for (const spec of specs) {
-            // 先尝试更新，如果不存在则插入
-            const updateResult = await client.query(`
-              UPDATE asset_specs SET
-                spec_name = $2,
-                classification_code = $3,
-                classification_desc = $4,
-                category = $5,
-                family = $6,
-                type = $7,
-                manufacturer = $8,
-                address = $9,
-                phone = $10,
-                file_id = COALESCE(file_id, $11),
-                updated_at = CURRENT_TIMESTAMP
-              WHERE spec_code = $1
-            `, [
-                spec.specCode,
-                spec.specName || '',
-                spec.classificationCode || null,
-                spec.classificationDesc || '',
-                spec.category || '',
-                spec.family || '',
-                spec.type || '',
-                spec.manufacturer || '',
-                spec.address || '',
-                spec.phone || '',
-                fileId
-            ]);
-
-            if (updateResult.rowCount === 0) {
-                // 不存在，执行插入
+            if (spec.specCode) {
                 await client.query(`
-                  INSERT INTO asset_specs (spec_code, spec_name, classification_code, classification_desc, 
-                                           category, family, type, manufacturer, address, phone, file_id)
+                  INSERT INTO asset_specs (
+                    file_id, spec_code, spec_name, classification_code, classification_desc, 
+                    category, family, type, manufacturer, address, phone
+                  )
                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                  ON CONFLICT (file_id, spec_code)
+                  DO UPDATE SET
+                    spec_name = EXCLUDED.spec_name,
+                    classification_code = EXCLUDED.classification_code,
+                    classification_desc = EXCLUDED.classification_desc,
+                    category = EXCLUDED.category,
+                    family = EXCLUDED.family,
+                    type = EXCLUDED.type,
+                    manufacturer = EXCLUDED.manufacturer,
+                    address = EXCLUDED.address,
+                    phone = EXCLUDED.phone,
+                    updated_at = CURRENT_TIMESTAMP
                 `, [
+                    fileId,
                     spec.specCode,
                     spec.specName || '',
                     spec.classificationCode || null,
@@ -179,8 +140,7 @@ export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
                     spec.type || '',
                     spec.manufacturer || '',
                     spec.address || '',
-                    spec.phone || '',
-                    fileId
+                    spec.phone || ''
                 ]);
             }
         }

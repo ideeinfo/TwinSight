@@ -245,9 +245,54 @@ router.post('/spaces/batch', async (req, res) => {
  */
 router.post('/import/model-data', async (req, res) => {
     try {
-        const { fileId, assets = [], spaces = [] } = req.body;
+        const { fileId, assets = [], spaces = [], clearExisting = false } = req.body;
 
-        console.log(`📥 收到导入请求: fileId=${fileId}, assets=${assets.length}, spaces=${spaces.length}`);
+        console.log(`📥 收到导入请求: fileId=${fileId}, assets=${assets.length}, spaces=${spaces.length}, clearExisting=${clearExisting}`);
+
+        // 0. 如果请求清空旧数据，且提供了 fileId
+        if (clearExisting && fileId) {
+            console.log(`🧹 根据 fileId=${fileId} 清除旧数据...`);
+            // 为了保证事务完整性，最好将这些操作放在一个事务中。
+            // 简单起见，我们逐个清理，因为下面的插入也是独立的。
+            // 理想情况下，整个流程应该是一个大事务。
+            // 但由于 Model 方法是分别开启事务的，我们先简单处理。
+
+            // 注意：删除顺序很重要（由于外键约束）
+            // 依赖关系: assets -> asset_specs (通常无外键，或软关联), spaces
+            // 但我们的 schema 里 assets 和 spaces 引用 model_files，并未相互强引用。
+
+            // 使用统一的清理逻辑（需确保 models 支持）
+            // 目前 models 里的 batchUpsert...WithFile 其实已经包含了一定的清理逻辑（DELETE WHERE file_id = ...）
+            // 让我们检查一下 models...
+            // spaceModel.batchUpsertSpacesWithFile -> 会先 DELETE
+            // assetModel.batchUpsertAssetsWithFile -> 只是 ON CONFLICT UPDATE
+
+            // 所以我们需要显式清理 assets 和 asset_specs（如果是基于 file_id 的）
+
+            // 为了安全，我们可以在这里直接调用 DB 删除，或者给 model 添加 deleteByFileId 方法
+            // 简单起见，我们假设 batchUpsert...WithFile 会被修改为先删除，或者我们在下面修改 models。
+            // 让我们先在这里做一次性清理。
+
+            const client = await import('../db/index.js').then(m => m.getClient());
+            try {
+                await client.query('BEGIN');
+                // 先删子表/关联表（如果有）
+                await client.query('DELETE FROM assets WHERE file_id = $1', [fileId]);
+                await client.query('DELETE FROM spaces WHERE file_id = $1', [fileId]);
+                // asset_specs 是共享的吗？看 schema 也是有 file_id 的。
+                await client.query('DELETE FROM asset_specs WHERE file_id = $1', [fileId]);
+                // classifications 也是有 file_id 的
+                await client.query('DELETE FROM classifications WHERE file_id = $1', [fileId]);
+                await client.query('COMMIT');
+                console.log('✅ 旧数据清理完成');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                console.error('❌ 清理旧数据失败:', err);
+                throw err;
+            } finally {
+                client.release();
+            }
+        }
 
         // 1. 提取并保存分类编码
         const classifications = [];
@@ -294,7 +339,7 @@ router.post('/import/model-data', async (req, res) => {
 
         // 2. 批量保存分类编码
         if (classifications.length > 0) {
-            await classificationModel.batchUpsertClassifications(classifications);
+            await classificationModel.batchUpsertClassifications(classifications, fileId);
         }
 
         // 3. 批量保存资产规格（如果有 fileId，则关联）

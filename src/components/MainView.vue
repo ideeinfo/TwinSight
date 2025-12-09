@@ -1454,6 +1454,369 @@ const getFullSpaceData = async () => {
   return spaces;
 };
 
+// 使用映射配置获取完整的资产数据（新版本，支持灵活映射）
+const getFullAssetDataWithMapping = async (mappings) => {
+  if (!viewer || !viewer.model) return [];
+
+  const instanceTree = viewer.model.getInstanceTree();
+  if (!instanceTree) return [];
+
+  // 从单个参数对象中提取映射配置
+  const assetMapping = mappings?.assetMapping;
+  const assetSpecMapping = mappings?.assetSpecMapping;
+
+  // 参数验证
+  if (!assetMapping || !assetSpecMapping) {
+    console.error('❌ 映射配置参数错误:', { assetMapping, assetSpecMapping });
+    return [];
+  }
+
+  const allDbIds = [];
+  instanceTree.enumNodeChildren(instanceTree.getRootId(), (dbId) => {
+    allDbIds.push(dbId);
+  }, true);
+
+  console.log(`🔍 开始提取资产数据，共 ${allDbIds.length} 个构件`);
+
+  // 合并映射配置（资产表 + 资产规格表的所有字段）
+  const fullMapping = { ...assetMapping, ...assetSpecMapping };
+  
+  console.log('📋 合并后的映射配置字段:', Object.keys(fullMapping));
+  console.log('   资产映射字段:', Object.keys(assetMapping));
+  console.log('   规格映射字段:', Object.keys(assetSpecMapping));
+
+
+  const tempTable = [];
+  let firstAssetLogged = false;  // 标志：是否已打印第一个资产的属性
+
+  // 逐个获取资产属性
+  for (const dbId of allDbIds) {
+    try {
+      const row = await new Promise((resolve) => {
+        viewer.getProperties(dbId, (result) => {
+          if (!result || !result.properties) {
+            resolve(null);
+            return;
+          }
+
+          // 初始化临时行数据（包含所有字段）
+          const rowData = { dbId };
+
+          // 为每个映射字段初始化空值
+          Object.keys(fullMapping).forEach(field => {
+            rowData[field] = '';
+          });
+
+          // 遍历所有属性
+          result.properties.forEach(prop => {
+            const displayName = prop.displayName || '';
+            const attributeName = prop.attributeName || '';
+            const category = prop.displayCategory || '';
+            const value = prop.displayValue || '';
+
+            // 检查每个映射配置
+            Object.entries(fullMapping).forEach(([field, mapping]) => {
+              // 如果该字段已经有值且不是空字符串，跳过（防止被无关属性覆盖）
+              if (rowData[field] && rowData[field] !== '') return;
+
+              const targetCategory = mapping.category;
+              const targetProperty = mapping.property;
+
+              // 1. 优先尝试精确匹配（分类 + 属性名）
+              const categoryMatch = category === targetCategory;
+              const nameMatch = displayName === targetProperty || attributeName === targetProperty;
+              
+              if (categoryMatch && nameMatch) {
+                rowData[field] = value;
+                return;
+              }
+
+              // 2. 特殊属性（带点号）只匹配名称
+              if (targetProperty.includes('.') && nameMatch) {
+                rowData[field] = value;
+                return;
+              }
+
+              // 3. 备用策略：如果只是分类不匹配但名称完全一致，也视为匹配
+              // 这可以解决分类名称在不同版本 Revit 中可能不同的问题
+              if (nameMatch) {
+                 // 仅当属性名非常独特时才放宽分类限制，或者用户配置的分类是 '其他'
+                 // 防止常见的 "名称" 属性混淆
+                 if (targetCategory === '其他' || !['名称', 'Name'].includes(targetProperty)) {
+                     rowData[field] = value;
+                 }
+              }
+            });
+          });
+
+          // 4. 第二轮检查：对于 specCode，尝试从类型属性中查找
+          // 很多时候 Type Comments 在 Type 属性集里，而不是 Instance
+          if (!rowData['specCode'] && !rowData['typeComments']) {
+               const typeParams = result.properties.find(p => 
+                  p.displayName === '类型注释' || p.displayName === 'Type Comments' ||
+                  p.attributeName === 'Type Comments');
+               if (typeParams) {
+                   if (fullMapping.specCode) rowData['specCode'] = typeParams.displayValue;
+               }
+          }
+
+
+          // 调试：打印第一个有资产编码的构件的所有属性
+          if (rowData.assetCode && !firstAssetLogged) {
+            console.log(`\n📋 第一个有MC编码的构件 (dbId: ${dbId}) 的所有属性:`);
+            const propsTable = result.properties.map(p => ({
+              分类: p.displayCategory || '(无)',
+              显示名: p.displayName || '(无)',
+              属性名: p.attributeName || '(无)',
+              值: p.displayValue || ''
+            }));
+            console.table(propsTable);
+            firstAssetLogged = true;
+          }
+
+          // 只添加有资产编码的构件
+          if (rowData.assetCode) {
+            resolve(rowData);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+      if (row) {
+        tempTable.push(row);
+      }
+    } catch (e) {
+      console.error('获取资产属性失败:', e);
+    }
+  }
+
+  console.log(`✅ 提取完成: ${tempTable.length} 个资产（临时表）`);
+
+  // 调试：打印前 3 条数据
+  if (tempTable.length > 0) {
+    console.log('📋 前3条资产数据示例:');
+    console.table(tempTable.slice(0, 3));
+  }
+
+  return tempTable;
+};
+
+// 使用映射配置获取完整的空间数据（新版本，支持灵活映射）
+const getFullSpaceDataWithMapping = async (spaceMapping) => {
+  if (!viewer || foundRoomDbIds.length === 0) {
+    console.warn('⚠️ 没有找到房间数据');
+    return [];
+  }
+
+  console.log(`🔍 开始提取空间数据，共 ${foundRoomDbIds.length} 个房间`);
+
+  const spaces = [];
+
+  // 为了调试，打印第一个房间的所有属性
+  if (foundRoomDbIds.length > 0) {
+    const firstDbId = foundRoomDbIds[0];
+    await new Promise((resolve) => {
+      viewer.getProperties(firstDbId, (result) => {
+        if (result && result.properties) {
+          console.log(`📋 第一个房间的前20个属性 (dbId: ${firstDbId}):`);
+          const sample = result.properties.slice(0, 20).map(p => ({
+            分类: p.displayCategory,
+            名称: p.displayName,
+            属性名: p.attributeName,
+            值: p.displayValue
+          }));
+          console.table(sample);
+        }
+        resolve();
+      });
+    });
+  }
+
+  for (const dbId of foundRoomDbIds) {
+    try {
+      const spaceData = await new Promise((resolve) => {
+        viewer.getProperties(dbId, (result) => {
+          if (!result || !result.properties) {
+            resolve(null);
+            return;
+          }
+
+          // 初始化空间数据
+          const data = { dbId };
+
+          // 为每个映射字段初始化空值
+          Object.keys(spaceMapping).forEach(field => {
+            data[field] = '';
+          });
+
+          // 遍历所有属性
+          result.properties.forEach(prop => {
+            const displayName = prop.displayName || '';
+            const attributeName = prop.attributeName || '';
+            const category = prop.displayCategory || '';
+            const value = prop.displayValue || '';
+
+            // 检查每个映射配置
+            Object.entries(spaceMapping).forEach(([field, mapping]) => {
+              const targetCategory = mapping.category;
+              const targetProperty = mapping.property;
+
+              // 匹配逻辑：
+              // 1. 对于包含点号的属性（如 Classification.Space.Number），只匹配属性名，忽略分类
+              // 2. 对于普通属性，必须分类和属性名都匹配
+              const nameMatch = displayName === targetProperty || attributeName === targetProperty;
+              const isSpecialProperty = targetProperty.includes('.');  // 检测点号分隔的属性
+              
+              let shouldMatch = false;
+              if (isSpecialProperty) {
+                // 特殊属性只匹配名称
+                shouldMatch = nameMatch;
+              } else {
+                // 普通属性需要分类和名称都匹配
+                const categoryMatch = category === targetCategory;
+                shouldMatch = categoryMatch && nameMatch;
+              }
+
+              if (shouldMatch) {
+                data[field] = value;
+              }
+            });
+          });
+
+          // 添加名称（如果映射中没有找到，使用 result.name）
+          if (!data.name && result.name) {
+            data.name = result.name;
+          }
+
+          // 检查是否有 spaceCode
+          if (data.spaceCode) {
+            resolve(data);
+          } else {
+            console.warn(`⚠️ 房间 ${dbId} 没有找到空间编号，请检查 spaceMapping 配置。房间名称: ${data.name || result.name}`);
+            // 使用默认值
+            data.spaceCode = `SPACE_${dbId}`;
+            resolve(data);
+          }
+        });
+      });
+
+      if (spaceData) {
+        spaces.push(spaceData);
+      }
+    } catch (e) {
+      console.error('获取空间属性失败:', e);
+    }
+  }
+
+  console.log(`✅ 提取完成: ${spaces.length} 个空间`);
+
+  // 调试：打印前 3 条数据
+  if (spaces.length > 0) {
+    console.log('📋 前3条空间数据示例:');
+    console.table(spaces.slice(0, 3));
+  }
+
+  return spaces;
+};
+
+// 获取资产的所有可用属性结构（用于填充映射配置下拉框）
+const getAssetPropertyList = async () => {
+  if (!viewer || !viewer.model) return {};
+  
+  return new Promise((resolve) => {
+    const tree = viewer.model.getInstanceTree();
+    if (!tree) {
+      resolve({});
+      return;
+    }
+    
+    const dbIds = [];
+    tree.enumNodeChildren(tree.getRootId(), id => dbIds.push(id), true);
+    
+    // 使用 getBulkProperties 对于大量构件更高效
+    // 我们不需要获取所有属性值，但这通常比逐个获取要快
+    viewer.model.getBulkProperties(dbIds, null, (results) => {
+      const categories = {};
+      
+      results.forEach(res => {
+        if (!res.properties) return;
+        
+        res.properties.forEach(prop => {
+          // 统一处理分类
+          let cat = prop.displayCategory || '其他';
+          // 处理一些特殊的分类名称映射
+          if (cat === 'Identity Data') cat = '标识数据';
+          if (cat === 'Constraints') cat = '约束';
+          if (cat === 'Phasing') cat = '阶段化';
+          if (cat === 'Dimensions') cat = '尺寸';
+          if (cat === 'Construction') cat = '构造';
+          
+          let name = prop.displayName || prop.attributeName;
+          // 排除无效名称
+          if (!name || name.trim() === '') return;
+          
+          if (!categories[cat]) categories[cat] = new Set();
+          categories[cat].add(name);
+        });
+      });
+      
+      // 转换为排序后的数组
+      const formatted = {};
+      Object.keys(categories).sort().forEach(cat => {
+        formatted[cat] = Array.from(categories[cat]).sort();
+      });
+      
+      console.log(`📋 已提取资产属性结构: ${Object.keys(formatted).length} 个分类`);
+      resolve(formatted);
+    }, (err) => {
+      console.error('获取属性列表失败:', err);
+      resolve({});
+    });
+  });
+};
+
+// 获取空间的所有可用属性结构
+const getSpacePropertyList = async () => {
+  if (!viewer || foundRoomDbIds.length === 0) return {};
+
+  return new Promise((resolve) => {
+    // 仅针对房间 ID 获取
+    viewer.model.getBulkProperties(foundRoomDbIds, null, (results) => {
+      const categories = {};
+      
+      results.forEach(res => {
+        if (!res.properties) return;
+        
+        res.properties.forEach(prop => {
+          let cat = prop.displayCategory || '其他';
+          // 映射常见分类
+          if (cat === 'Identity Data') cat = '标识数据';
+          if (cat === 'Dimensions') cat = '尺寸';
+          
+          let name = prop.displayName || prop.attributeName;
+          
+          if (!name || name.trim() === '') return;
+          
+          if (!categories[cat]) categories[cat] = new Set();
+          categories[cat].add(name);
+        });
+      });
+      
+      const formatted = {};
+      Object.keys(categories).sort().forEach(cat => {
+        formatted[cat] = Array.from(categories[cat]).sort();
+      });
+      
+      console.log(`📋 已提取空间属性结构: ${Object.keys(formatted).length} 个分类`);
+      resolve(formatted);
+    }, (err) => {
+      console.error('获取空间属性列表失败:', err);
+      resolve({});
+    });
+  });
+};
+
 // 暴露方法给父组件
 defineExpose({
   isolateAndFocusRooms,
@@ -1468,6 +1831,10 @@ defineExpose({
   syncTimelineHover,
   getFullAssetData,
   getFullSpaceData,
+  getFullAssetDataWithMapping,
+  getFullSpaceDataWithMapping,
+  getAssetPropertyList,
+  getSpacePropertyList,
   getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
   setSelectedRooms: async (codes) => {
     if (!isInfluxConfigured() || !codes?.length) {
