@@ -1391,8 +1391,11 @@ const showAllAssets = () => {
   }
 
   if (dbIdsToShow.length > 0) {
+    console.log(`🔒 执行 viewer.isolate()，孤立 ${dbIdsToShow.length} 个构件`);
+    console.log(`📋 前5个 dbId:`, dbIdsToShow.slice(0, 5));
     viewer.isolate(dbIdsToShow);
   } else {
+    console.log('⚠️ dbIdsToShow 为空，清除孤立');
     viewer.isolate([]);
   }
 
@@ -1400,6 +1403,7 @@ const showAllAssets = () => {
   viewer.clearSelection();
 
   viewer.impl.invalidate(true, true, true);
+  console.log('✅ showAllAssets 执行完成');
   animateToDefaultView();
 };
 
