@@ -317,10 +317,65 @@ const onViewerReady = async () => {
       
       if (filesData.success && filesData.data.length > 0) {
         const activeFile = filesData.data.find(f => f.is_active);
-        if (activeFile && activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
-          console.log('📦 加载当前激活的模型:', activeFile.extracted_path);
-          mainViewRef.value.loadNewModel(activeFile.extracted_path);
-          return;
+        if (activeFile) {
+          console.log('🔍 找到激活文件:', activeFile.title);
+          
+          // 🔑 关键修复：先从数据库加载该文件的资产和空间数据
+          try {
+            // 获取该文件的资产
+            const assetsRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/assets`);
+            const assetsData = await assetsRes.json();
+            if (assetsData.success) {
+              assetList.value = assetsData.data.map(asset => ({
+                dbId: asset.db_id,
+                name: asset.name,
+                mcCode: asset.asset_code,
+                classification: asset.classification_code || 'Uncategorized',
+                classification_code: asset.classification_code || '',
+                classification_desc: asset.classification_desc || '',
+                specCode: asset.spec_code,
+                specName: asset.spec_name,
+                floor: asset.floor,
+                room: asset.room,
+                category: asset.category,
+                family: asset.family,
+                type: asset.type,
+                manufacturer: asset.manufacturer,
+                address: asset.address,
+                phone: asset.phone
+              }));
+              console.log(`✅ 页面刷新：从数据库加载了 ${assetList.value.length} 个资产`);
+            }
+
+            // 获取该文件的空间
+            const spacesRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/spaces`);
+            const spacesData = await spacesRes.json();
+            if (spacesData.success) {
+              roomList.value = spacesData.data.map(space => ({
+                dbId: space.db_id,
+                name: (space.name || '').replace(/\[.*?\]/g, '').trim(),
+                code: space.space_code,
+                classificationCode: space.classification_code,
+                classificationDesc: space.classification_desc,
+                floor: space.floor,
+                area: space.area,
+                perimeter: space.perimeter
+              }));
+              console.log(`✅ 页面刷新：从数据库加载了 ${roomList.value.length} 个空间`);
+            }
+
+            // 标记数据库数据已加载
+            dbDataLoaded.value = true;
+          } catch (dbError) {
+            console.warn('⚠️ 加载数据库数据失败，将使用模型数据:', dbError);
+          }
+          
+          // 然后加载模型
+          if (activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
+            console.log('📦 加载当前激活的模型:', activeFile.extracted_path);
+            mainViewRef.value.loadNewModel(activeFile.extracted_path);
+            return;
+          }
         }
       }
     } catch (e) {
