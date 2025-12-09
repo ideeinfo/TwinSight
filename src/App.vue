@@ -267,6 +267,7 @@ const loadDataFromDatabase = async () => {
         classification_code: asset.classification_code || '',
         classification_desc: asset.classification_desc || '',
         specCode: asset.spec_code,
+        specName: asset.spec_name,
         floor: asset.floor,
         room: asset.room,
         category: asset.category,
@@ -412,6 +413,7 @@ const onFileActivated = async (file) => {
         classification_code: asset.classification_code || '',
         classification_desc: asset.classification_desc || '',
         specCode: asset.spec_code,
+        specName: asset.spec_name,
         floor: asset.floor,
         room: asset.room,
         category: asset.category,
@@ -446,6 +448,9 @@ const onFileActivated = async (file) => {
       roomList.value = [];
       console.log('⚠️ 该文件没有空间数据');
     }
+
+    // 标记数据库数据已加载，防止被 Viewer 数据覆盖
+    dbDataLoaded.value = true;
 
     // 清除选择状态
     savedAssetSelections.value = [];
@@ -582,6 +587,7 @@ const onAssetsSelected = async (dbIds) => {
           family: dbAsset.family || '',
           type: dbAsset.type || '',
           typeComments: dbAsset.specCode || '',
+          specName: dbAsset.specName || '',
           manufacturer: dbAsset.manufacturer || '',
           address: dbAsset.address || '',
           phone: dbAsset.phone || ''
@@ -613,6 +619,7 @@ const onAssetsSelected = async (dbIds) => {
             family: dbAsset.family || '',
             type: dbAsset.type || '',
             typeComments: dbAsset.specCode || '',
+            specName: dbAsset.specName || '',
             manufacturer: dbAsset.manufacturer || '',
             address: dbAsset.address || '',
             phone: dbAsset.phone || ''
@@ -635,6 +642,7 @@ const onAssetsSelected = async (dbIds) => {
           family: allProps[0].family,
           type: allProps[0].type,
           typeComments: allProps[0].typeComments,
+          specName: allProps[0].specName,
           manufacturer: allProps[0].manufacturer,
           address: allProps[0].address,
           phone: allProps[0].phone,
@@ -654,6 +662,7 @@ const onAssetsSelected = async (dbIds) => {
           if (mergedProps.family !== props.family) mergedProps.family = VARIES_VALUE;
           if (mergedProps.type !== props.type) mergedProps.type = VARIES_VALUE;
           if (mergedProps.typeComments !== props.typeComments) mergedProps.typeComments = VARIES_VALUE;
+          if (mergedProps.specName !== props.specName) mergedProps.specName = VARIES_VALUE;
           if (mergedProps.manufacturer !== props.manufacturer) mergedProps.manufacturer = VARIES_VALUE;
           if (mergedProps.address !== props.address) mergedProps.address = VARIES_VALUE;
           if (mergedProps.phone !== props.phone) mergedProps.phone = VARIES_VALUE;

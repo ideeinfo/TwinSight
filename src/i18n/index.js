@@ -76,7 +76,12 @@ const messages = {
       typeLabel: '类型',
       typeComments: '类型注释',
       address: '地址',
-      phone: '电话'
+      phone: '电话',
+      assetCode: '资产编码',
+      specCode: '规格编码',
+      specName: '规格名称',
+      classificationCode: '分类编码',
+      classificationDesc: '分类描述'
     },
     timeline: {
       live: 'LIVE',
@@ -283,7 +288,12 @@ const messages = {
       typeLabel: 'Type',
       typeComments: 'Type Comments',
       address: 'Address',
-      phone: 'Phone'
+      phone: 'Phone',
+      assetCode: 'Asset Code',
+      specCode: 'Spec Code',
+      specName: 'Spec Name',
+      classificationCode: 'Classification Code',
+      classificationDesc: 'Classification Desc'
     },
     timeline: {
       live: 'LIVE',

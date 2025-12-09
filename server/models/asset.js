@@ -64,7 +64,7 @@ export async function batchUpsertAssets(assets) {
  */
 export async function getAllAssets() {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code
     ORDER BY a.asset_code
@@ -78,7 +78,7 @@ export async function getAllAssets() {
  */
 export async function getAssetByCode(code) {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code
     WHERE a.asset_code = $1
@@ -92,7 +92,7 @@ export async function getAssetByCode(code) {
  */
 export async function getAssetsBySpecCode(specCode) {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code
     WHERE a.spec_code = $1
@@ -107,7 +107,7 @@ export async function getAssetsBySpecCode(specCode) {
  */
 export async function getAssetsByFloor(floor) {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code
     WHERE a.floor = $1
@@ -122,7 +122,7 @@ export async function getAssetsByFloor(floor) {
  */
 export async function getAssetsByRoom(room) {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code
     WHERE a.room = $1
@@ -146,7 +146,7 @@ export async function deleteAllAssets() {
  */
 export async function getAssetsByFileId(fileId) {
     const sql = `
-    SELECT a.*, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
     FROM assets a
     LEFT JOIN asset_specs s ON a.spec_code = s.spec_code AND a.file_id = s.file_id
     WHERE a.file_id = $1

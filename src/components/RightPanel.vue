@@ -21,9 +21,11 @@
           <!-- 资产模式 -->
           <div class="form-group" v-if="isAssetMode">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
+            <div class="row"><label>{{ t('rightPanel.assetCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.mcCode) }">{{ formatValue(roomProperties?.mcCode) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.typeComments) }">{{ formatValue(roomProperties?.typeComments) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.name) }">{{ formatValue(roomProperties?.name) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.mcCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.mcCode) }">{{ formatValue(roomProperties?.mcCode) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.level') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.level) }">{{ formatValue(roomProperties?.level) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.room') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.room) }">{{ formatValue(roomProperties?.room) }}</div></div>
           </div>
           <!-- 房间模式 -->
           <div class="form-group" v-else-if="roomProperties">
@@ -62,12 +64,13 @@
           <!-- 资产模式 -->
           <div class="form-group" v-if="isAssetMode">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
-            <div class="row"><label>{{ t('rightPanel.omniClass21Number') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Number) }">{{ formatValue(roomProperties?.omniClass21Number) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.omniClass21Description') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Description) }">{{ formatValue(roomProperties?.omniClass21Description) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.typeComments) }">{{ formatValue(roomProperties?.typeComments) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.specName') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.specName) }">{{ formatValue(roomProperties?.specName) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.classificationCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Number) }">{{ formatValue(roomProperties?.omniClass21Number) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.classificationDesc') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Description) }">{{ formatValue(roomProperties?.omniClass21Description) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.category') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.category) }">{{ formatValue(roomProperties?.category) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.family') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.family) }">{{ formatValue(roomProperties?.family) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.typeLabel') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.type) }">{{ formatValue(roomProperties?.type) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.typeComments') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.typeComments) }">{{ formatValue(roomProperties?.typeComments) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.manufacturer) }">{{ formatValue(roomProperties?.manufacturer) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.address') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.address) }">{{ formatValue(roomProperties?.address) }}</div></div>
             <div class="row"><label>{{ t('rightPanel.phone') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.phone) }">{{ formatValue(roomProperties?.phone) }}</div></div>
