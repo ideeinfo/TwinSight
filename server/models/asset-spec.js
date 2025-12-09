@@ -10,12 +10,13 @@ import { query, getClient } from '../db/index.js';
 export async function upsertAssetSpec(spec) {
     const sql = `
     INSERT INTO asset_specs (
-      spec_code, classification_code, classification_desc,
+      spec_code, spec_name, classification_code, classification_desc,
       category, family, type, manufacturer, address, phone
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     ON CONFLICT (spec_code)
     DO UPDATE SET
+      spec_name = EXCLUDED.spec_name,
       classification_code = EXCLUDED.classification_code,
       classification_desc = EXCLUDED.classification_desc,
       category = EXCLUDED.category,
@@ -29,6 +30,7 @@ export async function upsertAssetSpec(spec) {
   `;
     const result = await query(sql, [
         spec.specCode,
+        spec.specName,
         spec.classificationCode,
         spec.classificationDesc,
         spec.category,
@@ -54,12 +56,13 @@ export async function batchUpsertAssetSpecs(specs) {
             if (spec.specCode) {
                 await client.query(`
           INSERT INTO asset_specs (
-            spec_code, classification_code, classification_desc,
+            spec_code, spec_name, classification_code, classification_desc,
             category, family, type, manufacturer, address, phone
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           ON CONFLICT (spec_code)
           DO UPDATE SET
+            spec_name = EXCLUDED.spec_name,
             classification_code = EXCLUDED.classification_code,
             classification_desc = EXCLUDED.classification_desc,
             category = EXCLUDED.category,
@@ -71,6 +74,7 @@ export async function batchUpsertAssetSpecs(specs) {
             updated_at = CURRENT_TIMESTAMP
         `, [
                     spec.specCode,
+                    spec.specName,
                     spec.classificationCode,
                     spec.classificationDesc,
                     spec.category,
@@ -120,9 +124,81 @@ export async function getAssetSpecsByClassification(classificationCode) {
     return result.rows;
 }
 
+/**
+ * 批量插入或更新资产规格（关联文件）
+ * 注意：规格是全局共享的，不按文件区分，所以只使用 spec_code 作为唯一键
+ */
+export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        for (const spec of specs) {
+            // 先尝试更新，如果不存在则插入
+            const updateResult = await client.query(`
+              UPDATE asset_specs SET
+                spec_name = $2,
+                classification_code = $3,
+                classification_desc = $4,
+                category = $5,
+                family = $6,
+                type = $7,
+                manufacturer = $8,
+                address = $9,
+                phone = $10,
+                file_id = COALESCE(file_id, $11),
+                updated_at = CURRENT_TIMESTAMP
+              WHERE spec_code = $1
+            `, [
+                spec.specCode,
+                spec.specName || '',
+                spec.classificationCode || null,
+                spec.classificationDesc || '',
+                spec.category || '',
+                spec.family || '',
+                spec.type || '',
+                spec.manufacturer || '',
+                spec.address || '',
+                spec.phone || '',
+                fileId
+            ]);
+
+            if (updateResult.rowCount === 0) {
+                // 不存在，执行插入
+                await client.query(`
+                  INSERT INTO asset_specs (spec_code, spec_name, classification_code, classification_desc, 
+                                           category, family, type, manufacturer, address, phone, file_id)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                `, [
+                    spec.specCode,
+                    spec.specName || '',
+                    spec.classificationCode || null,
+                    spec.classificationDesc || '',
+                    spec.category || '',
+                    spec.family || '',
+                    spec.type || '',
+                    spec.manufacturer || '',
+                    spec.address || '',
+                    spec.phone || '',
+                    fileId
+                ]);
+            }
+        }
+
+        await client.query('COMMIT');
+        console.log(`✅ 成功插入/更新 ${specs.length} 条资产规格 (文件ID: ${fileId})`);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 export default {
     upsertAssetSpec,
     batchUpsertAssetSpecs,
+    batchUpsertAssetSpecsWithFile,
     getAllAssetSpecs,
     getAssetSpecByCode,
     getAssetSpecsByClassification

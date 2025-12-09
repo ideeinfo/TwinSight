@@ -241,11 +241,13 @@ router.post('/spaces/batch', async (req, res) => {
 /**
  * 从模型导入所有数据
  * POST /api/import/model-data
- * 请求体: { assets: [...], spaces: [...] }
+ * 请求体: { fileId: number, assets: [...], spaces: [...] }
  */
 router.post('/import/model-data', async (req, res) => {
     try {
-        const { assets = [], spaces = [] } = req.body;
+        const { fileId, assets = [], spaces = [] } = req.body;
+
+        console.log(`📥 收到导入请求: fileId=${fileId}, assets=${assets.length}, spaces=${spaces.length}`);
 
         // 1. 提取并保存分类编码
         const classifications = [];
@@ -266,6 +268,7 @@ router.post('/import/model-data', async (req, res) => {
             if (asset.typeComments && !specsMap.has(asset.typeComments)) {
                 specsMap.set(asset.typeComments, {
                     specCode: asset.typeComments,
+                    specName: asset.typeName || '',
                     classificationCode: asset.omniClass21Number || '',
                     classificationDesc: asset.omniClass21Description || '',
                     category: asset.category || '',
@@ -294,13 +297,17 @@ router.post('/import/model-data', async (req, res) => {
             await classificationModel.batchUpsertClassifications(classifications);
         }
 
-        // 3. 批量保存资产规格
+        // 3. 批量保存资产规格（如果有 fileId，则关联）
         const specs = Array.from(specsMap.values());
         if (specs.length > 0) {
-            await assetSpecModel.batchUpsertAssetSpecs(specs);
+            if (fileId) {
+                await assetSpecModel.batchUpsertAssetSpecsWithFile(specs, fileId);
+            } else {
+                await assetSpecModel.batchUpsertAssetSpecs(specs);
+            }
         }
 
-        // 4. 批量保存资产
+        // 4. 批量保存资产（如果有 fileId，则关联）
         const assetRecords = assets.map(a => ({
             assetCode: a.mcCode,
             specCode: a.typeComments || null,
@@ -311,10 +318,14 @@ router.post('/import/model-data', async (req, res) => {
         })).filter(a => a.assetCode);
 
         if (assetRecords.length > 0) {
-            await assetModel.batchUpsertAssets(assetRecords);
+            if (fileId) {
+                await assetModel.batchUpsertAssetsWithFile(assetRecords, fileId);
+            } else {
+                await assetModel.batchUpsertAssets(assetRecords);
+            }
         }
 
-        // 5. 批量保存空间
+        // 5. 批量保存空间（如果有 fileId，则关联）
         const spaceRecords = spaces.map(s => ({
             spaceCode: s.spaceCode,
             name: s.name || '',
@@ -327,7 +338,11 @@ router.post('/import/model-data', async (req, res) => {
         })).filter(s => s.spaceCode);
 
         if (spaceRecords.length > 0) {
-            await spaceModel.batchUpsertSpaces(spaceRecords);
+            if (fileId) {
+                await spaceModel.batchUpsertSpacesWithFile(spaceRecords, fileId);
+            } else {
+                await spaceModel.batchUpsertSpaces(spaceRecords);
+            }
         }
 
         res.json({

@@ -180,19 +180,15 @@ export async function batchUpsertAssetsWithFile(assets, fileId) {
     try {
         await client.query('BEGIN');
 
+        // 先删除该文件的所有旧资产
+        await client.query('DELETE FROM assets WHERE file_id = $1', [fileId]);
+
+        // 然后批量插入新资产
         for (const asset of assets) {
             if (asset.assetCode) {
                 await client.query(`
           INSERT INTO assets (asset_code, spec_code, name, floor, room, db_id, file_id)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          ON CONFLICT (asset_code, file_id)
-          DO UPDATE SET
-            spec_code = EXCLUDED.spec_code,
-            name = EXCLUDED.name,
-            floor = EXCLUDED.floor,
-            room = EXCLUDED.room,
-            db_id = EXCLUDED.db_id,
-            updated_at = CURRENT_TIMESTAMP
         `, [
                     asset.assetCode,
                     asset.specCode,

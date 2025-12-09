@@ -77,9 +77,13 @@ const { t } = useI18n();
 
 // Props
 const props = defineProps({
-  // 从 MainView 传入的方法
+  fileId: { type: Number, default: null },
   getFullAssetData: { type: Function, default: null },
-  getFullSpaceData: { type: Function, default: null }
+  getFullSpaceData: { type: Function, default: null },
+  getAssetPropertyList: { type: Function, default: null },
+  getSpacePropertyList: { type: Function, default: null },
+  getFullAssetDataWithMapping: { type: Function, default: null },
+  getFullSpaceDataWithMapping: { type: Function, default: null }
 });
 
 // 状态
@@ -87,6 +91,35 @@ const apiStatus = ref('checking');
 const isExporting = ref(false);
 const extractionStats = ref(null);
 const exportResult = ref(null);
+
+// 简单的硬编码映射配置（根据实际模型属性调整）
+const assetMapping = ref({
+  assetCode: { category: '文字', property: 'MC编码' },
+  specCode: { category: '其他', property: '类型注释' },
+  name: { category: '标识数据', property: '名称' },
+  floor: { category: '约束', property: '楼层' },
+  room: { category: '约束', property: '房间' }
+});
+
+const assetSpecMapping = ref({
+  specCode: { category: '其他', property: '类型注释' },
+  specName: { category: '其他', property: '类型名称' },
+  classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
+  classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' },
+  category: { category: '其他', property: '类别' },
+  family: { category: '其他', property: '族' },
+  type: { category: '其他', property: '类型' },
+  manufacturer: { category: '标识数据', property: '制造商' },
+  address: { category: '标识数据', property: '地址' },
+  phone: { category: '标识数据', property: '电话' }
+});
+
+const spaceMapping = ref({
+  spaceCode: { category: '约束', property: '编号' },
+  name: { category: '标识数据', property: '名称' },
+  classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
+  classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' }
+});
 
 // 检查 API 连接
 async function checkConnection() {
@@ -101,8 +134,8 @@ async function checkConnection() {
 
 // 提取并导出数据
 async function extractAndExport() {
-  if (!props.getFullAssetData || !props.getFullSpaceData) {
-    exportResult.value = { success: false, message: t('dataExport.failed') };
+  if (!props.getFullAssetDataWithMapping || !props.getFullSpaceDataWithMapping) {
+    exportResult.value = { success: false, message: '函数未提供，请确保模型已加载' };
     return;
   }
 
@@ -110,31 +143,66 @@ async function extractAndExport() {
   exportResult.value = null;
 
   try {
-    // 1. 提取资产数据
-    console.log('📊 开始提取资产数据...');
-    const assets = await props.getFullAssetData();
-    console.log(`📊 提取到 ${assets.length} 个资产`);
+    console.log('📊 开始提取数据...');
+    
+    // 使用新的 API，传入映射配置
+    const tempTable = await props.getFullAssetDataWithMapping(assetMapping.value, assetSpecMapping.value);
+    const spaces = await props.getFullSpaceDataWithMapping(spaceMapping.value);
 
-    // 2. 提取空间数据
-    console.log('📊 开始提取空间数据...');
-    const spaces = await props.getFullSpaceData();
-    console.log(`📊 提取到 ${spaces.length} 个空间`);
+    console.log(`✅ 提取完成: ${tempTable.length} 个资产, ${spaces.length} 个空间`);
 
-    // 3. 计算统计信息
-    const specsSet = new Set(assets.map(a => a.typeComments).filter(Boolean));
+    // 从临时表构建资产规格数据
+    const specsMap = new Map();
+    tempTable.forEach(row => {
+      if (row.specCode && !specsMap.has(row.specCode)) {
+        specsMap.set(row.specCode, {
+          specCode: row.specCode,
+          specName: row.specName || '',
+          classificationCode: row.classificationCode || '',
+          classificationDesc: row.classificationDesc || '',
+          category: row.category || '',
+          family: row.family || '',
+          type: row.type || '',
+          manufacturer: row.manufacturer || '',
+          address: row.address || '',
+          phone: row.phone || ''
+        });
+      }
+    });
+
+    // 从临时表构建资产数据
+    const assets = tempTable.map(row => ({
+      dbId: row.dbId,
+      mcCode: row.assetCode,
+      typeComments: row.specCode,
+      typeName: row.specName || '',
+      name: row.name,
+      floor: row.floor,
+      room: row.room,
+      omniClass21Number: row.classificationCode || '',
+      omniClass21Description: row.classificationDesc || '',
+      category: row.category || '',
+      family: row.family || '',
+      type: row.type || '',
+      manufacturer: row.manufacturer || '',
+      address: row.address || '',
+      phone: row.phone || ''
+    }));
+
+    // 计算统计信息
     const classificationsSet = new Set([
-      ...assets.map(a => a.omniClass21Number).filter(Boolean),
+      ...Array.from(specsMap.values()).map(s => s.classificationCode).filter(Boolean),
       ...spaces.map(s => s.classificationCode).filter(Boolean)
     ]);
 
     extractionStats.value = {
       assets: assets.length,
       spaces: spaces.length,
-      specs: specsSet.size,
+      specs: specsMap.size,
       classifications: classificationsSet.size
     };
 
-    // 4. 发送到后端
+    // 发送到后端
     console.log('📤 正在发送数据到数据库...');
     const result = await importModelData({ assets, spaces });
     

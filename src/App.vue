@@ -46,6 +46,7 @@
             :currentView="currentView"
             @rooms-loaded="onRoomsLoaded"
             @assets-loaded="onAssetsLoaded"
+            @viewer-ready="onViewerReady"
             @chart-data-update="onChartDataUpdate"
             @time-range-changed="onTimeRangeChanged"
           />
@@ -101,8 +102,13 @@
       <div v-if="isDataExportOpen" class="modal-overlay" @click.self="closeDataExportPanel">
         <div class="modal-container">
           <DataExportPanel
+            :fileId="currentExportFileId"
             :getFullAssetData="getFullAssetDataFromMainView"
             :getFullSpaceData="getFullSpaceDataFromMainView"
+            :getAssetPropertyList="getAssetPropertyListFromMainView"
+            :getSpacePropertyList="getSpacePropertyListFromMainView"
+            :getFullAssetDataWithMapping="getFullAssetDataWithMappingFromMainView"
+            :getFullSpaceDataWithMapping="getFullSpaceDataWithMappingFromMainView"
           />
           <button class="modal-close-btn" @click="closeDataExportPanel">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -153,8 +159,20 @@ const dbDataLoaded = ref(false);
 const modelRoomDbIds = ref([]);
 const modelAssetDbIds = ref([]);
 
+// 当前导出的文件 ID
+const currentExportFileId = ref(null);
+
+// 待加载的激活文件（在 viewer 初始化完成后加载）
+const pendingActiveFile = ref(null);
+const viewerReady = ref(false);
+
 // 数据导出面板方法
-const openDataExportPanel = () => {
+const openDataExportPanel = (file) => {
+  if (file && file.id) {
+    currentExportFileId.value = file.id;
+  } else {
+    currentExportFileId.value = null;
+  }
   isDataExportOpen.value = true;
 };
 
@@ -174,6 +192,38 @@ const getFullAssetDataFromMainView = async () => {
 const getFullSpaceDataFromMainView = async () => {
   if (mainViewRef.value && mainViewRef.value.getFullSpaceData) {
     return await mainViewRef.value.getFullSpaceData();
+  }
+  return [];
+};
+
+// 从 MainView 获取资产属性列表（用于字段映射配置）
+const getAssetPropertyListFromMainView = async () => {
+  if (mainViewRef.value && mainViewRef.value.getAssetPropertyList) {
+    return await mainViewRef.value.getAssetPropertyList();
+  }
+  return { categories: {}, count: 0 };
+};
+
+// 从 MainView 获取空间属性列表（用于字段映射配置）
+const getSpacePropertyListFromMainView = async () => {
+  if (mainViewRef.value && mainViewRef.value.getSpacePropertyList) {
+    return await mainViewRef.value.getSpacePropertyList();
+  }
+  return { categories: {}, count: 0 };
+};
+
+// 从 MainView 获取资产数据（使用自定义映射）
+const getFullAssetDataWithMappingFromMainView = async (mapping) => {
+  if (mainViewRef.value && mainViewRef.value.getFullAssetDataWithMapping) {
+    return await mainViewRef.value.getFullAssetDataWithMapping(mapping);
+  }
+  return [];
+};
+
+// 从 MainView 获取空间数据（使用自定义映射）
+const getFullSpaceDataWithMappingFromMainView = async (mapping) => {
+  if (mainViewRef.value && mainViewRef.value.getFullSpaceDataWithMapping) {
+    return await mainViewRef.value.getFullSpaceDataWithMapping(mapping);
   }
   return [];
 };
@@ -236,6 +286,22 @@ const loadDataFromDatabase = async () => {
     return false;
   } finally {
     isLoadingFromDb.value = false;
+  }
+};
+
+// Viewer 初始化完成回调
+const onViewerReady = () => {
+  console.log('🎬 Viewer 初始化完成');
+  viewerReady.value = true;
+  
+  // 如果有待加载的激活文件，立即加载其模型
+  if (pendingActiveFile.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
+    const file = pendingActiveFile.value;
+    if (file.extracted_path) {
+      console.log('📦 加载待加载的模型:', file.extracted_path);
+      mainViewRef.value.loadNewModel(file.extracted_path);
+    }
+    pendingActiveFile.value = null;
   }
 };
 
@@ -337,7 +403,7 @@ const onFileActivated = async (file) => {
     // 获取该文件的资产
     const assetsRes = await fetch(`${API_BASE}/api/files/${file.id}/assets`);
     const assetsData = await assetsRes.json();
-    if (assetsData.success && assetsData.data.length > 0) {
+    if (assetsData.success) {
       assetList.value = assetsData.data.map(asset => ({
         dbId: asset.db_id,
         name: asset.name,
@@ -356,12 +422,15 @@ const onFileActivated = async (file) => {
         phone: asset.phone
       }));
       console.log(`📊 加载了 ${assetList.value.length} 个资产`);
+    } else {
+      assetList.value = [];
+      console.log('⚠️ 该文件没有资产数据');
     }
 
     // 获取该文件的空间
     const spacesRes = await fetch(`${API_BASE}/api/files/${file.id}/spaces`);
     const spacesData = await spacesRes.json();
-    if (spacesData.success && spacesData.data.length > 0) {
+    if (spacesData.success) {
       roomList.value = spacesData.data.map(space => ({
         dbId: space.db_id,
         name: space.name,
@@ -373,11 +442,26 @@ const onFileActivated = async (file) => {
         perimeter: space.perimeter
       }));
       console.log(`📊 加载了 ${roomList.value.length} 个空间`);
+    } else {
+      roomList.value = [];
+      console.log('⚠️ 该文件没有空间数据');
     }
 
+    // 清除选择状态
+    savedAssetSelections.value = [];
+    savedRoomSelections.value = [];
+    selectedRoomProperties.value = null;
+
     // 加载对应的 3D 模型
-    if (file.extracted_path && mainViewRef.value && mainViewRef.value.loadModel) {
-      mainViewRef.value.loadModel(file.extracted_path);
+    if (file.extracted_path) {
+      if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
+        // Viewer 已准备好，立即加载
+        mainViewRef.value.loadNewModel(file.extracted_path);
+      } else {
+        // Viewer 尚未准备好，保存待加载文件
+        console.log('📦 Viewer 尚未准备好，保存待加载文件');
+        pendingActiveFile.value = file;
+      }
     }
 
     // 切换到资产视图
@@ -704,9 +788,39 @@ watch(isChartPanelOpen, () => {
   });
 });
 
-// 组件挂载时从数据库加载数据
+// 组件挂载时加载激活的文件及其数据
 onMounted(async () => {
-  await loadDataFromDatabase();
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    
+    // 获取所有文件列表，找到激活的文件
+    const filesRes = await fetch(`${API_BASE}/api/files`);
+    const filesData = await filesRes.json();
+    
+    if (filesData.success && filesData.data.length > 0) {
+      // 找到激活的文件
+      const activeFile = filesData.data.find(f => f.is_active);
+      
+      if (activeFile) {
+        console.log('📦 发现激活的文件:', activeFile.title || activeFile.filename);
+        
+        // 加载该文件的数据
+        await onFileActivated(activeFile);
+        
+        console.log('✅ 已加载激活文件的数据');
+      } else {
+        console.log('⚠️ 没有激活的文件，加载默认数据');
+        await loadDataFromDatabase();
+      }
+    } else {
+      console.log('⚠️ 没有文件，加载默认数据');
+      await loadDataFromDatabase();
+    }
+  } catch (error) {
+    console.error('❌ 初始化加载失败:', error);
+    // 回退到默认加载
+    await loadDataFromDatabase();
+  }
 });
 
 onUnmounted(() => {

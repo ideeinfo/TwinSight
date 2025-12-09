@@ -151,6 +151,10 @@ export async function batchUpsertSpacesWithFile(spaces, fileId) {
     try {
         await client.query('BEGIN');
 
+        // 先删除该文件的所有旧空间
+        await client.query('DELETE FROM spaces WHERE file_id = $1', [fileId]);
+
+        // 然后批量插入新空间
         for (const space of spaces) {
             if (space.spaceCode) {
                 await client.query(`
@@ -159,16 +163,6 @@ export async function batchUpsertSpacesWithFile(spaces, fileId) {
             floor, area, perimeter, db_id, file_id
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          ON CONFLICT (space_code, file_id)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            classification_code = EXCLUDED.classification_code,
-            classification_desc = EXCLUDED.classification_desc,
-            floor = EXCLUDED.floor,
-            area = EXCLUDED.area,
-            perimeter = EXCLUDED.perimeter,
-            db_id = EXCLUDED.db_id,
-            updated_at = CURRENT_TIMESTAMP
         `, [
                     space.spaceCode,
                     space.name,

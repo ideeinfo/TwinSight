@@ -1,0 +1,159 @@
+{
+  "version": "1.0",
+  "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA",
+  "type": "manifest",
+  "progress": "complete",
+  "status": "success",
+  "hasThumbnail": "true",
+  "region": "US",
+  "derivatives": [
+    {
+      "outputType": "svf",
+      "status": "success",
+      "name": "input.rvt",
+      "hasThumbnail": "true",
+      "progress": "complete",
+      "children": [
+        {
+          "type": "resource",
+          "role": "Autodesk.CloudPlatform.PropertyDatabase",
+          "status": "success",
+          "mime": "application/autodesk-db",
+          "urn": "./model.sdb",
+          "guid": "7f431959-33b0-412a-ae26-d7e98de52014",
+          "size": 7700480
+        },
+        {
+          "type": "resource",
+          "role": "Autodesk.AEC.ModelData",
+          "status": "success",
+          "mime": "application/json",
+          "urn": "./AECModelData.json",
+          "guid": "0648c896-7982-44ff-b0d3-3f59c1fad3db"
+        },
+        {
+          "type": "geometry",
+          "role": "3d",
+          "status": "success",
+          "name": "3d",
+          "hasThumbnail": "true",
+          "progress": "complete",
+          "guid": "8bbf3d30-cb8e-43dc-a85f-e7f050395d36",
+          "children": [
+            {
+              "type": "view",
+              "role": "3d",
+              "status": "success",
+              "name": "3d",
+              "progress": "complete",
+              "guid": "eb927770-02be-4932-a92d-78d08c62a680-001423d2",
+              "camera": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "resource",
+              "role": "3d",
+              "mime": "application/autodesk-svf",
+              "urn": "./3d.svf",
+              "progress": "graphics",
+              "guid": "925575b2-a5ea-46a6-bf53-9bb72618d010"
+            },
+            {
+              "type": "resource",
+              "role": "thumbnail",
+              "status": "success",
+              "mime": "image/png",
+              "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb100.png",
+              "resolution": [
+                100,
+                100
+              ],
+              "guid": "ad6a92cb-90dd-420d-b724-92330a3fd53f"
+            },
+            {
+              "type": "resource",
+              "role": "thumbnail",
+              "status": "success",
+              "mime": "image/png",
+              "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb200.png",
+              "resolution": [
+                200,
+                200
+              ],
+              "guid": "dadd3fc9-deba-4123-b254-88bef9252a4d"
+            },
+            {
+              "type": "resource",
+              "role": "thumbnail",
+              "status": "success",
+              "mime": "image/png",
+              "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb400.png",
+              "resolution": [
+                400,
+                400
+              ],
+              "guid": "6c649137-0d73-4d70-9db0-49b76f4d8237"
+            }
+          ],
+          "viewableID": "eb927770-02be-4932-a92d-78d08c62a680-001423d2"
+        }
+      ]
+    },
+    {
+      "outputType": "thumbnail",
+      "status": "success",
+      "progress": "complete",
+      "children": [
+        {
+          "type": "resource",
+          "role": "thumbnail",
+          "status": "success",
+          "mime": "image/png",
+          "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb100.png",
+          "resolution": [
+            100,
+            100
+          ],
+          "guid": "89322f76-ec78-48a8-bd71-01b78454198d"
+        },
+        {
+          "type": "resource",
+          "role": "thumbnail",
+          "status": "success",
+          "mime": "image/png",
+          "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb200.png",
+          "resolution": [
+            200,
+            200
+          ],
+          "guid": "2ebc92d2-dabc-4528-8b86-188bc682990b"
+        },
+        {
+          "type": "resource",
+          "role": "thumbnail",
+          "status": "success",
+          "mime": "image/png",
+          "urn": "urn:adsk.viewing:fs.file:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6NjAwMmRlbW8vYWViNDIxYTctYTgwYy00M2RlLTkwYTgtMGI4MzgxMTRmOGJhLnJ2dA/output/thumb400.png",
+          "resolution": [
+            400,
+            400
+          ],
+          "guid": "fe62a427-4b0f-48b3-bf1e-0e12c04e7c78"
+        }
+      ]
+    }
+  ]
+}
