@@ -143,7 +143,9 @@ const { t, locale } = useI18n();
 
 // 定义 props
 const props = defineProps({
-  currentView: { type: String, default: 'connect' }
+  currentView: { type: String, default: 'connect' },
+  assets: { type: Array, default: () => [] }, // 从数据库加载的资产列表
+  rooms: { type: Array, default: () => [] }    // 从数据库加载的空间列表
 });
 
 // 定义事件发射
@@ -417,34 +419,36 @@ const initViewer = () => {
     viewer.addEventListener(window.Autodesk.Viewing.viewerResizeEvent, updateAllTagPositions);
     
     if (viewer.start() > 0) return;
-    viewer.loadModel(MODEL_URL, {}, () => { 
-      viewer.setTheme('dark-theme');
-      // 设置默认环境主题为 Field
-      viewer.setLightPreset(17); // 17 = "Field" environment preset
-      if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
-      if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
-      const root = viewerContainer.value;
-      if (root) {
-        const checkOpen = () => {
-          let open = false;
-          const panels = root.querySelectorAll('.docking-panel, .settings-panel, .adsk-settings, .adsk-viewing-settings');
-          panels.forEach(el => {
-            const cs = window.getComputedStyle(el);
-            const opacity = parseFloat(cs.opacity || '1');
-            if (cs.display !== 'none' && cs.visibility !== 'hidden' && opacity > 0.1 && el.offsetWidth > 0 && el.offsetHeight > 0) {
-              open = true;
-            }
-          });
-          areTagsVisible.value = !open;
-        };
-        uiObserver = new MutationObserver(checkOpen);
-        uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
-        checkOpen();
-        
-        // Viewer 就绪，通知父组件（用于处理 pendingActiveFile）
-        emit('viewer-ready');
-      }
-    });
+    
+    // 设置基础样式
+    viewer.setTheme('dark-theme');
+    viewer.setLightPreset(17); // Field environment
+    if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
+    if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+    
+    // 设置 UI 观察器
+    const root = viewerContainer.value;
+    if (root) {
+      const checkOpen = () => {
+        let open = false;
+        const panels = root.querySelectorAll('.docking-panel, .settings-panel, .adsk-settings, .adsk-viewing-settings');
+        panels.forEach(el => {
+          const cs = window.getComputedStyle(el);
+          const opacity = parseFloat(cs.opacity || '1');
+          if (cs.display !== 'none' && cs.visibility !== 'hidden' && opacity > 0.1 && el.offsetWidth > 0 && el.offsetHeight > 0) {
+            open = true;
+          }
+        });
+        areTagsVisible.value = !open;
+      };
+      uiObserver = new MutationObserver(checkOpen);
+      uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+      checkOpen();
+    }
+    
+    // Viewer 就绪，通知父组件决定加载哪个模型
+    console.log('🎬 Viewer 已初始化，等待加载模型指令');
+    emit('viewer-ready');
   });
 };
 
@@ -484,25 +488,48 @@ const loadNewModel = async (modelPath) => {
     console.warn('⚠️ 模型路径预检失败，将尝试默认路径:', e);
   }
   
-  // 卸载当前模型
-  if (viewer.model) {
-      viewer.unloadModel(viewer.model);
+  // 卸载所有当前加载的模型
+  console.log('🧹 开始卸载旧模型...');
+  const modelsToUnload = viewer.getVisibleModels ? viewer.getVisibleModels() : (viewer.model ? [viewer.model] : []);
+  
+  if (modelsToUnload.length > 0) {
+    console.log(`🗑️ 卸载 ${modelsToUnload.length} 个模型`);
+    modelsToUnload.forEach((model, index) => {
+      console.log(`  - 卸载模型 ${index + 1}`);
+      viewer.unloadModel(model);
+    });
+    // 等待卸载完成
+    await new Promise(resolve => setTimeout(resolve, 100));
+  } else {
+    console.log('ℹ️ 没有需要卸载的模型');
   }
   
   // 加载新模型
   viewer.loadModel(finalPath, {}, (model) => {
       console.log('✅ 新模型加载成功:', finalPath);
+      console.log('📊 模型信息:', { 
+        hasGeometry: model.getGeometryList ? 'Yes' : 'No',
+        rootId: model.getRootId ? model.getRootId() : 'N/A'
+      });
+      
       // 其他初始化设置
       viewer.setTheme('dark-theme');
       viewer.setLightPreset(17); // Field
       if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
       if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
       
-      // 重置状态
-      roomTags.value = [];
-      roomFragData = {};
-      foundRoomDbIds = [];
-      foundAssetDbIds = [];
+      // 检查几何体是否已加载完成
+      // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
+      setTimeout(() => {
+        if (model.isLoadDone && model.isLoadDone()) {
+          console.log('📦 检测到几何体已加载完成，确保初始化执行');
+          // GEOMETRY_LOADED_EVENT 应该已经触发，但为了保险，我们检查状态
+          if (foundRoomDbIds.length === 0 && foundAssetDbIds.length === 0) {
+            console.log('⚠️ 数据未提取，手动触发 onModelLoaded');
+            onModelLoaded();
+          }
+        }
+      }, 1000);
       
       // 注意：onModelLoaded 会通过事件自动触发
   }, (errorCode) => {
@@ -593,6 +620,15 @@ const getHeatmapMaterial = (temperature) => {
 
 // 1. 模型加载
 const onModelLoaded = () => {
+  console.log('🎯 onModelLoaded 被触发');
+  
+  // 重置状态（确保每次加载新模型时都从干净状态开始）
+  roomTags.value = [];
+  roomFragData = {};
+  foundRoomDbIds = [];
+  foundAssetDbIds = [];
+  console.log('🧹 状态已重置');
+  
   if (!defaultView && viewer && viewer.navigation) {
     try {
       const pos = viewer.navigation.getPosition().clone();
@@ -704,8 +740,12 @@ seedRoomHistory(roomList);
 
         // 根据当前视图决定是否应用房间样式
         setTimeout(() => {
+          console.log(`🎯 检查视图状态（房间）: currentView = "${props.currentView}"`);
           if (props.currentView === 'connect') {
+            console.log('🏠 当前是连接视图，调用 applyRoomStyle()');
             applyRoomStyle();
+          } else {
+            console.log(`ℹ️ 当前不是连接视图，跳过房间显示 (视图: ${props.currentView})`);
           }
         }, 100);
       }
@@ -779,12 +819,17 @@ const extractAssets = () => {
 
       pendingProps--;
       if (pendingProps === 0) {
+        console.log(`✅ 资产提取完成: 共 ${assetList.length} 个资产`);
         emit('assets-loaded', assetList);
 
         // 如果当前是资产视图，立即显示资产
         setTimeout(() => {
+          console.log(`🎯 检查视图状态: currentView = "${props.currentView}"`);
           if (props.currentView === 'assets') {
+            console.log('📱 当前是资产视图，调用 showAllAssets()');
             showAllAssets();
+          } else {
+            console.log(`ℹ️ 当前不是资产视图，跳过自动显示 (视图: ${props.currentView})`);
           }
         }, 100);
       }
@@ -794,7 +839,21 @@ const extractAssets = () => {
 
 // 3. 应用浅紫色样式到所有房间
 const applyRoomStyle = () => {
-  if (!viewer || foundRoomDbIds.length === 0) return;
+  if (!viewer) return;
+
+  // 优先使用从数据库传入的空间列表
+  let dbIdsToShow = [];
+  if (props.rooms && props.rooms.length > 0) {
+    // 使用数据库中的空间列表
+    dbIdsToShow = props.rooms.map(r => r.dbId).filter(Boolean);
+    console.log(`🎯 使用数据库空间列表，共 ${dbIdsToShow.length} 个空间`);
+  } else if (foundRoomDbIds.length > 0) {
+    // 回退到模型提取的房间列表（基于"编号"属性）
+    dbIdsToShow = foundRoomDbIds;
+    console.log(`🔄 回退到模型空间列表（编号属性），共 ${dbIdsToShow.length} 个空间`);
+  }
+
+  if (dbIdsToShow.length === 0) return;
 
   // 清除所有主题颜色
   viewer.clearThemingColors();
@@ -803,14 +862,14 @@ const applyRoomStyle = () => {
   const fragList = viewer.model.getFragmentList();
   const tree = viewer.model.getInstanceTree();
 
-  foundRoomDbIds.forEach(dbId => {
+  dbIdsToShow.forEach(dbId => {
     tree.enumNodeFragments(dbId, (fragId) => {
       fragList.setMaterial(fragId, mat);
     });
   });
 
   // 孤立房间（隐藏其他构件）
-  viewer.isolate(foundRoomDbIds);
+  viewer.isolate(dbIdsToShow);
 
   // 强制刷新渲染
   viewer.impl.invalidate(true, true, true);
@@ -994,8 +1053,22 @@ const showAllRooms = () => {
   // 设置手动选择标志
   isManualSelection = true;
 
+  // 优先使用从数据库传入的空间列表
+  let dbIdsToShow = [];
+  if (props.rooms && props.rooms.length > 0) {
+    // 使用数据库中的空间列表
+    dbIdsToShow = props.rooms.map(r => r.dbId).filter(Boolean);
+    console.log(`🎯 showAllRooms: 使用数据库空间列表，共 ${dbIdsToShow.length} 个空间`);
+  } else if (foundRoomDbIds.length > 0) {
+    // 回退到模型提取的房间列表
+    dbIdsToShow = foundRoomDbIds;
+    console.log(`🔄 showAllRooms: 回退到模型空间列表，共 ${dbIdsToShow.length} 个空间`);
+  }
+
   // 显示所有房间
-  viewer.show(foundRoomDbIds);
+  if (dbIdsToShow.length > 0) {
+    viewer.show(dbIdsToShow);
+  }
 
   // 清除选择
   viewer.clearSelection();
@@ -1008,7 +1081,7 @@ const showAllRooms = () => {
     viewer.clearThemingColors();
 
     // 逐个清除房间的主题颜色
-    foundRoomDbIds.forEach(dbId => {
+    dbIdsToShow.forEach(dbId => {
       viewer.setThemingColor(dbId, null);
     });
 
@@ -1017,7 +1090,7 @@ const showAllRooms = () => {
     const fragList = viewer.model.getFragmentList();
     const tree = viewer.model.getInstanceTree();
 
-    foundRoomDbIds.forEach(dbId => {
+    dbIdsToShow.forEach(dbId => {
       tree.enumNodeFragments(dbId, (fragId) => {
         fragList.setMaterial(fragId, mat);
       });
@@ -1202,7 +1275,74 @@ const isolateAndFocusAssets = (dbIds) => {
 
   viewer.isolate(dbIds);
   viewer.select(dbIds);
-  viewer.fitToView(dbIds);
+  
+  // 获取选中对象的边界框
+  const bounds = new window.THREE.Box3();
+  const instanceTree = viewer.model.getInstanceTree();
+  const fragList = viewer.model.getFragmentList();
+  
+  dbIds.forEach(dbId => {
+    instanceTree.enumNodeFragments(dbId, (fragId) => {
+      const box = new window.THREE.Box3();
+      fragList.getWorldBounds(fragId, box);
+      bounds.union(box);
+    });
+  });
+  
+  if (!bounds.isEmpty()) {
+    const center = bounds.getCenter(new window.THREE.Vector3());
+    const size = bounds.getSize(new window.THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    // 计算相机位置：距离设置为边界框最大尺寸的 2 倍
+    const distance = maxDim * 2;
+    const camera = viewer.navigation.getCamera();
+    const viewDir = camera.target.clone().sub(camera.position).normalize();
+    
+    // 新的相机位置和目标
+    const newPosition = center.clone().sub(viewDir.multiplyScalar(distance));
+    const newTarget = center;
+    
+    // 使用动画平滑移动相机
+    const nav = viewer.navigation;
+    const startPos = nav.getPosition().clone();
+    const startTarget = nav.getTarget().clone();
+    const duration = 800; // 动画持续时间（毫秒）
+    const startTime = performance.now();
+    
+    // easing 函数：ease-in-out
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = ease(progress);
+      
+      // 插值计算当前位置和目标
+      const currentPos = new window.THREE.Vector3(
+        startPos.x + (newPosition.x - startPos.x) * eased,
+        startPos.y + (newPosition.y - startPos.y) * eased,
+        startPos.z + (newPosition.z - startPos.z) * eased
+      );
+      
+      const currentTarget = new window.THREE.Vector3(
+        startTarget.x + (newTarget.x - startTarget.x) * eased,
+        startTarget.y + (newTarget.y - startTarget.y) * eased,
+        startTarget.z + (newTarget.z - startTarget.z) * eased
+      );
+      
+      // 设置相机位置
+      nav.setView(currentPos, currentTarget);
+      
+      // 继续动画或结束
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }
+  
   viewer.impl.invalidate(true, true, true);
 };
 
@@ -1212,8 +1352,20 @@ const showAllAssets = () => {
   // 设置手动选择标志
   isManualSelection = true;
 
-  if (foundAssetDbIds.length > 0) {
-    viewer.isolate(foundAssetDbIds);
+  // 优先使用从数据库传入的资产列表
+  let dbIdsToShow = [];
+  if (props.assets && props.assets.length > 0) {
+    // 使用数据库中的资产列表
+    dbIdsToShow = props.assets.map(a => a.dbId).filter(Boolean);
+    console.log(`🎯 使用数据库资产列表，共 ${dbIdsToShow.length} 个资产`);
+  } else if (foundAssetDbIds.length > 0) {
+    // 回退到模型提取的资产列表（基于MC编码）
+    dbIdsToShow = foundAssetDbIds;
+    console.log(`🔄 回退到模型资产列表（MC编码），共 ${dbIdsToShow.length} 个资产`);
+  }
+
+  if (dbIdsToShow.length > 0) {
+    viewer.isolate(dbIdsToShow);
   } else {
     viewer.isolate([]);
   }

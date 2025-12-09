@@ -44,6 +44,8 @@
           <MainView
             ref="mainViewRef"
             :currentView="currentView"
+            :assets="assetList"
+            :rooms="roomList"
             @rooms-loaded="onRoomsLoaded"
             @assets-loaded="onAssetsLoaded"
             @viewer-ready="onViewerReady"
@@ -294,7 +296,7 @@ const loadDataFromDatabase = async () => {
 };
 
 // Viewer 初始化完成回调
-const onViewerReady = () => {
+const onViewerReady = async () => {
   console.log('🎬 Viewer 初始化完成');
   viewerReady.value = true;
   
@@ -306,6 +308,30 @@ const onViewerReady = () => {
       mainViewRef.value.loadNewModel(file.extracted_path);
     }
     pendingActiveFile.value = null;
+  } else {
+    // 没有 pending 文件，加载当前激活的文件或默认模型
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const filesRes = await fetch(`${API_BASE}/api/files`);
+      const filesData = await filesRes.json();
+      
+      if (filesData.success && filesData.data.length > 0) {
+        const activeFile = filesData.data.find(f => f.is_active);
+        if (activeFile && activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
+          console.log('📦 加载当前激活的模型:', activeFile.extracted_path);
+          mainViewRef.value.loadNewModel(activeFile.extracted_path);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ 无法获取激活文件，加载默认模型', e);
+    }
+    
+    // 如果没有激活文件，加载默认模型
+    if (mainViewRef.value && mainViewRef.value.loadNewModel) {
+      console.log('📦 加载默认模型');
+      mainViewRef.value.loadNewModel('/models/my-building');
+    }
   }
 };
 
