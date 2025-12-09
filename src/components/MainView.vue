@@ -178,6 +178,7 @@ let assetFragData = {}; // 资产材质缓存
 const viewerContainer = ref(null);
 let viewer = null;
 const MODEL_URL = '/models/my-building/output/3d.svf';
+let modelLoaded = false; // 追踪模型是否已加载完成
 let defaultView = null;
 const animateToDefaultView = (duration = 800) => {
   if (!defaultView || !viewer || !viewer.navigation) return;
@@ -365,9 +366,13 @@ watch(progress, () => setTagTempsAtCurrentTime());
 
 // 监听数据库数据变化，当数据加载后重新应用孤立效果
 watch(() => [props.assets, props.rooms, props.currentView], ([newAssets, newRooms, newView]) => {
-  if (!viewer) return;
+  console.log(`👀 监听到数据变化: assets=${newAssets.length}, rooms=${newRooms.length}, view=${newView}, modelLoaded=${modelLoaded}, viewer=${!!viewer}`);
   
-  console.log(`👀 监听到数据变化: assets=${newAssets.length}, rooms=${newRooms.length}, view=${newView}`);
+  // 必须等待 viewer 和模型都加载完成
+  if (!viewer || !modelLoaded) {
+    console.log('⏳ Viewer或模型未加载完成，跳过');
+    return;
+  }
   
   // 数据加载完成后，根据当前视图重新应用显示逻辑
   if (newView === 'assets' && newAssets.length > 0) {
@@ -647,6 +652,7 @@ const onModelLoaded = () => {
   roomFragData = {};
   foundRoomDbIds = [];
   foundAssetDbIds = [];
+  modelLoaded = true; // 标记模型已加载
   console.log('🧹 状态已重置');
   
   if (!defaultView && viewer && viewer.navigation) {
