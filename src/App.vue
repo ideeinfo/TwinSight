@@ -2,7 +2,7 @@
   <div class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
     <TopBar @open-data-export="openDataExportPanel" />
 
-    <div class="main-body" ref="mainBody" @mousemove="onResize">
+    <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
 
       <!-- 左侧面板 -->
       <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
@@ -18,6 +18,7 @@
         />
         <AssetPanel
           v-else-if="currentView === 'assets'"
+          ref="assetPanelRef"
           :assets="assetList"
           :currentView="currentView"
           :selectedDbIds="savedAssetSelections"
@@ -51,8 +52,12 @@
             @viewer-ready="onViewerReady"
             @chart-data-update="onChartDataUpdate"
             @time-range-changed="onTimeRangeChanged"
+            @model-selection-changed="onModelSelectionChanged"
           />
         </div>
+
+        <!-- 底部图表高度调节拖拽条 -->
+        <div v-if="isChartPanelOpen" class="horizontal-resizer" @mousedown="startResize($event, 'chart')"></div>
 
         <!-- 底部图表面板 -->
         <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
@@ -146,6 +151,7 @@ const chartPanelHeight = ref(300);
 const roomList = ref([]);
 const assetList = ref([]);
 const mainViewRef = ref(null);
+const assetPanelRef = ref(null);
 const selectedRoomProperties = ref(null);
 const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' - 默认加载资产页面
@@ -421,9 +427,7 @@ const onRoomsLoaded = (rooms) => {
         }
       }, 100);
     }
-    if (mainViewRef.value.showTemperatureTags) {
-      mainViewRef.value.showTemperatureTags();
-    }
+    // 温度标签现在由用户通过按钮控制，不再自动显示/隐藏
   }
 };
 
@@ -436,7 +440,7 @@ const onAssetsLoaded = (assets) => {
     assetList.value = assets;
   }
 
-  // 如果当前是资产视图，自动显示资产并隐藏温度标签
+  // 如果当前是资产视图，自动显示资产
   if (currentView.value === 'assets' && mainViewRef.value) {
     if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
       mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
@@ -448,9 +452,7 @@ const onAssetsLoaded = (assets) => {
         }
       }, 100);
     }
-    if (mainViewRef.value.hideTemperatureTags) {
-      mainViewRef.value.hideTemperatureTags();
-    }
+    // 温度标签现在由用户通过按钮控制，不再自动显示/隐藏
   }
 };
 
@@ -469,24 +471,8 @@ const switchView = (view) => {
   // 注意：不在这里立即调用 showAllAssets/showAllRooms
   // 因为可能模型还没加载完成，让 onAssetsLoaded/onRoomsLoaded 处理
   
-  // 只处理温度标签的显示/隐藏（不依赖模型加载状态）
-  if (view === 'assets' && mainViewRef.value) {
-    if (mainViewRef.value.hideTemperatureTags) {
-      mainViewRef.value.hideTemperatureTags();
-    }
-  }
-
-  if (view === 'connect' && mainViewRef.value) {
-    if (mainViewRef.value.showTemperatureTags) {
-      mainViewRef.value.showTemperatureTags();
-    }
-  }
-
-  if (view === 'files' && mainViewRef.value) {
-    if (mainViewRef.value.hideTemperatureTags) {
-      mainViewRef.value.hideTemperatureTags();
-    }
-  }
+  // 温度标签和热力图按钮现在是全局的，不受视图切换影响
+  // 由用户通过按钮控制显示/隐藏
 };
 
 // 文件激活后加载对应的资产和空间数据
@@ -584,9 +570,7 @@ const onRoomsSelected = (dbIds) => {
       if (mainViewRef.value.showAllRooms) {
         mainViewRef.value.showAllRooms();
       }
-      if (mainViewRef.value.showTemperatureTags) {
-        mainViewRef.value.showTemperatureTags();
-      }
+      // 温度标签由用户通过按钮控制，不再自动显示
     } else if (dbIds.length === 1) {
       // 选中了一个房间，显示该房间的属性
       if (mainViewRef.value.isolateAndFocusRooms) {
@@ -661,9 +645,7 @@ const onAssetsSelected = async (dbIds) => {
       if (mainViewRef.value.showAllAssets) {
         mainViewRef.value.showAllAssets();
       }
-      if (mainViewRef.value.hideTemperatureTags) {
-        mainViewRef.value.hideTemperatureTags();
-      }
+      // 温度标签由用户通过按钮控制，不再自动隐藏
     } else if (dbIds.length === 1) {
       // 选中了一个资产，从 assetList 中获取属性
       if (mainViewRef.value.isolateAndFocusAssets) {
@@ -773,6 +755,132 @@ const onAssetsSelected = async (dbIds) => {
   }
 };
 
+// 🔑 仅加载资产属性（反向定位专用，不触发孤立操作）
+const loadAssetProperties = (dbIds) => {
+  if (!dbIds || dbIds.length === 0) {
+    selectedRoomProperties.value = null;
+    return;
+  }
+
+  if (dbIds.length === 1) {
+    // 单选：显示单个资产属性
+    const dbAsset = assetList.value.find(a => a.dbId === dbIds[0]);
+    if (dbAsset) {
+      selectedRoomProperties.value = {
+        name: dbAsset.name || '',
+        mcCode: dbAsset.mcCode || '',
+        level: dbAsset.floor || '',
+        room: dbAsset.room || '',
+        omniClass21Number: dbAsset.classification_code || '',
+        omniClass21Description: dbAsset.classification_desc || '',
+        category: dbAsset.category || '',
+        family: dbAsset.family || '',
+        type: dbAsset.type || '',
+        typeComments: dbAsset.specCode || '',
+        specName: dbAsset.specName || '',
+        manufacturer: dbAsset.manufacturer || '',
+        address: dbAsset.address || '',
+        phone: dbAsset.phone || ''
+      };
+    } else if (mainViewRef.value?.getAssetProperties) {
+      // 回退到模型数据
+      mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
+        selectedRoomProperties.value = props;
+      });
+    }
+  } else {
+    // 多选：合并属性
+    const allProps = dbIds.map(dbId => {
+      const dbAsset = assetList.value.find(a => a.dbId === dbId);
+      if (dbAsset) {
+        return {
+          name: dbAsset.name || '',
+          mcCode: dbAsset.mcCode || '',
+          level: dbAsset.floor || '',
+          room: dbAsset.room || '',
+          omniClass21Number: dbAsset.classification_code || '',
+          omniClass21Description: dbAsset.classification_desc || '',
+          category: dbAsset.category || '',
+          family: dbAsset.family || '',
+          type: dbAsset.type || '',
+          typeComments: dbAsset.specCode || '',
+          specName: dbAsset.specName || '',
+          manufacturer: dbAsset.manufacturer || '',
+          address: dbAsset.address || '',
+          phone: dbAsset.phone || ''
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (allProps.length > 0) {
+      const VARIES_VALUE = '__VARIES__';
+      const mergedProps = { ...allProps[0], isMultiple: true };
+      
+      for (let i = 1; i < allProps.length; i++) {
+        const props = allProps[i];
+        Object.keys(mergedProps).forEach(key => {
+          if (key !== 'isMultiple' && mergedProps[key] !== props[key]) {
+            mergedProps[key] = VARIES_VALUE;
+          }
+        });
+      }
+      
+      selectedRoomProperties.value = mergedProps;
+    } else {
+      selectedRoomProperties.value = { isMultiple: true };
+    }
+  }
+};
+
+// 🔑 仅加载房间属性（反向定位专用，不触发孤立操作）
+const loadRoomProperties = (dbIds) => {
+  if (!dbIds || dbIds.length === 0) {
+    selectedRoomProperties.value = null;
+    return;
+  }
+
+  if (dbIds.length === 1) {
+    // 单选：显示单个房间属性
+    if (mainViewRef.value?.getRoomProperties) {
+      mainViewRef.value.getRoomProperties(dbIds[0]).then(props => {
+        selectedRoomProperties.value = props;
+      });
+    }
+  } else {
+    // 多选：合并属性
+    if (mainViewRef.value?.getRoomProperties) {
+      const VARIES_VALUE = '__VARIES__';
+      Promise.all(dbIds.map(id => mainViewRef.value.getRoomProperties(id))).then(allProps => {
+        const base = allProps[0] || {};
+        const merged = {
+          code: base.code,
+          name: base.name,
+          area: base.area,
+          perimeter: base.perimeter,
+          spaceNumber: base.spaceNumber,
+          spaceDescription: base.spaceDescription,
+          isMultiple: true
+        };
+        
+        for (let i = 1; i < allProps.length; i++) {
+          const p = allProps[i] || {};
+          if (merged.code !== p.code) merged.code = VARIES_VALUE;
+          if (merged.name !== p.name) merged.name = VARIES_VALUE;
+          if (merged.area !== p.area) merged.area = VARIES_VALUE;
+          if (merged.perimeter !== p.perimeter) merged.perimeter = VARIES_VALUE;
+          if (merged.spaceNumber !== p.spaceNumber) merged.spaceNumber = VARIES_VALUE;
+          if (merged.spaceDescription !== p.spaceDescription) merged.spaceDescription = VARIES_VALUE;
+        }
+        
+        selectedRoomProperties.value = merged;
+      });
+    } else {
+      selectedRoomProperties.value = { isMultiple: true };
+    }
+  }
+};
+
 const openRightPanel = () => {
   isRightPanelOpen.value = true;
   triggerResize(); // 面板出现时，强制刷新布局
@@ -830,32 +938,56 @@ const triggerResize = () => {
 };
 
 let startX = 0;
+let startY = 0;
 let startWidth = 0;
+let startHeight = 0;
 let currentResizeSide = '';
 
 const startResize = (event, side) => {
   currentResizeSide = side;
   startX = event.clientX;
-  startWidth = side === 'left' ? leftWidth.value : rightWidth.value;
+  startY = event.clientY;
+  
+  if (side === 'left') {
+    startWidth = leftWidth.value;
+  } else if (side === 'right') {
+    startWidth = rightWidth.value;
+  } else if (side === 'chart') {
+    startHeight = chartPanelHeight.value;
+  }
+  
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', stopResize);
-  document.body.style.cursor = 'col-resize';
+  
+  if (side === 'chart') {
+    document.body.style.cursor = 'row-resize';
+  } else {
+    document.body.style.cursor = 'col-resize';
+  }
+  
   document.body.style.userSelect = 'none';
 };
 
 const onMouseMove = (event) => {
-  const dx = event.clientX - startX;
-  if (currentResizeSide === 'left') {
-    const newWidth = startWidth + dx;
-    if (newWidth > 200 && newWidth < 600) {
-      leftWidth.value = newWidth;
-      triggerResize(); // 实时拖拽时触发
+  if (currentResizeSide === 'chart') {
+    // 处理图表高度调节 - 只更新高度值，不触发resize
+    const dy = startY - event.clientY;
+    const newHeight = startHeight + dy;
+    if (newHeight > 150 && newHeight < 600) {
+      chartPanelHeight.value = newHeight;
     }
   } else {
-    const newWidth = startWidth - dx;
-    if (newWidth > 250 && newWidth < 800) {
-      rightWidth.value = newWidth;
-      triggerResize(); // 实时拖拽时触发
+    const dx = event.clientX - startX;
+    if (currentResizeSide === 'left') {
+      const newWidth = startWidth + dx;
+      if (newWidth > 200 && newWidth < 600) {
+        leftWidth.value = newWidth;
+      }
+    } else if (currentResizeSide === 'right') {
+      const newWidth = startWidth - dx;
+      if (newWidth > 250 && newWidth < 800) {
+        rightWidth.value = newWidth;
+      }
     }
   }
 };
@@ -865,6 +997,17 @@ const stopResize = () => {
   document.removeEventListener('mouseup', stopResize);
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
+  
+  // 拖拽结束后统一触发resize，确保viewer正确调整大小
+  if (currentResizeSide) {
+    nextTick(() => {
+      if (currentResizeSide === 'chart' && mainViewRef.value?.resizeViewer) {
+        mainViewRef.value.resizeViewer();
+      }
+      triggerResize();
+    });
+    currentResizeSide = '';
+  }
 };
 
 const onHoverSync = ({ time, percent }) => {
@@ -883,6 +1026,43 @@ const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
   Promise.all(rooms.map(r => queryRoomSeries(r.room, startMs, endMs, windowMs).then(points => ({ room: r.room, name: r.name, points }))))
     .then(list => { selectedRoomSeries.value = list; })
     .catch(() => {});
+};
+
+// 🔑 反向定位：在3D模型中选中构件后，自动更新左侧列表的选中状态
+const onModelSelectionChanged = (dbIds) => {
+  if (!dbIds || dbIds.length === 0) {
+    // 取消选择：清空列表选中状态
+    if (currentView.value === 'assets') {
+      savedAssetSelections.value = [];
+    } else if (currentView.value === 'connect') {
+      savedRoomSelections.value = [];
+    }
+    selectedRoomProperties.value = null;
+    return;
+  }
+
+  // 根据当前视图更新对应的选中列表
+  if (currentView.value === 'assets') {
+    // 资产页面：更新资产选中状态
+    savedAssetSelections.value = dbIds.slice();
+    
+    // 🔑 自动展开分类并滚动到选中的资产（支持多选）
+    if (assetPanelRef.value && dbIds.length > 0) {
+      nextTick(() => {
+        assetPanelRef.value.expandAndScrollToAsset(dbIds);
+      });
+    }
+    
+    // 🔑 仅加载属性，不触发孤立操作
+    loadAssetProperties(dbIds);
+    
+  } else if (currentView.value === 'connect') {
+    // 连接页面：更新房间选中状态
+    savedRoomSelections.value = dbIds.slice();
+    
+    // 🔑 仅加载属性，不触发孤立操作
+    loadRoomProperties(dbIds);
+  }
 };
 
 // 监听图表面板状态变化，确保 viewer 及时 resize
@@ -947,6 +1127,18 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }
 .resizer { width: 5px; background: #111; cursor: col-resize; flex-shrink: 0; z-index: 50; transition: background 0.2s; }
 .resizer:hover, .resizer:active { background: #0078d4; }
+.horizontal-resizer { 
+  height: 5px; 
+  width: 100%; 
+  background: #111; 
+  cursor: row-resize; 
+  flex-shrink: 0; 
+  z-index: 50; 
+  transition: background 0.2s; 
+}
+.horizontal-resizer:hover, .horizontal-resizer:active { 
+  background: #0078d4; 
+}
 
 /* 数据导出弹窗样式 */
 .modal-overlay {

@@ -112,7 +112,21 @@
         </div>
       </div>
 
+
       <div
+        v-if="currentView === 'connect'"
+        class="temperature-label-btn"
+        :class="{ active: areTagsVisible }"
+        @click="toggleTemperatureLabels"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 6px;">
+          <text x="2" y="12" font-size="10" fill="currentColor" font-weight="bold">°C</text>
+        </svg>
+        {{ t('header.temperatureLabel') }}
+      </div>
+
+      <div
+        v-if="currentView === 'connect'"
         class="heatmap-btn"
         :class="{ active: isHeatmapEnabled }"
         @click="toggleHeatmap"
@@ -149,7 +163,7 @@ const props = defineProps({
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -164,11 +178,21 @@ const trackRef = ref(null);
 
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
-const areTagsVisible = ref(props.currentView === 'connect'); // 根据当前视图决定初始显隐状态
+const areTagsVisible = ref(false); // 温度标签显示状态，默认不显示
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
 const isHeatmapEnabled = ref(false); // 热力图开关状态
+
+// 辅助函数：设置手动选择标志，并在短时间后自动重置
+const setManualSelection = () => {
+  isManualSelection = true;
+  // 使用 setTimeout 确保在当前调用栈完成后重置标志
+  // 这样可以避免标志永久为 true 的情况
+  setTimeout(() => {
+    isManualSelection = false;
+  }, 100);
+};
 
 // 资产状态
 let foundAssetDbIds = [];
@@ -462,7 +486,7 @@ const initViewer = () => {
             open = true;
           }
         });
-        areTagsVisible.value = !open;
+        // 不再自动设置 areTagsVisible，由用户通过按钮控制
       };
       uiObserver = new MutationObserver(checkOpen);
       uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
@@ -909,7 +933,6 @@ const applyRoomStyle = () => {
   // 强制刷新渲染
   viewer.impl.invalidate(true, true, true);
 
-  areTagsVisible.value = true;
   updateAllTagPositions();
 };
 
@@ -934,18 +957,21 @@ const removeRoomStyle = () => {
 
 // 5. 选择变更（在模型上直接点击时触发）
 const onSelectionChanged = (event) => {
-  // 如果是手动选择，跳过处理避免递归
+  const dbIds = event.dbIdArray;
+  
+  // 如果是程序化选择（从列表触发），跳过处理但不影响反向定位
   if (isManualSelection) {
+    // 立即重置标志，确保下次用户点击能正常工作
     isManualSelection = false;
+    // 如果选择了内容，仍然发射事件以更新列表状态
+    // 这样可以确保列表和模型状态同步
     return;
   }
 
-  const dbIds = event.dbIdArray;
-
   if (dbIds && dbIds.length > 0) {
-    // 在模型上选中了某个构件 - 不调用 isolate，只聚焦
-    const selectedId = dbIds[0];
-    viewer.fitToView([selectedId]);
+    // 在模型上选中了某个构件 - 不移动相机，只发射反向定位事件
+    // 🔑 反向定位：发射事件通知父组件更新列表选中状态
+    emit('model-selection-changed', dbIds);
   } else {
     // 取消选择：根据当前视图恢复显示
     if (props.currentView === 'assets') {
@@ -953,6 +979,9 @@ const onSelectionChanged = (event) => {
     } else {
       showAllRooms();
     }
+    
+    // 取消选择时也通知父组件
+    emit('model-selection-changed', []);
   }
 };
 
@@ -980,7 +1009,7 @@ const isolateAndFocusRooms = (dbIds) => {
   if (!viewer || !dbIds || dbIds.length === 0) return;
 
   // 设置标志，防止 onSelectionChanged 递归调用
-  isManualSelection = true;
+  setManualSelection();
 
   // 清除选择（避免蓝色高亮）
   viewer.clearSelection();
@@ -1065,7 +1094,6 @@ const isolateAndFocusRooms = (dbIds) => {
   roomTags.value.forEach(tag => {
     tag.visible = dbIds.includes(tag.dbId);
   });
-  areTagsVisible.value = true;
 
   // 等待视角调整后更新标签位置
   setTimeout(() => {
@@ -1086,7 +1114,7 @@ const showAllRooms = () => {
   if (!viewer) return;
 
   // 设置手动选择标志
-  isManualSelection = true;
+  setManualSelection();
 
   // 优先使用从数据库传入的空间列表
   let dbIdsToShow = [];
@@ -1167,12 +1195,25 @@ const toggleHeatmap = () => {
     viewer.impl.invalidate(true, true, true);
   }
 
+
   // 显示所有温度标签
   roomTags.value.forEach(tag => {
     tag.visible = true;
   });
 
   updateAllTagPositions();
+};
+
+// 切换温度标签显示
+const toggleTemperatureLabels = () => {
+  areTagsVisible.value = !areTagsVisible.value;
+  
+  // 立即更新标签位置，使标签能够显示
+  if (areTagsVisible.value && viewer) {
+    nextTick(() => {
+      updateAllTagPositions();
+    });
+  }
 };
 
 onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null; } });
@@ -1304,7 +1345,7 @@ const isolateAndFocusAssets = (dbIds) => {
   if (!viewer || !dbIds || dbIds.length === 0) return;
 
   // 设置手动选择标志，防止 onSelectionChanged 干扰
-  isManualSelection = true;
+  setManualSelection();
 
   viewer.isolate(dbIds);
   viewer.select(dbIds);
@@ -1383,7 +1424,7 @@ const showAllAssets = () => {
   if (!viewer) return;
 
   // 设置手动选择标志
-  isManualSelection = true;
+  setManualSelection();
 
   // 优先使用从数据库传入的资产列表
   let dbIdsToShow = [];
@@ -2285,10 +2326,11 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
 .pin-val { background: rgba(30,30,30,0.8); backdrop-filter: blur(4px); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #555; white-space: nowrap; }
 .pin-val.blue { background: #0078d4; border-color: #005a9e; font-weight: bold; }
 .pin-val.alert-bg { background: #ff4d4d; border-color: #d32f2f; font-weight: bold; }
-.heatmap-btn {
+.temperature-label-btn {
   position: absolute;
-  bottom: 20px;
+  bottom: 60px;
   left: 20px;
+  min-width: 120px;
   background: #333;
   color: #fff;
   padding: 8px 16px;
@@ -2298,6 +2340,38 @@ onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('cli
   z-index: 20;
   display: flex;
   align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  border: 1px solid #555;
+  user-select: none;
+}
+.temperature-label-btn:hover {
+  background: #444;
+  border-color: #666;
+}
+.temperature-label-btn.active {
+  background: #0078d4;
+  border-color: #005a9e;
+  box-shadow: 0 0 10px rgba(0, 120, 212, 0.5);
+}
+.temperature-label-btn.active:hover {
+  background: #006cbd;
+}
+.heatmap-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  min-width: 120px;
+  background: #333;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.3s ease;
   border: 1px solid #555;
   user-select: none;

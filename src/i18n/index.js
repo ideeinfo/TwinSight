@@ -20,7 +20,8 @@ const messages = {
     header: {
       properties: '属性',
       rooms: '房间',
-      heatmap: '热力图'
+      heatmap: '热力图',
+      temperatureLabel: '温度标签'
     },
     leftPanel: {
       title: '房间列表',
@@ -232,7 +233,8 @@ const messages = {
     header: {
       properties: 'Properties',
       rooms: 'Rooms',
-      heatmap: 'Heatmap'
+      heatmap: 'Heatmap',
+      temperatureLabel: 'Temperature Label'
     },
     leftPanel: {
       title: 'Room List',

@@ -58,6 +58,7 @@
             <div
               v-for="item in group.items"
               :key="item.dbId"
+              :data-dbid="item.dbId"
               class="list-item"
               :class="{ selected: isSelected(item.dbId) }"
               @click="selectItem(item.dbId)"
@@ -88,7 +89,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -249,6 +250,73 @@ const toggleGroupSelection = (group) => {
   emit('assets-selected', selectedDbIdsLocal.value);
   if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
+
+
+// 🔑 反向定位：展开包含指定资产的分类并滚动到该资产
+// 支持单个或多个资产ID
+const expandAndScrollToAsset = (dbIds) => {
+  // 统一处理为数组
+  const idsArray = Array.isArray(dbIds) ? dbIds : [dbIds];
+  
+  if (idsArray.length === 0) {
+    return;
+  }
+  
+  // 收集所有需要展开的分组索引
+  const groupsToExpand = new Set();
+  const foundItems = [];
+  
+  idsArray.forEach(dbId => {
+    for (let i = 0; i < assetTree.value.length; i++) {
+      const group = assetTree.value[i];
+      const item = group.items.find(it => it.dbId === dbId);
+      if (item) {
+        groupsToExpand.add(i);
+        foundItems.push({ dbId, item, groupIndex: i });
+        break;
+      }
+    }
+  });
+  
+  if (foundItems.length === 0) {
+    console.warn('⚠️ 未找到任何资产，dbIds:', idsArray);
+    return;
+  }
+  
+  // 展开所有相关分组
+  groupsToExpand.forEach(index => {
+    expandedGroups.value[index] = true;
+  });
+  
+  // 滚动到最后一个找到的资产
+  const lastFound = foundItems[foundItems.length - 1];
+  
+  // 等待DOM更新后滚动到该条目
+  nextTick(() => {
+    const listContent = document.querySelector('.list-content');
+    const targetElement = listContent?.querySelector(`.list-item[data-dbid="${lastFound.dbId}"]`);
+    
+    if (targetElement && listContent) {
+      // 滚动到元素位置，居中显示
+      const elementTop = targetElement.offsetTop;
+      const elementHeight = targetElement.offsetHeight;
+      const containerHeight = listContent.offsetHeight;
+      const scrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      
+      listContent.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: 'smooth'
+      });
+      
+      console.log(`✅ 已展开 ${groupsToExpand.size} 个分类，滚动到最后一个资产:`, lastFound.item.name);
+    }
+  });
+};
+
+// 暴露方法给父组件
+defineExpose({
+  expandAndScrollToAsset
+});
 </script>
 
 <style scoped>
