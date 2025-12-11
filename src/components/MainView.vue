@@ -100,7 +100,7 @@
         <div
           v-for="tag in roomTags"
           :key="tag.dbId"
-          v-show="areTagsVisible && tag.visible"
+          v-show="areTagsVisible && !isSettingsPanelOpen && tag.visible"
           class="tag-wrapper"
           :style="{ top: tag.y + 'px', left: tag.x + 'px' }"
         >
@@ -179,6 +179,7 @@ const trackRef = ref(null);
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
 const areTagsVisible = ref(false); // 温度标签显示状态，默认不显示
+const isSettingsPanelOpen = ref(false); // 设置面板打开状态
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
@@ -400,6 +401,8 @@ watch(() => [props.assets, props.rooms, props.currentView], ([newAssets, newRoom
   
   // 数据加载完成后，根据当前视图重新应用显示逻辑
   if (newView === 'assets' && newAssets.length > 0) {
+    // 切换到资产视图时，隐藏温度标签
+    areTagsVisible.value = false;
     setTimeout(() => {
       showAllAssets();
     }, 200);
@@ -486,7 +489,9 @@ const initViewer = () => {
             open = true;
           }
         });
-        // 不再自动设置 areTagsVisible，由用户通过按钮控制
+        // 更新设置面板状态，温度标签会根据此状态自动隐藏/显示
+        // 但不改变 areTagsVisible（按钮状态）
+        isSettingsPanelOpen.value = open;
       };
       uiObserver = new MutationObserver(checkOpen);
       uiObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
