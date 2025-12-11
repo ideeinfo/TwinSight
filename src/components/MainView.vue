@@ -530,15 +530,24 @@ const loadNewModel = async (modelPath) => {
   try {
     let found = false;
     for (const p of candidates) {
-      const res = await fetch(p, { method: 'HEAD' });
-      if (res.ok) {
-        finalPath = p;
-        found = true;
-        break;
+      try {
+        const res = await fetch(p, { method: 'HEAD' });
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          // 防止 SPA 返回 index.html (text/html) 被误认为是 SVF
+          if (contentType && contentType.includes('text/html')) {
+            console.warn(`⚠️ 路径 ${p} 返回了 HTML (可能是404)，跳过`);
+            continue;
+          }
+          finalPath = p;
+          found = true;
+          break;
+        }
+      } catch (e) {
+        // 网络错误等忽略
       }
     }
-    // 如果 HEAD 请求失败但没有报错（比如404），我们已经选到了正确路径（如果有的话）
-    // 如果没有任何路径 ok，保留默认的第一个路径去让 viewer 报错
+    // 如果没有任何路径 ok，保留默认的第一个路径去让 viewer 报错（或者处理失败）
   } catch (e) {
     console.warn('⚠️ 模型路径预检失败，将尝试默认路径:', e);
   }
@@ -697,14 +706,62 @@ const onModelLoaded = () => {
       defaultView = { pos, target, up };
     } catch {}
   }
-  viewer.search('Rooms', (dbIds) => {
-    if (!dbIds || dbIds.length === 0) {
-      viewer.search('房间', (cnDbIds) => {
-        if (cnDbIds && cnDbIds.length > 0) processRooms(cnDbIds);
-      });
-    } else {
-      processRooms(dbIds);
+  // 递归获取所有叶子节点 ID
+  const getAllLeafDbIds = (rootIds) => {
+    if (!viewer || !viewer.model) return [];
+    try {
+      const tree = viewer.model.getInstanceTree();
+      if (!tree) return rootIds;
+
+      const leafIds = new Set();
+      const visited = new Set(); // 防止循环引用
+      const stack = [...rootIds];
+
+      while (stack.length > 0) {
+        const dbId = stack.pop();
+        if (visited.has(dbId)) continue;
+        visited.add(dbId);
+
+        if (tree.getChildCount(dbId) > 0) {
+          tree.enumNodeChildren(dbId, (childId) => {
+            stack.push(childId);
+          });
+        } else {
+          leafIds.add(dbId);
+        }
+      }
+      return Array.from(leafIds);
+    } catch (e) {
+      console.error('getAllLeafDbIds error:', e);
+      return rootIds; // 回退到原始ID
     }
+  };
+
+  // 增强的房间搜索逻辑
+  viewer.search('Rooms', (roomDbIds) => {
+    viewer.search('房间', (cnRoomDbIds) => {
+      try {
+        let allFoundIds = [];
+        if (roomDbIds && roomDbIds.length > 0) allFoundIds = allFoundIds.concat(roomDbIds);
+        if (cnRoomDbIds && cnRoomDbIds.length > 0) allFoundIds = allFoundIds.concat(cnRoomDbIds);
+
+        // 去重
+        allFoundIds = Array.from(new Set(allFoundIds));
+
+        if (allFoundIds.length > 0) {
+          // 展开所有分组
+          const leafIds = getAllLeafDbIds(allFoundIds);
+          console.log(`🔍 搜索到 ${allFoundIds.length} 个相关节点，展开后得到 ${leafIds.length} 个叶子节点`);
+          processRooms(leafIds);
+        } else {
+          console.warn('⚠️ 未搜索到任何房间节点');
+          processRooms([]); 
+        }
+      } catch (err) {
+        console.error('房间搜索处理出错:', err);
+        processRooms([]);
+      }
+    });
   });
 
   // 同时提取资产
@@ -713,7 +770,13 @@ const onModelLoaded = () => {
 
 // 2. 处理房间 (缓存材质 + 生成标签 + 获取属性)
 const processRooms = (dbIds) => {
-  foundRoomDbIds = dbIds;
+  foundRoomDbIds = dbIds || [];
+  
+  if (foundRoomDbIds.length === 0) {
+      emit('rooms-loaded', []);
+      return;
+  }
+
   const fragList = viewer.model.getFragmentList();
   const tree = viewer.model.getInstanceTree();
 
@@ -1664,7 +1727,7 @@ const getFullAssetData = async () => {
 
 // 获取完整的空间数据（用于导出到数据库）
 const getFullSpaceData = async () => {
-  if (!viewer || foundRoomDbIds.length === 0) return [];
+  if (!viewer || !viewer.model || foundRoomDbIds.length === 0) return [];
 
   const spaces = [];
 
@@ -1893,8 +1956,8 @@ const getFullAssetDataWithMapping = async (mappings) => {
 
 // 使用映射配置获取完整的空间数据（新版本，支持灵活映射）
 const getFullSpaceDataWithMapping = async (spaceMapping) => {
-  if (!viewer || foundRoomDbIds.length === 0) {
-    console.warn('⚠️ 没有找到房间数据');
+  if (!viewer || !viewer.model || foundRoomDbIds.length === 0) {
+    console.warn('⚠️ 没有找到房间数据或模型未加载');
     return [];
   }
 
@@ -2169,7 +2232,7 @@ const getAssetPropertyList = async () => {
 
 // 获取空间的所有可用属性结构
 const getSpacePropertyList = async () => {
-  if (!viewer || foundRoomDbIds.length === 0) return {};
+  if (!viewer || !viewer.model || foundRoomDbIds.length === 0) return {};
 
   return new Promise((resolve) => {
     console.log(`📋 开始提取空间属性列表，房间总数: ${foundRoomDbIds.length}`);

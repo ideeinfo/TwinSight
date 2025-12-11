@@ -1156,12 +1156,14 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 }
 
 .modal-container {
-  position: relative;
-  max-width: 500px;
+  background: transparent;
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
   width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-  animation: modal-appear 0.2s ease-out;
+  max-width: 1000px; /* 增加宽度 */
+  position: relative;
+  animation: modal-in 0.3s ease-out;
 }
 
 @keyframes modal-appear {

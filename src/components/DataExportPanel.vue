@@ -7,80 +7,84 @@
       </span>
     </div>
 
-    <div class="panel-content">
-      <div class="info-section">
-        <p>{{ $t('dataExport.description') }}</p>
+    <div class="panel-content-scroll">
+      
+      <!-- 1. 顶部说明区域 (移至最上) -->
+      <div class="top-info-section">
+        <div class="section-title">{{ $t('dataExport.stepExport') }}</div>
+        <p class="description-text">{{ $t('dataExport.description') }}</p>
       </div>
 
-      <div class="stats-section" v-if="extractionStats">
-        <div class="stat-item">
-          <span class="stat-value">{{ extractionStats.assets }}</span>
-          <span class="stat-label">{{ $t('dataExport.assets') }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ extractionStats.spaces }}</span>
-          <span class="stat-label">{{ $t('dataExport.spaces') }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ extractionStats.specs }}</span>
-          <span class="stat-label">{{ $t('dataExport.specs') }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ extractionStats.classifications }}</span>
-          <span class="stat-label">{{ $t('dataExport.classifications') }}</span>
-        </div>
+      <!-- 2. 映射配置区域 -->
+      <div class="config-section">
+        <MappingConfigPanel
+          :embedded="true"
+          :assetMapping="assetMapping"
+          :assetSpecMapping="assetSpecMapping"
+          :spaceMapping="spaceMapping"
+          :assetPropertyOptions="assetPropertyOptions"
+          :spacePropertyOptions="spacePropertyOptions"
+          :saveMessage="saveMessage"
+          :saveMessageType="saveMessageType"
+          @save="handleSaveMapping"
+        />
       </div>
 
-      <div class="actions-section">
-        <button 
-          class="btn btn-primary" 
-          @click="extractAndExport" 
-          :disabled="isExporting || apiStatus !== 'connected'"
-        >
-          <span v-if="isExporting" class="spinner"></span>
-          {{ isExporting ? $t('dataExport.exporting') : $t('dataExport.extractAndExport') }}
-        </button>
+      <!-- 3. 导出操作区域 -->
+      <div class="export-section">
         
-        <button 
-          class="btn btn-secondary" 
-          @click="checkConnection"
-          :disabled="apiStatus === 'checking'"
-        >
-          {{ $t('dataExport.checkConnection') }}
-        </button>
-        
-        <button 
-          class="btn btn-config" 
-          @click="openMappingConfig"
-        >
-          🔧 配置映射
-        </button>
-      </div>
-
-      <!-- 映射配置弹窗 -->
-      <MappingConfigPanel
-        v-if="showMappingConfig"
-        :assetMapping="assetMapping"
-        :assetSpecMapping="assetSpecMapping"
-        :spaceMapping="spaceMapping"
-        :assetPropertyOptions="assetPropertyOptions"
-        :spacePropertyOptions="spacePropertyOptions"
-        @close="showMappingConfig = false"
-        @save="handleSaveMapping"
-      />
-
-      <div class="result-section" v-if="exportResult">
-        <div class="result-message" :class="exportResult.success ? 'success' : 'error'">
-          <span class="icon">{{ exportResult.success ? '✅' : '❌' }}</span>
-          <span>{{ exportResult.message }}</span>
+        <div class="stats-section" v-if="extractionStats">
+          <div class="stat-item">
+            <span class="stat-value">{{ extractionStats.assets }}</span>
+            <span class="stat-label">{{ $t('dataExport.assets') }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ extractionStats.spaces }}</span>
+            <span class="stat-label">{{ $t('dataExport.spaces') }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ extractionStats.specs }}</span>
+            <span class="stat-label">{{ $t('dataExport.specs') }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ extractionStats.classifications }}</span>
+            <span class="stat-label">{{ $t('dataExport.classifications') }}</span>
+          </div>
         </div>
-        <div class="result-details" v-if="exportResult.summary">
-          <ul>
-            <li>{{ $t('dataExport.classifications') }}: {{ exportResult.summary.classifications }}</li>
-            <li>{{ $t('dataExport.specs') }}: {{ exportResult.summary.specs }}</li>
-            <li>{{ $t('dataExport.assets') }}: {{ exportResult.summary.assets }}</li>
-            <li>{{ $t('dataExport.spaces') }}: {{ exportResult.summary.spaces }}</li>
-          </ul>
+
+        <div class="actions-section">
+          <button 
+            class="btn btn-secondary" 
+            @click="checkConnection"
+          >
+            🔄 {{ $t('dataExport.checkConnection') }}
+          </button>
+
+          <button 
+            class="btn btn-primary" 
+            @click="extractAndExport" 
+            :disabled="isExporting || apiStatus !== 'connected'"
+          >
+            <span v-if="isExporting" class="spinner"></span>
+            <span v-else>📤</span>
+            {{ isExporting ? $t('dataExport.exporting') : $t('dataExport.exportAction') }}
+          </button>
+        </div>
+
+        <div class="result-section" v-if="exportResult" :class="{ success: exportResult.success, error: !exportResult.success }">
+          <div class="result-message">
+            <span class="icon">{{ exportResult.success ? '✅' : '❌' }}</span>
+            <span>{{ exportResult.message }}</span>
+          </div>
+          <div v-if="exportResult.success && exportResult.summary" class="result-summary">
+            <div>PostgreSQL 导入摘要:</div>
+            <ul>
+              <li>资产: {{ exportResult.summary.assets }} (新增: {{ exportResult.summary.assetInserts }}, 更新: {{ exportResult.summary.assetUpdates }})</li>
+              <li>空间: {{ exportResult.summary.spaces }} (新增: {{ exportResult.summary.spaceInserts }}, 更新: {{ exportResult.summary.spaceUpdates }})</li>
+              <li>规格: {{ exportResult.summary.specs }}</li>
+              <li>分类: {{ exportResult.summary.classifications }}</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
@@ -98,13 +102,13 @@ const { t } = useI18n();
 
 // Props
 const props = defineProps({
-  fileId: { type: Number, default: null },
-  getFullAssetData: { type: Function, default: null },
-  getFullSpaceData: { type: Function, default: null },
-  getAssetPropertyList: { type: Function, default: null },
-  getSpacePropertyList: { type: Function, default: null },
-  getFullAssetDataWithMapping: { type: Function, default: null },
-  getFullSpaceDataWithMapping: { type: Function, default: null }
+  fileId: [String, Number],
+  getFullAssetData: Function,
+  getFullSpaceData: Function,
+  getAssetPropertyList: Function,
+  getSpacePropertyList: Function,
+  getFullAssetDataWithMapping: Function,
+  getFullSpaceDataWithMapping: Function
 });
 
 // 状态
@@ -112,46 +116,21 @@ const apiStatus = ref('checking');
 const isExporting = ref(false);
 const extractionStats = ref(null);
 const exportResult = ref(null);
-const showMappingConfig = ref(false);
+const saveMessage = ref('');
+const saveMessageType = ref('success');
 
-// 映射配置（根据实际模型属性调整）
-const assetMapping = ref({
-  assetCode: { category: '文字', property: 'MC编码' },
-  specCode: { category: '标识数据', property: '类型注释' }, 
-  name: { category: '标识数据', property: '名称' },
-  floor: { category: '约束', property: '标高' },
-  room: { category: '房间', property: '名称' }
-});
-
-const assetSpecMapping = ref({
-  specCode: { category: '标识数据', property: '类型注释' },
-  specName: { category: '标识数据', property: '类型名称' },
-  classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
-  classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' },
-  category: { category: '其他', property: '类别' },
-  family: { category: '其他', property: '族' },
-  type: { category: '其他', property: '类型' },
-  manufacturer: { category: '标识数据', property: '制造商' },
-  address: { category: '标识数据', property: '地址' },
-  phone: { category: '标识数据', property: '联系人电话' }
-});
-
-const spaceMapping = ref({
-  spaceCode: { category: '标识数据', property: '编号' },
-  name: { category: '标识数据', property: '名称' },
-  classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
-  classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' }
-});
-
-// 属性选项（从模型提取）
+// 映射配置状态
+const assetMapping = ref({});
 const assetPropertyOptions = ref({});
 const spacePropertyOptions = ref({});
+const spaceMapping = ref({});
+const assetSpecMapping = ref({});
 
-// 打开映射配置面板
-async function openMappingConfig() {
-  // 获取属性列表
+
+// 获取属性列表
+async function fetchProperties() {
+  // 获取资产属性列表
   if (props.getAssetPropertyList) {
-    console.log('🔍 正在提取资产属性列表...');
     try {
       assetPropertyOptions.value = await props.getAssetPropertyList();
     } catch (e) {
@@ -160,15 +139,12 @@ async function openMappingConfig() {
   }
   
   if (props.getSpacePropertyList) {
-    console.log('🔍 正在提取空间属性列表...');
     try {
       spacePropertyOptions.value = await props.getSpacePropertyList();
     } catch (e) {
       console.error('提取空间属性列表失败:', e);
     }
   }
-
-  showMappingConfig.value = true;
 }
 
 // 检查 API 连接
@@ -197,12 +173,20 @@ async function handleSaveMapping(newMappings) {
         spaceMapping: newMappings.spaceMapping
       });
       console.log('✅ 映射配置已保存到数据库');
+      saveMessage.value = t('dataExport.mappingConfig.saveSuccess') || '配置已保存';
+      saveMessageType.value = 'success';
+      setTimeout(() => { saveMessage.value = ''; }, 3000);
     } catch (error) {
       console.error('保存映射配置到数据库失败:', error);
-      alert(t('dataExport.mappingConfig.saveFailed') || '保存配置失败: ' + error.message);
+      saveMessage.value = t('dataExport.mappingConfig.saveFailed') || '保存失败: ' + error.message;
+      saveMessageType.value = 'error';
+      setTimeout(() => { saveMessage.value = ''; }, 5000);
     }
   } else {
     console.warn('⚠️ 没有 fileId,无法保存映射配置到数据库');
+    saveMessage.value = '仅应用到当前会话';
+    saveMessageType.value = 'success';
+    setTimeout(() => { saveMessage.value = ''; }, 3000);
   }
 }
 
@@ -220,34 +204,7 @@ async function extractAndExport() {
   try {
     console.log('📊 开始提取数据...');
     
-    // 调试：打印映射配置
-    console.log('📋 assetMapping:', assetMapping.value);
-    console.log('📋 assetSpecMapping:', assetSpecMapping.value);
-    console.log('📋 spaceMapping:', spaceMapping.value);
-    
-    // 使用 JSON 深度克隆，彻底解决响应式对象传递问题
-    const assetMappingPlain = JSON.parse(JSON.stringify(assetMapping.value));
-    const assetSpecMappingPlain = JSON.parse(JSON.stringify(assetSpecMapping.value));
-    const spaceMappingPlain = JSON.parse(JSON.stringify(spaceMapping.value));
-    
-    console.log('📋 JSON克隆后的 assetMapping:', assetMappingPlain);
-    console.log('📋 JSON克隆后的 assetSpecMapping:', assetSpecMappingPlain);
-    console.log('📋 类型检查:', {
-      assetMapping: typeof assetMappingPlain,
-      assetSpecMapping: typeof assetSpecMappingPlain,
-      keys1: Object.keys(assetMappingPlain || {}),
-      keys2: Object.keys(assetSpecMappingPlain || {})
-    });
-    
-    // 调试：检查 props 函数
-    console.log('📋 检查 props 函数:', {
-      hasFn: !!props.getFullAssetDataWithMapping,
-      fnType: typeof props.getFullAssetDataWithMapping,
-      fn: props.getFullAssetDataWithMapping
-    });
-    
     // 直接调用，不通过变量
-    console.log('📋 准备调用函数...');
     const tempTable = await props.getFullAssetDataWithMapping({
       assetMapping: JSON.parse(JSON.stringify(assetMapping.value)),
       assetSpecMapping: JSON.parse(JSON.stringify(assetSpecMapping.value))
@@ -258,29 +215,6 @@ async function extractAndExport() {
 
     console.log(`✅ 提取完成: ${tempTable.length} 个资产, ${spaces.length} 个空间`);
     
-    // 调试：打印前3条临时表数据
-    console.log('📋 临时表前3条数据（所有字段）:');
-    console.table(tempTable.slice(0, 3));
-    
-    // 调试：打印前3条空间数据（使用JSON格式）
-    console.log('📋 空间数据前3条（JSON）:');
-    console.log(JSON.stringify(spaces.slice(0, 3), null, 2));
-    
-    // 检查 spaceCode 字段
-    const spacesWithCode = spaces.filter(s => s.spaceCode);
-    const spacesWithoutCode = spaces.filter(s => !s.spaceCode);
-    console.log(`⚠️ 空间统计: 总数=${spaces.length}, 有spaceCode=${spacesWithCode.length}, 无spaceCode=${spacesWithoutCode.length}`);
-    
-    // 检查空间分类字段
-    const spacesWithClass = spaces.filter(s => s.classificationCode);
-    console.log(`⚠️ 空间分类统计: 有classificationCode=${spacesWithClass.length}`);
-    if (spaces.length > 0) {
-      console.log('📋 第一个空间的完整数据:');
-      console.log(JSON.stringify(spaces[0], null, 2));
-    }
-
-
-
     // 从临时表构建资产规格数据
     const specsMap = new Map();
     tempTable.forEach(row => {
@@ -335,35 +269,12 @@ async function extractAndExport() {
     // 发送到后端
     console.log('📤 正在准备发送数据到数据库...');
 
-    // 1. 检查文件是否已存在数据 (如果有关联的文件ID)
-    if (props.fileId) {
-       // 此处可以加一个接口检查数据是否存在，但为了简单，我们可以在这里直接弹窗确认
-       // 或者让后端处理 Upsert (已实现)。
-       // 用户需求：如果已经存在，提示并先删除。
-       
-       // 由于后端目前是 Upsert 逻辑（On Conflict Update），这已经是在“更新”数据。
-       // 但用户明确要求“先删除”，可能是为了清除那些在模型中已被删除但数据库中还残留的数据。
-       
-
-
-       // 调用删除接口 (需要新加或复用)
-       // 目前没有独立的删除接口，但我们可以通过特定的标志或新接口来实现。
-       // 暂时通过 importModelData 的参数控制，或者由后端 importModelData 内部处理
-       // 这里我们修改 importModelData 让其支持 'overwrite' 模式，或者分两步：先删后存
-    }
-
-    // 更新：为了满足用户"先删除后导入"的需求，我们需要确保后端支持清除旧数据
-    // 我们将在 importModelData 调用中传递一个 clearBeforeImport 标记 (需要后端支持，或分步调用)
-    
-    // 由于后端 importModelData 目前逻辑是 Upsert，我们保持其逻辑。
-    // 为了实现"先删除"，我们可以调用一个专门的清理接口，或者让 importModelData 接受一个 flush 标志。
-    
-    // 方案：调用 importModelData 时带上 clearExisting: true
+    // 调用 importModelData 时带上 clearExisting: true
     const result = await importModelData({ 
         fileId: props.fileId,
         assets, 
-        spaces,
-        clearExisting: true // 告诉后端先删除该 fileId 下的所有数据
+        spaces: spaces.map(s => ({...s, fileId: props.fileId})),
+        clearExisting: true 
     });
     
     exportResult.value = {
@@ -388,6 +299,7 @@ async function extractAndExport() {
 // 组件挂载时检查连接并加载映射配置
 onMounted(async () => {
   checkConnection();
+  fetchProperties();
   
   // 从数据库加载映射配置（如果有 fileId）
   if (props.fileId) {
@@ -398,29 +310,23 @@ onMounted(async () => {
       // 如果数据库中有配置，则使用；否则使用默认配置
       if (config.assetMapping && Object.keys(config.assetMapping).length > 0) {
         assetMapping.value = config.assetMapping;
-        console.log('✅ 已加载资产映射配置');
       } else {
         const defaults = getDefaultMapping();
         assetMapping.value = defaults.assetMapping;
-        console.log('ℹ️ 使用默认资产映射配置');
       }
       
       if (config.assetSpecMapping && Object.keys(config.assetSpecMapping).length > 0) {
         assetSpecMapping.value = config.assetSpecMapping;
-        console.log('✅ 已加载规格映射配置');
       } else {
         const defaults = getDefaultMapping();
         assetSpecMapping.value = defaults.assetSpecMapping;
-        console.log('ℹ️ 使用默认规格映射配置');
       }
       
       if (config.spaceMapping && Object.keys(config.spaceMapping).length > 0) {
         spaceMapping.value = config.spaceMapping;
-        console.log('✅ 已加载空间映射配置');
       } else {
         const defaults = getDefaultMapping();
         spaceMapping.value = defaults.spaceMapping;
-        console.log('ℹ️ 使用默认空间映射配置');
       }
     } catch (error) {
       console.warn('从数据库加载映射配置失败，使用默认配置:', error);
@@ -430,7 +336,6 @@ onMounted(async () => {
       spaceMapping.value = defaults.spaceMapping;
     }
   } else {
-    console.warn('⚠️ 没有 fileId，使用默认映射配置');
     const defaults = getDefaultMapping();
     assetMapping.value = defaults.assetMapping;
     assetSpecMapping.value = defaults.assetSpecMapping;
@@ -447,64 +352,69 @@ defineExpose({
 
 <style scoped>
 .data-export-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* 增加最大高度，减少滚动条出现概率 */
   background: #1e1e1e;
   border: 1px solid #333;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: hidden; /* 外层禁止滚动，内部滚动 */
   font-family: 'Segoe UI', sans-serif;
   color: #e0e0e0;
 }
 
-/* 继承 dialog-header 样式，仅覆盖内边距以避开外部关闭按钮 */
 .panel-header {
+  flex-shrink: 0;
   padding-right: 48px;
+  background: #252526;
+  border-bottom: 1px solid #333;
 }
 
-.status-badge {
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 500;
+.panel-content-scroll {
+  flex: 1;
+  overflow-y: auto; 
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
 }
 
-.status-badge.connected {
-  background: #28a745;
+/* 顶部说明区域 */
+.top-info-section {
+  padding: 20px 24px 16px 24px; /* 增加一点左右间距 */
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
   color: #fff;
+  margin-bottom: 8px;
+  border-left: 3px solid #0078d4;
+  padding-left: 8px;
+  display: flex;
+  align-items: center;
 }
 
-.status-badge.disconnected {
-  background: #dc3545;
-  color: #fff;
-}
-
-.status-badge.checking {
-  background: #ffc107;
-  color: #000;
-}
-
-.panel-content {
-  padding: 16px;
-}
-
-.info-section {
-  margin-bottom: 16px;
-}
-
-.info-section p {
-  margin: 0 0 8px 0;
+.description-text {
+  margin: 0;
   font-size: 13px;
   color: #aaa;
+  margin-bottom: 8px;
 }
 
-.info-section ul {
-  margin: 0;
-  padding-left: 20px;
-  font-size: 12px;
-  color: #888;
+.config-section {
+  margin: 0 24px 24px 24px; /* 增加底部间距 */
+  padding: 0;
+  background: #252526;
+  border: 1px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.info-section li {
-  margin-bottom: 4px;
+/* 导出操作区域 */
+.export-section {
+  padding: 0 24px 24px 24px;
+  background: transparent; /* 透明背景，与窗体一致 */
 }
 
 .stats-section {
@@ -514,6 +424,7 @@ defineExpose({
   padding: 12px;
   background: #2a2a2a;
   border-radius: 6px;
+  border: 1px solid #333;
 }
 
 .stat-item {
@@ -523,7 +434,7 @@ defineExpose({
 
 .stat-value {
   display: block;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: #4fc3f7;
 }
@@ -534,23 +445,28 @@ defineExpose({
   text-transform: uppercase;
 }
 
+/* 按钮区域：右对齐，统一宽度 */
 .actions-section {
   display: flex;
   gap: 12px;
-  margin-bottom: 16px;
+  justify-content: flex-end; /* 右对齐 */
+  margin-bottom: 0;
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: 10px 16px;
   border: none;
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  white-space: nowrap;
+  width: 160px; /* 固定宽度，包含图标和文字 */
 }
 
 .btn:disabled {
@@ -576,15 +492,6 @@ defineExpose({
   background: #555;
 }
 
-.btn-config {
-  background: #8b5cf6;
-  color: #fff;
-}
-
-.btn-config:hover {
-  background: #a78bfa;
-}
-
 .spinner {
   width: 14px;
   height: 14px;
@@ -600,49 +507,66 @@ defineExpose({
 
 .result-section {
   margin-top: 16px;
+  padding: 12px;
+  border-radius: 4px;
+  background: #2a2a2a;
+  border-left: 4px solid #aaa;
+}
+
+.result-section.success {
+  border-left-color: #28a745;
+  background: rgba(40, 167, 69, 0.1);
+}
+
+.result-section.error {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
 }
 
 .result-message {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
+  font-weight: 500;
   font-size: 13px;
 }
 
-.result-message.success {
-  background: rgba(40, 167, 69, 0.2);
-  border: 1px solid #28a745;
-  color: #28a745;
-}
-
-.result-message.error {
-  background: rgba(220, 53, 69, 0.2);
-  border: 1px solid #dc3545;
-  color: #dc3545;
-}
-
-.result-details {
-  margin-top: 12px;
-  padding: 12px;
-  background: #2a2a2a;
-  border-radius: 6px;
+.result-summary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
   font-size: 12px;
+  color: #ccc;
 }
 
-.result-details p {
-  margin: 0 0 8px 0;
+.result-summary ul {
+  margin: 4px 0 0 0;
+  padding-left: 20px;
+}
+
+.result-summary li {
+  margin-bottom: 2px;
+}
+
+.status-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
   font-weight: 500;
 }
 
-.result-details ul {
-  margin: 0;
-  padding-left: 20px;
-  color: #aaa;
+.status-badge.connected {
+  background: #28a745;
+  color: #fff;
 }
 
-.result-details li {
-  margin-bottom: 4px;
+.status-badge.disconnected {
+  background: #dc3545;
+  color: #fff;
+}
+
+.status-badge.checking {
+  background: #ffc107;
+  color: #000;
 }
 </style>

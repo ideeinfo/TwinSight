@@ -1,6 +1,6 @@
 <template>
-  <div class="mapping-config-panel">
-    <div class="dialog-header">
+  <div class="mapping-config-panel" :class="{ 'embedded': embedded }">
+    <div class="dialog-header" v-if="!embedded">
       <h3 class="dialog-title">🔧 {{ $t('dataExport.mappingConfig.title') }}</h3>
       <button class="dialog-close-btn" @click="$emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -21,15 +21,15 @@
 
       <div class="mapping-grid">
         <div class="grid-header">
-          <div>字段名</div>
-          <div>分类</div>
-          <div>属性名</div>
-          <div>操作</div>
+          <div>{{ $t('dataExport.fieldName') || '字段名' }}</div>
+          <div>{{ $t('dataExport.mappingConfig.help1').split('：')[0] || '分类' }}</div>
+          <div>{{ $t('dataExport.mappingConfig.help2').split('：')[0] || '属性名' }}</div>
+          <div class="header-action">{{ $t('dataExport.action') || '操作' }}</div>
         </div>
 
         <div v-if="currentTab === 'asset'" class="mapping-rows">
           <div v-for="(mapping, field) in localAssetMapping" :key="field" class="mapping-row">
-            <div class="field-name">{{ field }}</div>
+            <div class="field-name" :title="field">{{ $t(`dataExport.fields.${field}`) }} <span class="field-key">({{ field }})</span></div>
             
             <SearchableSelect
               v-model="mapping.category"
@@ -43,13 +43,13 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('asset', field)" title="重置">↻</button>
+            <button class="btn-reset" @click="resetField('asset', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
           </div>
         </div>
 
         <div v-if="currentTab === 'spec'" class="mapping-rows">
           <div v-for="(mapping, field) in localAssetSpecMapping" :key="field" class="mapping-row">
-            <div class="field-name">{{ field }}</div>
+            <div class="field-name" :title="field">{{ $t(`dataExport.fields.${field}`) }} <span class="field-key">({{ field }})</span></div>
             
             <SearchableSelect
               v-model="mapping.category"
@@ -63,13 +63,13 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('spec', field)" title="重置">↻</button>
+            <button class="btn-reset" @click="resetField('spec', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
           </div>
         </div>
 
         <div v-if="currentTab === 'space'" class="mapping-rows">
           <div v-for="(mapping, field) in localSpaceMapping" :key="field" class="mapping-row">
-            <div class="field-name">{{ field }}</div>
+            <div class="field-name" :title="field">{{ $t(`dataExport.fields.${field}`) }} <span class="field-key">({{ field }})</span></div>
             
             <SearchableSelect
               v-model="mapping.category"
@@ -83,152 +83,149 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('space', field)" title="重置">↻</button>
+            <button class="btn-reset" @click="resetField('space', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
           </div>
         </div>
       </div>
 
-      <div class="panel-actions">
-        <button class="btn btn-secondary" @click="resetAll">{{ $t('dataExport.mappingConfig.resetAll') }}</button>
-        <button class="btn btn-primary" @click="saveMapping">{{ $t('dataExport.mappingConfig.save') }}</button>
+      <!-- 底部栏：包含帮助和保存按钮 -->
+      <div class="panel-footer-bar">
+        <div class="help-section-inline">
+          <div class="help-icon">💡</div>
+          <div class="help-content">
+            <h4>{{ $t('dataExport.mappingConfig.helpTitle') }}</h4>
+            <ol>
+              <li>{{ $t('dataExport.mappingConfig.help1') }}</li>
+              <li>{{ $t('dataExport.mappingConfig.help2') }}</li>
+              <li>{{ $t('dataExport.mappingConfig.help3') }}</li>
+            </ol>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <transition name="fade">
+            <span v-if="saveMessage" class="save-msg" :class="saveMessageType">
+              <span class="icon">{{ saveMessageType === 'success' ? '✅' : '⚠️' }}</span>
+              {{ saveMessage }}
+            </span>
+          </transition>
+          <button class="btn btn-primary" @click="saveMapping">{{ $t('dataExport.mappingConfig.save') }}</button>
+        </div>
       </div>
 
-      <div class="help-section">
-        <h4>💡 {{ $t('dataExport.mappingConfig.helpTitle') }}</h4>
-        <ul>
-          <li>{{ $t('dataExport.mappingConfig.help1') }}</li>
-          <li>{{ $t('dataExport.mappingConfig.help2') }}</li>
-          <li>{{ $t('dataExport.mappingConfig.help3') }}</li>
-        </ul>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import SearchableSelect from './SearchableSelect.vue';
 
 const { t } = useI18n();
 
 const props = defineProps({
-  assetMapping: { type: Object, required: true },
-  assetSpecMapping: { type: Object, required: true },
-  spaceMapping: { type: Object, required: true },
+  assetMapping: { type: Object, default: () => ({}) },
+  assetSpecMapping: { type: Object, default: () => ({}) },
+  spaceMapping: { type: Object, default: () => ({}) },
   assetPropertyOptions: { type: Object, default: () => ({}) },
-  spacePropertyOptions: { type: Object, default: () => ({}) }
+  spacePropertyOptions: { type: Object, default: () => ({}) },
+  spacePropertyOptions: { type: Object, default: () => ({}) },
+  embedded: { type: Boolean, default: false },
+  saveMessage: { type: String, default: '' },
+  saveMessageType: { type: String, default: 'success' }
 });
 
-const emit = defineEmits(['close', 'save']);
+const emit = defineEmits(['save', 'close', 'reset']);
 
 const currentTab = ref('asset');
 
-const tabs = [
+const tabs = computed(() => [
   { id: 'asset', label: t('dataExport.assetTable') },
   { id: 'spec', label: t('dataExport.assetSpecTable') },
   { id: 'space', label: t('dataExport.spaceTable') }
-];
+]);
 
-// 创建本地副本
-const localAssetMapping = ref(JSON.parse(JSON.stringify(props.assetMapping)));
-const localAssetSpecMapping = ref(JSON.parse(JSON.stringify(props.assetSpecMapping)));
-const localSpaceMapping = ref(JSON.parse(JSON.stringify(props.spaceMapping)));
+// 本地副本
+const localAssetMapping = ref({});
+const localAssetSpecMapping = ref({});
+const localSpaceMapping = ref({});
 
-// 保存初始配置（用于重置到上次保存的状态）
-const initialAssetMapping = JSON.parse(JSON.stringify(props.assetMapping));
-const initialAssetSpecMapping = JSON.parse(JSON.stringify(props.assetSpecMapping));
-const initialSpaceMapping = JSON.parse(JSON.stringify(props.spaceMapping));
-
-// 默认配置（用于重置）
-const defaultMappings = {
-  asset: {
-    assetCode: { category: '文字', property: 'MC编码' },
-    specCode: { category: '标识数据', property: '类型注释' },
-    name: { category: '标识数据', property: '名称' },
-    floor: { category: '约束', property: '标高' },
-    room: { category: '房间', property: '名称' }
-  },
-  spec: {
-    specCode: { category: '标识数据', property: '类型注释' },
-    specName: { category: '标识数据', property: '类型名称' },
-    classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
-    classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' },
-    category: { category: '其他', property: '类别' },
-    family: { category: '其他', property: '族' },
-    type: { category: '其他', property: '类型' },
-    manufacturer: { category: '标识数据', property: '制造商' },
-    address: { category: '标识数据', property: '地址' },
-    phone: { category: '标识数据', property: '联系人电话' }
-  },
-  space: {
-    spaceCode: { category: '标识数据', property: '编号' },
-    name: { category: '标识数据', property: '名称' },
-    classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
-    classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' }
+// 监听 Pros 变化，这对于异步数据至关重要
+// 使用 deep: true 和 immediate: true 确保初始化和后续更新都能捕获
+watch(() => props.assetMapping, (newVal) => {
+  if (newVal && Object.keys(newVal).length > 0) {
+    localAssetMapping.value = JSON.parse(JSON.stringify(newVal));
   }
-};
+}, { deep: true, immediate: true });
 
-function resetField(type, field) {
-  const mapping = type === 'asset' ? localAssetMapping : 
-                  type === 'spec' ? localAssetSpecMapping : 
-                  localSpaceMapping;
-  
-  const initial = type === 'asset' ? initialAssetMapping : 
-                  type === 'spec' ? initialAssetSpecMapping : 
-                  initialSpaceMapping;
-  
-  if (initial[field]) {
-    mapping.value[field] = JSON.parse(JSON.stringify(initial[field]));
+watch(() => props.assetSpecMapping, (newVal) => {
+  if (newVal && Object.keys(newVal).length > 0) {
+    localAssetSpecMapping.value = JSON.parse(JSON.stringify(newVal));
   }
-}
+}, { deep: true, immediate: true });
 
-function resetAll() {
-  if (confirm(t('dataExport.mappingConfig.confirmReset') || '确定要恢复到上次保存的配置吗？')) {
-    // 恢复到初始配置（上次保存的状态）
-    localAssetMapping.value = JSON.parse(JSON.stringify(initialAssetMapping));
-    localAssetSpecMapping.value = JSON.parse(JSON.stringify(initialAssetSpecMapping));
-    localSpaceMapping.value = JSON.parse(JSON.stringify(initialSpaceMapping));
+watch(() => props.spaceMapping, (newVal) => {
+  if (newVal && Object.keys(newVal).length > 0) {
+    localSpaceMapping.value = JSON.parse(JSON.stringify(newVal));
   }
-}
+}, { deep: true, immediate: true });
 
-// 默认分类列表（确保常用分类都能显示）
-const defaultCategories = [
-  '文字',
-  '标识数据',
-  '约束',
-  '数据',
-  '其他',
-  '尺寸',
-  '阶段化',
-  '构造',
-  '房间',
-  'Identity Data',
-  'Constraints',
-  'Dimensions',
-  'Data'
-];
 
-// 合并的分类选项（包含默认分类和从模型提取的分类）
+// 提取所有分类供选择
 const mergedAssetCategories = computed(() => {
-  const categories = new Set(defaultCategories);
-  Object.keys(props.assetPropertyOptions).forEach(cat => categories.add(cat));
+  const categories = new Set();
+  
+  if (props.assetPropertyOptions) {
+    Object.keys(props.assetPropertyOptions).forEach(c => categories.add(c));
+  }
+  
+  Object.values(localAssetMapping.value || {}).forEach(m => {
+    if (m.category) categories.add(m.category);
+  });
+  
+  // 确保也包含 Asset Spec 的分类
+  Object.values(localAssetSpecMapping.value || {}).forEach(m => {
+    if (m.category) categories.add(m.category);
+  });
+  
   return Array.from(categories).sort();
 });
 
 const mergedSpaceCategories = computed(() => {
-  const categories = new Set(defaultCategories);
-  Object.keys(props.spacePropertyOptions).forEach(cat => categories.add(cat));
+  const categories = new Set();
+  
+  if (props.spacePropertyOptions) {
+    Object.keys(props.spacePropertyOptions).forEach(c => categories.add(c));
+  }
+  
+  Object.values(localSpaceMapping.value || {}).forEach(m => {
+    if (m.category) categories.add(m.category);
+  });
+  
   return Array.from(categories).sort();
 });
 
+// 重置单个字段
+function resetField(type, field) {
+  if (type === 'asset' && localAssetMapping.value[field]) {
+    localAssetMapping.value[field].category = '';
+    localAssetMapping.value[field].property = '';
+  } else if (type === 'spec' && localAssetSpecMapping.value[field]) {
+    localAssetSpecMapping.value[field].category = '';
+    localAssetSpecMapping.value[field].property = '';
+  } else if (type === 'space' && localSpaceMapping.value[field]) {
+    localSpaceMapping.value[field].category = '';
+    localSpaceMapping.value[field].property = '';
+  }
+}
+
+// 保存
 function saveMapping() {
   emit('save', {
-    assetMapping: localAssetMapping.value,
-    assetSpecMapping: localAssetSpecMapping.value,
-    spaceMapping: localSpaceMapping.value
+    assetMapping: JSON.parse(JSON.stringify(localAssetMapping.value)),
+    assetSpecMapping: JSON.parse(JSON.stringify(localAssetSpecMapping.value)),
+    spaceMapping: JSON.parse(JSON.stringify(localSpaceMapping.value))
   });
-  emit('close');
 }
 </script>
 
@@ -249,8 +246,32 @@ function saveMapping() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  font-family: 'Segoe UI', sans-serif;
+  color: #e0e0e0;
 }
 
+/* 嵌入模式样式覆盖 */
+.mapping-config-panel.embedded {
+  position: static;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  flex: 1;
+  z-index: auto;
+}
+
+.mapping-config-panel.embedded .panel-content {
+  overflow-y: visible;
+  height: auto;
+  flex: none;
+  padding: 0; 
+}
 
 
 .panel-content {
@@ -274,6 +295,7 @@ function saveMapping() {
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
+  font-weight: 500;
 }
 
 .tab:hover {
@@ -287,33 +309,46 @@ function saveMapping() {
 
 .mapping-grid {
   background: #2a2a2a;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
+  border: 1px solid #333;
 }
 
 .grid-header {
   display: grid;
-  grid-template-columns: 180px 1fr 1fr 60px;
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: 200px 1fr 1fr 60px; /* 调整列宽 */
+  gap: 16px;
+  padding: 12px 16px;
   background: #333;
   font-weight: 600;
   font-size: 13px;
-  color: #aaa;
+  color: #ccc;
+  align-items: center;
+}
+
+.header-action {
+  text-align: center;
 }
 
 .mapping-rows {
-  max-height: 400px;
+  height: 320px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2e2e2e;
 }
 
 .mapping-row {
   display: grid;
-  grid-template-columns: 180px 1fr 1fr 60px;
-  gap: 12px;
-  padding: 12px;
+  grid-template-columns: 200px 1fr 1fr 60px;
+  gap: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid #333;
-  align-items: center;
+  align-items: center; /* 垂直居中 */
+  transition: background 0.2s;
+}
+
+.mapping-row:hover {
+  background: #333;
 }
 
 .mapping-row:last-child {
@@ -321,100 +356,146 @@ function saveMapping() {
 }
 
 .field-name {
+  font-size: 13px;
+  color: #fff;
   font-weight: 500;
-  color: #4fc3f7;
-  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  flex-direction: column;
 }
 
-.input-category,
-.input-property {
-  background: #1e1e1e;
-  border: 1px solid #444;
-  color: #e0e0e0;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: 'Consolas', monospace;
-}
-
-.input-category:focus,
-.input-property:focus {
-  outline: none;
-  border-color: #4fc3f7;
+.field-key {
+  font-size: 11px;
+  color: #888;
+  font-weight: normal;
+  margin-top: 2px;
 }
 
 .btn-reset {
-  background: #444;
-  border: none;
-  color: #999;
-  padding: 8px;
+  width: 32px;
+  height: 32px;
   border-radius: 4px;
+  border: 1px solid #444;
+  background: #333;
+  color: #aaa;
   cursor: pointer;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
+  margin: 0 auto;
 }
 
 .btn-reset:hover {
-  background: #555;
+  background: #444;
   color: #fff;
+  border-color: #555;
+}
+
+/* 底部功能栏 */
+.panel-footer-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start; /* 整体顶部对齐，避免因高度差异导致的错位 */
+  margin-top: 20px;
+  padding: 0 16px 20px 16px; 
+}
+
+.help-section-inline {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: #aaa;
+  max-width: 70%;
+}
+
+.help-icon {
+  font-size: 16px;
+  margin-top: -2px; /* 微调图标位置，使其与标题行垂直对齐 */
+}
+
+.help-content h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px; /* 稍微调大标题 */
+  font-weight: 600;
+  color: #ffc107;
+  line-height: 1.2;
+}
+
+.help-content ol {
+  margin: 0;
+  padding-left: 20px; /* 为序号留出空间 */
+  list-style: decimal; /* 显示数字序号 */
+  font-size: 12px;
+  line-height: 1.5;
+  color: #bbb;
 }
 
 .panel-actions {
   display: flex;
   gap: 12px;
-  justify-content: flex-end;
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #444;
+  align-self: flex-end; /* 按钮靠下对齐，或者 center? flex-end 会和帮助文本底部对齐 */
+  margin-bottom: 2px;
 }
 
 .btn {
-  padding: 10px 24px;
+  padding: 8px 20px;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 4px;
   cursor: pointer;
+  font-weight: 500;
   transition: all 0.2s;
 }
 
 .btn-primary {
-  background: #4fc3f7;
-  color: #000;
+  background: #0078d4;
+  color: #fff;
 }
 
 .btn-primary:hover {
-  background: #6dd5ff;
+  background: #106ebe;
 }
 
 .btn-secondary {
   background: #444;
-  color: #e0e0e0;
+  color: #ccc;
 }
 
 .btn-secondary:hover {
   background: #555;
+  color: #fff;
 }
 
-.help-section {
-  margin-top: 24px;
-  padding: 16px;
-  background: #2a2a2a;
-  border-radius: 4px;
-  border-left: 3px solid #4fc3f7;
-}
-
-.help-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #4fc3f7;
-}
-
-.help-section ul {
-  margin: 0;
-  padding-left: 20px;
+.save-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
-  color: #aaa;
-  line-height: 1.8;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.save-msg.success {
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.save-msg.error {
+  color: #f44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
