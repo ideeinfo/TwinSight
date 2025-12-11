@@ -117,8 +117,8 @@
             :getFullAssetDataWithMapping="getFullAssetDataWithMappingFromMainView"
             :getFullSpaceDataWithMapping="getFullSpaceDataWithMappingFromMainView"
           />
-          <button class="modal-close-btn" @click="closeDataExportPanel">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button class="dialog-close-btn modal-close-btn" @click="closeDataExportPanel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -1175,26 +1175,12 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
   }
 }
 
+/* 关闭按钮定位覆盖 */
 .modal-close-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: #aaa;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  top: 12px;
+  right: 12px;
   z-index: 10;
 }
 
-.modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
 </style>

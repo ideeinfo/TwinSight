@@ -1,0 +1,90 @@
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* 确保深色模式下的背景色 */
+body {
+  margin: 0;
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+/* =========================================
+   全局对话框样式统一
+   ========================================= */
+
+/* 对话框头部容器 */
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  min-height: 56px;
+  box-sizing: border-box;
+}
+
+/* 对话框标题 */
+.dialog-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f0f0;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 统一的关闭按钮 */
+.dialog-close-btn {
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  /* 确保按钮在 Flex 容器中不会被压缩 */
+  flex-shrink: 0;
+}
+
+.dialog-close-btn:hover {
+  background: #333;
+  color: #fff;
+}
+
+/* 关闭按钮图标 (SVG) */
+.dialog-close-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+/* 纯文本的关闭按钮 (如 ×) 兼容 */
+.dialog-close-btn.text-icon {
+  font-size: 24px;
+  line-height: 1;
+  font-family: Arial, sans-serif;
+}

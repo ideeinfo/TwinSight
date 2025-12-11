@@ -1,8 +1,10 @@
 <template>
   <div class="mapping-config-panel">
-    <div class="panel-header">
-      <h3>🔧 {{ $t('dataExport.mappingConfig.title') }}</h3>
-      <button class="btn-close" @click="$emit('close')">✕</button>
+    <div class="dialog-header">
+      <h3 class="dialog-title">🔧 {{ $t('dataExport.mappingConfig.title') }}</h3>
+      <button class="dialog-close-btn" @click="$emit('close')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
     </div>
 
     <div class="panel-content">
@@ -29,25 +31,17 @@
           <div v-for="(mapping, field) in localAssetMapping" :key="field" class="mapping-row">
             <div class="field-name">{{ field }}</div>
             
-            <input 
-              v-model="mapping.category" 
-              class="input-category"
-              :list="'asset-cat-' + field"
+            <SearchableSelect
+              v-model="mapping.category"
+              :options="mergedAssetCategories"
               :placeholder="$t('dataExport.mappingConfig.categoryPlaceholder')"
             />
-            <datalist :id="'asset-cat-' + field">
-              <option v-for="cat in Object.keys(assetPropertyOptions)" :key="cat" :value="cat" />
-            </datalist>
 
-            <input 
-              v-model="mapping.property" 
-              class="input-property"
-              :list="'asset-prop-' + field"
+            <SearchableSelect
+              v-model="mapping.property"
+              :options="assetPropertyOptions[mapping.category] || []"
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
-            <datalist :id="'asset-prop-' + field">
-              <option v-for="prop in (assetPropertyOptions[mapping.category] || [])" :key="prop" :value="prop" />
-            </datalist>
 
             <button class="btn-reset" @click="resetField('asset', field)" title="重置">↻</button>
           </div>
@@ -57,25 +51,17 @@
           <div v-for="(mapping, field) in localAssetSpecMapping" :key="field" class="mapping-row">
             <div class="field-name">{{ field }}</div>
             
-            <input 
-              v-model="mapping.category" 
-              class="input-category"
-              :list="'spec-cat-' + field"
+            <SearchableSelect
+              v-model="mapping.category"
+              :options="mergedAssetCategories"
               :placeholder="$t('dataExport.mappingConfig.categoryPlaceholder')"
             />
-            <datalist :id="'spec-cat-' + field">
-              <option v-for="cat in Object.keys(assetPropertyOptions)" :key="cat" :value="cat" />
-            </datalist>
 
-            <input 
-              v-model="mapping.property" 
-              class="input-property"
-              :list="'spec-prop-' + field"
+            <SearchableSelect
+              v-model="mapping.property"
+              :options="assetPropertyOptions[mapping.category] || []"
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
-            <datalist :id="'spec-prop-' + field">
-              <option v-for="prop in (assetPropertyOptions[mapping.category] || [])" :key="prop" :value="prop" />
-            </datalist>
 
             <button class="btn-reset" @click="resetField('spec', field)" title="重置">↻</button>
           </div>
@@ -85,25 +71,17 @@
           <div v-for="(mapping, field) in localSpaceMapping" :key="field" class="mapping-row">
             <div class="field-name">{{ field }}</div>
             
-            <input 
-              v-model="mapping.category" 
-              class="input-category"
-              :list="'space-cat-' + field"
+            <SearchableSelect
+              v-model="mapping.category"
+              :options="mergedSpaceCategories"
               :placeholder="$t('dataExport.mappingConfig.categoryPlaceholder')"
             />
-            <datalist :id="'space-cat-' + field">
-              <option v-for="cat in Object.keys(spacePropertyOptions)" :key="cat" :value="cat" />
-            </datalist>
 
-            <input 
-              v-model="mapping.property" 
-              class="input-property"
-              :list="'space-prop-' + field"
+            <SearchableSelect
+              v-model="mapping.property"
+              :options="spacePropertyOptions[mapping.category] || []"
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
-            <datalist :id="'space-prop-' + field">
-              <option v-for="prop in (spacePropertyOptions[mapping.category] || [])" :key="prop" :value="prop" />
-            </datalist>
 
             <button class="btn-reset" @click="resetField('space', field)" title="重置">↻</button>
           </div>
@@ -130,6 +108,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import SearchableSelect from './SearchableSelect.vue';
 
 const { t } = useI18n();
 
@@ -155,6 +134,11 @@ const tabs = [
 const localAssetMapping = ref(JSON.parse(JSON.stringify(props.assetMapping)));
 const localAssetSpecMapping = ref(JSON.parse(JSON.stringify(props.assetSpecMapping)));
 const localSpaceMapping = ref(JSON.parse(JSON.stringify(props.spaceMapping)));
+
+// 保存初始配置（用于重置到上次保存的状态）
+const initialAssetMapping = JSON.parse(JSON.stringify(props.assetMapping));
+const initialAssetSpecMapping = JSON.parse(JSON.stringify(props.assetSpecMapping));
+const initialSpaceMapping = JSON.parse(JSON.stringify(props.spaceMapping));
 
 // 默认配置（用于重置）
 const defaultMappings = {
@@ -190,18 +174,53 @@ function resetField(type, field) {
                   type === 'spec' ? localAssetSpecMapping : 
                   localSpaceMapping;
   
-  if (defaultMappings[type][field]) {
-    mapping.value[field] = JSON.parse(JSON.stringify(defaultMappings[type][field]));
+  const initial = type === 'asset' ? initialAssetMapping : 
+                  type === 'spec' ? initialAssetSpecMapping : 
+                  initialSpaceMapping;
+  
+  if (initial[field]) {
+    mapping.value[field] = JSON.parse(JSON.stringify(initial[field]));
   }
 }
 
 function resetAll() {
-  if (confirm(t('dataExport.mappingConfig.confirmReset') || '确定要重置所有映射配置吗？')) {
-    localAssetMapping.value = JSON.parse(JSON.stringify(defaultMappings.asset));
-    localAssetSpecMapping.value = JSON.parse(JSON.stringify(defaultMappings.spec));
-    localSpaceMapping.value = JSON.parse(JSON.stringify(defaultMappings.space));
+  if (confirm(t('dataExport.mappingConfig.confirmReset') || '确定要恢复到上次保存的配置吗？')) {
+    // 恢复到初始配置（上次保存的状态）
+    localAssetMapping.value = JSON.parse(JSON.stringify(initialAssetMapping));
+    localAssetSpecMapping.value = JSON.parse(JSON.stringify(initialAssetSpecMapping));
+    localSpaceMapping.value = JSON.parse(JSON.stringify(initialSpaceMapping));
   }
 }
+
+// 默认分类列表（确保常用分类都能显示）
+const defaultCategories = [
+  '文字',
+  '标识数据',
+  '约束',
+  '数据',
+  '其他',
+  '尺寸',
+  '阶段化',
+  '构造',
+  '房间',
+  'Identity Data',
+  'Constraints',
+  'Dimensions',
+  'Data'
+];
+
+// 合并的分类选项（包含默认分类和从模型提取的分类）
+const mergedAssetCategories = computed(() => {
+  const categories = new Set(defaultCategories);
+  Object.keys(props.assetPropertyOptions).forEach(cat => categories.add(cat));
+  return Array.from(categories).sort();
+});
+
+const mergedSpaceCategories = computed(() => {
+  const categories = new Set(defaultCategories);
+  Object.keys(props.spacePropertyOptions).forEach(cat => categories.add(cat));
+  return Array.from(categories).sort();
+});
 
 function saveMapping() {
   emit('save', {
@@ -232,34 +251,7 @@ function saveMapping() {
   overflow: hidden;
 }
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: #252526;
-  border-bottom: 1px solid #444;
-}
 
-.panel-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #e0e0e0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: #999;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0 8px;
-  line-height: 1;
-}
-
-.btn-close:hover {
-  color: #fff;
-}
 
 .panel-content {
   flex: 1;

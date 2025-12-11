@@ -1,7 +1,7 @@
 <template>
   <div class="data-export-panel">
-    <div class="panel-header">
-      <h3>📦 {{ $t('dataExport.title') }}</h3>
+    <div class="dialog-header panel-header">
+      <h3 class="dialog-title">📦 {{ $t('dataExport.title') }}</h3>
       <span class="status-badge" :class="apiStatus">
         {{ apiStatus === 'connected' ? $t('dataExport.connected') : apiStatus === 'checking' ? $t('dataExport.checking') : $t('dataExport.disconnected') }}
       </span>
@@ -91,6 +91,7 @@
 import { ref, onMounted, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { checkApiHealth, importModelData } from '../services/postgres.js';
+import { getMappingConfig, saveMappingConfig, getDefaultMapping } from '../services/mapping-config.js';
 import MappingConfigPanel from './MappingConfigPanel.vue';
 
 const { t } = useI18n();
@@ -182,19 +183,26 @@ async function checkConnection() {
 }
 
 // 保存映射配置
-function handleSaveMapping(newMappings) {
+async function handleSaveMapping(newMappings) {
   assetMapping.value = newMappings.assetMapping;
   assetSpecMapping.value = newMappings.assetSpecMapping;
   spaceMapping.value = newMappings.spaceMapping;
   
-  // 保存到 localStorage
-  try {
-    localStorage.setItem('assetMapping', JSON.stringify(newMappings.assetMapping));
-    localStorage.setItem('assetSpecMapping', JSON.stringify(newMappings.assetSpecMapping));
-    localStorage.setItem('spaceMapping', JSON.stringify(newMappings.spaceMapping));
-    console.log('✅ 映射配置已保存');
-  } catch (e) {
-    console.error('保存映射配置失败:', e);
+  // 保存到数据库（如果有 fileId）
+  if (props.fileId) {
+    try {
+      await saveMappingConfig(props.fileId, {
+        assetMapping: newMappings.assetMapping,
+        assetSpecMapping: newMappings.assetSpecMapping,
+        spaceMapping: newMappings.spaceMapping
+      });
+      console.log('✅ 映射配置已保存到数据库');
+    } catch (error) {
+      console.error('保存映射配置到数据库失败:', error);
+      alert(t('dataExport.mappingConfig.saveFailed') || '保存配置失败: ' + error.message);
+    }
+  } else {
+    console.warn('⚠️ 没有 fileId,无法保存映射配置到数据库');
   }
 }
 
@@ -377,30 +385,56 @@ async function extractAndExport() {
   }
 }
 
-// 组件挂载时检查连接并加载保存的映射配置
-onMounted(() => {
+// 组件挂载时检查连接并加载映射配置
+onMounted(async () => {
   checkConnection();
   
-  // 从 localStorage 加载映射配置
-  try {
-    const savedAssetMapping = localStorage.getItem('assetMapping');
-    const savedAssetSpecMapping = localStorage.getItem('assetSpecMapping');
-    const savedSpaceMapping = localStorage.getItem('spaceMapping');
-    
-    if (savedAssetMapping) {
-      assetMapping.value = JSON.parse(savedAssetMapping);
-      console.log('✅ 已加载保存的资产映射配置');
+  // 从数据库加载映射配置（如果有 fileId）
+  if (props.fileId) {
+    try {
+      console.log(`📥 从数据库加载文件 ${props.fileId} 的映射配置...`);
+      const config = await getMappingConfig(props.fileId);
+      
+      // 如果数据库中有配置，则使用；否则使用默认配置
+      if (config.assetMapping && Object.keys(config.assetMapping).length > 0) {
+        assetMapping.value = config.assetMapping;
+        console.log('✅ 已加载资产映射配置');
+      } else {
+        const defaults = getDefaultMapping();
+        assetMapping.value = defaults.assetMapping;
+        console.log('ℹ️ 使用默认资产映射配置');
+      }
+      
+      if (config.assetSpecMapping && Object.keys(config.assetSpecMapping).length > 0) {
+        assetSpecMapping.value = config.assetSpecMapping;
+        console.log('✅ 已加载规格映射配置');
+      } else {
+        const defaults = getDefaultMapping();
+        assetSpecMapping.value = defaults.assetSpecMapping;
+        console.log('ℹ️ 使用默认规格映射配置');
+      }
+      
+      if (config.spaceMapping && Object.keys(config.spaceMapping).length > 0) {
+        spaceMapping.value = config.spaceMapping;
+        console.log('✅ 已加载空间映射配置');
+      } else {
+        const defaults = getDefaultMapping();
+        spaceMapping.value = defaults.spaceMapping;
+        console.log('ℹ️ 使用默认空间映射配置');
+      }
+    } catch (error) {
+      console.warn('从数据库加载映射配置失败，使用默认配置:', error);
+      const defaults = getDefaultMapping();
+      assetMapping.value = defaults.assetMapping;
+      assetSpecMapping.value = defaults.assetSpecMapping;
+      spaceMapping.value = defaults.spaceMapping;
     }
-    if (savedAssetSpecMapping) {
-      assetSpecMapping.value = JSON.parse(savedAssetSpecMapping);
-      console.log('✅ 已加载保存的规格映射配置');
-    }
-    if (savedSpaceMapping) {
-      spaceMapping.value = JSON.parse(savedSpaceMapping);
-      console.log('✅ 已加载保存的空间映射配置');
-    }
-  } catch (e) {
-    console.warn('加载保存的映射配置失败，使用默认配置:', e);
+  } else {
+    console.warn('⚠️ 没有 fileId，使用默认映射配置');
+    const defaults = getDefaultMapping();
+    assetMapping.value = defaults.assetMapping;
+    assetSpecMapping.value = defaults.assetSpecMapping;
+    spaceMapping.value = defaults.spaceMapping;
   }
 });
 
@@ -421,19 +455,9 @@ defineExpose({
   color: #e0e0e0;
 }
 
+/* 继承 dialog-header 样式，仅覆盖内边距以避开外部关闭按钮 */
 .panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: #252526;
-  border-bottom: 1px solid #333;
-}
-
-.panel-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  padding-right: 48px;
 }
 
 .status-badge {

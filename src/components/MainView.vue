@@ -78,7 +78,7 @@
     <!-- Custom Range Modal -->
     <div v-if="isCustomModalOpen" class="modal-overlay">
       <div class="custom-modal">
-        <div class="modal-header"><span>{{ t('timeline.selectDateRange') }}</span><button class="close-btn" @click="closeCustomModal">×</button></div>
+        <div class="dialog-header"><span class="dialog-title">{{ t('timeline.selectDateRange') }}</span><button class="dialog-close-btn" @click="closeCustomModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
         <div class="calendar-widget">
           <div class="cal-header"><button @click="changeMonth(-1)">&#9664;</button><span>{{ calendarTitle }}</span><button @click="changeMonth(1)">&#9654;</button></div>
           <div class="cal-grid">
@@ -2020,43 +2020,145 @@ const getAssetPropertyList = async () => {
       return;
     }
     
+    const rootId = tree.getRootId();
     const dbIds = [];
-    tree.enumNodeChildren(tree.getRootId(), id => dbIds.push(id), true);
     
-    // 使用 getBulkProperties 对于大量构件更高效
-    // 我们不需要获取所有属性值，但这通常比逐个获取要快
+    // 递归获取所有子节点，但排除根节点本身
+    tree.enumNodeChildren(rootId, (dbId) => {
+      // 只添加非根节点
+      if (dbId !== rootId) {
+        dbIds.push(dbId);
+      }
+    }, true);
+    
+    console.log(`📋 开始提取属性列表，构件总数: ${dbIds.length}（已排除根节点 ${rootId}）`);
+    
+    // 使用 getBulkProperties 获取所有属性
     viewer.model.getBulkProperties(dbIds, null, (results) => {
+      console.log(`📋 getBulkProperties 返回结果数: ${results.length}`);
+      
       const categories = {};
+      const categoryStats = {};
+      const rawPropertyNames = {}; // 记录原始属性名（调试用）
+      
+      // 统计每个构件的属性数量
+      let totalProperties = 0;
+      results.forEach(res => {
+        if (res.properties) {
+          totalProperties += res.properties.length;
+        }
+      });
+      console.log(`📋 所有构件的属性总数: ${totalProperties}`);
+      
+      // 显示前3个构件的属性示例
+      console.log('📋 前3个构件的属性示例:');
+      results.slice(0, 3).forEach((res, idx) => {
+        console.log(`  构件 ${idx + 1} (dbId: ${res.dbId}): ${res.properties?.length || 0} 个属性`);
+        if (res.properties && res.properties.length > 0) {
+          const samples = res.properties.slice(0, 5).map(p => `${p.displayName}(${p.displayCategory})`);
+          console.log(`    示例: ${samples.join(', ')}`);
+        }
+      });
       
       results.forEach(res => {
         if (!res.properties) return;
         
         res.properties.forEach(prop => {
-          // 统一处理分类
-          let cat = prop.displayCategory || '其他';
-          // 处理一些特殊的分类名称映射
-          if (cat === 'Identity Data') cat = '标识数据';
-          if (cat === 'Constraints') cat = '约束';
-          if (cat === 'Phasing') cat = '阶段化';
-          if (cat === 'Dimensions') cat = '尺寸';
-          if (cat === 'Construction') cat = '构造';
+          // 原始分类名
+          const originalCat = prop.displayCategory || '其他';
           
+          // 统一处理分类名称（中英文映射）
+          let cat = originalCat;
+          
+          // 英文 -> 中文映射
+          const categoryMap = {
+            'Identity Data': '标识数据',
+            'Constraints': '约束',
+            'Phasing': '阶段化',
+            'Dimensions': '尺寸',
+            'Construction': '构造',
+            'Materials and Finishes': '材质和装饰',
+            'Structural': '结构',
+            'Mechanical': '机械',
+            'Electrical': '电气',
+            'Plumbing': '管道',
+            'Fire Protection': '消防',
+            'Text': '文字',
+            'Graphics': '图形',
+            'Data': '数据',
+            'Other': '其他',
+            'Room': '房间',
+            'Analytical Properties': '分析属性',
+            'Green Building Properties': '绿色建筑属性',
+            'IFC Parameters': 'IFC参数',
+            'Structural Analysis': '结构分析'
+          };
+          
+          if (categoryMap[cat]) {
+            cat = categoryMap[cat];
+          }
+          
+          // 获取属性名
           let name = prop.displayName || prop.attributeName;
+          
           // 排除无效名称
           if (!name || name.trim() === '') return;
           
-          if (!categories[cat]) categories[cat] = new Set();
+          // 记录原始属性名（用于调试）
+          if (!rawPropertyNames[cat]) {
+            rawPropertyNames[cat] = [];
+          }
+          rawPropertyNames[cat].push({
+            display: name,
+            original: originalCat,
+            attr: prop.attributeName
+          });
+          
+          // 初始化分类
+          if (!categories[cat]) {
+            categories[cat] = new Set();
+            categoryStats[cat] = 0;
+          }
+          
+          // 添加属性名（使用Set自动去重）
+          const added = !categories[cat].has(name);
           categories[cat].add(name);
+          
+          if (added) {
+            categoryStats[cat]++;
+          }
         });
       });
       
       // 转换为排序后的数组
       const formatted = {};
-      Object.keys(categories).sort().forEach(cat => {
+      const sortedCategories = Object.keys(categories).sort();
+      
+      sortedCategories.forEach(cat => {
         formatted[cat] = Array.from(categories[cat]).sort();
       });
       
-      console.log(`📋 已提取资产属性结构: ${Object.keys(formatted).length} 个分类`);
+      // 详细的调试日志
+      console.log(`📋 已提取资产属性结构: ${sortedCategories.length} 个分类`);
+      console.log('📋 分类统计:');
+      sortedCategories.forEach(cat => {
+        console.log(`  - ${cat}: ${categoryStats[cat]} 个属性`);
+      });
+      
+      // 输出每个分类的所有属性（不只是前5个）
+      console.log('📋 完整属性列表:');
+      sortedCategories.forEach(cat => {
+        console.log(`  ${cat}:`, formatted[cat]);
+      });
+      
+      // 特别显示"标识数据"分类的原始信息
+      if (rawPropertyNames['标识数据']) {
+        console.log('📋 "标识数据"分类的原始属性信息（前20个）:');
+        rawPropertyNames['标识数据'].slice(0, 20).forEach(prop => {
+          console.log(`    ${prop.display} [原始分类: ${prop.original}, 属性名: ${prop.attr}]`);
+        });
+      }
+      
       resolve(formatted);
     }, (err) => {
       console.error('获取属性列表失败:', err);
@@ -2070,34 +2172,83 @@ const getSpacePropertyList = async () => {
   if (!viewer || foundRoomDbIds.length === 0) return {};
 
   return new Promise((resolve) => {
+    console.log(`📋 开始提取空间属性列表，房间总数: ${foundRoomDbIds.length}`);
+    
     // 仅针对房间 ID 获取
     viewer.model.getBulkProperties(foundRoomDbIds, null, (results) => {
       const categories = {};
+      const categoryStats = {};
       
       results.forEach(res => {
         if (!res.properties) return;
         
         res.properties.forEach(prop => {
-          let cat = prop.displayCategory || '其他';
-          // 映射常见分类
-          if (cat === 'Identity Data') cat = '标识数据';
-          if (cat === 'Dimensions') cat = '尺寸';
+          const originalCat = prop.displayCategory || '其他';
+          
+          // 使用相同的映射逻辑
+          let cat = originalCat;
+          const categoryMap = {
+            'Identity Data': '标识数据',
+            'Constraints': '约束',
+            'Phasing': '阶段化',
+            'Dimensions': '尺寸',
+            'Construction': '构造',
+            'Materials and Finishes': '材质和装饰',
+            'Structural': '结构',
+            'Mechanical': '机械',
+            'Electrical': '电气',
+            'Plumbing': '管道',
+            'Text': '文字',
+            'Graphics': '图形',
+            'Data': '数据',
+            'Other': '其他',
+            'Room': '房间',
+            'Analytical Properties': '分析属性',
+            'IFC Parameters': 'IFC参数'
+          };
+          
+          if (categoryMap[cat]) {
+            cat = categoryMap[cat];
+          }
           
           let name = prop.displayName || prop.attributeName;
           
           if (!name || name.trim() === '') return;
           
-          if (!categories[cat]) categories[cat] = new Set();
+          if (!categories[cat]) {
+            categories[cat] = new Set();
+            categoryStats[cat] = 0;
+          }
+          
+          const added = !categories[cat].has(name);
           categories[cat].add(name);
+          
+          if (added) {
+            categoryStats[cat]++;
+          }
         });
       });
       
       const formatted = {};
-      Object.keys(categories).sort().forEach(cat => {
+      const sortedCategories = Object.keys(categories).sort();
+      
+      sortedCategories.forEach(cat => {
         formatted[cat] = Array.from(categories[cat]).sort();
       });
       
-      console.log(`📋 已提取空间属性结构: ${Object.keys(formatted).length} 个分类`);
+      // 详细的调试日志
+      console.log(`📋 已提取空间属性结构: ${sortedCategories.length} 个分类`);
+      console.log('📋 分类统计:');
+      sortedCategories.forEach(cat => {
+        console.log(`  - ${cat}: ${categoryStats[cat]} 个属性`);
+      });
+      
+      console.log('📋 示例属性:');
+      sortedCategories.slice(0, 5).forEach(cat => {
+        const props = formatted[cat].slice(0, 5);
+        console.log(`  ${cat}: ${props.join(', ')}${formatted[cat].length > 5 ? '...' : ''}`);
+      });
+      
       resolve(formatted);
     }, (err) => {
       console.error('获取空间属性列表失败:', err);

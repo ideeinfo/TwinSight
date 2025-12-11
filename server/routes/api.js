@@ -7,6 +7,7 @@ import classificationModel from '../models/classification.js';
 import assetSpecModel from '../models/asset-spec.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
+import { getMappingConfig, saveMappingConfig } from '../models/mapping-config.js';
 
 const router = Router();
 
@@ -403,6 +404,56 @@ router.post('/import/model-data', async (req, res) => {
 
     } catch (error) {
         console.error('导入数据失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ========================================
+// 映射配置 API
+// ========================================
+
+/**
+ * 获取文件的映射配置
+ * GET /api/mapping-config/:fileId
+ */
+router.get('/mapping-config/:fileId', async (req, res) => {
+    try {
+        const fileId = parseInt(req.params.fileId);
+        if (isNaN(fileId)) {
+            return res.status(400).json({ success: false, error: '无效的文件ID' });
+        }
+
+        const config = await getMappingConfig(fileId);
+        res.json({ success: true, data: config });
+    } catch (error) {
+        console.error('获取映射配置失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 保存文件的映射配置
+ * POST /api/mapping-config/:fileId
+ * 请求体: { assetMapping: {...}, assetSpecMapping: {...}, spaceMapping: {...} }
+ */
+router.post('/mapping-config/:fileId', async (req, res) => {
+    try {
+        const fileId = parseInt(req.params.fileId);
+        if (isNaN(fileId)) {
+            return res.status(400).json({ success: false, error: '无效的文件ID' });
+        }
+
+        const { assetMapping, assetSpecMapping, spaceMapping } = req.body;
+
+        await saveMappingConfig(fileId, {
+            assetMapping,
+            assetSpecMapping,
+            spaceMapping
+        });
+
+        res.json({ success: true, message: '映射配置保存成功' });
+    } catch (error) {
+        console.error('保存映射配置失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
