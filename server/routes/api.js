@@ -172,6 +172,34 @@ router.post('/assets/batch', async (req, res) => {
     }
 });
 
+/**
+ * 更新资产属性
+ * PATCH /api/assets/:code
+ */
+router.patch('/assets/:code', async (req, res) => {
+    try {
+        const code = req.params.code;
+        const updates = req.body;
+
+        // 验证更新字段
+        const allowedFields = [
+            'spec_code', 'spec_name', 'name', 'floor', 'room',
+            'classification_code', 'classification_desc',
+            'category', 'family', 'type', 'manufacturer', 'address', 'phone'
+        ];
+
+        const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
+        if (updateFields.length === 0) {
+            return res.status(400).json({ success: false, error: '没有有效的更新字段' });
+        }
+
+        await assetModel.updateAsset(code, updates);
+        res.json({ success: true, message: '资产更新成功' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ========================================
 // 空间 API
 // ========================================
@@ -230,6 +258,33 @@ router.post('/spaces/batch', async (req, res) => {
         }
         await spaceModel.batchUpsertSpaces(spaces);
         res.json({ success: true, message: `成功导入 ${spaces.length} 条空间` });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 更新空间属性
+ * PATCH /api/spaces/:code
+ */
+router.patch('/spaces/:code', async (req, res) => {
+    try {
+        const code = req.params.code;
+        const updates = req.body;
+
+        // 验证更新字段
+        const allowedFields = [
+            'name', 'classification_code', 'classification_desc',
+            'floor', 'area', 'perimeter'
+        ];
+
+        const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
+        if (updateFields.length === 0) {
+            return res.status(400).json({ success: false, error: '没有有效的更新字段' });
+        }
+
+        await spaceModel.updateSpace(code, updates);
+        res.json({ success: true, message: '空间更新成功' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

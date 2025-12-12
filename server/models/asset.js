@@ -199,6 +199,44 @@ export async function batchUpsertAssetsWithFile(assets, fileId) {
     }
 }
 
+/**
+ * 更新资产属性
+ * @param {String} assetCode - 资产编码
+ * @param {Object} updates - 要更新的字段
+ */
+export async function updateAsset(assetCode, updates) {
+    const allowedFields = ['spec_code', 'name', 'floor', 'room'];
+    const setClause = [];
+    const values = [];
+    let paramIndex = 1;
+
+    // 构建 SET 子句
+    for (const [key, value] of Object.entries(updates)) {
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+        }
+    }
+
+    if (setClause.length === 0) {
+        throw new Error('没有有效的更新字段');
+    }
+
+    // 添加 asset_code 到参数列表
+    values.push(assetCode);
+
+    const sql = `
+    UPDATE assets
+    SET ${setClause.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE asset_code = $${paramIndex}
+    RETURNING *
+  `;
+
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
 export default {
     upsertAsset,
     batchUpsertAssets,
@@ -209,5 +247,6 @@ export default {
     getAssetsByFloor,
     getAssetsByRoom,
     getAssetsByFileId,
-    deleteAllAssets
+    deleteAllAssets,
+    updateAsset
 };

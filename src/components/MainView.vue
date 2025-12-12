@@ -459,7 +459,9 @@ const getTagStyle = (t) => {
 
 const initViewer = () => {
   if (!window.Autodesk) return;
-  const options = { env: 'Local', document: null, language: 'en' };
+  // 将 Viewer 语言与系统语言同步
+  const viewerLanguage = locale.value === 'zh' ? 'zh-cn' : 'en';
+  const options = { env: 'Local', document: null, language: viewerLanguage };
   window.Autodesk.Viewing.Initializer(options, () => {
     viewer = new window.Autodesk.Viewing.GuiViewer3D(viewerContainer.value);
     
@@ -2413,10 +2415,22 @@ const seedRoomHistory = async (rooms) => {
       if (isRest) v = Math.max(23, Math.min(28, v - (1 + Math.random())));
       points.push({ timestamp: t, value: v });
     }
-    try { await writeRoomHistory(r.code, points); } catch {}
+      try { await writeRoomHistory(r.code, points); } catch {}
   }
   seeded = true;
 };
+
+// 监听语言切换，更新 Viewer 语言
+// 注意：Forge Viewer 的语言切换需要重新初始化，所以我们提示用户刷新页面
+watch(locale, (newLocale, oldLocale) => {
+  if (oldLocale && newLocale !== oldLocale && viewer) {
+    console.log(`🌐 语言已切换: ${oldLocale} → ${newLocale}`);
+    console.log('💡 建议刷新页面以应用 3D 查看器的语言设置');
+    
+    // 可选：自动刷新页面（如果需要）
+    // window.location.reload();
+  }
+});
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);

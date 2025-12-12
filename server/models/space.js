@@ -167,6 +167,44 @@ export async function batchUpsertSpacesWithFile(spaces, fileId) {
     }
 }
 
+/**
+ * 更新空间属性
+ * @param {String} spaceCode - 空间编码
+ * @param {Object} updates - 要更新的字段
+ */
+export async function updateSpace(spaceCode, updates) {
+    const allowedFields = ['name', 'classification_code', 'classification_desc', 'floor', 'area', 'perimeter'];
+    const setClause = [];
+    const values = [];
+    let paramIndex = 1;
+
+    // 构建 SET 子句
+    for (const [key, value] of Object.entries(updates)) {
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+        }
+    }
+
+    if (setClause.length === 0) {
+        throw new Error('没有有效的更新字段');
+    }
+
+    // 添加 space_code 到参数列表
+    values.push(spaceCode);
+
+    const sql = `
+    UPDATE spaces
+    SET ${setClause.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE space_code = $${paramIndex}
+    RETURNING *
+  `;
+
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
 export default {
     upsertSpace,
     batchUpsertSpaces,
@@ -176,5 +214,6 @@ export default {
     getSpacesByFloor,
     getSpacesByClassification,
     getSpacesByFileId,
-    deleteAllSpaces
+    deleteAllSpaces,
+    updateSpace
 };

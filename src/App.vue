@@ -97,8 +97,10 @@
       >
         <RightPanel
           :roomProperties="selectedRoomProperties"
+          :selectedIds="selectedObjectIds"
           :viewMode="currentView"
           @close-properties="closeRightPanel"
+          @property-changed="onPropertyChanged"
         />
       </div>
 
@@ -153,6 +155,7 @@ const assetList = ref([]);
 const mainViewRef = ref(null);
 const assetPanelRef = ref(null);
 const selectedRoomProperties = ref(null);
+const selectedObjectIds = ref([]); // 当前选中的对象ID列表（用于批量编辑）
 const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' - 默认加载资产页面
 const selectedRoomSeries = ref([]);
@@ -367,7 +370,7 @@ const onViewerReady = async () => {
             if (spacesData.success) {
               roomList.value = spacesData.data.map(space => ({
                 dbId: space.db_id,
-                name: (space.name || '').replace(/\[.*?\]/g, '').trim(),
+                name: space.name || '',
                 code: space.space_code,
                 classificationCode: space.classification_code,
                 classificationDesc: space.classification_desc,
@@ -517,7 +520,7 @@ const onFileActivated = async (file) => {
     if (spacesData.success) {
       roomList.value = spacesData.data.map(space => ({
         dbId: space.db_id,
-        name: (space.name || '').replace(/\[.*?\]/g, '').trim(),
+        name: space.name || '',
         code: space.space_code,
         classificationCode: space.classification_code,
         classificationDesc: space.classification_desc,
@@ -577,10 +580,18 @@ const onRoomsSelected = (dbIds) => {
         mainViewRef.value.isolateAndFocusRooms(dbIds);
       }
 
-      if (mainViewRef.value.getRoomProperties) {
-        mainViewRef.value.getRoomProperties(dbIds[0]).then(props => {
-          selectedRoomProperties.value = props;
-        });
+      // 从数据库数据（roomList）获取属性，而不是从模型
+      const room = roomList.value.find(r => r.dbId === dbIds[0]);
+      if (room) {
+        selectedRoomProperties.value = {
+          code: room.code || '',
+          name: room.name || '',
+          area: room.area || '',
+          perimeter: room.perimeter || '',
+          level: room.floor || '',
+          spaceNumber: room.classificationCode || '',
+          spaceDescription: room.classificationDesc || ''
+        };
       }
     } else {
       // 选中了多个房间，合并属性：相同显示实际值，不同显示 VARIES
@@ -588,30 +599,81 @@ const onRoomsSelected = (dbIds) => {
         mainViewRef.value.isolateAndFocusRooms(dbIds);
       }
 
-      if (mainViewRef.value?.getRoomProperties) {
+      // 从数据库数据（roomList）获取所有选中房间的属性
+      const selectedRooms = dbIds.map(dbId => roomList.value.find(r => r.dbId === dbId)).filter(Boolean);
+      
+      if (selectedRooms.length > 0) {
         const VARIES_VALUE = '__VARIES__';
-        Promise.all(dbIds.map(id => mainViewRef.value.getRoomProperties(id))).then(allProps => {
-          const base = allProps[0] || {};
-          const merged = {
-            code: base.code,
-            name: base.name,
-            area: base.area,
-            perimeter: base.perimeter,
-            spaceNumber: base.spaceNumber,
-            spaceDescription: base.spaceDescription,
-            isMultiple: true
-          };
-          for (let i = 1; i < allProps.length; i++) {
-            const p = allProps[i] || {};
-            if (merged.code !== p.code) merged.code = VARIES_VALUE;
-            if (merged.name !== p.name) merged.name = VARIES_VALUE;
-            if (merged.area !== p.area) merged.area = VARIES_VALUE;
-            if (merged.perimeter !== p.perimeter) merged.perimeter = VARIES_VALUE;
-            if (merged.spaceNumber !== p.spaceNumber) merged.spaceNumber = VARIES_VALUE;
-            if (merged.spaceDescription !== p.spaceDescription) merged.spaceDescription = VARIES_VALUE;
-          }
-          selectedRoomProperties.value = merged;
+        
+        console.log('🔍 多选房间属性比较开始（使用数据库数据）', {
+          房间数量: selectedRooms.length,
+          第一个房间: selectedRooms[0]
         });
+        
+        // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
+        const isSameValue = (v1, v2) => {
+          const normalize = (v) => (v == null || v === '') ? '' : String(v);
+          const n1 = normalize(v1);
+          const n2 = normalize(v2);
+          const result = n1 === n2;
+          
+          if (!result && v1 !== VARIES_VALUE && v2 !== VARIES_VALUE) {
+            console.log('  ❌ 房间属性值不同:', { v1, v2, n1, n2 });
+          }
+          
+          return result;
+        };
+        
+        const base = selectedRooms[0];
+        const merged = {
+          code: base.code || '',
+          name: base.name || '',
+          area: base.area || '',
+          perimeter: base.perimeter || '',
+          level: base.floor || '',
+          spaceNumber: base.classificationCode || '',
+          spaceDescription: base.classificationDesc || '',
+          isMultiple: true
+        };
+        
+        // 关键修复：用base来比较，不要在循环中修改merged
+        for (let i = 1; i < selectedRooms.length; i++) {
+          console.log(`  比较第 ${i + 1} 个房间:`, selectedRooms[i]);
+          const room = selectedRooms[i];
+          
+          // 每次都和base比较，如果任何一个不同就标记为VARIES
+          if (merged.code !== VARIES_VALUE && !isSameValue(base.code, room.code)) {
+            console.log('  ❗ code 不同');
+            merged.code = VARIES_VALUE;
+          }
+          if (merged.name !== VARIES_VALUE && !isSameValue(base.name, room.name)) {
+            console.log('  ❗ name 不同');
+            merged.name = VARIES_VALUE;
+          }
+          if (merged.area !== VARIES_VALUE && !isSameValue(base.area, room.area)) {
+            console.log('  ❗ area 不同');
+            merged.area = VARIES_VALUE;
+          }
+          if (merged.perimeter !== VARIES_VALUE && !isSameValue(base.perimeter, room.perimeter)) {
+            console.log('  ❗ perimeter 不同');
+            merged.perimeter = VARIES_VALUE;
+          }
+          if (merged.level !== VARIES_VALUE && !isSameValue(base.floor, room.floor)) {
+            console.log('  ❗ level 不同');
+            merged.level = VARIES_VALUE;
+          }
+          if (merged.spaceNumber !== VARIES_VALUE && !isSameValue(base.classificationCode, room.classificationCode)) {
+            console.log('  ❗ spaceNumber 不同');
+            merged.spaceNumber = VARIES_VALUE;
+          }
+          if (merged.spaceDescription !== VARIES_VALUE && !isSameValue(base.classificationDesc, room.classificationDesc)) {
+            console.log('  ❗ spaceDescription 不同');
+            merged.spaceDescription = VARIES_VALUE;
+          }
+        }
+        
+        console.log('✅ 合并后的房间属性:', merged);
+        selectedRoomProperties.value = merged;
       } else {
         selectedRoomProperties.value = { isMultiple: true };
       }
@@ -637,11 +699,19 @@ const onRoomsSelected = (dbIds) => {
 
 const onAssetsSelected = async (dbIds) => {
   savedAssetSelections.value = dbIds.slice();
+  
+  // 更新选中的对象ID列表（使用 mcCode）
+  selectedObjectIds.value = dbIds.map(dbId => {
+    const asset = assetList.value.find(a => a.dbId === dbId);
+    return asset?.mcCode;
+  }).filter(Boolean);
+  
   // 调用 MainView 的方法来孤立并定位资产
   if (mainViewRef.value) {
     if (dbIds.length === 0) {
       // 未选中任何资产，显示所有资产
       selectedRoomProperties.value = null;
+      selectedObjectIds.value = [];
       if (mainViewRef.value.showAllAssets) {
         mainViewRef.value.showAllAssets();
       }
@@ -710,6 +780,26 @@ const onAssetsSelected = async (dbIds) => {
       if (allProps.length > 0) {
         // 比较属性值，相同则显示值，不同则显示 VARIES_VALUE
         const VARIES_VALUE = '__VARIES__';
+        
+        console.log('🔍 多选资产属性比较开始', {
+          资产数量: allProps.length,
+          第一个资产: allProps[0]
+        });
+        
+        // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
+        const isSameValue = (v1, v2) => {
+          const normalize = (v) => (v == null || v === '') ? '' : String(v);
+          const n1 = normalize(v1);
+          const n2 = normalize(v2);
+          const result = n1 === n2;
+          
+          if (!result && v1 !== VARIES_VALUE && v2 !== VARIES_VALUE) {
+            console.log('  ❌ 值不同:', { v1, v2, n1, n2 });
+          }
+          
+          return result;
+        };
+        
         const mergedProps = {
           name: allProps[0].name,
           mcCode: allProps[0].mcCode,
@@ -730,22 +820,28 @@ const onAssetsSelected = async (dbIds) => {
 
         // 比较每个属性
         for (let i = 1; i < allProps.length; i++) {
+          console.log(`  比较第 ${i + 1} 个资产:`, allProps[i]);
           const props = allProps[i];
-          if (mergedProps.name !== props.name) mergedProps.name = VARIES_VALUE;
-          if (mergedProps.mcCode !== props.mcCode) mergedProps.mcCode = VARIES_VALUE;
-          if (mergedProps.level !== props.level) mergedProps.level = VARIES_VALUE;
-          if (mergedProps.room !== props.room) mergedProps.room = VARIES_VALUE;
-          if (mergedProps.omniClass21Number !== props.omniClass21Number) mergedProps.omniClass21Number = VARIES_VALUE;
-          if (mergedProps.omniClass21Description !== props.omniClass21Description) mergedProps.omniClass21Description = VARIES_VALUE;
-          if (mergedProps.category !== props.category) mergedProps.category = VARIES_VALUE;
-          if (mergedProps.family !== props.family) mergedProps.family = VARIES_VALUE;
-          if (mergedProps.type !== props.type) mergedProps.type = VARIES_VALUE;
-          if (mergedProps.typeComments !== props.typeComments) mergedProps.typeComments = VARIES_VALUE;
-          if (mergedProps.specName !== props.specName) mergedProps.specName = VARIES_VALUE;
-          if (mergedProps.manufacturer !== props.manufacturer) mergedProps.manufacturer = VARIES_VALUE;
-          if (mergedProps.address !== props.address) mergedProps.address = VARIES_VALUE;
-          if (mergedProps.phone !== props.phone) mergedProps.phone = VARIES_VALUE;
+          const base = allProps[0]; // 用第一个元素作为基准
+          
+          // 每次都和base比较，避免在循环中污染merged
+          if (mergedProps.name !== VARIES_VALUE && !isSameValue(base.name, props.name)) mergedProps.name = VARIES_VALUE;
+          if (mergedProps.mcCode !== VARIES_VALUE && !isSameValue(base.mcCode, props.mcCode)) mergedProps.mcCode = VARIES_VALUE;
+          if (mergedProps.level !== VARIES_VALUE && !isSameValue(base.level, props.level)) mergedProps.level = VARIES_VALUE;
+          if (mergedProps.room !== VARIES_VALUE && !isSameValue(base.room, props.room)) mergedProps.room = VARIES_VALUE;
+          if (mergedProps.omniClass21Number !== VARIES_VALUE && !isSameValue(base.omniClass21Number, props.omniClass21Number)) mergedProps.omniClass21Number = VARIES_VALUE;
+          if (mergedProps.omniClass21Description !== VARIES_VALUE && !isSameValue(base.omniClass21Description, props.omniClass21Description)) mergedProps.omniClass21Description = VARIES_VALUE;
+          if (mergedProps.category !== VARIES_VALUE && !isSameValue(base.category, props.category)) mergedProps.category = VARIES_VALUE;
+          if (mergedProps.family !== VARIES_VALUE && !isSameValue(base.family, props.family)) mergedProps.family = VARIES_VALUE;
+          if (mergedProps.type !== VARIES_VALUE && !isSameValue(base.type, props.type)) mergedProps.type = VARIES_VALUE;
+          if (mergedProps.typeComments !== VARIES_VALUE && !isSameValue(base.typeComments, props.typeComments)) mergedProps.typeComments = VARIES_VALUE;
+          if (mergedProps.specName !== VARIES_VALUE && !isSameValue(base.specName, props.specName)) mergedProps.specName = VARIES_VALUE;
+          if (mergedProps.manufacturer !== VARIES_VALUE && !isSameValue(base.manufacturer, props.manufacturer)) mergedProps.manufacturer = VARIES_VALUE;
+          if (mergedProps.address !== VARIES_VALUE && !isSameValue(base.address, props.address)) mergedProps.address = VARIES_VALUE;
+          if (mergedProps.phone !== VARIES_VALUE && !isSameValue(base.phone, props.phone)) mergedProps.phone = VARIES_VALUE;
         }
+        
+        console.log('✅ 合并后的属性:', mergedProps);
 
         selectedRoomProperties.value = mergedProps;
       } else {
@@ -754,6 +850,74 @@ const onAssetsSelected = async (dbIds) => {
     }
   }
 };
+
+// 处理属性变更事件
+const onPropertyChanged = ({ fieldName, newValue }) => {
+  console.log(`📝 App.vue 收到属性变更: ${fieldName} = ${newValue}`);
+  
+  // 更新 selectedRoomProperties
+  if (selectedRoomProperties.value) {
+    selectedRoomProperties.value[fieldName] = newValue;
+  }
+  
+  // 根据当前视图更新对应的列表数据
+  if (currentView.value === 'assets') {
+    // 批量更新 assetList
+    const codes = selectedObjectIds.value.length > 0 ? selectedObjectIds.value : [selectedRoomProperties.value?.mcCode];
+    
+    codes.forEach(mcCode => {
+      const currentAsset = assetList.value.find(a => a.mcCode === mcCode);
+      if (currentAsset) {
+        // 字段名映射：前端字段 -> 数据列表字段
+        const fieldMap = {
+          name: 'name',
+          typeComments: 'specCode',
+          specName: 'specName',
+          level: 'floor',
+          room: 'room',
+          omniClass21Number: 'classification_code',
+          omniClass21Description: 'classification_desc',
+          category: 'category',
+          family: 'family',
+          type: 'type',
+          manufacturer: 'manufacturer',
+          address: 'address',
+          phone: 'phone'
+        };
+        
+        const listField = fieldMap[fieldName];
+        if (listField) {
+          currentAsset[listField] = newValue;
+          console.log(`✅ 已更新 assetList 中 ${mcCode} 的 ${listField}`);
+        }
+      }
+    });
+  } else {
+    // 批量更新 roomList
+    const codes = selectedObjectIds.value.length > 0 ? selectedObjectIds.value : [selectedRoomProperties.value?.code];
+    
+    codes.forEach(code => {
+      const currentRoom = roomList.value.find(r => r.code === code);
+      if (currentRoom) {
+        const fieldMap = {
+          name: 'name',
+          area: 'area',
+          perimeter: 'perimeter',
+          level: 'floor',
+          spaceNumber: 'classificationCode',
+          spaceDescription: 'classificationDesc'
+        };
+        
+        const listField = fieldMap[fieldName];
+        if (listField) {
+          currentRoom[listField] = newValue;
+          console.log(`✅ 已更新 roomList 中 ${code} 的 ${listField}`);
+        }
+      }
+    });
+  }
+};
+
 
 // 🔑 仅加载资产属性（反向定位专用，不触发孤立操作）
 const loadAssetProperties = (dbIds) => {
@@ -815,12 +979,20 @@ const loadAssetProperties = (dbIds) => {
 
     if (allProps.length > 0) {
       const VARIES_VALUE = '__VARIES__';
+      
+      // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
+      const isSameValue = (v1, v2) => {
+        const normalize = (v) => (v == null || v === '') ? '' : String(v);
+        return normalize(v1) === normalize(v2);
+      };
+      
       const mergedProps = { ...allProps[0], isMultiple: true };
+      const base = allProps[0]; // 用第一个元素作为基准
       
       for (let i = 1; i < allProps.length; i++) {
         const props = allProps[i];
         Object.keys(mergedProps).forEach(key => {
-          if (key !== 'isMultiple' && mergedProps[key] !== props[key]) {
+          if (key !== 'isMultiple' && mergedProps[key] !== VARIES_VALUE && !isSameValue(base[key], props[key])) {
             mergedProps[key] = VARIES_VALUE;
           }
         });
@@ -851,6 +1023,13 @@ const loadRoomProperties = (dbIds) => {
     // 多选：合并属性
     if (mainViewRef.value?.getRoomProperties) {
       const VARIES_VALUE = '__VARIES__';
+      
+      // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
+      const isSameValue = (v1, v2) => {
+        const normalize = (v) => (v == null || v === '') ? '' : String(v);
+        return normalize(v1) === normalize(v2);
+      };
+      
       Promise.all(dbIds.map(id => mainViewRef.value.getRoomProperties(id))).then(allProps => {
         const base = allProps[0] || {};
         const merged = {
@@ -865,12 +1044,12 @@ const loadRoomProperties = (dbIds) => {
         
         for (let i = 1; i < allProps.length; i++) {
           const p = allProps[i] || {};
-          if (merged.code !== p.code) merged.code = VARIES_VALUE;
-          if (merged.name !== p.name) merged.name = VARIES_VALUE;
-          if (merged.area !== p.area) merged.area = VARIES_VALUE;
-          if (merged.perimeter !== p.perimeter) merged.perimeter = VARIES_VALUE;
-          if (merged.spaceNumber !== p.spaceNumber) merged.spaceNumber = VARIES_VALUE;
-          if (merged.spaceDescription !== p.spaceDescription) merged.spaceDescription = VARIES_VALUE;
+          if (!isSameValue(merged.code, p.code)) merged.code = VARIES_VALUE;
+          if (!isSameValue(merged.name, p.name)) merged.name = VARIES_VALUE;
+          if (!isSameValue(merged.area, p.area)) merged.area = VARIES_VALUE;
+          if (!isSameValue(merged.perimeter, p.perimeter)) merged.perimeter = VARIES_VALUE;
+          if (!isSameValue(merged.spaceNumber, p.spaceNumber)) merged.spaceNumber = VARIES_VALUE;
+          if (!isSameValue(merged.spaceDescription, p.spaceDescription)) merged.spaceDescription = VARIES_VALUE;
         }
         
         selectedRoomProperties.value = merged;

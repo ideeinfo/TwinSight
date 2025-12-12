@@ -21,22 +21,22 @@
           <!-- 资产模式 -->
           <div class="form-group" v-if="isAssetMode">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
-            <div class="row"><label>{{ t('rightPanel.assetCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.mcCode) }">{{ formatValue(roomProperties?.mcCode) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.typeComments) }">{{ formatValue(roomProperties?.typeComments) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.name) }">{{ formatValue(roomProperties?.name) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.level') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.level) }">{{ formatValue(roomProperties?.level) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.room') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.room) }">{{ formatValue(roomProperties?.room) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.assetCode') }}</label><EditableField :model-value="localProperties.mcCode" :disabled="true" :placeholder="t('common.none')" /></div>
+            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><EditableField :model-value="localProperties.typeComments" :field-type="getFieldType('typeComments')" :disabled="!isFieldEditable('typeComments')" :placeholder="t('common.none')" @change="handleFieldChange('typeComments', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><EditableField :model-value="localProperties.name" :field-type="getFieldType('name')" :disabled="!isFieldEditable('name')" :placeholder="t('common.none')" @change="handleFieldChange('name', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.level') }}</label><EditableField :model-value="localProperties.level" :field-type="getFieldType('level')" :disabled="!isFieldEditable('level')" :placeholder="t('common.none')" @change="handleFieldChange('level', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.room') }}</label><EditableField :model-value="localProperties.room" :field-type="getFieldType('room')" :disabled="!isFieldEditable('room')" :placeholder="t('common.none')" @change="handleFieldChange('room', $event)" /></div>
           </div>
           <!-- 房间模式 -->
           <div class="form-group" v-else-if="roomProperties">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
-            <div class="row"><label>{{ t('rightPanel.code') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.code) }">{{ formatValue(roomProperties?.code) || t('common.none') }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.name') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.name) }">{{ formatValue(roomProperties?.name) || t('common.none') }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.area') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.area) }">{{ formatValue(roomProperties?.area) || t('common.none') }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.perimeter') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.perimeter) }">{{ formatValue(roomProperties?.perimeter) || t('common.none') }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.level') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.level) }">{{ formatValue(roomProperties?.level) || t('common.none') }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.spaceNumber') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.spaceNumber) }">{{ formatValue(roomProperties?.spaceNumber) || (roomProperties?.isMultiple ? t('common.multiple') : t('common.none')) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.spaceDescription') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.spaceDescription) }">{{ formatValue(roomProperties?.spaceDescription) || (roomProperties?.isMultiple ? t('common.multiple') : t('common.none')) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.code') }}</label><EditableField :model-value="localProperties.code" :disabled="true" :placeholder="t('common.none')" /></div>
+            <div class="row"><label>{{ t('rightPanel.name') }}</label><EditableField :model-value="localProperties.name" :field-type="getFieldType('name')" :disabled="!isFieldEditable('name')" :placeholder="t('common.none')" @change="handleFieldChange('name', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.area') }}</label><EditableField :model-value="localProperties.area" :field-type="getFieldType('area')" :disabled="!isFieldEditable('area')" :placeholder="t('common.none')" @change="handleFieldChange('area', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.perimeter') }}</label><EditableField :model-value="localProperties.perimeter" :field-type="getFieldType('perimeter')" :disabled="!isFieldEditable('perimeter')" :placeholder="t('common.none')" @change="handleFieldChange('perimeter', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.level') }}</label><EditableField :model-value="localProperties.level" :field-type="getFieldType('level')" :disabled="!isFieldEditable('level')" :placeholder="t('common.none')" @change="handleFieldChange('level', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.spaceNumber') }}</label><EditableField :model-value="localProperties.spaceNumber" :field-type="getFieldType('spaceNumber')" :disabled="!isFieldEditable('spaceNumber')" :placeholder="t('common.none')" @change="handleFieldChange('spaceNumber', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.spaceDescription') }}</label><EditableField :model-value="localProperties.spaceDescription" :field-type="getFieldType('spaceDescription')" :disabled="!isFieldEditable('spaceDescription')" :placeholder="t('common.none')" @change="handleFieldChange('spaceDescription', $event)" /></div>
           </div>
           <!-- 房间模式：未选中时显示空白属性字段 -->
           <div class="form-group" v-else>
@@ -64,16 +64,16 @@
           <!-- 资产模式 -->
           <div class="form-group" v-if="isAssetMode">
             <div class="sub-label">{{ t('rightPanel.common') }}</div>
-            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.typeComments) }">{{ formatValue(roomProperties?.typeComments) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.specName') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.specName) }">{{ formatValue(roomProperties?.specName) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.classificationCode') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Number) }">{{ formatValue(roomProperties?.omniClass21Number) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.classificationDesc') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.omniClass21Description) }">{{ formatValue(roomProperties?.omniClass21Description) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.category') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.category) }">{{ formatValue(roomProperties?.category) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.family') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.family) }">{{ formatValue(roomProperties?.family) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.typeLabel') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.type) }">{{ formatValue(roomProperties?.type) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.manufacturer) }">{{ formatValue(roomProperties?.manufacturer) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.address') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.address) }">{{ formatValue(roomProperties?.address) }}</div></div>
-            <div class="row"><label>{{ t('rightPanel.phone') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.phone) }">{{ formatValue(roomProperties?.phone) }}</div></div>
+            <div class="row"><label>{{ t('rightPanel.specCode') }}</label><EditableField :model-value="localProperties.typeComments" :field-type="getFieldType('typeComments')" :disabled="!isFieldEditable('typeComments')" :placeholder="t('common.none')" @change="handleFieldChange('typeComments', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.specName') }}</label><EditableField :model-value="localProperties.specName" :field-type="getFieldType('specName')" :disabled="!isFieldEditable('specName')" :placeholder="t('common.none')" @change="handleFieldChange('specName', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.classificationCode') }}</label><EditableField :model-value="localProperties.omniClass21Number" :field-type="getFieldType('omniClass21Number')" :disabled="!isFieldEditable('omniClass21Number')" :placeholder="t('common.none')" @change="handleFieldChange('omniClass21Number', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.classificationDesc') }}</label><EditableField :model-value="localProperties.omniClass21Description" :field-type="getFieldType('omniClass21Description')" :disabled="!isFieldEditable('omniClass21Description')" :placeholder="t('common.none')" @change="handleFieldChange('omniClass21Description', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.category') }}</label><EditableField :model-value="localProperties.category" :field-type="getFieldType('category')" :disabled="!isFieldEditable('category')" :placeholder="t('common.none')" @change="handleFieldChange('category', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.family') }}</label><EditableField :model-value="localProperties.family" :field-type="getFieldType('family')" :disabled="!isFieldEditable('family')" :placeholder="t('common.none')" @change="handleFieldChange('family', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.typeLabel') }}</label><EditableField :model-value="localProperties.type" :field-type="getFieldType('type')" :disabled="!isFieldEditable('type')" :placeholder="t('common.none')" @change="handleFieldChange('type', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><EditableField :model-value="localProperties.manufacturer" :field-type="getFieldType('manufacturer')" :disabled="!isFieldEditable('manufacturer')" :placeholder="t('common.none')" @change="handleFieldChange('manufacturer', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.address') }}</label><EditableField :model-value="localProperties.address" :field-type="getFieldType('address')" :disabled="!isFieldEditable('address')" :placeholder="t('common.none')" @change="handleFieldChange('address', $event)" /></div>
+            <div class="row"><label>{{ t('rightPanel.phone') }}</label><EditableField :model-value="localProperties.phone" :field-type="getFieldType('phone')" :disabled="!isFieldEditable('phone')" :placeholder="t('common.none')" @change="handleFieldChange('phone', $event)" /></div>
           </div>
           
           
@@ -86,8 +86,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import EditableField from './EditableField.vue';
 
 const { t } = useI18n();
 
@@ -96,21 +97,238 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  selectedIds: {
+    type: Array,
+    default: () => []
+  },
   viewMode: {
     type: String,
     default: 'connect' // 'connect' or 'assets'
   }
 });
 
-const emit = defineEmits(['close-properties']);
+const emit = defineEmits(['close-properties', 'property-changed']);
 const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
+
+// 创建本地可编辑副本
+const localProperties = ref({});
+
+// 监听 props 变化，同步到本地副本
+watch(() => props.roomProperties, (newVal) => {
+  if (newVal) {
+    localProperties.value = { ...newVal };
+  } else {
+    localProperties.value = {};
+  }
+}, { deep: true, immediate: true });
 
 // 判断是否为资产模式
 const isAssetMode = computed(() => {
   return props.viewMode === 'assets';
 });
+
+// 定义字段及其类型
+// type: 'text' | 'number' | 'date' | 'readonly'
+const assetFieldTypes = {
+  mcCode: 'readonly',  // 资产编码不可编辑（主键）
+  typeComments: 'text', // 规格编码
+  specName: 'text',     // 规格名称
+  name: 'text',
+  level: 'text',
+  room: 'text',
+  omniClass21Number: 'text',
+  omniClass21Description: 'text',
+  category: 'text',
+  family: 'text',
+  type: 'text',
+  manufacturer: 'text',
+  address: 'text',
+  phone: 'text'
+};
+
+const spaceFieldTypes = {
+  code: 'readonly',  // 空间编码不可编辑（主键）
+  name: 'text',
+  area: 'number',
+  perimeter: 'number',
+  level: 'text',
+  spaceNumber: 'text',
+  spaceDescription: 'text'
+};
+
+// 处理字段变更
+const handleFieldChange = async (fieldName, newValue) => {
+  console.log(`字段 ${fieldName} 更新为:`, newValue);
+  
+  // 检查是否为批量编辑（多个对象选中）
+  const isMultiEdit = props.selectedIds && props.selectedIds.length > 1;
+  
+  if (isMultiEdit) {
+    console.log(`🔢 批量编辑模式: 将更新 ${props.selectedIds.length} 个对象`);
+  }
+  
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    
+    if (isAssetMode.value) {
+      // 更新资产数据
+      const assetCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.mcCode];
+      
+      if (!assetCodes || assetCodes.length === 0 || !assetCodes[0]) {
+        console.error('无法获取资产编码');
+        return;
+      }
+      
+      // 根据字段名映射到数据库字段
+      const fieldMapping = {
+        mcCode: 'asset_code',
+        typeComments: 'spec_code',
+        specName: 'spec_name',
+        name: 'name',
+        level: 'floor',
+        room: 'room',
+        omniClass21Number: 'classification_code',
+        omniClass21Description: 'classification_desc',
+        category: 'category',
+        family: 'family',
+        type: 'type',
+        manufacturer: 'manufacturer',
+        address: 'address',
+        phone: 'phone'
+      };
+      
+      const dbField = fieldMapping[fieldName];
+      if (!dbField) {
+        console.error('未知的字段名:', fieldName);
+        return;
+      }
+      
+      // 批量更新所有选中的资产
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const assetCode of assetCodes) {
+        try {
+          console.log(`🔄 正在更新资产: ${assetCode}`);
+          
+          const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              [dbField]: newValue
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: response.statusText }));
+            console.error(`❌ 更新资产 ${assetCode} 失败:`, errorData);
+            failCount++;
+            continue;
+          }
+          
+          const result = await response.json();
+          console.log(`✅ 资产 ${assetCode} 更新成功`);
+          successCount++;
+        } catch (err) {
+          console.error(`❌ 更新资产 ${assetCode} 异常:`, err);
+          failCount++;
+        }
+      }
+      
+      // 更新本地副本
+      localProperties.value[fieldName] = newValue;
+      
+      console.log(`✅ 批量更新完成: 成功 ${successCount}, 失败 ${failCount}`);
+      
+      if (successCount > 0) {
+        emit('property-changed', { fieldName, newValue });
+      }
+      
+      if (failCount > 0) {
+        alert(`部分更新失败: ${failCount} 个对象更新失败`);
+      }
+      
+    } else {
+      // 更新空间数据
+      const spaceCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.code];
+      
+      if (!spaceCodes || spaceCodes.length === 0 || !spaceCodes[0]) {
+        console.error('无法获取空间编码');
+        return;
+      }
+      
+      const fieldMapping = {
+        code: 'space_code',
+        name: 'name',
+        area: 'area',
+        perimeter: 'perimeter',
+        level: 'floor',
+        spaceNumber: 'classification_code',
+        spaceDescription: 'classification_desc'
+      };
+      
+      const dbField = fieldMapping[fieldName];
+      if (!dbField) {
+        console.error('未知的字段名:', fieldName);
+        return;
+      }
+      
+      // 批量更新所有选中的空间
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const spaceCode of spaceCodes) {
+        try {
+          console.log(`🔄 正在更新空间: ${spaceCode}`);
+          
+          const response = await fetch(`${API_BASE}/api/spaces/${spaceCode}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              [dbField]: newValue
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: response.statusText }));
+            console.error(`❌ 更新空间 ${spaceCode} 失败:`, errorData);
+            failCount++;
+            continue;
+          }
+          
+          const result = await response.json();
+          console.log(`✅ 空间 ${spaceCode} 更新成功`);
+          successCount++;
+        } catch (err) {
+          console.error(`❌ 更新空间 ${spaceCode} 异常:`, err);
+          failCount++;
+        }
+      }
+      
+      // 更新本地副本
+      localProperties.value[fieldName] = newValue;
+      
+      console.log(`✅ 批量更新完成: 成功 ${successCount}, 失败 ${failCount}`);
+      
+      if (successCount > 0) {
+        emit('property-changed', { fieldName, newValue });
+      }
+      
+      if (failCount > 0) {
+        alert(`部分更新失败: ${failCount} 个对象更新失败`);
+      }
+    }
+  } catch (error) {
+    console.error('保存失败:', error);
+    alert(t('common.saveFailed') || '保存失败: ' + error.message);
+  }
+};
 
 // 格式化属性值，处理 VARIES 标记
 const formatValue = (value) => {
@@ -122,6 +340,19 @@ const formatValue = (value) => {
 };
 
 const isVaries = (value) => String(value) === '__VARIES__';
+
+// 判断字段是否可编辑
+const isFieldEditable = (fieldName) => {
+  // 允许多选状态下编辑（批量编辑）
+  const fieldTypes = isAssetMode.value ? assetFieldTypes : spaceFieldTypes;
+  return fieldTypes[fieldName] !== 'readonly';
+};
+
+// 获取字段类型
+const getFieldType = (fieldName) => {
+  const fieldTypes = isAssetMode.value ? assetFieldTypes : spaceFieldTypes;
+  return fieldTypes[fieldName] || 'text';
+};
 
 // 计算面包屑文本
 const breadcrumbText = computed(() => {

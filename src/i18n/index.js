@@ -15,7 +15,10 @@ const messages = {
       create: '创建',
       search: '搜索',
       status: '状态',
-      saving: '保存中...'
+      saving: '保存中...',
+      saveFailed: '保存失败',
+      saveSuccess: '保存成功',
+      clickToEditAll: '点击编辑所有选中对象'
     },
     header: {
       properties: '属性',
@@ -162,6 +165,8 @@ const messages = {
         specCode: '规格编码',
         specName: '规格名称',
         name: '名称',
+        area: '面积',
+        perimeter: '周长',
         floor: '楼层',
         room: '房间',
         classificationCode: '分类编码',
@@ -235,7 +240,10 @@ const messages = {
       none: '--',
       create: 'Create',
       search: 'Search',
-      status: 'Status'
+      status: 'Status',
+      saveFailed: 'Save failed',
+      saveSuccess: 'Saved successfully',
+      clickToEditAll: 'Click to edit all selected objects'
     },
     header: {
       properties: 'Properties',
@@ -380,7 +388,10 @@ const messages = {
       fields: {
         assetCode: 'Code',
         specCode: 'Spec Code',
+        specName: 'Spec Name',
         name: 'Name',
+        area: 'Area',
+        perimeter: 'Perimeter',
         floor: 'Floor',
         room: 'Room',
         classificationCode: 'Classification Code',

@@ -91,6 +91,9 @@ export function getDefaultMapping() {
         spaceMapping: {
             spaceCode: { category: '标识数据', property: '编号' },
             name: { category: '标识数据', property: '名称' },
+            area: { category: '尺寸标注', property: '面积' },
+            perimeter: { category: '尺寸标注', property: '周长' },
+            floor: { category: '约束', property: '标高' },
             classificationCode: { category: '数据', property: 'Classification.OmniClass.21.Number' },
             classificationDesc: { category: '数据', property: 'Classification.OmniClass.21.Description' }
         }
