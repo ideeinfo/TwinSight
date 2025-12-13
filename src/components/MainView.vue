@@ -478,6 +478,11 @@ const initViewer = () => {
     if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
     if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
     
+    // 反转鼠标缩放方向（滚轮向上放大）
+    if (viewer.navigation) {
+      viewer.navigation.setReverseZoomDirection(true);
+    }
+    
     // 设置 UI 观察器
     const root = viewerContainer.value;
     if (root) {
