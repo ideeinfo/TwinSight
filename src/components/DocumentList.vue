@@ -256,10 +256,20 @@ const triggerFileInput = () => {
 const handleFileSelect = (event) => {
   const files = Array.from(event.target.files);
   
-  // 立即清空input（无论是否选择了文件）
+  // 立即清空input
   event.target.value = '';
   
   if (files.length === 0) return;
+
+  // 使用 setTimeout 确保在干净的事件循环中处理
+  // 增加延迟以绕过可能的浏览器阻塞操作
+  setTimeout(() => {
+    processFiles(files);
+  }, 100);
+};
+
+// 实际处理文件的函数
+const processFiles = (files) => {
 
   // 过滤超过200MB的文件
   const validFiles = [];
@@ -293,8 +303,15 @@ const handleFileSelect = (event) => {
   
   uploadQueue.value.push(...uploadItems);
 
-  // 确保 UI 更新后再开始上传
+  // 强制 DOM 重排，确保进度条立即显示
   nextTick(() => {
+    // 读取 offsetHeight 强制浏览器计算布局
+    const container = document.querySelector('.upload-queue');
+    if (container) {
+      void container.offsetHeight;
+    }
+    
+    // 开始上传
     for (const uploadItem of uploadItems) {
       uploadFile(uploadItem);
     }
