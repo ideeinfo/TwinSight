@@ -155,7 +155,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DocumentPreview from './DocumentPreview.vue';
 
@@ -246,15 +246,22 @@ watch(() => relatedCode.value, () => {
 
 // 触发文件选择
 const triggerFileInput = () => {
-  fileInput.value?.click();
+  // 使用 setTimeout 确保不阻塞 UI
+  setTimeout(() => {
+    fileInput.value?.click();
+  }, 0);
 };
 
 // 处理文件选择（支持多文件）
-const handleFileSelect = async (event) => {
+const handleFileSelect = (event) => {
   const files = Array.from(event.target.files);
+  
+  // 立即清空input（无论是否选择了文件）
+  event.target.value = '';
+  
   if (files.length === 0) return;
 
-  // 过滤超过50MB的文件
+  // 过滤超过200MB的文件
   const validFiles = [];
   const invalidFiles = [];
   
@@ -271,28 +278,27 @@ const handleFileSelect = async (event) => {
   }
 
   if (validFiles.length === 0) {
-    event.target.value = '';
     return;
   }
 
-  // 将文件添加到上传队列
-  for (const file of validFiles) {
-    const uploadItem = {
-      id: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name: file.name,
-      size: file.size,
-      progress: 0,
-      status: 'uploading',
-      file: file
-    };
-    uploadQueue.value.push(uploadItem);
-    
-    // 开始上传
-    uploadFile(uploadItem);
-  }
+  // 立即将所有文件添加到上传队列
+  const uploadItems = validFiles.map(file => ({
+    id: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: file.name,
+    size: file.size,
+    progress: 0,
+    status: 'uploading',
+    file: file
+  }));
+  
+  uploadQueue.value.push(...uploadItems);
 
-  // 清空input
-  event.target.value = '';
+  // 确保 UI 更新后再开始上传
+  nextTick(() => {
+    for (const uploadItem of uploadItems) {
+      uploadFile(uploadItem);
+    }
+  });
 };
 
 // 上传单个文件

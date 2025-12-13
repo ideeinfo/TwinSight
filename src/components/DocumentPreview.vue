@@ -236,11 +236,22 @@ const initPanorama = () => {
   panoramaViewer = new Viewer({
     container: panoramaRef.value,
     panorama: fileUrl.value,
-    defaultZoomLvl: 50,
+    defaultZoomLvl: 0,  // 从最小缩放开始
     minFov: 30,
     maxFov: 90,
     navbar: false,
     loadingTxt: '加载中...',
+  });
+
+  // 加载完成后执行入场动画
+  panoramaViewer.addEventListener('ready', () => {
+    // 入场动画：缩放到正常视野，同时稍微旋转
+    panoramaViewer.animate({
+      yaw: Math.PI / 4,  // 旋转 45 度
+      pitch: 0,
+      zoom: 50,  // 缩放到 50%
+      speed: 1500,  // 1.5 秒完成
+    });
   });
 };
 
