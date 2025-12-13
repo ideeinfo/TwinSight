@@ -33,7 +33,7 @@
         class="document-item"
       >
         <div class="doc-icon">
-          <component :is="getFileIcon(doc.file_type)" />
+          <span v-html="getFileIcon(doc)"></span>
         </div>
         
         <div class="doc-info">
@@ -184,21 +184,35 @@ const relatedCode = computed(() => {
   return props.assetCode || props.spaceCode || props.specCode;
 });
 
-// 文件图标组件
-const getFileIcon = (fileType) => {
+// 文件图标 - 根据文件类型返回 SVG 字符串（低可视度设计）
+const getFileIcon = (doc) => {
+  const fileType = doc?.file_type?.toLowerCase();
+  
+  // 检查是否是全景图（长宽比接近 2:1）
+  const isPanorama = () => {
+    if (!['jpg', 'jpeg', 'png'].includes(fileType)) return false;
+    const width = doc.image_width;
+    const height = doc.image_height;
+    if (!width || !height || height === 0) return false;
+    const ratio = width / height;
+    return ratio >= 1.9 && ratio <= 2.1;
+  };
+
+  // 全景图图标 - 青灰色
+  if (isPanorama()) {
+    return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1" fill="#4a5568"/><ellipse cx="8" cy="8" rx="5" ry="2.5" stroke="#718096" stroke-width="1" fill="none"/></svg>';
+  }
+
   const icons = {
-    pdf: {
-      template: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" fill="#e74c3c"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8" font-weight="bold">PDF</text></svg>'
-    },
-    jpg: { template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#3498db"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8">JPG</text></svg>' },
-    jpeg: { template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#3498db"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8">JPG</text></svg>' },
-    png: { template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#9b59b6"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8">PNG</text></svg>' },
-    svg: { template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#2ecc71"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8">SVG</text></svg>' },
-    mp4: { template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#e67e22"/><polygon points="10,8 10,16 16,12" fill="white"/></svg>' }
+    pdf: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" fill="#4a5568"/><path d="M9 1v4h4" fill="#2d3748"/></svg>',
+    jpg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    jpeg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    png: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    svg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><path d="M4 10l2-3 2 2 3-4" stroke="#718096" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    mp4: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1" fill="#4a5568"/><polygon points="6.5,5.5 6.5,10.5 10.5,8" fill="#718096"/></svg>'
   };
-  return icons[fileType?.toLowerCase()] ||  {
-    template: '<svg width="24" height="24"><rect x="4" y="4" width="16" height="16" rx="2" fill="#95a5a6"/><text x="12" y="15" text-anchor="middle" fill="white" font-size="8">DOC</text></svg>'
-  };
+
+  return icons[fileType] || '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" fill="#4a5568"/><path d="M9 1v4h4" fill="#2d3748"/></svg>';
 };
 
 // 加载文档列表

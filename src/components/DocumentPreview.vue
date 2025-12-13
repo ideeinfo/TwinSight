@@ -2,12 +2,14 @@
   <Teleport to="body">
     <div v-if="visible" class="preview-overlay" @click.self="close">
       <div class="preview-container" :class="containerClass">
-        <!-- 头部 -->
         <div class="preview-header">
-          <div class="preview-title">{{ document?.title || document?.file_name }}</div>
+          <div class="preview-title">
+            {{ document?.title || document?.file_name }}
+            <span v-if="isPanorama" class="panorama-badge">360°</span>
+          </div>
           <div class="preview-actions">
-            <!-- 图片缩放控制 -->
-            <template v-if="isImage">
+            <!-- 图片缩放控制 (非全景图) -->
+            <template v-if="isImage && !isPanorama">
               <button class="preview-btn" @click="zoomOut" :disabled="zoom <= 0.25" title="缩小">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"></circle>
@@ -60,7 +62,27 @@
             ></iframe>
           </div>
 
-          <!-- 图片预览 -->
+          <!-- 全景图预览 -->
+          <div v-if="isPanorama" class="panorama-wrapper">
+            <div ref="panoramaRef" class="panorama-viewer"></div>
+            <!-- 自定义控制按钮 -->
+            <div class="panorama-controls">
+              <button class="pano-btn" @click="panoramaZoomIn" title="放大">+</button>
+              <button class="pano-btn" @click="panoramaZoomOut" title="缩小">−</button>
+              <button class="pano-btn" @click="panoramaFullscreen" title="全屏">⛶</button>
+            </div>
+            <div class="panorama-hint">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 9l-3 3 3 3"/>
+                <path d="M19 9l3 3-3 3"/>
+                <path d="M12 5l-3-3 3-3"/>
+                <path d="M12 19l-3 3 3 3"/>
+              </svg>
+              <span>拖动或滑动查看 360° 全景</span>
+            </div>
+          </div>
+
+          <!-- 普通图片预览 -->
           <div 
             v-else-if="isImage" 
             class="image-wrapper"
@@ -109,7 +131,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted, onMounted } from 'vue';
+import 'pannellum/build/pannellum.css';
+import 'pannellum';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -127,6 +151,8 @@ const isDragging = ref(false);
 const dragStart = ref({ x: 0, y: 0 });
 const contentRef = ref(null);
 const videoRef = ref(null);
+const panoramaRef = ref(null);
+let panoramaViewer = null;
 
 // 获取文件 URL
 const fileUrl = computed(() => {
@@ -143,10 +169,21 @@ const isPdf = computed(() => fileType.value === 'pdf');
 const isImage = computed(() => ['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp'].includes(fileType.value));
 const isVideo = computed(() => ['mp4', 'webm', 'ogg'].includes(fileType.value));
 
+// 判断是否是全景图（长宽比接近 2:1）
+const isPanorama = computed(() => {
+  if (!['jpg', 'jpeg', 'png'].includes(fileType.value)) return false;
+  const width = props.document?.image_width;
+  const height = props.document?.image_height;
+  if (!width || !height || height === 0) return false;
+  const ratio = width / height;
+  return ratio >= 1.9 && ratio <= 2.1;
+});
+
 // 容器样式类
 const containerClass = computed(() => ({
   'is-pdf': isPdf.value,
-  'is-image': isImage.value,
+  'is-image': isImage.value && !isPanorama.value,
+  'is-panorama': isPanorama.value,
   'is-video': isVideo.value
 }));
 
@@ -164,6 +201,12 @@ watch(() => props.visible, async (val) => {
     // 添加键盘事件监听
     document.addEventListener('keydown', handleKeydown);
     
+    // 如果是全景图，初始化 Pannellum
+    if (isPanorama.value) {
+      await nextTick();
+      initPanorama();
+    }
+    
     // 如果是视频，等待 DOM 更新后自动播放
     if (isVideo.value) {
       await nextTick();
@@ -179,7 +222,64 @@ watch(() => props.visible, async (val) => {
     if (videoRef.value) {
       videoRef.value.pause();
     }
+    // 销毁全景图查看器
+    destroyPanorama();
   }
+});
+
+// 初始化全景图查看器
+const initPanorama = () => {
+  if (!panoramaRef.value || !window.pannellum) return;
+  
+  destroyPanorama();
+  
+  panoramaViewer = window.pannellum.viewer(panoramaRef.value, {
+    type: 'equirectangular',
+    panorama: fileUrl.value,
+    autoLoad: true,
+    autoRotate: -2,
+    compass: false,
+    showZoomCtrl: false,       // 隐藏内置缩放控件
+    showFullscreenCtrl: false, // 隐藏内置全屏控件
+    mouseZoom: true,
+    hfov: 100,
+    minHfov: 50,
+    maxHfov: 120
+  });
+};
+
+// 全景图缩放控制
+const panoramaZoomIn = () => {
+  if (panoramaViewer) {
+    const hfov = panoramaViewer.getHfov();
+    panoramaViewer.setHfov(Math.max(hfov - 10, 50));
+  }
+};
+
+const panoramaZoomOut = () => {
+  if (panoramaViewer) {
+    const hfov = panoramaViewer.getHfov();
+    panoramaViewer.setHfov(Math.min(hfov + 10, 120));
+  }
+};
+
+const panoramaFullscreen = () => {
+  if (panoramaViewer) {
+    panoramaViewer.toggleFullscreen();
+  }
+};
+
+// 销毁全景图查看器
+const destroyPanorama = () => {
+  if (panoramaViewer) {
+    panoramaViewer.destroy();
+    panoramaViewer = null;
+  }
+};
+
+// 组件卸载时清理
+onUnmounted(() => {
+  destroyPanorama();
 });
 
 // 键盘事件处理
@@ -313,6 +413,12 @@ const close = () => {
   max-width: 1000px;
 }
 
+.preview-container.is-panorama {
+  width: 95vw;
+  height: 85vh;
+  max-width: 1600px;
+}
+
 .preview-header {
   display: flex;
   align-items: center;
@@ -324,6 +430,9 @@ const close = () => {
 }
 
 .preview-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 500;
   color: #eee;
@@ -331,6 +440,18 @@ const close = () => {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 50%;
+}
+
+.panorama-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: linear-gradient(135deg, #16a085, #1abc9c);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
 }
 
 .preview-actions {
@@ -458,5 +579,100 @@ const close = () => {
 
 .download-btn:hover {
   background: #106ebe;
+}
+
+/* 全景图样式 */
+.panorama-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.panorama-viewer {
+  width: 100%;
+  height: 100%;
+}
+
+.panorama-hint {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 20px;
+  color: #aaa;
+  font-size: 12px;
+  pointer-events: none;
+  animation: fadeInUp 0.5s ease 1s both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 自定义全景图控制按钮 */
+.panorama-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.pano-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pano-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Pannellum 样式覆盖 */
+:deep(.pnlm-container) {
+  background: #1a1a1a !important;
+}
+
+/* 隐藏内置控件 */
+:deep(.pnlm-controls-container) {
+  display: none !important;
+}
+
+:deep(.pnlm-load-box) {
+  background: rgba(0, 0, 0, 0.7) !important;
+  border-radius: 8px !important;
+}
+
+:deep(.pnlm-lbar) {
+  background: #16a085 !important;
+}
+
+:deep(.pnlm-lbar-fill) {
+  background: #1abc9c !important;
 }
 </style>

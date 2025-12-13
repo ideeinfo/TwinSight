@@ -3,7 +3,9 @@ import multer from 'multer';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
+import ExifParser from 'exif-parser';
 import documentModel from '../models/document.js';
+import documentExifModel from '../models/document-exif.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +64,81 @@ const upload = multer({
 });
 
 /**
+ * 提取图像 EXIF 信息
+ * @param {string} filePath - 文件路径
+ * @param {string} fileType - 文件类型
+ * @returns {Object|null} EXIF 数据
+ */
+async function extractExif(filePath, fileType) {
+    // 只处理 JPG/JPEG 文件（PNG 通常不包含 EXIF）
+    if (!['jpg', 'jpeg'].includes(fileType.toLowerCase())) {
+        return null;
+    }
+
+    try {
+        const buffer = await fs.readFile(filePath);
+        const parser = ExifParser.create(buffer);
+        const result = parser.parse();
+
+        if (!result || !result.tags) {
+            return null;
+        }
+
+        const tags = result.tags;
+        const imageSize = result.imageSize || {};
+
+        // 处理日期时间
+        let dateTime = null;
+        if (tags.DateTimeOriginal) {
+            // EXIF 日期格式通常是 Unix 时间戳
+            dateTime = new Date(tags.DateTimeOriginal * 1000);
+        } else if (tags.CreateDate) {
+            dateTime = new Date(tags.CreateDate * 1000);
+        }
+
+        // 处理 GPS 坐标
+        let gpsLongitude = null;
+        let gpsLatitude = null;
+        if (tags.GPSLongitude !== undefined && tags.GPSLatitude !== undefined) {
+            gpsLongitude = tags.GPSLongitude;
+            gpsLatitude = tags.GPSLatitude;
+        }
+
+        // 处理曝光时间（转换为分数形式）
+        let exposureTime = null;
+        if (tags.ExposureTime) {
+            if (tags.ExposureTime < 1) {
+                exposureTime = `1/${Math.round(1 / tags.ExposureTime)}s`;
+            } else {
+                exposureTime = `${tags.ExposureTime}s`;
+            }
+        }
+
+        return {
+            // 文件组
+            dateTime,
+            imageWidth: imageSize.width || tags.ImageWidth || tags.ExifImageWidth,
+            imageHeight: imageSize.height || tags.ImageHeight || tags.ExifImageHeight,
+
+            // 照相机组
+            equipModel: tags.Model || tags.Make,
+            fNumber: tags.FNumber,
+            exposureTime,
+            isoSpeed: tags.ISO,
+            focalLength: tags.FocalLength,
+
+            // GPS组
+            gpsLongitude,
+            gpsLatitude,
+            gpsAltitude: tags.GPSAltitude
+        };
+    } catch (error) {
+        console.error('提取 EXIF 信息失败:', error.message);
+        return null;
+    }
+}
+
+/**
  * 上传文档
  * POST /api/documents/upload
  * 表单数据: file, assetCode/spaceCode/specCode, title (可选)
@@ -109,7 +186,20 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         const result = await documentModel.createDocument(doc);
 
-        res.json({ success: true, data: result });
+        // 提取并保存 EXIF 信息（仅 JPG/JPEG）
+        let exifData = null;
+        if (['jpg', 'jpeg'].includes(doc.fileType)) {
+            const exif = await extractExif(req.file.path, doc.fileType);
+            if (exif) {
+                exifData = await documentExifModel.createExif({
+                    documentId: result.id,
+                    ...exif
+                });
+                console.log(`EXIF 信息已保存: 文档ID ${result.id}`);
+            }
+        }
+
+        res.json({ success: true, data: result, exif: exifData });
     } catch (error) {
         console.error('文档上传失败:', error);
         // 如果创建记录失败，删除已上传的文件
@@ -125,14 +215,15 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 /**
- * 获取文档列表
+ * 获取文档列表（包含 EXIF 信息）
  * GET /api/documents?assetCode=xxx 或 ?spaceCode=xxx 或 ?specCode=xxx
  */
 router.get('/', async (req, res) => {
     try {
         const { assetCode, spaceCode, specCode } = req.query;
 
-        const documents = await documentModel.getDocuments({
+        // 使用带有 EXIF 信息的查询
+        const documents = await documentExifModel.getDocumentsWithExif({
             assetCode,
             spaceCode,
             specCode
@@ -161,6 +252,41 @@ router.get('/:id', async (req, res) => {
         res.json({ success: true, data: document });
     } catch (error) {
         console.error('获取文档详情失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 获取文档 EXIF 信息
+ * GET /api/documents/:id/exif
+ */
+router.get('/:id/exif', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // 验证文档存在
+        const document = await documentModel.getDocumentById(id);
+        if (!document) {
+            return res.status(404).json({ success: false, error: '文档不存在' });
+        }
+
+        // 获取 EXIF 信息
+        const exif = await documentExifModel.getExifByDocumentId(id);
+
+        if (!exif) {
+            return res.json({
+                success: true,
+                data: null,
+                message: '该文档没有 EXIF 信息'
+            });
+        }
+
+        // 格式化为分组结构
+        const exifGroups = documentExifModel.formatExifGroups(exif);
+
+        res.json({ success: true, data: exif, groups: exifGroups });
+    } catch (error) {
+        console.error('获取 EXIF 信息失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
