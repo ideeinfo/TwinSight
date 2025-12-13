@@ -131,9 +131,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onUnmounted, onMounted } from 'vue';
-import 'pannellum/build/pannellum.css';
-import 'pannellum';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
+import { Viewer } from '@photo-sphere-viewer/core';
+import '@photo-sphere-viewer/core/index.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -227,39 +227,35 @@ watch(() => props.visible, async (val) => {
   }
 });
 
-// 初始化全景图查看器
+// 初始化全景图查看器 (Photo Sphere Viewer)
 const initPanorama = () => {
-  if (!panoramaRef.value || !window.pannellum) return;
+  if (!panoramaRef.value) return;
   
   destroyPanorama();
   
-  panoramaViewer = window.pannellum.viewer(panoramaRef.value, {
-    type: 'equirectangular',
+  panoramaViewer = new Viewer({
+    container: panoramaRef.value,
     panorama: fileUrl.value,
-    autoLoad: true,
-    autoRotate: -2,
-    compass: false,
-    showZoomCtrl: false,       // 隐藏内置缩放控件
-    showFullscreenCtrl: false, // 隐藏内置全屏控件
-    mouseZoom: true,
-    hfov: 100,
-    minHfov: 50,
-    maxHfov: 120
+    defaultZoomLvl: 50,
+    minFov: 30,
+    maxFov: 90,
+    navbar: false,
+    loadingTxt: '加载中...',
   });
 };
 
 // 全景图缩放控制
 const panoramaZoomIn = () => {
   if (panoramaViewer) {
-    const hfov = panoramaViewer.getHfov();
-    panoramaViewer.setHfov(Math.max(hfov - 10, 50));
+    const currentZoom = panoramaViewer.getZoomLevel();
+    panoramaViewer.zoom(Math.min(currentZoom + 10, 100));
   }
 };
 
 const panoramaZoomOut = () => {
   if (panoramaViewer) {
-    const hfov = panoramaViewer.getHfov();
-    panoramaViewer.setHfov(Math.min(hfov + 10, 120));
+    const currentZoom = panoramaViewer.getZoomLevel();
+    panoramaViewer.zoom(Math.max(currentZoom - 10, 0));
   }
 };
 
@@ -653,26 +649,16 @@ const close = () => {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Pannellum 样式覆盖 */
-:deep(.pnlm-container) {
+/* Photo Sphere Viewer 样式覆盖 */
+:deep(.psv-container) {
   background: #1a1a1a !important;
 }
 
-/* 隐藏内置控件 */
-:deep(.pnlm-controls-container) {
-  display: none !important;
-}
-
-:deep(.pnlm-load-box) {
+:deep(.psv-loader-container) {
   background: rgba(0, 0, 0, 0.7) !important;
-  border-radius: 8px !important;
 }
 
-:deep(.pnlm-lbar) {
-  background: #16a085 !important;
-}
-
-:deep(.pnlm-lbar-fill) {
-  background: #1abc9c !important;
+:deep(.psv-loader) {
+  color: #1abc9c !important;
 }
 </style>
