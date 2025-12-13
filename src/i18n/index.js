@@ -196,6 +196,25 @@ const messages = {
         confirmOverwrite: '该文件已存在关联数据，再次导出将覆盖（先清除）现有数据。确认继续吗？'
       }
     },
+    document: {
+      title: '文档',
+      upload: '上传文档',
+      edit: '编辑标题',
+      delete: '删除',
+      download: '下载',
+      preview: '预览',
+      noDocuments: '暂无文档',
+      uploadSuccess: '上传成功',
+      uploadFailed: '上传失败',
+      deleteConfirm: '确定删除文档"{title}"吗？',
+      deleteFailed: '删除失败',
+      supportedFormats: '支持格式：PDF, JPG, PNG, MP4',
+      fileTooLarge: '文件过大，最大支持200MB',
+      uploading: '上传中',
+      today: '今天',
+      yesterday: '昨天',
+      daysAgo: '天前'
+    },
     filePanel: {
       files: '文件',
       uploadModel: '上传模型',
@@ -420,6 +439,25 @@ const messages = {
         help3: 'For special properties (e.g., Classification.OmniClass.21.Number), only the property name is matched, category is ignored',
         confirmOverwrite: 'This file already has associated data. Exporting again will overwrite (clear) existing data. Continue?'
       }
+    },
+    document: {
+      title: 'Documents',
+      upload: 'Upload',
+      edit: 'Edit Title',
+      delete: 'Delete',
+      download: 'Download',
+      preview: 'Preview',
+      noDocuments: 'No documents',
+      uploadSuccess: 'Upload successful',
+      uploadFailed: 'Upload failed',
+      deleteConfirm: 'Delete document "{title}"?',
+      deleteFailed: 'Delete failed',
+      supportedFormats: 'Supported: PDF, JPG, PNG, MP4',
+      fileTooLarge: 'File too large, max 200MB',
+      uploading: 'Uploading',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      daysAgo: 'days ago'
     },
     filePanel: {
       files: 'Files',

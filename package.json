@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "multer": "^2.0.2",
     "vue": "^3.5.24",
     "vue-i18n": "^9.14.5"
   },

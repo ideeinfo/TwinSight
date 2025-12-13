@@ -57,6 +57,13 @@
             <div class="row"><label>{{ t('rightPanel.rooms') }}</label><div class="val-box" :class="{ placeholder: isVaries(roomProperties?.room) }">{{ formatValue(roomProperties?.room) }}</div></div>
           </div>
         </div>
+        
+        <!-- 文档 - 关系下方 -->
+        <DocumentList 
+          v-if="!localProperties.isMultiple"
+          :assetCode="isAssetMode ? localProperties.mcCode : null" 
+          :spaceCode="!isAssetMode ? localProperties.code : null"
+        />
       </div>
       <div v-if="activeTab === 'TYPE'">
         <div class="group-header" @click="toggleGroup('type_asset')"><span>{{ t('rightPanel.assetProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_asset }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
@@ -80,6 +87,12 @@
         </div>
         <div class="group-header" @click="toggleGroup('type_design')"><span>{{ t('rightPanel.designProperties') }}</span><svg class="arrow-icon" :class="{ rotated: collapsedState.type_design }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
         <div class="group-body" v-show="!collapsedState.type_design"><div class="form-group"><div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div><div class="row"><label>{{ t('rightPanel.model') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div></div></div>
+        
+        <!-- 文档 - 设计属性下方 -->
+        <DocumentList 
+          v-if="!localProperties.isMultiple && isAssetMode"
+          :specCode="localProperties.typeComments || localProperties.specCode"
+        />
       </div>
     </div>
   </div>
@@ -89,6 +102,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EditableField from './EditableField.vue';
+import DocumentList from './DocumentList.vue';
 
 const { t } = useI18n();
 

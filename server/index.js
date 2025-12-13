@@ -4,9 +4,15 @@
  */
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
 import apiRoutes from './routes/api.js';
 import fileRoutes from './routes/files.js';
+import documentRoutes from './routes/documents.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 加载环境变量
 config();
@@ -19,8 +25,12 @@ app.use(cors({
     origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
     credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
+
+// 静态文件服务 - 用于访问上传的文档
+// 使用绝对路径：server/../public/docs = project_root/public/docs
+app.use('/docs', express.static(path.join(__dirname, '../public/docs')));
 
 // 请求日志
 app.use((req, res, next) => {
@@ -31,6 +41,7 @@ app.use((req, res, next) => {
 // API 路由
 app.use('/api', apiRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/documents', documentRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {

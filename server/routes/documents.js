@@ -1,0 +1,259 @@
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { promises as fs } from 'fs';
+import { fileURLToPath } from 'url';
+import documentModel from '../models/document.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const router = express.Router();
+
+// 配置文件上传
+const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../public/docs');
+        try {
+            await fs.mkdir(uploadDir, { recursive: true });
+            cb(null, uploadDir);
+        } catch (error) {
+            cb(error);
+        }
+    },
+    filename: (req, file, cb) => {
+        // 使用更安全的唯一文件名
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 15);
+        const ext = path.extname(file.originalname);
+        // 唯一编码：时间戳_随机字符串.扩展名
+        const uniqueName = `${timestamp}_${random}${ext}`;
+        cb(null, uniqueName);
+    }
+});
+
+// 文件过滤器
+const fileFilter = (req, file, cb) => {
+    const allowedTypes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/svg+xml',
+        'video/mp4'
+    ];
+
+    const allowedExts = ['.pdf', '.jpg', '.jpeg', '.png', '.svg', '.mp4'];
+    const ext = path.extname(file.originalname).toLowerCase();
+
+    if (allowedTypes.includes(file.mimetype) && allowedExts.includes(ext)) {
+        cb(null, true);
+    } else {
+        cb(new Error('不支持的文件类型。仅支持 PDF, JPG, PNG, SVG, MP4 格式'), false);
+    }
+};
+
+const upload = multer({
+    storage,
+    fileFilter,
+    limits: {
+        fileSize: 200 * 1024 * 1024 // 200MB 限制
+    }
+});
+
+/**
+ * 上传文档
+ * POST /api/documents/upload
+ * 表单数据: file, assetCode/spaceCode/specCode, title (可选)
+ */
+router.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: '没有上传文件' });
+        }
+
+        const { assetCode, spaceCode, specCode, title } = req.body;
+
+        // 验证必须有一个关联对象
+        if (!assetCode && !spaceCode && !specCode) {
+            // 删除已上传的文件
+            await fs.unlink(req.file.path);
+            return res.status(400).json({
+                success: false,
+                error: '必须指定 assetCode, spaceCode 或 specCode'
+            });
+        }
+
+        // 修复中文文件名编码问题：multer 会将 UTF-8 编码的文件名以 latin1 方式存储
+        // 需要将其转换回 UTF-8
+        let originalName = req.file.originalname;
+        try {
+            // 尝试将 latin1 编码转换为 UTF-8
+            originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        } catch (e) {
+            // 如果转换失败，使用原始文件名
+            console.warn('文件名编码转换失败，使用原始文件名:', e.message);
+        }
+
+        const doc = {
+            title: title || originalName, // 默认使用文件名
+            fileName: originalName,
+            filePath: `/docs/${req.file.filename}`,
+            fileSize: req.file.size,
+            fileType: path.extname(originalName).substring(1).toLowerCase(),
+            mimeType: req.file.mimetype,
+            assetCode: assetCode || null,
+            spaceCode: spaceCode || null,
+            specCode: specCode || null
+        };
+
+        const result = await documentModel.createDocument(doc);
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('文档上传失败:', error);
+        // 如果创建记录失败，删除已上传的文件
+        if (req.file) {
+            try {
+                await fs.unlink(req.file.path);
+            } catch (unlinkError) {
+                console.error('删除文件失败:', unlinkError);
+            }
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 获取文档列表
+ * GET /api/documents?assetCode=xxx 或 ?spaceCode=xxx 或 ?specCode=xxx
+ */
+router.get('/', async (req, res) => {
+    try {
+        const { assetCode, spaceCode, specCode } = req.query;
+
+        const documents = await documentModel.getDocuments({
+            assetCode,
+            spaceCode,
+            specCode
+        });
+
+        res.json({ success: true, data: documents });
+    } catch (error) {
+        console.error('获取文档列表失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 获取文档详情
+ * GET /api/documents/:id
+ */
+router.get('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const document = await documentModel.getDocumentById(id);
+
+        if (!document) {
+            return res.status(404).json({ success: false, error: '文档不存在' });
+        }
+
+        res.json({ success: true, data: document });
+    } catch (error) {
+        console.error('获取文档详情失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 更新文档标题
+ * PUT /api/documents/:id
+ * body: { title }
+ */
+router.put('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title } = req.body;
+
+        if (!title || title.trim() === '') {
+            return res.status(400).json({ success: false, error: '标题不能为空' });
+        }
+
+        const result = await documentModel.updateDocumentTitle(id, title.trim());
+
+        if (!result) {
+            return res.status(404).json({ success: false, error: '文档不存在' });
+        }
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('更新文档标题失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 删除文档
+ * DELETE /api/documents/:id
+ */
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // 先获取文档信息以删除文件
+        const document = await documentModel.getDocumentById(id);
+
+        if (!document) {
+            return res.status(404).json({ success: false, error: '文档不存在' });
+        }
+
+        // 删除数据库记录
+        const result = await documentModel.deleteDocument(id);
+
+        // 删除物理文件
+        const filePath = path.join(__dirname, '../../public', document.file_path);
+        try {
+            await fs.unlink(filePath);
+        } catch (unlinkError) {
+            console.error('删除文件失败:', unlinkError);
+            // 继续执行，不影响数据库删除
+        }
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        console.error('删除文档失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 下载文档
+ * GET /api/documents/:id/download
+ */
+router.get('/:id/download', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const document = await documentModel.getDocumentById(id);
+
+        if (!document) {
+            return res.status(404).json({ success: false, error: '文档不存在' });
+        }
+
+        const filePath = path.join(__dirname, '../../public', document.file_path);
+
+        // 检查文件是否存在
+        try {
+            await fs.access(filePath);
+        } catch {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        // 设置下载头
+        res.download(filePath, document.file_name);
+    } catch (error) {
+        console.error('下载文档失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+export default router;
