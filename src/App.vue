@@ -459,10 +459,30 @@ const onAssetsLoaded = (assets) => {
   }
 };
 
-const onChartDataUpdate = (data) => {
+const onChartDataUpdate = async (data) => {
   chartData.value = data;
   if (mainViewRef.value?.getTimeRange) {
     currentRange.value = mainViewRef.value.getTimeRange();
+  }
+  
+  // 如果有选中的房间，同时刷新 selectedRoomSeries
+  if (savedRoomSelections.value.length > 0 && mainViewRef.value?.getTimeRange) {
+    const selectedRooms = roomList.value.filter(r => savedRoomSelections.value.includes(r.dbId));
+    if (selectedRooms.length > 0) {
+      const { startMs, endMs, windowMs } = mainViewRef.value.getTimeRange();
+      try {
+        const list = await Promise.all(
+          selectedRooms.map(r => 
+            queryRoomSeries(r.code, startMs, endMs, windowMs)
+              .then(points => ({ room: r.code, name: r.name, points }))
+          )
+        );
+        selectedRoomSeries.value = list;
+        console.log(`📊 已刷新 ${list.length} 个房间的图表数据`);
+      } catch (err) {
+        console.warn('⚠️ 刷新房间图表数据失败:', err);
+      }
+    }
   }
 };
 

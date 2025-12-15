@@ -316,10 +316,12 @@ const loadChartData = async () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = Math.max(60_000, Math.round((end - start) / 300));
+  console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}`);
   if (isInfluxConfigured()) {
     try {
       const pts = await queryAverageSeries(start, end, windowMs);
       chartData.value = pts || [];
+      console.log(`  📈 图表数据已更新: ${chartData.value.length} 个点`);
     } catch (err) {
       console.warn('⚠️ 从 InfluxDB 加载图表数据失败:', err);
       chartData.value = [];
@@ -332,7 +334,7 @@ const loadChartData = async () => {
 
 const refreshRoomSeriesCache = async (codes) => {
   isCacheReady.value = false;
-  if (!isInfluxConfigured()) { roomSeriesCache = {}; isCacheReady.value = true; return; }
+  if (!isInfluxConfigured()) { roomSeriesCache = {}; overlaySeries.value = []; isCacheReady.value = true; return; }
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = Math.max(60_000, Math.round((end - start)/300));
@@ -342,6 +344,13 @@ const refreshRoomSeriesCache = async (codes) => {
   const cache = {};
   list.forEach(({ code, pts }) => { cache[code] = pts || []; });
   roomSeriesCache = cache;
+  
+  // 更新 overlaySeries（用于下方图表显示）
+  if (selectedRoomCodes.value.length > 0) {
+    overlaySeries.value = selectedRoomCodes.value.map(code => roomSeriesCache[code] || []);
+    console.log(`  📊 图表覆盖层已更新: ${overlaySeries.value.length} 个房间`);
+  }
+  
   isCacheReady.value = true;
 };
 
@@ -2443,7 +2452,7 @@ watch(locale, (newLocale, oldLocale) => {
 
 // 自动刷新数据的定时器
 let autoRefreshTimer = null;
-const AUTO_REFRESH_INTERVAL = 15000; // 15秒
+const AUTO_REFRESH_INTERVAL = 60000; // 60秒（1分钟）
 
 const startAutoRefresh = () => {
   if (autoRefreshTimer) return; // 防止重复启动
@@ -2493,13 +2502,16 @@ const startAutoRefresh = () => {
         setTagTempsAtCurrentTime();
       }
       
+      // 触发图表数据更新事件，通知 App.vue 刷新底部图表
+      emit('chart-data-update', chartData.value);
+      
       console.log(`✅ 刷新完成`);
     } catch (err) {
       console.warn('⚠️ 自动刷新失败:', err);
     }
   }, AUTO_REFRESH_INTERVAL);
   
-  console.log('✅ 自动刷新已启动 (每15秒)');
+  console.log('✅ 自动刷新已启动 (每1分钟)');
 };
 
 const stopAutoRefresh = () => {

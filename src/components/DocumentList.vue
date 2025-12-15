@@ -184,7 +184,7 @@ const relatedCode = computed(() => {
   return props.assetCode || props.spaceCode || props.specCode;
 });
 
-// 文件图标 - 根据文件类型返回 SVG 字符串（低可视度设计）
+// 文件图标 - 正方形线形设计，不同文件类型使用不同颜色
 const getFileIcon = (doc) => {
   const fileType = doc?.file_type?.toLowerCase();
   
@@ -198,21 +198,64 @@ const getFileIcon = (doc) => {
     return ratio >= 1.9 && ratio <= 2.1;
   };
 
-  // 全景图图标 - 青灰色
+  // 全景图图标 - 紫色
   if (isPanorama()) {
-    return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1" fill="#4a5568"/><ellipse cx="8" cy="8" rx="5" ry="2.5" stroke="#718096" stroke-width="1" fill="none"/></svg>';
+    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <ellipse cx="12" cy="12" rx="6" ry="3"/>
+      <line x1="12" y1="9" x2="12" y2="15"/>
+    </svg>`;
   }
 
+  // 线形图标定义 - 正方形 20x20，不同颜色
   const icons = {
-    pdf: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" fill="#4a5568"/><path d="M9 1v4h4" fill="#2d3748"/></svg>',
-    jpg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
-    jpeg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
-    png: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><circle cx="5.5" cy="5.5" r="1.5" fill="#718096"/><path d="M14 10l-3-3-5 5" stroke="#718096" stroke-width="1.5" stroke-linecap="round"/></svg>',
-    svg: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1" fill="#4a5568"/><path d="M4 10l2-3 2 2 3-4" stroke="#718096" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    mp4: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1" fill="#4a5568"/><polygon points="6.5,5.5 6.5,10.5 10.5,8" fill="#718096"/></svg>'
+    // PDF - 红色
+    pdf: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <path d="M9 13h6"/>
+      <path d="M9 17h6"/>
+    </svg>`,
+    
+    // JPG/JPEG - 蓝色
+    jpg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>`,
+    
+    jpeg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>`,
+    
+    // PNG - 绿色
+    png: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>`,
+    
+    // SVG - 橙色
+    svg: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <path d="M7 14l3-3 2 2 4-4"/>
+      <circle cx="17" cy="10" r="1"/>
+    </svg>`,
+    
+    // MP4 视频 - 青色
+    mp4: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <polygon points="10 8 16 12 10 16 10 8"/>
+    </svg>`
   };
 
-  return icons[fileType] || '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 1h5l4 4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z" fill="#4a5568"/><path d="M9 1v4h4" fill="#2d3748"/></svg>';
+  // 默认文件图标 - 灰色
+  return icons[fileType] || `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+  </svg>`;
 };
 
 // 加载文档列表
