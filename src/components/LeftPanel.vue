@@ -51,9 +51,29 @@
           </div>
 
           <div class="item-content"><div class="item-name">{{ item.name }}</div><div class="item-code">{{ item.code }}</div></div>
-          <svg class="link-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          <svg 
+            class="link-icon" 
+            width="14" 
+            height="14" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="#888" 
+            stroke-width="2"
+            :title="t('leftPanel.copyStreamUrl')"
+            @click.stop="copyStreamUrl(item.code)"
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
         </div>
       </div>
+
+      <!-- 复制成功提示 -->
+      <Transition name="toast">
+        <div v-if="showCopyToast" class="copy-toast">
+          {{ t('leftPanel.urlCopied') }}
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
@@ -74,6 +94,10 @@ const emit = defineEmits(['open-properties', 'rooms-selected', 'toggle-streams',
 
 // 数据流按钮激活状态
 const isStreamsActive = ref(false);
+
+// 复制提示状态
+const showCopyToast = ref(false);
+let toastTimer = null;
 
 // 切换数据流面板
 const toggleStreams = () => {
@@ -127,6 +151,31 @@ const selectItem = (index) => {
   if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
 
+// 复制 Stream URL 到剪贴板
+const copyStreamUrl = async (spaceCode) => {
+  try {
+    // 从服务器获取完整的 Stream URL（包含 API Key）
+    const response = await fetch(`/api/v1/timeseries/stream-url/${encodeURIComponent(spaceCode)}`);
+    const result = await response.json();
+    
+    if (result.success && result.data?.streamUrl) {
+      // 复制到剪贴板
+      await navigator.clipboard.writeText(result.data.streamUrl);
+      
+      // 显示成功提示
+      showCopyToast.value = true;
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        showCopyToast.value = false;
+      }, 2000);
+    } else {
+      console.error('获取 Stream URL 失败:', result.error);
+    }
+  } catch (error) {
+    console.error('复制 Stream URL 失败:', error);
+  }
+};
+
 </script>
 
 <style scoped>
@@ -165,9 +214,37 @@ const selectItem = (index) => {
 .item-content { flex: 1; min-width: 0; }
 .item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-code { font-size: 10px; color: #888; margin-top: 2px; }
-.link-icon { flex-shrink: 0; opacity: 0.5; }
+.link-icon { flex-shrink: 0; opacity: 0.5; cursor: pointer; transition: all 0.2s; }
 .link-icon:hover { opacity: 1; stroke: #00b0ff; }
 .loading-hint { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
+
+/* 复制成功提示 */
+.copy-toast {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #00b0ff 0%, #0091ea 100%);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 176, 255, 0.3);
+  z-index: 100;
+  white-space: nowrap;
+}
+
+/* Toast 动画 */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
+}
 
 /* 滚动条样式 */
 .item-list::-webkit-scrollbar { width: 10px; }

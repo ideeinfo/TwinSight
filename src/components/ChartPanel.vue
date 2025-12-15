@@ -5,12 +5,27 @@
       <button class="close" @click="$emit('close')">×</button>
     </ChartHeader>
 
-    <!-- 图表主体 -->
-    <div class="chart-body" ref="chartRef">
-      <!-- 静态网格线 -->
-      <div class="grid-line" style="bottom: 25%"></div>
-      <div class="grid-line" style="bottom: 50%"></div>
-      <div class="grid-line" style="bottom: 75%"></div>
+    <!-- 图表主体区域 -->
+    <div class="chart-main">
+      <!-- Y轴标签 (范围: -20°C 到 40°C) -->
+      <div class="y-axis">
+        <span class="y-label" style="bottom: 100%">40°C</span>
+        <span class="y-label" style="bottom: 83.3%">30°C</span>
+        <span class="y-label" style="bottom: 66.7%">20°C</span>
+        <span class="y-label" style="bottom: 50%">10°C</span>
+        <span class="y-label" style="bottom: 33.3%">0°C</span>
+        <span class="y-label" style="bottom: 16.7%">-10°C</span>
+        <span class="y-label" style="bottom: 0%">-20°C</span>
+      </div>
+      
+      <!-- 图表绘制区域 -->
+      <div class="chart-body" ref="chartRef">
+        <!-- 静态网格线 -->
+        <div class="grid-line" style="bottom: 16.7%"></div>
+        <div class="grid-line" style="bottom: 33.3%"></div>
+        <div class="grid-line" style="bottom: 50%"></div>
+        <div class="grid-line" style="bottom: 66.7%"></div>
+        <div class="grid-line" style="bottom: 83.3%"></div>
 
       <!-- 阈值线 -->
       <div class="threshold-line" :style="{ bottom: thresholdBottom + '%' }">
@@ -63,18 +78,22 @@
       </div>
 
       <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
+      </div>
     </div>
 
-      <!-- 底部标签 -->
-      <div class="chart-footer">
-        <div class="axis-labels">
+    <!-- 底部标签 -->
+    <div class="chart-footer">
+      <div class="axis-labels">
+        <div class="axis-spacer"></div>
+        <div class="axis-content">
           <span v-for="(label, index) in xLabels" :key="index">{{ label }}</span>
         </div>
-        <div class="legend">
-          <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ overCount }})</span>
-          <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
-        </div>
       </div>
+      <div class="legend">
+        <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ overCount }})</span>
+        <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -96,7 +115,7 @@ const emit = defineEmits(['close','hover-sync']);
 const { data: displayData } = toRefs(props);
 
 // === 配置 ===
-const MIN_Y = 0;
+const MIN_Y = -20;
 const MAX_Y = 40;
 const THRESHOLD = 30;
 
@@ -115,11 +134,14 @@ const thresholdBottom = computed(() => ((THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) *
 
 const linePath = computed(() => {
   if (!displayData.value.length) return '';
+  const len = displayData.value.length;
   return displayData.value.map((point, index) => {
-    const x = (index / (displayData.value.length - 1)) * 1000;
+    const x = len > 1 ? (index / (len - 1)) * 1000 : 500;
     const ratio = (point.value - MIN_Y) / (MAX_Y - MIN_Y);
     const y = 100 - (ratio * 100);
-    return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    const safeX = isNaN(x) ? 0 : x;
+    const safeY = isNaN(y) ? 50 : y;
+    return `${index === 0 ? 'M' : 'L'} ${safeX.toFixed(1)} ${safeY.toFixed(1)}`;
   }).join(' ');
 });
 
@@ -236,6 +258,29 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
   color: #f48771;
 }
 
+.chart-main {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.y-axis {
+  width: 40px;
+  position: relative;
+  background: #1e1e1e;
+  flex-shrink: 0;
+}
+
+.y-label {
+  position: absolute;
+  right: 4px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #aaa;
+  pointer-events: none;
+}
+
 .chart-body {
   flex: 1;
   position: relative;
@@ -339,9 +384,19 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
 
 .axis-labels {
   display: flex;
-  justify-content: space-between;
   color: #666;
   font-size: 10px;
+}
+
+.axis-spacer {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.axis-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
 }
 
 .legend {

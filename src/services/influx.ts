@@ -77,7 +77,7 @@ export async function queryRoomSeries(roomCode: string, startMs: number, endMs: 
   const flux = `from(bucket: "${bucket}")
   |> range(start: ${startIso}, stop: ${endIso})
   |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value")
-  |> filter(fn: (r) => r.room == "${esc}" or r.code == "${esc}")
+  |> filter(fn: (r) => r.code == "${esc}")
   |> aggregateWindow(every: ${windowMs}ms, fn: min, createEmpty: false)`;
 
   const resp = await fetch(`${url}/api/v2/query?org=${encodeURIComponent(org)}`, {
@@ -108,8 +108,8 @@ export async function queryLatestByRooms(roomCodes: string[], lookbackMs: number
   const regex = roomCodes.map(escTag).join('|');
   const flux = `from(bucket: "${bucket}")
   |> range(start: ${startIso})
-  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value" and (r["room"] =~ /${regex}/ or r["code"] =~ /${regex}/))
-  |> group(columns: ["room", "code"]) 
+  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value" and r["code"] =~ /${regex}/)
+  |> group(columns: ["code"]) 
   |> last()`;
   const resp = await fetch(`${url}/api/v2/query?org=${encodeURIComponent(org)}`, {
     method: 'POST', headers: headersQuery(), body: flux
@@ -117,18 +117,18 @@ export async function queryLatestByRooms(roomCodes: string[], lookbackMs: number
   if (!resp.ok) return {};
   const csv = await resp.text();
   const lines = csv.split(/\r?\n/).filter(l => l && !l.startsWith('#'));
-  const header = lines.find(l => l.includes('_value') && (l.includes('room') || l.includes('code'))) || '';
+  const header = lines.find(l => l.includes('_value') && l.includes('code')) || '';
   const cols = header.split(',');
-  const idxRoom = cols.indexOf('room') >= 0 ? cols.indexOf('room') : cols.indexOf('code');
+  const idxCode = cols.indexOf('code');
   const idxValue = cols.indexOf('_value');
   const out: Record<string, number> = {};
   for (const l of lines) {
     if (l === header) continue;
     const parts = l.split(',');
-    if (parts.length <= Math.max(idxRoom, idxValue)) continue;
-    const rm = parts[idxRoom];
+    if (parts.length <= Math.max(idxCode, idxValue)) continue;
+    const code = parts[idxCode];
     const val = parseFloat(parts[idxValue]);
-    if (!Number.isNaN(val) && rm) out[rm] = val;
+    if (!Number.isNaN(val) && code) out[code] = val;
   }
   return out;
 }

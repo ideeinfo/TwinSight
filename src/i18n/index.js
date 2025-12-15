@@ -38,7 +38,9 @@ const messages = {
       connect: '连接',
       streams: '数据流',
       history: '历史',
-      inventory: '列表'
+      inventory: '列表',
+      copyStreamUrl: '复制数据接入 URL',
+      urlCopied: 'URL 已复制到剪贴板'
     },
     rightPanel: {
       properties: '属性',
@@ -93,6 +95,9 @@ const messages = {
       pause: '暂停',
       speed: '速度',
       timeRange: '时间范围',
+      '1h': '1小时',
+      '3h': '3小时',
+      '6h': '6小时',
       '24h': '24小时',
       '3d': '3天',
       '7d': '7天',
@@ -282,7 +287,9 @@ const messages = {
       connect: 'Connect',
       streams: 'Streams',
       history: 'History',
-      inventory: 'Inventory'
+      inventory: 'Inventory',
+      copyStreamUrl: 'Copy Stream URL',
+      urlCopied: 'URL copied to clipboard'
     },
     rightPanel: {
       properties: 'PROPERTIES',
@@ -337,6 +344,9 @@ const messages = {
       pause: 'Pause',
       speed: 'Speed',
       timeRange: 'Time Range',
+      '1h': '1 Hour',
+      '3h': '3 Hours',
+      '6h': '6 Hours',
       '24h': '24 Hours',
       '3d': '3 Days',
       '7d': '7 Days',

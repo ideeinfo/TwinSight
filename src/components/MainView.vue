@@ -59,7 +59,23 @@
           <div class="track-container" ref="trackRef" @mousedown="startDrag">
             <div class="mini-chart-layer">
       <svg class="svg-mini" viewBox="0 0 1000 100" preserveAspectRatio="none">
-                <defs><linearGradient id="miniAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.2" /><stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" /></linearGradient><linearGradient id="miniStrokeGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0.24" stop-color="#ff4d4d" /><stop offset="0.26" stop-color="#00b0ff" /></linearGradient></defs>
+                <defs>
+                  <linearGradient id="miniAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.2" />
+                    <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
+                  </linearGradient>
+                  <!-- 温度色带：从上到下 = 高温到低温 -->
+                  <!-- 40°C=红, 30°C=橙, 20°C=黄, 10°C=绿, 0°C=青, -20°C=蓝 -->
+                  <linearGradient id="miniStrokeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#ff0000" />    <!-- 40°C 红色 (最高) -->
+                    <stop offset="17%" stop-color="#ff6600" />   <!-- 30°C 橙色 -->
+                    <stop offset="33%" stop-color="#ffcc00" />   <!-- 20°C 黄色 -->
+                    <stop offset="50%" stop-color="#66cc00" />   <!-- 10°C 黄绿色 -->
+                    <stop offset="67%" stop-color="#00cc66" />   <!-- 0°C 青绿色 -->
+                    <stop offset="83%" stop-color="#00b0ff" />   <!-- -10°C 青色 -->
+                    <stop offset="100%" stop-color="#0066ff" />  <!-- -20°C 蓝色 (最低) -->
+                  </linearGradient>
+                </defs>
         <path v-if="!miniOverlayPaths.length" :d="miniAreaPath" fill="url(#miniAreaGrad)" stroke="none" />
         <path v-if="!miniOverlayPaths.length" :d="miniLinePath" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
         <path v-for="(p, idx) in miniOverlayPaths" :key="idx" :d="p" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
@@ -150,7 +166,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
-import { isInfluxConfigured, writeRoomHistory, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
+import { isInfluxConfigured, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
 import { useI18n } from 'vue-i18n';
 
 const { t, locale } = useI18n();
@@ -254,6 +270,9 @@ const tempEnd = ref(null);
 
 // 时间范围选项（支持多语言）
 const timeOptions = computed(() => [
+  { label: t('timeline.1h'), value: '1h' },
+  { label: t('timeline.3h'), value: '3h' },
+  { label: t('timeline.6h'), value: '6h' },
   { label: t('timeline.24h'), value: '24h' },
   { label: t('timeline.3d'), value: '3d' },
   { label: t('timeline.7d'), value: '7d' },
@@ -280,7 +299,7 @@ const calendarDayNames = computed(() => [
   t('calendar.sat')
 ]);
 
-// 图表数据改为可写 ref，通过 InfluxDB 拉取，失败时退回本地模拟
+// 图表数据从 InfluxDB 拉取（不使用本地模拟）
 const chartData = ref([]);
 const overlaySeries = ref([]);
 const isCacheReady = ref(false);
@@ -292,27 +311,7 @@ const selectedRoomCodes = ref([]);
 let roomSeriesCache = {};
 let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
 
-const computeValue = (timestamp) => {
-  const d = new Date(timestamp);
-  const h = d.getHours() + d.getMinutes() / 60;
-  const base = 26.5 + 2.2 * Math.sin(((h - 14) / 24) * 2 * Math.PI);
-  const noise = (Math.random() - 0.5) * 0.4;
-  return Math.max(24, Math.min(29, base + noise));
-};
-
-const genLocalSeries = () => {
-  const start = startDate.value.getTime();
-  const end = endDate.value.getTime();
-  const points = [];
-  const count = 300;
-  const step = (end - start) / (count - 1);
-  for (let i = 0; i < count; i++) {
-    const ts = start + i * step;
-    points.push({ timestamp: ts, value: computeValue(ts) });
-  }
-  chartData.value = points;
-};
-
+// 从 InfluxDB 加载图表数据
 const loadChartData = async () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
@@ -320,13 +319,15 @@ const loadChartData = async () => {
   if (isInfluxConfigured()) {
     try {
       const pts = await queryAverageSeries(start, end, windowMs);
-      if (pts.length) {
-        chartData.value = pts;
-        return;
-      }
-    } catch {}
+      chartData.value = pts || [];
+    } catch (err) {
+      console.warn('⚠️ 从 InfluxDB 加载图表数据失败:', err);
+      chartData.value = [];
+    }
+  } else {
+    console.warn('⚠️ InfluxDB 未配置，无法加载图表数据');
+    chartData.value = [];
   }
-  genLocalSeries();
 };
 
 const refreshRoomSeriesCache = async (codes) => {
@@ -376,9 +377,8 @@ const setTagTempsAtCurrentTime = () => {
       const idx = Math.round(percent * (pts.length - 1));
       const v = pts[idx]?.value;
       if (v !== undefined) tag.currentTemp = Number(v).toFixed(1);
-    } else if (!isInfluxConfigured()) {
-      tag.currentTemp = Number(currentTemp.value + tag.offset).toFixed(1);
     }
+    // 不再使用本地模拟数据，如果没有 InfluxDB 数据则不显示温度
   });
   if (isHeatmapEnabled.value && viewer) {
     if (!heatmapTimer) {
@@ -427,10 +427,28 @@ const currentTimeStr = computed(() => {
   return locale.value === 'zh' ? timeStr : timeStr + ' EDT';
 });
 
-const miniLinePath = computed(() => chartData.value.length ? chartData.value.map((p, i) => `${i===0?'M':'L'} ${(i/(chartData.value.length-1))*1000} ${100-((p.value-0)/40)*100}`).join(' ') : '');
+const miniLinePath = computed(() => {
+  if (!chartData.value.length) return '';
+  const len = chartData.value.length;
+  const MIN_Y = -20, MAX_Y = 40, RANGE = MAX_Y - MIN_Y; // 60度范围
+  return chartData.value.map((p, i) => {
+    const x = len > 1 ? (i / (len - 1)) * 1000 : 500; // 单点时放中间
+    const y = 100 - ((p.value - MIN_Y) / RANGE) * 100;
+    return `${i === 0 ? 'M' : 'L'} ${isNaN(x) ? 0 : x} ${isNaN(y) ? 50 : y}`;
+  }).join(' ');
+});
 const miniAreaPath = computed(() => miniLinePath.value ? `${miniLinePath.value} L 1000 100 L 0 100 Z` : '');
 const miniOverlayPaths = computed(() => {
-  return overlaySeries.value.map(series => series.map((p, i) => `${i===0?'M':'L'} ${(i/(series.length-1))*1000} ${100-((p.value-0)/40)*100}`).join(' '));
+  const MIN_Y = -20, MAX_Y = 40, RANGE = MAX_Y - MIN_Y;
+  return overlaySeries.value.map(series => {
+    if (!series.length) return '';
+    const len = series.length;
+    return series.map((p, i) => {
+      const x = len > 1 ? (i / (len - 1)) * 1000 : 500;
+      const y = 100 - ((p.value - MIN_Y) / RANGE) * 100;
+      return `${i === 0 ? 'M' : 'L'} ${isNaN(x) ? 0 : x} ${isNaN(y) ? 50 : y}`;
+    }).join(' ');
+  });
 });
 
 const generatedTicks = computed(() => {
@@ -867,8 +885,6 @@ const processRooms = (dbIds) => {
       if (pendingProps === 0) {
         // 所有属性获取完成，发送房间列表
 emit('rooms-loaded', roomList);
-// 异步写入 InfluxDB，不阻塞主流程
-seedRoomHistory(roomList).catch(err => console.warn('⚠️ InfluxDB 写入失败:', err));
 
         // 预取所有房间的时序缓存，确保首次播放就绪
         const allCodes = roomList.map(r => r.code).filter(Boolean);
@@ -1081,7 +1097,7 @@ const updateAllTagPositions = () => {
 
 // 7. 孤立并定位到指定房间（支持多选，供外部调用）
 const isolateAndFocusRooms = (dbIds) => {
-  if (!viewer || !dbIds || dbIds.length === 0) return;
+  if (!viewer || !viewer.model || !dbIds || dbIds.length === 0) return;
 
   // 设置标志，防止 onSelectionChanged 递归调用
   setManualSelection();
@@ -1143,20 +1159,22 @@ const isolateAndFocusRooms = (dbIds) => {
     viewer.clearThemingColors();
 
     const mat = getRoomMaterial();
-    const fragList = viewer.model.getFragmentList();
-    const tree = viewer.model.getInstanceTree();
+    const fragList = viewer.model?.getFragmentList();
+    const tree = viewer.model?.getInstanceTree();
 
     // 先清除所有房间的主题颜色
     foundRoomDbIds.forEach(dbId => {
       viewer.setThemingColor(dbId, null);
     });
 
-    // 然后只对选中的房间应用浅紫色材质
-    dbIds.forEach(dbId => {
-      tree.enumNodeFragments(dbId, (fragId) => {
-        fragList.setMaterial(fragId, mat);
+    // 然后只对选中的房间应用浅紫色材质（只有在 tree 可用时）
+    if (tree && fragList) {
+      dbIds.forEach(dbId => {
+        tree.enumNodeFragments(dbId, (fragId) => {
+          fragList.setMaterial(fragId, mat);
+        });
       });
-    });
+    }
   }
 
   // 定位到选中的房间
@@ -1309,12 +1327,19 @@ const applyHeatmapStyle = () => {
     }
 
     // 计算热力图颜色
-    const minT = 25, maxT = 35;
-    let t = (temperature - minT) / (maxT - minT);
+    // 温度范围：-20°C (深蓝) 到 40°C (纯红)
+    // 0°C = 青色, 10°C = 绿色, 20°C = 黄绿色, 30°C = 橙色, 40°C = 红色
+    const minT = -20, maxT = 40;
+    let t = (temperature - minT) / (maxT - minT); // 0 到 1
     t = Math.max(0, Math.min(1, t));
 
-    // 从蓝色(冷)到红色(热)
-    let hue = 200 - (t * 200); // 200(蓝) -> 0(红)
+    // 使用 HSL 色相：240(蓝) -> 180(青) -> 120(绿) -> 60(黄) -> 0(红)
+    // t=0 (-20°C): hue=240 (蓝)
+    // t=0.33 (0°C): hue=180 (青)
+    // t=0.5 (10°C): hue=120 (绿)
+    // t=0.67 (20°C): hue=60 (黄)
+    // t=1 (40°C): hue=0 (红)
+    let hue = 240 - (t * 240); // 240(蓝) -> 0(红)
 
     // 转换 HSL 到 RGB
     const hslToRgb = (h, s, l) => {
@@ -2377,7 +2402,7 @@ const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDat
 const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); emitRangeChanged(); };
 function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
 const toggleTimeRangeMenu = () => isTimeRangeMenuOpen.value = !isTimeRangeMenuOpen.value;
-const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
+const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '1h': 36e5, '3h': 3*36e5, '6h': 6*36e5, '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 const changeMonth = (d) => calendarViewDate.value = new Date(calendarViewDate.value.setMonth(calendarViewDate.value.getMonth() + d));
 const isSameDay = (d1, d2) => d1 && d2 && d1.toDateString() === d2.toDateString();
 const isDaySelected = (d) => isSameDay(d, tempStart.value) || isSameDay(d, tempEnd.value);
@@ -2403,27 +2428,6 @@ const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false;
 const handleClickOutside = (e) => { if(dropdownRef.value && !dropdownRef.value.contains(e.target)) isTimeRangeMenuOpen.value=false; };
 watch(isTimelineOpen, (newVal) => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
 watch([startDate, endDate], () => { loadChartData(); });
-let seeded = false;
-const seedRoomHistory = async (rooms) => {
-  if (!isInfluxConfigured() || seeded) return;
-  const now = Date.now();
-  const start = now - 30 * 24 * 60 * 60 * 1000;
-  const every = 15 * 60 * 1000;
-  for (const r of rooms) {
-    const nm = r.name || '';
-    const isExcluded = /泵房|格栅机间/.test(nm);
-    const isRest = /休息室/.test(nm);
-    if (isExcluded) continue;
-    const points = [];
-    for (let t = start; t <= now; t += every) {
-      let v = computeValue(t);
-      if (isRest) v = Math.max(23, Math.min(28, v - (1 + Math.random())));
-      points.push({ timestamp: t, value: v });
-    }
-      try { await writeRoomHistory(r.code, points); } catch {}
-  }
-  seeded = true;
-};
 
 // 监听语言切换，更新 Viewer 语言
 // 注意：Forge Viewer 的语言切换需要重新初始化，所以我们提示用户刷新页面
@@ -2437,10 +2441,85 @@ watch(locale, (newLocale, oldLocale) => {
   }
 });
 
+// 自动刷新数据的定时器
+let autoRefreshTimer = null;
+const AUTO_REFRESH_INTERVAL = 15000; // 15秒
+
+const startAutoRefresh = () => {
+  if (autoRefreshTimer) return; // 防止重复启动
+  
+  autoRefreshTimer = setInterval(async () => {
+    if (!isInfluxConfigured()) return;
+    
+    const now = new Date();
+    console.log(`🔄 自动刷新数据... [${now.toLocaleTimeString()}]`);
+    
+    try {
+      // 更新时间范围到当前时间（保持同样的时间跨度）
+      const duration = endDate.value.getTime() - startDate.value.getTime();
+      endDate.value = now;
+      startDate.value = new Date(now.getTime() - duration);
+      
+      // 刷新图表数据
+      await loadChartData();
+      
+      // 刷新房间时序缓存
+      const codes = roomTags.value.map(t => t.code).filter(Boolean);
+      console.log(`  🏠 发现 ${codes.length} 个房间标签`);
+      if (codes.length) {
+        await refreshRoomSeriesCache(codes).catch(() => {});
+        
+        // 更新最新温度值
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch((err) => {
+          console.warn('  ⚠️ queryLatestByRooms 失败:', err);
+          return {};
+        });
+        
+        const mapKeys = Object.keys(map);
+        console.log(`  📋 查询到 ${mapKeys.length} 个房间的数据: ${mapKeys.slice(0, 3).join(', ')}${mapKeys.length > 3 ? '...' : ''}`);
+        
+        roomTags.value.forEach(tag => {
+          const v = map[tag.code];
+          if (v !== undefined) {
+            const newTemp = v.toFixed(1);
+            if (tag.currentTemp !== newTemp) {
+              console.log(`  📊 ${tag.code}: ${tag.currentTemp} → ${newTemp}`);
+              tag.currentTemp = newTemp;
+            }
+          }
+        });
+        
+        // 更新温度标签显示
+        setTagTempsAtCurrentTime();
+      }
+      
+      console.log(`✅ 刷新完成`);
+    } catch (err) {
+      console.warn('⚠️ 自动刷新失败:', err);
+    }
+  }, AUTO_REFRESH_INTERVAL);
+  
+  console.log('✅ 自动刷新已启动 (每15秒)');
+};
+
+const stopAutoRefresh = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+    console.log('⏹️ 自动刷新已停止');
+  }
+};
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   nextTick(() => initViewer());
   loadChartData();
+  
+  // 启动自动刷新（无论 InfluxDB 是否配置，定时器会在内部检查）
+  if (isInfluxConfigured()) {
+    startAutoRefresh();
+  }
+  
   setTimeout(() => {
     if (isInfluxConfigured()) {
       const codes = roomTags.value.map(t => t.code).filter(Boolean);
@@ -2456,7 +2535,14 @@ onMounted(() => {
     }
   }, 1500);
 });
-onUnmounted(() => { cancelAnimationFrame(fId); document.removeEventListener('click', handleClickOutside); window.removeEventListener('mousemove',onDrag); window.removeEventListener('mouseup',stopDrag); if(viewer) { viewer.finish(); viewer=null; } });
+onUnmounted(() => { 
+  stopAutoRefresh(); // 停止自动刷新
+  cancelAnimationFrame(fId); 
+  document.removeEventListener('click', handleClickOutside); 
+  window.removeEventListener('mousemove',onDrag); 
+  window.removeEventListener('mouseup',stopDrag); 
+  if(viewer) { viewer.finish(); viewer=null; } 
+});
 </script>
 
 <style scoped>
