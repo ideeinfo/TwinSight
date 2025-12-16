@@ -6,6 +6,8 @@ const messages = {
       close: '关闭',
       apply: '应用',
       cancel: '取消',
+      confirm: '确认',
+      loading: '加载中...',
       select: '选择日期',
       add: '添加',
       multiple: '多个',
@@ -201,6 +203,26 @@ const messages = {
         confirmOverwrite: '该文件已存在关联数据，再次导出将覆盖（先清除）现有数据。确认继续吗？'
       }
     },
+    views: {
+      title: '视图',
+      save: '保存',
+      saveAs: '另存为...',
+      listMode: '列表模式',
+      galleryMode: '缩略图模式',
+      searchPlaceholder: '搜索视图...',
+      sort: '排序',
+      noViews: '暂无保存的视图',
+      noViewSelected: '未选择视图',
+      saveCurrentView: '保存当前视图',
+      namePlaceholder: '输入视图名称',
+      rename: '重命名',
+      update: '更新视图',
+      delete: '删除',
+      confirmDelete: '确定删除视图"{name}"吗？',
+      confirmOverwrite: '视图"{name}"已存在，是否覆盖？',
+      saveFailed: '保存视图失败',
+      enterNewName: '请输入新名称'
+    },
     qrcode: {
       title: '二维码',
       download: '下载二维码',
@@ -260,6 +282,8 @@ const messages = {
       close: 'Close',
       apply: 'Apply',
       cancel: 'Cancel',
+      confirm: 'Confirm',
+      loading: 'Loading...',
       select: 'Select date',
       add: 'Add',
       multiple: 'Multiple',
@@ -454,6 +478,26 @@ const messages = {
         help3: 'For special properties (e.g., Classification.OmniClass.21.Number), only the property name is matched, category is ignored',
         confirmOverwrite: 'This file already has associated data. Exporting again will overwrite (clear) existing data. Continue?'
       }
+    },
+    views: {
+      title: 'Views',
+      save: 'Save',
+      saveAs: 'Save As...',
+      listMode: 'List Mode',
+      galleryMode: 'Gallery Mode',
+      searchPlaceholder: 'Search views...',
+      sort: 'Sort',
+      noViews: 'No saved views',
+      noViewSelected: 'No view selected',
+      saveCurrentView: 'Save current view',
+      namePlaceholder: 'Enter view name',
+      rename: 'Rename',
+      update: 'Update View',
+      delete: 'Delete',
+      confirmDelete: 'Delete view "{name}"?',
+      confirmOverwrite: 'View "{name}" already exists. Overwrite?',
+      saveFailed: 'Failed to save view',
+      enterNewName: 'Enter new name'
     },
     qrcode: {
       title: 'QR Code',

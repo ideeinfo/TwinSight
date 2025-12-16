@@ -13,7 +13,7 @@
 
       <!-- 下部按钮组 -->
       <div class="nav-group-bottom">
-        <div class="nav-item" :class="{ 'active-blue': isStreamsActive }" @click="toggleStreams"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isStreamsActive ? '#00b0ff' : 'currentColor'" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg><span class="label" :style="{ color: isStreamsActive ? '#00b0ff' : '' }">{{ t('leftPanel.streams') }}</span></div>
+        <div class="nav-item" :class="{ 'active-blue': isStreamsActive }" @click="toggleStreams"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isStreamsActive ? '#38ABDF' : 'currentColor'" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg><span class="label" :style="{ color: isStreamsActive ? '#38ABDF' : '' }">{{ t('leftPanel.streams') }}</span></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span class="label">{{ t('leftPanel.history') }}</span></div>
         <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span class="label">{{ t('leftPanel.inventory') }}</span></div>
       </div>
@@ -185,37 +185,37 @@ const copyStreamUrl = async (spaceCode) => {
 .nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
 .nav-item:hover { background: #333; }
-.nav-item.active-blue { border-left: 2px solid #00b0ff; background: #2a2d2e; color: #00b0ff; }
-.nav-item.active-blue svg { stroke: #00b0ff; }
+.nav-item.active-blue { border-left: 2px solid #38ABDF; background: #2a2d2e; color: #38ABDF; }
+.nav-item.active-blue svg { stroke: #38ABDF; }
 .nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 .nav-item .label { font-size: 10px; text-align: center; } /* Unified font size */
 .list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; } /* Match AssetPanel flex */
 .panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
 .title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; } /* Unified title */
 .actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; } /* Unified actions */
-.actions:hover { color: #00b0ff; }
+.actions:hover { color: #38ABDF; }
 .plus { font-size: 14px; font-weight: bold; }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; } /* Unified search row */
 .search-input-wrapper { flex: 1; position: relative; } /* Unified search wrapper */
 .search-input-wrapper input { width: 100%; background: #1e1e1e; border: 1px solid #333; border-radius: 3px; padding: 4px 8px 4px 24px; color: #ccc; font-size: 11px; }
-.search-input-wrapper input:focus { outline: none; border-color: #00b0ff; }
+.search-input-wrapper input:focus { outline: none; border-color: #38ABDF; }
 .search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
 .filter-icon { cursor: pointer; padding: 4px; }
-.filter-icon:hover svg { stroke: #00b0ff; }
+.filter-icon:hover svg { stroke: #38ABDF; }
 
 .item-list { flex: 1; overflow-y: auto; }
 .list-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; cursor: pointer; } /* Tweaked to be visually similar but LeftPanel lacks indentation for tree */
 .list-item:hover { background: #2a2a2a; }
-.list-item.selected { background: #2a2d2e; border-left: 2px solid #00b0ff; }
+.list-item.selected { background: #2a2d2e; border-left: 2px solid #38ABDF; }
 .checkbox { width: 16px; height: 16px; border: 1px solid #555; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-right: 8px; }
-.checkbox:hover { border-color: #00b0ff; }
-.checkbox.checked { background: #00b0ff; border-color: #00b0ff; }
+.checkbox:hover { border-color: #38ABDF; }
+.checkbox.checked { background: #38ABDF; border-color: #38ABDF; }
 .checkbox svg { width: 12px; height: 12px; stroke: #fff; }
 .item-content { flex: 1; min-width: 0; }
 .item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-code { font-size: 10px; color: #888; margin-top: 2px; }
 .link-icon { flex-shrink: 0; opacity: 0.5; cursor: pointer; transition: all 0.2s; }
-.link-icon:hover { opacity: 1; stroke: #00b0ff; }
+.link-icon:hover { opacity: 1; stroke: #38ABDF; }
 .loading-hint { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
 
 /* 复制成功提示 */
@@ -224,7 +224,7 @@ const copyStreamUrl = async (spaceCode) => {
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background: linear-gradient(135deg, #00b0ff 0%, #0091ea 100%);
+  background: linear-gradient(135deg, #38ABDF 0%, #0091ea 100%);
   color: #fff;
   padding: 8px 16px;
   border-radius: 20px;

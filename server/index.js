@@ -11,6 +11,7 @@ import apiRoutes from './routes/api.js';
 import fileRoutes from './routes/files.js';
 import documentRoutes from './routes/documents.js';
 import timeseriesRoutes from './routes/timeseries.js';
+import viewsRoutes from './routes/views.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,7 @@ app.use((req, res, next) => {
 app.use('/api', apiRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/views', viewsRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes);
 
 // 健康检查

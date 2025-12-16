@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
-    <TopBar @open-data-export="openDataExportPanel" />
+    <TopBar :isViewsPanelOpen="isViewsPanelOpen" :currentViewName="currentViewName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
 
     <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
 
@@ -128,6 +128,18 @@
         </div>
       </div>
     </Teleport>
+    
+    <!-- 视图面板 -->
+    <ViewsPanel
+      :visible="isViewsPanelOpen"
+      :fileId="activeFileId"
+      :fileName="activeFileName"
+      @close="isViewsPanelOpen = false"
+      @get-viewer-state="handleGetViewerState"
+      @capture-screenshot="handleCaptureScreenshot"
+      @restore-view="handleRestoreView"
+      @current-view-changed="currentViewName = $event"
+    />
   </div>
 </template>
 
@@ -142,6 +154,7 @@ import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
 import MultiChartPanel from './components/MultiChartPanel.vue';
 import DataExportPanel from './components/DataExportPanel.vue';
+import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
 import { checkApiHealth, getAssets, getSpaces } from './services/postgres.js';
 
@@ -177,6 +190,40 @@ const currentExportFileId = ref(null);
 // 待加载的激活文件（在 viewer 初始化完成后加载）
 const pendingActiveFile = ref(null);
 const viewerReady = ref(false);
+
+// 视图面板状态
+const isViewsPanelOpen = ref(false);
+const activeFileId = ref(null);
+const activeFileName = ref('');
+const currentViewName = ref('');
+
+// 视图面板方法
+const toggleViewsPanel = () => {
+  isViewsPanelOpen.value = !isViewsPanelOpen.value;
+};
+
+const handleGetViewerState = (callback) => {
+  if (mainViewRef.value && mainViewRef.value.getViewerState) {
+    const state = mainViewRef.value.getViewerState();
+    callback(state);
+  } else {
+    callback({});
+  }
+};
+
+const handleCaptureScreenshot = (callback) => {
+  if (mainViewRef.value && mainViewRef.value.captureScreenshot) {
+    mainViewRef.value.captureScreenshot(callback);
+  } else {
+    callback(null);
+  }
+};
+
+const handleRestoreView = (viewData) => {
+  if (mainViewRef.value && mainViewRef.value.restoreViewState) {
+    mainViewRef.value.restoreViewState(viewData);
+  }
+};
 
 // 数据导出面板方法
 const openDataExportPanel = async (file) => {
@@ -501,6 +548,10 @@ const switchView = (view) => {
 // 文件激活后加载对应的资产和空间数据
 const onFileActivated = async (file) => {
   console.log('📂 文件已激活:', file);
+  
+  // 更新当前激活的文件信息（用于视图面板）
+  activeFileId.value = file.id;
+  activeFileName.value = file.title || file.name || 'Untitled';
   
   try {
     // 从数据库加载该文件的资产和空间

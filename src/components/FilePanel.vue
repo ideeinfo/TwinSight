@@ -123,7 +123,7 @@
                   <p>{{ t('filePanel.dropHint') }}</p>
                 </div>
                 <div v-else class="selected-file">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00b0ff" stroke-width="1.5">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38ABDF" stroke-width="1.5">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                     <polyline points="14 2 14 8 20 8"></polyline>
                   </svg>
@@ -552,8 +552,8 @@ onUnmounted(() => {
 .nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
 .nav-item:hover { background: #333; }
-.nav-item.active-blue { border-left: 2px solid #00b0ff; background: #2a2d2e; color: #00b0ff; }
-.nav-item.active-blue svg { stroke: #00b0ff; }
+.nav-item.active-blue { border-left: 2px solid #38ABDF; background: #2a2d2e; color: #38ABDF; }
+.nav-item.active-blue svg { stroke: #38ABDF; }
 .nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 .nav-item svg { margin-bottom: 4px; }
 .nav-item .label { font-size: 10px; text-align: center; }
@@ -561,15 +561,15 @@ onUnmounted(() => {
 .panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
 .title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; }
 .actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; }
-.actions:hover { color: #00b0ff; }
+.actions:hover { color: #38ABDF; }
 .plus { font-size: 14px; font-weight: bold; }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; }
 .search-input-wrapper { flex: 1; position: relative; }
 .search-input-wrapper input { width: 100%; background: #1e1e1e; border: 1px solid #333; border-radius: 3px; padding: 4px 8px 4px 24px; color: #ccc; font-size: 11px; }
-.search-input-wrapper input:focus { outline: none; border-color: #00b0ff; }
+.search-input-wrapper input:focus { outline: none; border-color: #38ABDF; }
 .search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
 .filter-icon { cursor: pointer; padding: 4px; }
-.filter-icon:hover svg { stroke: #00b0ff; }
+.filter-icon:hover svg { stroke: #38ABDF; }
 /* Status Row Removed */
 
 .list-content { flex: 1; overflow-y: auto; }
@@ -578,13 +578,13 @@ onUnmounted(() => {
 /* 文件列表项 */
 .list-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #1e1e1e; }
 .list-item:hover { background: #2a2a2a; }
-.list-item.active { background: #2a2d2e; border-left: 2px solid #00b0ff; }
+.list-item.active { background: #2a2d2e; border-left: 2px solid #38ABDF; }
 .file-icon { flex-shrink: 0; color: #888; }
 .item-content { flex: 1; min-width: 0; }
 .item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .file-code { font-size: 10px; color: #666; }
-.active-badge { font-size: 9px; background: #00b0ff; color: #fff; padding: 1px 4px; border-radius: 2px; }
+.active-badge { font-size: 9px; background: #38ABDF; color: #fff; padding: 1px 4px; border-radius: 2px; }
 .status-badge { font-size: 9px; padding: 1px 4px; border-radius: 2px; }
 .status-badge.uploaded { background: #555; color: #ccc; }
 .status-badge.extracting { background: #ffc107; color: #000; }
@@ -606,11 +606,11 @@ onUnmounted(() => {
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 6px; }
 .form-group input[type="text"] { width: 100%; background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px 12px; color: #fff; font-size: 13px; }
-.form-group input:focus { outline: none; border-color: #00b0ff; }
+.form-group input:focus { outline: none; border-color: #38ABDF; }
 
 /* 文件拖放区域 */
 .file-drop-zone { border: 2px dashed #444; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
-.file-drop-zone:hover, .file-drop-zone.dragging { border-color: #00b0ff; background: rgba(0, 176, 255, 0.05); }
+.file-drop-zone:hover, .file-drop-zone.dragging { border-color: #38ABDF; background: rgba(0, 176, 255, 0.05); }
 .drop-hint { color: #666; }
 .drop-hint p { margin: 8px 0 0 0; font-size: 12px; }
 .selected-file { display: flex; align-items: center; gap: 8px; color: #ccc; }
@@ -620,13 +620,13 @@ onUnmounted(() => {
 /* 上传进度 */
 .upload-progress { margin-top: 16px; }
 .progress-bar { height: 4px; background: #333; border-radius: 2px; overflow: hidden; }
-.progress-fill { height: 100%; background: #00b0ff; transition: width 0.2s; }
+.progress-fill { height: 100%; background: #38ABDF; transition: width 0.2s; }
 .progress-text { display: block; text-align: right; font-size: 11px; color: #888; margin-top: 4px; }
 
 /* 按钮 */
 .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-primary { background: #00b0ff; color: #fff; }
+.btn-primary { background: #38ABDF; color: #fff; }
 .btn-primary:hover:not(:disabled) { background: #0091ea; }
 .btn-secondary { background: #444; color: #ccc; }
 .btn-secondary:hover:not(:disabled) { background: #555; }
@@ -641,7 +641,7 @@ onUnmounted(() => {
 
 /* 解压进度 */
 .extract-progress { text-align: center; padding: 20px; }
-.spinner { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #00b0ff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+.spinner { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #38ABDF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .extract-progress p { color: #aaa; font-size: 13px; margin: 0; }
 

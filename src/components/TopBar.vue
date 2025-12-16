@@ -25,6 +25,18 @@
 
     <div class="right-section">
 
+      <!-- 当前视图名称 -->
+      <span v-if="currentViewName" class="current-view-label">{{ currentViewName }}</span>
+
+      <!-- 视图按钮 -->
+      <div class="icon-btn views-btn" :class="{ active: isViewsPanelOpen }" @click="$emit('toggle-views')" :title="$t('views.title')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </div>
 
       <!-- 语言切换下拉列表 -->
       <div class="language-dropdown" ref="langDropdownRef">
@@ -81,8 +93,14 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+// 定义 props
+defineProps({
+  isViewsPanelOpen: { type: Boolean, default: false },
+  currentViewName: { type: String, default: '' }
+});
+
 // 定义事件
-defineEmits(['open-data-export']);
+defineEmits(['open-data-export', 'toggle-views']);
 
 const { locale } = useI18n();
 const currentLocale = computed(() => locale.value);
@@ -215,6 +233,26 @@ onUnmounted(() => {
 .icon-btn:hover {
   background: #3e3e42;
   border-radius: 2px;
+}
+
+.views-btn {
+  margin-right: 8px;
+}
+
+.views-btn.active {
+  background: #38ABDF;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.current-view-label {
+  font-size: 12px;
+  color: #38ABDF;
+  margin-right: 8px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-avatar {

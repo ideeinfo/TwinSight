@@ -419,16 +419,16 @@ const breadcrumbText = computed(() => {
 .breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; }
 .tabs { display: flex; border-bottom: 1px solid #333; height: 32px; flex-shrink: 0; background: #252526; }
 .tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: #888; font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
-.tab:hover { color: #ccc; } .tab.active { color: #00b0ff; border-bottom-color: #00b0ff; }
-.add-action { margin-left: auto; padding-right: 12px; color: #00b0ff; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.tab:hover { color: #ccc; } .tab.active { color: #38ABDF; border-bottom-color: #38ABDF; }
+.add-action { margin-left: auto; padding-right: 12px; color: #38ABDF; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .scroll-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .group-header { background: #2d2d2d; padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; border-top: 1px solid #333; margin-top: -1px; cursor: pointer; color: #fff; }
 .group-header:hover { background: #333; }
 .arrow-icon { transition: transform 0.2s; } .arrow-icon.rotated { transform: rotate(180deg); }
 .group-body { padding-bottom: 8px; } .form-group { padding: 8px 12px; } .sub-label { color: #fff; font-weight: 600; margin-bottom: 8px; }
 .row { display: flex; align-items: center; margin-bottom: 6px; height: 26px; } .row label { flex: 0 0 110px; color: #999; display: flex; align-items: center; }
-.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid #00b0ff; color: #00b0ff; border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
+.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid #38ABDF; color: #38ABDF; border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
 .val-box { flex: 1; background: #1e1e1e; border: 1px solid #3e3e42; min-height: 24px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
 .val-box:hover { border-color: #555; } .val-box.placeholder { color: #777; font-style: normal; } .val-box.dropdown { justify-content: space-between; cursor: pointer; } .val-box.multiline { white-space: normal; line-height: 1.2; padding: 4px 8px; height: auto; }
-.link-text { color: #00b0ff; text-decoration: underline; cursor: pointer; }
+.link-text { color: #38ABDF; text-decoration: underline; cursor: pointer; }
 </style>

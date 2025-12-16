@@ -310,6 +310,7 @@ let uiObserver = null;
 const selectedRoomCodes = ref([]);
 let roomSeriesCache = {};
 let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
+let isRestoringView = false;
 
 // 从 InfluxDB 加载图表数据
 const loadChartData = async () => {
@@ -1058,6 +1059,8 @@ const removeRoomStyle = () => {
 // 5. 选择变更（在模型上直接点击时触发）
 const onSelectionChanged = (event) => {
   const dbIds = event.dbIdArray;
+  
+  if (isRestoringView) return;
   
   // 如果是程序化选择（从列表触发），跳过处理但不影响反向定位
   if (isManualSelection) {
@@ -2366,44 +2369,7 @@ const getSpacePropertyList = async () => {
   });
 };
 
-// 暴露方法给父组件
-defineExpose({
-  isolateAndFocusRooms,
-  showAllRooms,
-  getRoomProperties,
-  resizeViewer,
-  isolateAndFocusAssets,
-  showAllAssets,
-  getAssetProperties,
-  showTemperatureTags,
-  hideTemperatureTags,
-  syncTimelineHover,
-  getFullAssetData,
-  getFullSpaceData,
-  getFullAssetDataWithMapping,
-  getFullSpaceDataWithMapping,
-  getAssetPropertyList,
-  getSpacePropertyList,
-  getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
-  setSelectedRooms: async (codes) => {
-    if (!isInfluxConfigured() || !codes?.length) {
-      overlaySeries.value = [];
-      await refreshRoomSeriesCache().catch(() => {});
-      setTagTempsAtCurrentTime();
-      return;
-    }
-    const start = startDate.value.getTime();
-    const end = endDate.value.getTime();
-    const windowMs = Math.max(60_000, Math.round((end - start)/300));
-    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
-    const list = await Promise.all(promises);
-    overlaySeries.value = list;
-    selectedRoomCodes.value = codes.slice();
-    await refreshRoomSeriesCache(codes).catch(() => {});
-    setTagTempsAtCurrentTime();
-  },
-  loadNewModel // 暴露方法
-});
+
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
 
@@ -2554,6 +2520,213 @@ onUnmounted(() => {
   window.removeEventListener('mousemove',onDrag); 
   window.removeEventListener('mouseup',stopDrag); 
   if(viewer) { viewer.finish(); viewer=null; } 
+});
+
+// ========== 视图状态管理方法 ==========
+
+// 获取当前视图状态
+const getViewerState = () => {
+  if (!viewer) return {};
+  
+  try {
+    // 使用 Forge Viewer 官方 API 获取完整状态
+    // 使用 Forge Viewer 官方 API 获取完整状态，包括孤立状态
+    const viewerState = viewer.getState({
+      viewport: true,
+      objectSet: true,  // 包含孤立/隐藏状态
+      cutplanes: true,
+      explodeScale: true,
+      renderOptions: true
+    });
+    
+    return {
+      viewerState,
+      cameraState: viewerState?.viewport || {},
+      isolationState: viewerState?.objectSet || {},
+      selectionState: { selectedIds: [] },
+      themingState: {},
+      environment: viewer.impl?.currentLightPreset?.() || '',
+      cutplanes: viewerState?.cutplanes || [],
+      explodeScale: viewerState?.explodeScale || 0,
+      renderOptions: viewerState?.renderOptions || {},
+      otherSettings: {
+        isHeatmapEnabled: isHeatmapEnabled.value,
+        areTagsVisible: areTagsVisible.value
+      }
+    };
+  } catch (error) {
+    console.error('获取视图状态失败:', error);
+    return {};
+  }
+};
+
+// 截取屏幕
+const captureScreenshot = (callback) => {
+  if (!viewer) {
+    console.warn('⚠️ captureScreenshot: viewer 不存在');
+    callback(null);
+    return;
+  }
+  
+  try {
+    console.log('📸 开始截图...');
+    
+    // Forge Viewer getScreenShot 返回的可能是 blob URL
+    viewer.getScreenShot(156, 117, (blobUrlOrDataUrl) => {
+      console.log('📸 截图回调, 类型:', typeof blobUrlOrDataUrl ? blobUrlOrDataUrl.substring(0, 30) : 'null');
+      
+      if (!blobUrlOrDataUrl) {
+        callback(null);
+        return;
+      }
+      
+      // 如果已经是 data URL，直接返回
+      if (blobUrlOrDataUrl.startsWith('data:')) {
+        console.log('📸 已是 data URL，长度:', blobUrlOrDataUrl.length);
+        callback(blobUrlOrDataUrl);
+        return;
+      }
+      
+      // 如果是 blob URL，需要转换为 base64
+      if (blobUrlOrDataUrl.startsWith('blob:')) {
+        console.log('📸 是 blob URL，开始转换...');
+        
+        fetch(blobUrlOrDataUrl)
+          .then(response => response.blob())
+          .then(blob => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result;
+              console.log('📸 转换完成, 长度:', base64 ? base64.length : 0);
+              callback(base64);
+            };
+            reader.onerror = () => {
+              console.error('📸 FileReader 错误');
+              callback(null);
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch(error => {
+            console.error('📸 Fetch blob 失败:', error);
+            callback(null);
+          });
+        return;
+      }
+      
+      // 其他情况，尝试直接使用
+      console.log('📸 未知格式，尝试直接使用');
+      callback(blobUrlOrDataUrl);
+    });
+  } catch (error) {
+    console.error('截图失败:', error);
+    callback(null);
+  }
+};
+
+// 恢复视图状态
+const restoreViewState = (viewData) => {
+  console.log('🔄 开始恢复视图状态:', viewData);
+  if (!viewer) {
+    console.error('❌ Viewer 未初始化，无法恢复视图');
+    return;
+  }
+  if (!viewData) {
+    console.error('❌ viewData 为空');
+    return;
+  }
+  
+  try {
+    // 优先使用 viewerState（Forge Viewer 官方格式）
+    // restoreState 会自动处理孤立/隐藏状态（如果保存时包含了 objectSet）
+    // 优先使用 viewerState（Forge Viewer 官方格式）
+    if (viewData.viewer_state || viewData.viewerState) {
+      const viewerState = viewData.viewer_state || viewData.viewerState;
+      console.log('🔄 使用 Forge Viewer restoreState API 恢复视图:', viewerState);
+      
+      if (!viewerState) {
+        console.error('❌ viewerState 无效');
+      } else {
+        isRestoringView = true;
+        // 使用 restoreState 恢复所有状态
+        const success = viewer.restoreState(viewerState); 
+        console.log('✅ restoreState 调用完成，返回值:', success);
+        setTimeout(() => { isRestoringView = false; }, 500);
+        
+        // 补救措施：强制应用孤立状态
+        // 某些情况下 restoreState 可能不会正确清除之前的孤立状态，或者不应用新的孤立状态
+        if (viewerState.objectSet) {
+          const isolated = viewerState.objectSet.isolated || [];
+          const currentIsolated = viewer.getIsolatedNodes();
+          
+          // 如果存档有孤立，但当前没有生效，强制应用
+          if (isolated.length > 0 && (!currentIsolated || currentIsolated.length === 0)) {
+             console.warn('⚠️ 强制应用孤立状态...');
+             viewer.isolate(isolated);
+          }
+
+        }
+      }
+    } else {
+      console.warn('⚠️ 视图数据中缺少 viewer_state，无法恢复');
+    }
+    
+    // 恢复自定义设置
+    const otherSettings = viewData.other_settings || viewData.otherSettings;
+    if (otherSettings) {
+      if (typeof otherSettings.isHeatmapEnabled === 'boolean') {
+        isHeatmapEnabled.value = otherSettings.isHeatmapEnabled;
+      }
+      if (typeof otherSettings.areTagsVisible === 'boolean') {
+        areTagsVisible.value = otherSettings.areTagsVisible;
+      }
+    }
+    
+    viewer.impl.invalidate(true, true, true);
+  } catch (error) {
+    console.error('恢复视图状态失败:', error);
+  }
+};
+
+// 暴露方法给父组件
+defineExpose({
+  resizeViewer,
+  loadNewModel,
+  showAllAssets,
+  showAllRooms,
+  isolateAndFocusAssets,
+  isolateAndFocusRooms,
+  getAssetProperties,
+  getRoomProperties,
+  getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
+  getAssetPropertyList,
+  getSpacePropertyList,
+  getFullAssetData,
+  getFullSpaceData,
+  getFullAssetDataWithMapping,
+  getFullSpaceDataWithMapping,
+  getViewerState,
+  captureScreenshot,
+  restoreViewState,
+  showTemperatureTags,
+  hideTemperatureTags,
+  syncTimelineHover,
+  setSelectedRooms: async (codes) => {
+    if (!isInfluxConfigured() || !codes?.length) {
+      overlaySeries.value = [];
+      await refreshRoomSeriesCache().catch(() => {});
+      setTagTempsAtCurrentTime();
+      return;
+    }
+    const start = startDate.value.getTime();
+    const end = endDate.value.getTime();
+    const windowMs = Math.max(60_000, Math.round((end - start)/300));
+    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
+    const list = await Promise.all(promises);
+    overlaySeries.value = list;
+    selectedRoomCodes.value = codes.slice();
+    await refreshRoomSeriesCache(codes).catch(() => {});
+    setTagTempsAtCurrentTime();
+  }
 });
 </script>
 

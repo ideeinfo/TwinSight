@@ -1,4 +1,4 @@
-/* 全局滚动条样式 */
+/* 全局滚动条样�?*/
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -17,7 +17,7 @@
   background: #666;
 }
 
-/* 确保深色模式下的背景色 */
+/* 确保深色模式下的背景�?*/
 body {
   margin: 0;
   background-color: #121212;
@@ -28,7 +28,7 @@ body {
    全局对话框样式统一
    ========================================= */
 
-/* 对话框头部容器 */
+/* 对话框头部容�?*/
 .dialog-header {
   display: flex;
   justify-content: space-between;
@@ -40,7 +40,7 @@ body {
   box-sizing: border-box;
 }
 
-/* 对话框标题 */
+/* 对话框标�?*/
 .dialog-title {
   margin: 0;
   font-size: 16px;
@@ -52,7 +52,7 @@ body {
   gap: 8px;
 }
 
-/* 统一的关闭按钮 */
+/* 统一的关闭按�?*/
 .dialog-close-btn {
   background: transparent;
   border: none;
@@ -66,7 +66,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  /* 确保按钮在 Flex 容器中不会被压缩 */
+  /* 确保按钮�?Flex 容器中不会被压缩 */
   flex-shrink: 0;
 }
 
@@ -82,7 +82,7 @@ body {
   stroke-width: 2;
 }
 
-/* 纯文本的关闭按钮 (如 ×) 兼容 */
+/* 纯文本的关闭按钮 (�?×) 兼容 */
 .dialog-close-btn.text-icon {
   font-size: 24px;
   line-height: 1;
