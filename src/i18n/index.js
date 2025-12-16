@@ -201,6 +201,11 @@ const messages = {
         confirmOverwrite: '该文件已存在关联数据，再次导出将覆盖（先清除）现有数据。确认继续吗？'
       }
     },
+    qrcode: {
+      title: '二维码',
+      download: '下载二维码',
+      copied: '已复制到剪贴板'
+    },
     document: {
       title: '文档',
       upload: '上传文档',
@@ -449,6 +454,11 @@ const messages = {
         help3: 'For special properties (e.g., Classification.OmniClass.21.Number), only the property name is matched, category is ignored',
         confirmOverwrite: 'This file already has associated data. Exporting again will overwrite (clear) existing data. Continue?'
       }
+    },
+    qrcode: {
+      title: 'QR Code',
+      download: 'Download QR Code',
+      copied: 'Copied to clipboard'
     },
     document: {
       title: 'Documents',

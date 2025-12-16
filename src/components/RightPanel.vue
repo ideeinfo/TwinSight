@@ -58,7 +58,13 @@
           </div>
         </div>
         
-        <!-- 文档 - 关系下方 -->
+        <!-- 二维码 - 单选时显示 -->
+        <QRCodeDisplay 
+          v-if="!localProperties.isMultiple"
+          :code="isAssetMode ? localProperties.mcCode : localProperties.code"
+        />
+        
+        <!-- 文档 - 二维码下方 -->
         <DocumentList 
           v-if="!localProperties.isMultiple"
           :assetCode="isAssetMode ? localProperties.mcCode : null" 
@@ -89,9 +95,10 @@
         <div class="group-body" v-show="!collapsedState.type_design"><div class="form-group"><div class="row"><label>{{ t('rightPanel.manufacturer') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div><div class="row"><label>{{ t('rightPanel.model') }}</label><div class="val-box placeholder">{{ t('common.none') }}</div></div></div></div>
         
         <!-- 文档 - 设计属性下方 -->
+        <!-- 单选或多选同一规格时显示 -->
         <DocumentList 
-          v-if="!localProperties.isMultiple && isAssetMode"
-          :specCode="localProperties.typeComments || localProperties.specCode"
+          v-if="isAssetMode && validSpecCode"
+          :specCode="validSpecCode"
         />
       </div>
     </div>
@@ -103,6 +110,7 @@ import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import EditableField from './EditableField.vue';
 import DocumentList from './DocumentList.vue';
+import QRCodeDisplay from './QRCodeDisplay.vue';
 
 const { t } = useI18n();
 
@@ -141,6 +149,17 @@ watch(() => props.roomProperties, (newVal) => {
 // 判断是否为资产模式
 const isAssetMode = computed(() => {
   return props.viewMode === 'assets';
+});
+
+// 获取有效的规格代码（用于文档显示）
+// 多选时，如果规格代码相同（非VARIES），也返回有效值
+const validSpecCode = computed(() => {
+  const specCode = localProperties.value.typeComments || localProperties.value.specCode;
+  // 如果规格代码存在且不是VARIES，则有效
+  if (specCode && specCode !== '__VARIES__') {
+    return specCode;
+  }
+  return null;
 });
 
 // 定义字段及其类型
