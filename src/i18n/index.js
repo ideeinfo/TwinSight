@@ -107,7 +107,11 @@ const messages = {
       custom: '自定义',
       selectDateRange: '选择日期范围',
       startDate: '开始日期',
-      endDate: '结束日期'
+      endDate: '结束日期',
+      lowTempWarning: '温度过低',
+      lowTempMessage: '检测到负值温度',
+      lowTempDetails: '房间 {room} 温度: {temp}°C',
+      acknowledge: '知道了'
     },
     calendar: {
       sun: '日',
@@ -383,7 +387,11 @@ const messages = {
       custom: 'Custom',
       selectDateRange: 'Select Date Range',
       startDate: 'Start Date',
-      endDate: 'End Date'
+      endDate: 'End Date',
+      lowTempWarning: 'Low Temperature Warning',
+      lowTempMessage: 'Negative temperature detected',
+      lowTempDetails: 'Room {room}: {temp}°C',
+      acknowledge: 'OK'
     },
     calendar: {
       sun: 'Sun',

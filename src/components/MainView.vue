@@ -107,6 +107,32 @@
       </div>
     </div>
 
+    <!-- 低温警告弹窗 -->
+    <div v-if="showLowTempWarning" class="modal-overlay low-temp-overlay">
+      <div class="low-temp-modal">
+        <div class="low-temp-header">
+          <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span class="warning-title">{{ t('timeline.lowTempWarning') }}</span>
+        </div>
+        <div class="low-temp-body">
+          <p class="warning-message">{{ t('timeline.lowTempMessage') }}</p>
+          <ul class="alert-list">
+            <li v-for="(alert, idx) in lowTempAlerts" :key="idx" class="alert-item">
+              <span class="room-name">{{ alert.room }}</span>
+              <span class="temp-value">{{ alert.temp }}°C</span>
+            </li>
+          </ul>
+        </div>
+        <div class="low-temp-footer">
+          <button class="btn-acknowledge" @click="closeLowTempWarning">{{ t('timeline.acknowledge') }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 3D 画布区域 -->
     <div class="canvas-3d">
       <div id="forgeViewer" ref="viewerContainer"></div>
@@ -312,6 +338,11 @@ let roomSeriesCache = {};
 let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
 let isRestoringView = false;
 
+// 低温警告状态
+const showLowTempWarning = ref(false);
+const lowTempAlerts = ref([]);
+let lowTempAlertShownForProgress = null; // 记录当前进度是否已显示过警告
+
 // 从 InfluxDB 加载图表数据
 const loadChartData = async () => {
   const start = startDate.value.getTime();
@@ -381,15 +412,40 @@ const valueAtTime = (pts, ms) => {
 const setTagTempsAtCurrentTime = () => {
   if (!roomTags.value.length) return;
   const percent = Math.max(0, Math.min(1, progress.value / 100));
+  
+  // 收集低温警告信息
+  const currentProgressKey = Math.round(progress.value * 10); // 精度到 0.1%
+  const alerts = [];
+  
   roomTags.value.forEach(tag => {
     const pts = roomSeriesCache[tag.code];
     if (pts && pts.length) {
       const idx = Math.round(percent * (pts.length - 1));
       const v = pts[idx]?.value;
-      if (v !== undefined) tag.currentTemp = Number(v).toFixed(1);
+      if (v !== undefined) {
+        tag.currentTemp = Number(v).toFixed(1);
+        // 检测负值温度
+        if (Number(v) < 0 && isPlaying.value) {
+          alerts.push({
+            room: tag.name || tag.code,
+            temp: Number(v).toFixed(1)
+          });
+        }
+      }
     }
     // 不再使用本地模拟数据，如果没有 InfluxDB 数据则不显示温度
   });
+  
+  // 如果检测到低温且是新的进度位置，显示警告弹窗
+  if (alerts.length > 0 && lowTempAlertShownForProgress !== currentProgressKey) {
+    lowTempAlerts.value = alerts;
+    showLowTempWarning.value = true;
+    lowTempAlertShownForProgress = currentProgressKey;
+    // 暂停播放
+    isPlaying.value = false;
+    cancelAnimationFrame(fId);
+  }
+  
   if (isHeatmapEnabled.value && viewer) {
     if (!heatmapTimer) {
       heatmapTimer = setTimeout(() => { heatmapTimer = null; applyHeatmapStyle(); }, 400);
@@ -2386,6 +2442,10 @@ const handleDayClick = (d) => { if (!d.date) return; if (!tempStart.value || (te
 const formatDate = (d) => d ? d.toLocaleDateString() : '';
 const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: '', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
 const closeCustomModal = () => isCustomModalOpen.value = false;
+const closeLowTempWarning = () => {
+  showLowTempWarning.value = false;
+  lowTempAlerts.value = [];
+};
 const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); } };
 const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 const zoomOut = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d * 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
@@ -2897,6 +2957,102 @@ defineExpose({
 .heatmap-btn.active:hover {
   background: #006cbd;
 }
+
+/* 低温警告弹窗样式 */
+.low-temp-overlay {
+  z-index: 400;
+}
+.low-temp-modal {
+  background: #1e2a3a;
+  border: 1px solid #4fc3f7;
+  border-radius: 8px;
+  width: 340px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 20px rgba(79, 195, 247, 0.2);
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+.low-temp-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+  border-bottom: 1px solid #4fc3f7;
+}
+.warning-icon {
+  color: #4fc3f7;
+  flex-shrink: 0;
+}
+.warning-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+.low-temp-body {
+  padding: 20px;
+}
+.warning-message {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #b3e5fc;
+}
+.alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(79, 195, 247, 0.1);
+  border: 1px solid rgba(79, 195, 247, 0.2);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.alert-item:last-child {
+  margin-bottom: 0;
+}
+.room-name {
+  font-size: 13px;
+  color: #e3f2fd;
+  font-weight: 500;
+}
+.temp-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.2);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.low-temp-footer {
+  padding: 16px 20px;
+  background: #152030;
+  border-top: 1px solid #2a3a4a;
+  display: flex;
+  justify-content: center;
+}
+.btn-acknowledge {
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  border: none;
+  color: #fff;
+  padding: 10px 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.btn-acknowledge:hover {
+  background: linear-gradient(135deg, #1e88e5 0%, #1976d2 100%);
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+}
+
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
 // 叠加曲线颜色与默认一致：按阈值渐变
