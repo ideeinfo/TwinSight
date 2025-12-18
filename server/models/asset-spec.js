@@ -2,6 +2,7 @@
  * 资产规格数据访问对象
  */
 import { query, getClient } from '../db/index.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 插入或更新资产规格
@@ -111,12 +112,14 @@ export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
 
         for (const spec of specs) {
             if (spec.specCode) {
+                // 为新记录生成 UUID
+                const uuid = uuidv4();
                 await client.query(`
                   INSERT INTO asset_specs (
                     file_id, spec_code, spec_name, classification_code, classification_desc, 
-                    category, family, type, manufacturer, address, phone
+                    category, family, type, manufacturer, address, phone, uuid
                   )
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                   ON CONFLICT (file_id, spec_code)
                   DO UPDATE SET
                     spec_name = EXCLUDED.spec_name,
@@ -140,7 +143,8 @@ export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
                     spec.type || '',
                     spec.manufacturer || '',
                     spec.address || '',
-                    spec.phone || ''
+                    spec.phone || '',
+                    uuid
                 ]);
             }
         }

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS classifications (
 -- 存储资产构件的规格（类型）信息
 CREATE TABLE IF NOT EXISTS asset_specs (
     id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT gen_random_uuid() NOT NULL,    -- 唯一标识符
     file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
     spec_code VARCHAR(100) NOT NULL,                -- 规格编码：类型注释
     spec_name VARCHAR(200),                         -- 规格名称：类型名称
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS asset_specs (
 -- 存储资产构件的数据
 CREATE TABLE IF NOT EXISTS assets (
     id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT gen_random_uuid() NOT NULL,   -- 唯一标识符
     file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
     asset_code VARCHAR(100) NOT NULL,               -- 编码（主键）：MC编码
     spec_code VARCHAR(100),                         -- 规格编码（外键引用资产规格表的"规格编码"字段）：类型注释
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS assets (
 -- 存储房间构件的数据
 CREATE TABLE IF NOT EXISTS spaces (
     id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT gen_random_uuid() NOT NULL,   -- 唯一标识符
     file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,  -- 关联的模型文件ID
     space_code VARCHAR(100) NOT NULL,               -- 空间编码：编号
     name VARCHAR(200),                              -- 名称
@@ -82,17 +85,20 @@ CREATE INDEX IF NOT EXISTS idx_asset_specs_name ON asset_specs(spec_name);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_classification ON asset_specs(classification_code);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_category ON asset_specs(category);
 CREATE INDEX IF NOT EXISTS idx_asset_specs_family ON asset_specs(family);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_specs_uuid ON asset_specs(uuid);
 
 -- 资产表索引
 CREATE INDEX IF NOT EXISTS idx_assets_spec_code ON assets(spec_code);
 CREATE INDEX IF NOT EXISTS idx_assets_floor ON assets(floor);
 CREATE INDEX IF NOT EXISTS idx_assets_room ON assets(room);
 CREATE INDEX IF NOT EXISTS idx_assets_db_id ON assets(db_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_uuid ON assets(uuid);
 
 -- 空间表索引
 CREATE INDEX IF NOT EXISTS idx_spaces_classification ON spaces(classification_code);
 CREATE INDEX IF NOT EXISTS idx_spaces_floor ON spaces(floor);
 CREATE INDEX IF NOT EXISTS idx_spaces_db_id ON spaces(db_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_spaces_uuid ON spaces(uuid);
 
 -- ========================================
 -- 创建更新时间触发器函数

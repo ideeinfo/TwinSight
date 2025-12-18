@@ -1914,6 +1914,20 @@ const getFullAssetDataWithMapping = async (mappings) => {
             rowData[field] = '';
           });
 
+          // 首先处理 "元数据" 分类的特殊属性（result.name, result.externalId 等）
+          // 这些属性不在 result.properties 中，需要单独处理
+          Object.entries(fullMapping).forEach(([field, mapping]) => {
+            if (mapping.category === '元数据') {
+              if (mapping.property === 'Name' && result.name) {
+                rowData[field] = result.name;
+              } else if (mapping.property === 'externalId' && result.externalId) {
+                rowData[field] = result.externalId;
+              } else if (mapping.property === 'dbId') {
+                rowData[field] = String(dbId);
+              }
+            }
+          });
+
           // 遍历所有属性
           result.properties.forEach(prop => {
             const displayName = prop.displayName || '';
@@ -2055,6 +2069,19 @@ const getFullSpaceDataWithMapping = async (spaceMapping) => {
           // 为每个映射字段初始化空值
           Object.keys(spaceMapping).forEach(field => {
             data[field] = '';
+          });
+
+          // 首先处理 "元数据" 分类的特殊属性（result.name, result.externalId 等）
+          Object.entries(spaceMapping).forEach(([field, mapping]) => {
+            if (mapping.category === '元数据') {
+              if (mapping.property === 'Name' && result.name) {
+                data[field] = result.name;
+              } else if (mapping.property === 'externalId' && result.externalId) {
+                data[field] = result.externalId;
+              } else if (mapping.property === 'dbId') {
+                data[field] = String(dbId);
+              }
+            }
           });
 
           // 遍历所有属性
@@ -2277,6 +2304,11 @@ const getAssetPropertyList = async () => {
         });
       }
       
+      // 添加特殊的 "元数据" 分类，用于访问 result.name 等顶级属性
+      // 这些属性不属于任何 displayCategory，需要特殊处理
+      formatted['元数据'] = ['Name', 'externalId', 'dbId'];
+      console.log('📋 已添加特殊分类 "元数据": Name, externalId, dbId （用于访问顶级属性）');
+      
       resolve(formatted);
     }, (err) => {
       console.error('获取属性列表失败:', err);
@@ -2366,6 +2398,10 @@ const getSpacePropertyList = async () => {
         const props = formatted[cat].slice(0, 5);
         console.log(`  ${cat}: ${props.join(', ')}${formatted[cat].length > 5 ? '...' : ''}`);
       });
+      
+      // 添加特殊的 "元数据" 分类
+      formatted['元数据'] = ['Name', 'externalId', 'dbId'];
+      console.log('📋 已添加特殊分类 "元数据": Name, externalId, dbId');
       
       resolve(formatted);
     }, (err) => {

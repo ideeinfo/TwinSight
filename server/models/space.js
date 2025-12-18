@@ -2,6 +2,7 @@
  * 空间数据访问对象
  */
 import { query, getClient } from '../db/index.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 插入或更新空间
@@ -137,12 +138,14 @@ export async function batchUpsertSpacesWithFile(spaces, fileId) {
         // 然后批量插入新空间
         for (const space of spaces) {
             if (space.spaceCode) {
+                // 为新记录生成 UUID
+                const uuid = uuidv4();
                 await client.query(`
           INSERT INTO spaces (
             space_code, name, classification_code, classification_desc,
-            floor, area, perimeter, db_id, file_id
+            floor, area, perimeter, db_id, file_id, uuid
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         `, [
                     space.spaceCode,
                     space.name,
@@ -152,7 +155,8 @@ export async function batchUpsertSpacesWithFile(spaces, fileId) {
                     space.area,
                     space.perimeter,
                     space.dbId,
-                    fileId
+                    fileId,
+                    uuid
                 ]);
             }
         }
