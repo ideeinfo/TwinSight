@@ -1,0 +1,134 @@
+name: Deploy to Cloud
+
+on:
+  push:
+    branches: [main, db]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # 构建和测试
+  # ============================================
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: cd server && npm ci
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_INFLUX_URL: ${{ secrets.VITE_INFLUX_URL }}
+          VITE_INFLUX_ORG: ${{ secrets.VITE_INFLUX_ORG }}
+          VITE_INFLUX_BUCKET: ${{ secrets.VITE_INFLUX_BUCKET }}
+          VITE_INFLUX_TOKEN: ${{ secrets.VITE_INFLUX_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  # ============================================
+  # 部署到 Railway（推荐方案）
+  # ============================================
+  deploy-railway:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/db'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up --service tandem-demo
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ============================================
+  # 部署前端到 Vercel（可选方案）
+  # ============================================
+  deploy-vercel:
+    needs: build
+    runs-on: ubuntu-latest
+    if: false  # 设为 true 启用 Vercel 部署
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./
+
+  # ============================================
+  # 部署到自托管服务器（SSH 方式）
+  # ============================================
+  deploy-ssh:
+    needs: build
+    runs-on: ubuntu-latest
+    if: false  # 设为 true 启用 SSH 部署
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/tandem-demo
+            git pull origin ${{ github.ref_name }}
+            npm ci
+            npm run build
+            docker-compose up -d --build
+            docker exec tandem-api node scripts/init-db.js
+            echo "✅ 部署完成"

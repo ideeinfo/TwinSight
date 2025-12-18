@@ -12,6 +12,7 @@ import fileRoutes from './routes/files.js';
 import documentRoutes from './routes/documents.js';
 import timeseriesRoutes from './routes/timeseries.js';
 import viewsRoutes from './routes/views.js';
+import influxConfigRoutes from './routes/influx-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,8 +24,24 @@ const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
 
 // 中间件
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    process.env.FRONTEND_URL  // 生产环境前端地址
+].filter(Boolean);
+
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+    origin: process.env.NODE_ENV === 'production'
+        ? (origin, callback) => {
+            // 允许没有 origin 的请求（如服务器间调用、健康检查）
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(null, true); // 生产环境暂时允许所有来源，可按需调整
+            }
+        }
+        : allowedOrigins,
     credentials: true
 }));
 app.use(express.json({ limit: '200mb' }));
@@ -45,6 +62,7 @@ app.use('/api', apiRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/views', viewsRoutes);
+app.use('/api/influx-config', influxConfigRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes);
 
 // 健康检查
@@ -66,6 +84,30 @@ app.get('/', (req, res) => {
             files: 'GET /api/files',
             importModelData: 'POST /api/import/model-data'
         }
+    });
+});
+
+// 生产环境：服务前端静态文件
+if (process.env.NODE_ENV === 'production') {
+    // 静态文件目录
+    app.use(express.static(path.join(__dirname, 'dist')));
+    app.use('/models', express.static(path.join(__dirname, 'public/models')));
+    app.use('/files', express.static(path.join(__dirname, 'public/files')));
+
+    // 所有非 API 路由返回 index.html (SPA 支持)
+    app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+        }
+    });
+}
+
+// 健康检查端点（用于云服务）
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        env: process.env.NODE_ENV || 'development'
     });
 });
 

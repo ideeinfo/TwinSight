@@ -656,9 +656,9 @@ const loadNewModel = async (modelPath) => {
 let customRoomMat = null;
 const getRoomMaterial = () => {
   if (customRoomMat) return customRoomMat;
-  // 浅紫色：#B39DDB (RGB: 179, 157, 219)
+  // 青绿色：#43ABC9 (RGB: 67, 171, 201)
   customRoomMat = new window.THREE.MeshBasicMaterial({
-    color: 0xB39DDB, opacity: 0.5, transparent: true,
+    color: 0x43ABC9, opacity: 0.5, transparent: true,
     side: window.THREE.DoubleSide, depthWrite: false, depthTest: true
   });
   viewer.impl.matman().addMaterial('custom-room-mat', customRoomMat, true);
@@ -906,15 +906,10 @@ emit('rooms-loaded', roomList);
         const allCodes = roomList.map(r => r.code).filter(Boolean);
         refreshRoomSeriesCache(allCodes).then(() => setTagTempsAtCurrentTime()).catch(() => {});
 
-        // 根据当前视图决定是否应用房间样式
+        // 应用房间样式（青绿色）- 适用于所有视图
         setTimeout(() => {
-          console.log(`🎯 检查视图状态（房间）: currentView = "${props.currentView}"`);
-          if (props.currentView === 'connect') {
-            console.log('🏠 当前是连接视图，调用 applyRoomStyle()');
-            applyRoomStyle();
-          } else {
-            console.log(`ℹ️ 当前不是连接视图，跳过房间显示 (视图: ${props.currentView})`);
-          }
+          console.log(`🎯 模型加载完成，应用房间青绿色样式 (当前视图: ${props.currentView})`);
+          applyRoomStyleOnly(); // 只上色，不孤立
         }, 100);
       }
     }, (err) => {
@@ -923,11 +918,9 @@ emit('rooms-loaded', roomList);
       if (pendingProps === 0) {
         emit('rooms-loaded', roomList);
 
-        // 根据当前视图决定是否应用房间样式
+        // 应用房间样式（青绿色）- 适用于所有视图
         setTimeout(() => {
-          if (props.currentView === 'connect') {
-            applyRoomStyle();
-          }
+          applyRoomStyleOnly(); // 只上色，不孤立
         }, 100);
       }
     });
@@ -1005,7 +998,7 @@ const extractAssets = () => {
   });
 };
 
-// 3. 应用浅紫色样式到所有房间
+// 3. 应用青绿色样式到所有房间（用于连接视图，包含孤立效果）
 const applyRoomStyle = () => {
   if (!viewer) return;
 
@@ -1041,6 +1034,39 @@ const applyRoomStyle = () => {
   viewer.impl.invalidate(true, true, true);
 
   updateAllTagPositions();
+};
+
+// 3.5 应用青绿色样式到所有房间（只上色，不孤立，适用于所有视图）
+const applyRoomStyleOnly = () => {
+  if (!viewer || !viewer.model) return;
+
+  // 优先使用从数据库传入的空间列表
+  let dbIdsToColor = [];
+  if (props.rooms && props.rooms.length > 0) {
+    dbIdsToColor = props.rooms.map(r => r.dbId).filter(Boolean);
+  } else if (foundRoomDbIds.length > 0) {
+    dbIdsToColor = foundRoomDbIds;
+  }
+
+  if (dbIdsToColor.length === 0) {
+    console.log('⚠️ 没有找到房间数据，跳过上色');
+    return;
+  }
+
+  console.log(`🎨 为 ${dbIdsToColor.length} 个房间应用青绿色样式`);
+
+  const mat = getRoomMaterial();
+  const fragList = viewer.model.getFragmentList();
+  const tree = viewer.model.getInstanceTree();
+
+  dbIdsToColor.forEach(dbId => {
+    tree.enumNodeFragments(dbId, (fragId) => {
+      fragList.setMaterial(fragId, mat);
+    });
+  });
+
+  // 强制刷新渲染（不孤立，所有构件都可见）
+  viewer.impl.invalidate(true, true, true);
 };
 
 // 4. 移除样式 (恢复)
@@ -2729,6 +2755,34 @@ const restoreViewState = (viewData) => {
   }
 };
 
+// 刷新时序数据（用于模型激活后重新加载 InfluxDB 数据）
+const refreshTimeSeriesData = async () => {
+  console.log('🔄 刷新时序数据...');
+  try {
+    // 重新加载图表数据
+    await loadChartData();
+    
+    // 刷新房间温度缓存
+    const codes = roomTags.value.map(t => t.code).filter(Boolean);
+    if (codes.length > 0) {
+      await refreshRoomSeriesCache(codes).catch(() => {});
+      
+      // 更新最新温度值
+      if (await isInfluxConfigured()) {
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch(() => ({}));
+        roomTags.value.forEach(tag => {
+          const v = map[tag.code];
+          if (v !== undefined) tag.currentTemp = v.toFixed(1);
+        });
+      }
+    }
+    
+    console.log('✅ 时序数据刷新完成');
+  } catch (error) {
+    console.error('❌ 时序数据刷新失败:', error);
+  }
+};
+
 // 暴露方法给父组件
 defineExpose({
   resizeViewer,
@@ -2752,6 +2806,7 @@ defineExpose({
   showTemperatureTags,
   hideTemperatureTags,
   syncTimelineHover,
+  refreshTimeSeriesData,
   setSelectedRooms: async (codes) => {
     if (!isInfluxConfigured() || !codes?.length) {
       overlaySeries.value = [];

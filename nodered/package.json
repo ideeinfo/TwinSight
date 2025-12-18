@@ -1,0 +1,11 @@
+{
+    "name": "tandem-nodered",
+    "version": "1.0.0",
+    "description": "Tandem Demo Node-RED Configuration",
+    "dependencies": {
+        "node-red-contrib-influxdb": "^0.7.0",
+        "node-red-contrib-postgres-multi": "^0.2.1",
+        "node-red-dashboard": "^3.6.5",
+        "node-red-node-random": "^0.4.1"
+    }
+}

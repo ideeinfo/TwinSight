@@ -1,0 +1,33 @@
+# Vercel 配置文件
+# 用于部署前端到 Vercel
+
+{
+    "version": 2,
+    "name": "tandem-demo",
+    "builds": [
+        {
+            "src": "package.json",
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "dist"
+            }
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/(.*)",
+            "dest": "https://your-railway-backend.up.railway.app/api/$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/$1"
+        }
+    ],
+    "env": {
+        "VITE_API_URL": "@vite_api_url",
+        "VITE_INFLUX_URL": "@vite_influx_url",
+        "VITE_INFLUX_ORG": "@vite_influx_org",
+        "VITE_INFLUX_BUCKET": "@vite_influx_bucket",
+        "VITE_INFLUX_TOKEN": "@vite_influx_token"
+    }
+}

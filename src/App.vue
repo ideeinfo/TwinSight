@@ -4,36 +4,39 @@
 
     <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
 
-      <!-- 左侧面板 -->
-      <div class="panel-wrapper" :style="{ width: leftWidth + 'px' }">
-        <LeftPanel
-          v-if="currentView === 'connect'"
-          :rooms="roomList"
+      <!-- 左侧区域：IconBar + 内容面板 -->
+      <div class="left-section" :style="{ width: leftWidth + 'px' }">
+        <!-- 全局导航栏 -->
+        <IconBar
           :currentView="currentView"
-          :selectedDbIds="savedRoomSelections"
-          @open-properties="openRightPanel"
-          @rooms-selected="onRoomsSelected"
+          :isStreamsOpen="isChartPanelOpen"
+          @switch-view="switchView"
           @toggle-streams="toggleChartPanel"
-          @switch-view="switchView"
         />
-        <AssetPanel
-          v-else-if="currentView === 'assets'"
-          ref="assetPanelRef"
-          :assets="assetList"
-          :currentView="currentView"
-          :selectedDbIds="savedAssetSelections"
-          @open-properties="openRightPanel"
-          @assets-selected="onAssetsSelected"
-          @toggle-streams="toggleChartPanel"
-          @switch-view="switchView"
-        />
-        <FilePanel
-          v-else-if="currentView === 'files'"
-          :currentView="currentView"
-          @switch-view="switchView"
-          @file-activated="onFileActivated"
-          @open-data-export="openDataExportPanel"
-        />
+        
+        <!-- 内容面板 -->
+        <div class="panel-content">
+          <LeftPanel
+            v-if="currentView === 'connect'"
+            :rooms="roomList"
+            :selectedDbIds="savedRoomSelections"
+            @open-properties="openRightPanel"
+            @rooms-selected="onRoomsSelected"
+          />
+          <AssetPanel
+            v-else-if="currentView === 'assets'"
+            ref="assetPanelRef"
+            :assets="assetList"
+            :selectedDbIds="savedAssetSelections"
+            @open-properties="openRightPanel"
+            @assets-selected="onAssetsSelected"
+          />
+          <FilePanel
+            v-else-if="currentView === 'files'"
+            @file-activated="onFileActivated"
+            @open-data-export="openDataExportPanel"
+          />
+        </div>
       </div>
 
       <div class="resizer" @mousedown="startResize($event, 'left')"></div>
@@ -146,6 +149,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import TopBar from './components/TopBar.vue';
+import IconBar from './components/IconBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import FilePanel from './components/FilePanel.vue';
@@ -612,6 +616,9 @@ const onFileActivated = async (file) => {
     savedAssetSelections.value = [];
     savedRoomSelections.value = [];
     selectedRoomProperties.value = null;
+    selectedObjectIds.value = [];
+    selectedRoomSeries.value = []; // 清除下方图表数据
+    chartData.value = []; // 清除平均值图表数据
 
     // 加载对应的 3D 模型
     if (file.extracted_path) {
@@ -619,6 +626,13 @@ const onFileActivated = async (file) => {
         // Viewer 已准备好，立即加载
         currentLoadedModelPath.value = file.extracted_path;
         mainViewRef.value.loadNewModel(file.extracted_path);
+        
+        // 模型加载后刷新时序数据（延迟执行，等待模型加载完成并触发 rooms-loaded）
+        setTimeout(() => {
+          if (mainViewRef.value && mainViewRef.value.refreshTimeSeriesData) {
+            mainViewRef.value.refreshTimeSeriesData();
+          }
+        }, 2000);
       } else {
         // Viewer 尚未准备好，保存待加载文件
         console.log('📦 Viewer 尚未准备好，保存待加载文件');
@@ -1138,7 +1152,8 @@ const openRightPanel = () => {
 
 // 切换图表面板
 const toggleChartPanel = (isOpen) => {
-  isChartPanelOpen.value = isOpen;
+  // 如果没有传参数，则切换状态；否则使用传入的值
+  isChartPanelOpen.value = isOpen !== undefined ? isOpen : !isChartPanelOpen.value;
   // 使用 nextTick 确保 DOM 更新后再 resize
   nextTick(() => {
     if (mainViewRef.value?.resizeViewer) {
@@ -1372,6 +1387,8 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .app-layout { display: flex; flex-direction: column; height: 100%; width: 100%; }
 .main-body { display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; }
 .panel-wrapper { flex-shrink: 0; height: 100%; overflow: hidden; position: relative; z-index: 20; transition: width 0.05s ease-out; }
+.left-section { display: flex; flex-shrink: 0; height: 100%; overflow: hidden; position: relative; z-index: 20; transition: width 0.05s ease-out; }
+.panel-content { flex: 1; height: 100%; overflow: hidden; display: flex; flex-direction: column; background: #252526; }
 .main-content { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; display: flex; flex-direction: column; }
 .viewer-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; }
 .bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }

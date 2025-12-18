@@ -12,6 +12,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tandem-network
 
   # pgAdmin 4 - PostgreSQL 数据库管理界面
   pgadmin:
@@ -27,24 +29,104 @@ services:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
+    networks:
+      - tandem-network
+
+  # InfluxDB 2.x - 时序数据库
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: tandem-influxdb
+    restart: always
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: demo
+      DOCKER_INFLUXDB_INIT_BUCKET: tandem
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: tandem-influx-token-2024
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - tandem-network
+
+  # Node-RED - 可视化流程编程工具
+  nodered:
+    image: nodered/node-red:latest
+    container_name: tandem-nodered
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+      # Node-RED 设置
+      NODE_RED_ENABLE_PROJECTS: "false"
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered_data:/data
+      # 挂载本地配置（可选，首次启动后可取消注释）
+      # - ./nodered/flows.json:/data/flows.json
+      # - ./nodered/package.json:/data/package.json
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - tandem-network
+    # 健康检查
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
   pgadmin_data:
+  influxdb_data:
+  influxdb_config:
+  nodered_data:
 
-    # ============================================
-    # 服务说明:
-    # ============================================
-    # PostgreSQL: localhost:5432
-    #   - 用户: postgres
-    #   - 密码: password
-    #   - 数据库: tandem
-    #
-    # pgAdmin: http://localhost:5050
-    #   - 邮箱: admin@tandem.com
-    #   - 密码: admin123
-    #   - 连接数据库时 Host 填: postgres (容器名)
-    #
-    # API 服务 (server/): npm run dev
-    #   - 端口: 3001
-    #   - 初始化数据库: cd server && npm run db:init
+
+networks:
+  tandem-network:
+    driver: bridge
+
+# ============================================
+# 服务说明:
+# ============================================
+#
+# PostgreSQL: localhost:5432
+#   - 用户: postgres
+#   - 密码: password
+#   - 数据库: tandem
+#
+# pgAdmin: http://localhost:5050
+#   - 邮箱: admin@tandem.com
+#   - 密码: admin123
+#   - 连接数据库时 Host 填: postgres (容器名)
+#
+# InfluxDB: http://localhost:8086
+#   - 用户: admin
+#   - 密码: adminpassword
+#   - 组织: demo
+#   - Bucket: tandem
+#   - Token: tandem-influx-token-2024
+#
+# Node-RED: http://localhost:1880
+#   - 可视化流程编辑器
+#   - 用于 IoT 数据采集和处理
+#   - 预装 InfluxDB 节点: npm install node-red-contrib-influxdb
+#   - 预装 PostgreSQL 节点: npm install node-red-contrib-postgres-multi
+#
+# API 服务 (server/): npm run dev
+#   - 端口: 3001
+#   - 初始化数据库: cd server && npm run db:init
+#
+# ============================================
+# 快速启动:
+# ============================================
+# 1. 启动所有服务: docker-compose up -d
+# 2. 查看日志: docker-compose logs -f
+# 3. 停止服务: docker-compose down
+# 4. 清除数据: docker-compose down -v

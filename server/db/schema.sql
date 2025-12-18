@@ -100,6 +100,27 @@ CREATE INDEX IF NOT EXISTS idx_spaces_floor ON spaces(floor);
 CREATE INDEX IF NOT EXISTS idx_spaces_db_id ON spaces(db_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spaces_uuid ON spaces(uuid);
 
+-- 5. InfluxDB 配置表
+-- 存储每个模型的时序数据库连接配置
+CREATE TABLE IF NOT EXISTS influx_configs (
+    id SERIAL PRIMARY KEY,
+    file_id INTEGER UNIQUE REFERENCES model_files(id) ON DELETE CASCADE,
+    influx_url VARCHAR(500) NOT NULL,           -- InfluxDB 地址
+    influx_port INTEGER DEFAULT 8086,           -- 端口
+    influx_org VARCHAR(200) NOT NULL,           -- 组织
+    influx_bucket VARCHAR(200) NOT NULL,        -- 容器/存储桶
+    influx_token TEXT,                          -- API Token
+    influx_user VARCHAR(200),                   -- 用户名（Basic认证）
+    influx_password TEXT,                       -- 密码（Basic认证）
+    use_basic_auth BOOLEAN DEFAULT false,       -- 是否使用 Basic 认证
+    is_enabled BOOLEAN DEFAULT true,            -- 是否启用
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- InfluxDB 配置表索引
+CREATE INDEX IF NOT EXISTS idx_influx_configs_file_id ON influx_configs(file_id);
+
 -- ========================================
 -- 创建更新时间触发器函数
 -- ========================================
@@ -137,6 +158,12 @@ CREATE TRIGGER update_spaces_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_influx_configs_updated_at ON influx_configs;
+CREATE TRIGGER update_influx_configs_updated_at
+    BEFORE UPDATE ON influx_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ========================================
 -- 添加注释
 -- ========================================
@@ -163,3 +190,12 @@ COMMENT ON COLUMN assets.room IS '所在房间：取自房间分组下的名称�
 COMMENT ON COLUMN spaces.space_code IS '空间编码：取自编号属性';
 COMMENT ON COLUMN spaces.classification_code IS '分类编码：取自Classification.Space.Number';
 COMMENT ON COLUMN spaces.classification_desc IS '分类描述：取自Classification.Space.Description';
+
+COMMENT ON TABLE influx_configs IS 'InfluxDB配置表：存储每个模型的时序数据库连接配置';
+COMMENT ON COLUMN influx_configs.file_id IS '关联的模型文件ID，一对一关系';
+COMMENT ON COLUMN influx_configs.influx_url IS 'InfluxDB服务器地址';
+COMMENT ON COLUMN influx_configs.influx_port IS '端口号，默认8086';
+COMMENT ON COLUMN influx_configs.influx_org IS 'InfluxDB组织名称';
+COMMENT ON COLUMN influx_configs.influx_bucket IS 'InfluxDB存储桶名称';
+COMMENT ON COLUMN influx_configs.influx_token IS 'API Token用于认证';
+COMMENT ON COLUMN influx_configs.use_basic_auth IS '是否使用Basic认证而非Token';

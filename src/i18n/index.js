@@ -18,6 +18,7 @@ const messages = {
       search: '搜索',
       status: '状态',
       saving: '保存中...',
+      save: '保存',
       saveFailed: '保存失败',
       saveSuccess: '保存成功',
       clickToEditAll: '点击编辑所有选中对象'
@@ -278,7 +279,27 @@ const messages = {
       statusUploaded: '已上传',
       statusExtracting: '解压中',
       statusReady: '就绪',
-      statusError: '错误'
+      statusError: '错误',
+      influxConfig: '时序数据库'
+    },
+    influxConfig: {
+      title: '时序数据库配置',
+      connectionInfo: '连接信息',
+      url: '服务器地址',
+      port: '端口',
+      org: '组织',
+      bucket: '存储桶',
+      authentication: '认证方式',
+      username: '用户名',
+      password: '密码',
+      keepExisting: '保持当前',
+      enterToken: '输入 API Token',
+      enterPassword: '输入密码',
+      enabled: '启用时序数据库连接',
+      testConnection: '测试连接',
+      testing: '测试中...',
+      testSuccess: '连接成功',
+      testFailed: '连接失败'
     }
   },
   en: {
@@ -292,6 +313,7 @@ const messages = {
       add: 'Add',
       multiple: 'Multiple',
       saving: 'Saving...',
+      save: 'Save',
       varies: 'Varies',
       unnamed: 'Unnamed',
       none: '--',
@@ -558,7 +580,27 @@ const messages = {
       statusUploaded: 'Uploaded',
       statusExtracting: 'Extracting',
       statusReady: 'Ready',
-      statusError: 'Error'
+      statusError: 'Error',
+      influxConfig: 'Time Series DB'
+    },
+    influxConfig: {
+      title: 'Time Series Database Configuration',
+      connectionInfo: 'Connection Info',
+      url: 'Server URL',
+      port: 'Port',
+      org: 'Organization',
+      bucket: 'Bucket',
+      authentication: 'Authentication',
+      username: 'Username',
+      password: 'Password',
+      keepExisting: 'Keep current',
+      enterToken: 'Enter API Token',
+      enterPassword: 'Enter password',
+      enabled: 'Enable time series database connection',
+      testConnection: 'Test Connection',
+      testing: 'Testing...',
+      testSuccess: 'Connection successful',
+      testFailed: 'Connection failed'
     }
   }
 }

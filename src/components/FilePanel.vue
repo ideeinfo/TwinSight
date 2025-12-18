@@ -1,24 +1,5 @@
 <template>
   <div class="left-container">
-    <!-- Icon Bar -->
-    <div class="icon-bar">
-      <!-- 上部按钮组 -->
-      <div class="nav-group-top">
-        <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg><span class="label">{{ t('leftPanel.filters') }}</span></div>
-        <div class="nav-item" :class="{ 'active-blue': currentView === 'assets' }" @click="$emit('switch-view', 'assets')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><span class="label">{{ t('leftPanel.assets') }}</span></div>
-        <div class="nav-item" :class="{ 'active-blue': currentView === 'files' }"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="label">{{ t('leftPanel.files') }}</span></div>
-        <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="12" x2="6" y2="15"></line><line x1="12" y1="12" x2="18" y2="15"></line><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="18" r="3"></circle></svg><span class="label">{{ t('leftPanel.systems') }}</span></div>
-        <div class="nav-item" :class="{ 'active-blue': currentView === 'connect' }" @click="$emit('switch-view', 'connect')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="label">{{ t('leftPanel.connect') }}</span></div>
-      </div>
-
-      <!-- 下部按钮组 -->
-      <div class="nav-group-bottom">
-        <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg><span class="label">{{ t('leftPanel.streams') }}</span></div>
-        <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span class="label">{{ t('leftPanel.history') }}</span></div>
-        <div class="nav-item disabled"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span class="label">{{ t('leftPanel.inventory') }}</span></div>
-      </div>
-    </div>
-
     <!-- List Panel -->
     <div class="list-panel">
       <div class="panel-header">
@@ -174,6 +155,12 @@
           </svg>
           {{ t('filePanel.extractData') }}
         </div>
+        <div class="context-menu-item" @click="handleInfluxConfig">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          {{ t('filePanel.influxConfig') }}
+        </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="handleDelete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,20 +212,27 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- InfluxDB 配置弹窗 -->
+    <Teleport to="body">
+      <InfluxConfigPanel
+        v-if="isInfluxConfigOpen"
+        :fileId="influxConfigFileId"
+        @close="closeInfluxConfig"
+        @saved="onInfluxConfigSaved"
+      />
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import InfluxConfigPanel from './InfluxConfigPanel.vue';
 
 const { t } = useI18n();
 
-const props = defineProps({
-  currentView: { type: String, default: 'files' }
-});
-
-const emit = defineEmits(['switch-view', 'file-activated', 'open-data-export']);
+const emit = defineEmits(['file-activated', 'open-data-export']);
 
 // 状态
 const files = ref([]);
@@ -252,6 +246,8 @@ const isExtracting = ref(false);
 const fileInput = ref(null);
 const isEditDialogOpen = ref(false);
 const isSaving = ref(false);
+const isInfluxConfigOpen = ref(false);
+const influxConfigFileId = ref(null);
 
 const uploadForm = ref({
   title: '',
@@ -533,6 +529,24 @@ const handleDelete = async () => {
 // 全局点击关闭上下文菜单
 const onGlobalClick = () => {
   hideContextMenu();
+};
+
+// InfluxDB 配置
+const handleInfluxConfig = () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+  influxConfigFileId.value = file.id;
+  isInfluxConfigOpen.value = true;
+};
+
+const closeInfluxConfig = () => {
+  isInfluxConfigOpen.value = false;
+  influxConfigFileId.value = null;
+};
+
+const onInfluxConfigSaved = (config) => {
+  console.log('InfluxDB 配置已保存:', config);
+  // 可以在这里添加保存成功的提示
 };
 
 onMounted(() => {

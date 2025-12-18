@@ -176,6 +176,18 @@ const tooltipLeft = (idx) => {
   return (x + 15) + 'px'
 }
 const tooltipTop = (idx) => ((tooltipPxY.value[idx] || 0) - 50) + 'px'
+
+// 从第一个系列获取起始和结束时间（用于 ChartHeader）
+const firstStartMs = computed(() => {
+  const first = props.seriesList && props.seriesList[0]
+  const pts = first && first.points
+  return pts && pts.length ? pts[0]?.timestamp || 0 : 0
+})
+const firstEndMs = computed(() => {
+  const first = props.seriesList && props.seriesList[0]
+  const pts = first && first.points
+  return pts && pts.length ? pts[pts.length - 1]?.timestamp || 0 : 0
+})
 </script>
 
 <style scoped>
@@ -212,13 +224,3 @@ const tooltipTop = (idx) => ((tooltipPxY.value[idx] || 0) - 50) + 'px'
 .close { background: none; border: none; color: #ccc; cursor: pointer; font-size: 18px; padding: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; transition: color 0.2s; }
 .close:hover { color: #f48771; }
 </style>
-const firstStartMs = computed(() => {
-  const first = props.seriesList && props.seriesList[0]
-  const pts = first && first.points
-  return pts && pts.length ? pts[0]?.timestamp || 0 : 0
-})
-const firstEndMs = computed(() => {
-  const first = props.seriesList && props.seriesList[0]
-  const pts = first && first.points
-  return pts && pts.length ? pts[pts.length - 1]?.timestamp || 0 : 0
-})

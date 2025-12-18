@@ -1,0 +1,129 @@
+[
+    {
+        "id": "tandem-demo-flow",
+        "type": "tab",
+        "label": "Tandem 温度模拟",
+        "disabled": false,
+        "info": "模拟温度数据并写入 InfluxDB"
+    },
+    {
+        "id": "inject-timer",
+        "type": "inject",
+        "z": "tandem-demo-flow",
+        "name": "每5秒触发",
+        "props": [],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "x": 130,
+        "y": 100,
+        "wires": [
+            [
+                "generate-rooms"
+            ]
+        ]
+    },
+    {
+        "id": "generate-rooms",
+        "type": "function",
+        "z": "tandem-demo-flow",
+        "name": "生成房间数据",
+        "func": "// 模拟房间列表\nconst rooms = [\n    { code: 'Room-101', name: '会议室A' },\n    { code: 'Room-102', name: '办公区B' },\n    { code: 'Room-103', name: '休息室C' },\n    { code: 'Room-201', name: '实验室D' }\n];\n\n// 为每个房间生成消息\nconst messages = rooms.map(room => {\n    // 生成 20-35 范围内的随机温度\n    const baseTemp = 25 + Math.sin(Date.now() / 60000) * 5;\n    const temp = baseTemp + (Math.random() - 0.5) * 4;\n    \n    return {\n        payload: {\n            code: room.code,\n            name: room.name,\n            value: Math.round(temp * 10) / 10,\n            timestamp: Date.now()\n        }\n    };\n});\n\nreturn [messages];",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 320,
+        "y": 100,
+        "wires": [
+            [
+                "format-influx"
+            ]
+        ]
+    },
+    {
+        "id": "format-influx",
+        "type": "function",
+        "z": "tandem-demo-flow",
+        "name": "格式化 InfluxDB",
+        "func": "// 转换为 InfluxDB 格式\nmsg.payload = {\n    measurement: 'room_temp',\n    tags: {\n        code: msg.payload.code,\n        name: msg.payload.name\n    },\n    fields: {\n        value: msg.payload.value\n    },\n    timestamp: msg.payload.timestamp * 1000000  // 纳秒\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 100,
+        "wires": [
+            [
+                "influx-out",
+                "debug"
+            ]
+        ]
+    },
+    {
+        "id": "influx-out",
+        "type": "influxdb out",
+        "z": "tandem-demo-flow",
+        "influxdb": "influx-config",
+        "name": "写入 InfluxDB",
+        "measurement": "",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "demo",
+        "bucket": "tandem",
+        "x": 740,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "debug",
+        "type": "debug",
+        "z": "tandem-demo-flow",
+        "name": "调试输出",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 730,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "influx-config",
+        "type": "influxdb",
+        "hostname": "influxdb",
+        "port": "8086",
+        "protocol": "http",
+        "database": "",
+        "name": "Tandem InfluxDB",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "timeout": "",
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "comment-1",
+        "type": "comment",
+        "z": "tandem-demo-flow",
+        "name": "📝 使用说明",
+        "info": "## Tandem 温度数据模拟流程\n\n### 功能\n- 每5秒生成模拟温度数据\n- 模拟4个房间的温度传感器\n- 温度范围：20-35°C\n- 数据写入 InfluxDB\n\n### 配置 InfluxDB 连接\n1. 双击 \"写入 InfluxDB\" 节点\n2. 点击 Server 旁边的编辑按钮\n3. 配置以下信息：\n   - URL: http://influxdb:8086\n   - Token: tandem-influx-token-2024\n   - Organization: demo\n   - Bucket: tandem\n\n### 验证数据\n1. 访问 http://localhost:8086\n2. 使用 admin/adminpassword 登录\n3. 进入 Data Explorer 查看数据",
+        "x": 110,
+        "y": 40,
+        "wires": []
+    }
+]
