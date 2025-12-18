@@ -14,6 +14,7 @@ import timeseriesRoutes from './routes/timeseries.js';
 import viewsRoutes from './routes/views.js';
 import influxConfigRoutes from './routes/influx-config.js';
 import aiAnalysisRoutes from './routes/ai-analysis.js';
+import configRoutes from './routes/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +67,7 @@ app.use('/api/views', viewsRoutes);
 app.use('/api/influx-config', influxConfigRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes);
 app.use('/api/ai', aiAnalysisRoutes);
+app.use('/api/config', configRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {

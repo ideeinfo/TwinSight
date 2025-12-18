@@ -162,6 +162,43 @@
       </div>
     </div>
 
+    <!-- AI 分析结果弹窗 -->
+    <div v-if="showAIAnalysisModal" class="ai-analysis-modal-overlay" @click.self="closeAIAnalysisModal">
+      <div class="ai-analysis-modal">
+        <div class="ai-modal-header">
+          <div class="ai-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/>
+              <path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <span class="ai-header-title">🤖 AI 智能分析</span>
+          <button class="ai-close-btn" @click="closeAIAnalysisModal">×</button>
+        </div>
+        <div class="ai-modal-body">
+          <div v-if="aiAnalysisLoading" class="ai-loading">
+            <div class="ai-spinner"></div>
+            <span>AI 正在分析中...</span>
+          </div>
+          <div v-else class="ai-content">
+            <div class="ai-alert-info">
+              <div class="alert-badge" :class="aiAnalysisData.severity">
+                {{ aiAnalysisData.severity === 'critical' ? '严重' : '警告' }}
+              </div>
+              <span class="alert-location">{{ aiAnalysisData.roomName }}</span>
+              <span class="alert-temp">{{ aiAnalysisData.temperature }}°C</span>
+            </div>
+            <div class="ai-analysis-text" v-html="formatAnalysisText(aiAnalysisData.analysis)"></div>
+          </div>
+        </div>
+        <div class="ai-modal-footer">
+          <button class="ai-btn-secondary" @click="closeAIAnalysisModal">关闭</button>
+          <button class="ai-btn-primary" @click="acknowledgeAlert">已了解</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -202,6 +239,18 @@ let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
 const isHeatmapEnabled = ref(false); // 热力图开关状态
+
+// AI 分析弹窗状态
+const showAIAnalysisModal = ref(false);
+const aiAnalysisLoading = ref(false);
+const aiAnalysisData = ref({
+  roomCode: '',
+  roomName: '',
+  temperature: 0,
+  threshold: 28,
+  severity: 'warning',
+  analysis: ''
+});
 
 // 辅助函数：设置手动选择标志，并在短时间后自动重置
 const setManualSelection = () => {
@@ -257,12 +306,12 @@ const animateToDefaultView = (duration = 800) => {
 // 时间状态
 const MOCK_NOW = new Date(); 
 const endDate = ref(new Date(MOCK_NOW));
-const startDate = ref(new Date(MOCK_NOW.getTime() - 3 * 24 * 60 * 60 * 1000)); 
+const startDate = ref(new Date(MOCK_NOW.getTime() - 24 * 60 * 60 * 1000)); // 默认24小时 
 
 // Dropdown & Modal 状态
 const isTimeRangeMenuOpen = ref(false);
 const dropdownRef = ref(null);
-const selectedTimeRange = ref({ label: '', value: '3d' });
+const selectedTimeRange = ref({ label: '', value: '24h' }); // 默认24小时
 const isCustomModalOpen = ref(false);
 const calendarViewDate = ref(new Date());
 const tempStart = ref(null);
@@ -393,40 +442,102 @@ const setTagTempsAtCurrentTime = () => {
       const v = pts[idx]?.value;
       if (v !== undefined) {
         const newTemp = Number(v).toFixed(1);
-        const prevTemp = parseFloat(tag.currentTemp) || 0;
+        const prevTemp = parseFloat(tag.currentTemp) || 20; // 默认20度作为正常值
         tag.currentTemp = newTemp;
         
-        // 温度报警：当温度超过28度时触发AI分析
-        const TEMP_THRESHOLD = 28;
+        // 温度阈值
+        const HIGH_THRESHOLD = 28;
+        const LOW_THRESHOLD = 0;
         const tempValue = parseFloat(newTemp);
         
-        // 只在温度从正常变为超标时触发一次，避免重复报警
-        if (tempValue > TEMP_THRESHOLD && prevTemp <= TEMP_THRESHOLD && !tag._alertTriggered) {
-          tag._alertTriggered = true;
-          console.log(`🔥 温度报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${TEMP_THRESHOLD}°C`);
+        // 高温报警：当温度超过28度时触发AI分析
+        if (tempValue > HIGH_THRESHOLD && prevTemp <= HIGH_THRESHOLD && !tag._highAlertTriggered) {
+          tag._highAlertTriggered = true;
+          console.log(`🔥 高温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${HIGH_THRESHOLD}°C`);
+          
+          // 设置弹窗初始数据并显示加载状态
+          aiAnalysisData.value = {
+            roomCode: tag.code,
+            roomName: tag.name || tag.code,
+            temperature: tempValue,
+            threshold: HIGH_THRESHOLD,
+            severity: tempValue >= HIGH_THRESHOLD + 5 ? 'critical' : 'warning',
+            analysis: ''
+          };
+          aiAnalysisLoading.value = true;
+          showAIAnalysisModal.value = true;
           
           // 异步调用 n8n AI 分析工作流
           triggerTemperatureAlert({
             roomCode: tag.code,
             roomName: tag.name || tag.code,
             temperature: tempValue,
-            threshold: TEMP_THRESHOLD,
+            threshold: HIGH_THRESHOLD,
+            alertType: 'high',
           }).then(result => {
+            aiAnalysisLoading.value = false;
             if (result.success && result.analysis) {
               console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
-              // TODO: 可以显示弹窗或通知用户
+              aiAnalysisData.value.analysis = result.analysis;
             } else {
               console.warn(`⚠️ AI 分析失败:`, result.error);
+              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
             }
           }).catch(err => {
+            aiAnalysisLoading.value = false;
             console.error(`❌ AI 分析异常:`, err);
+            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
+          });
+        }
+        
+        // 低温报警：当温度低于10度时触发AI分析
+        if (tempValue < LOW_THRESHOLD && prevTemp >= LOW_THRESHOLD && !tag._lowAlertTriggered) {
+          tag._lowAlertTriggered = true;
+          console.log(`❄️ 低温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 低于阈值 ${LOW_THRESHOLD}°C`);
+          
+          // 设置弹窗初始数据并显示加载状态
+          aiAnalysisData.value = {
+            roomCode: tag.code,
+            roomName: tag.name || tag.code,
+            temperature: tempValue,
+            threshold: LOW_THRESHOLD,
+            severity: tempValue <= LOW_THRESHOLD - 5 ? 'critical' : 'warning',
+            analysis: ''
+          };
+          aiAnalysisLoading.value = true;
+          showAIAnalysisModal.value = true;
+          
+          // 异步调用 n8n AI 分析工作流（低温报警）
+          triggerTemperatureAlert({
+            roomCode: tag.code,
+            roomName: tag.name || tag.code,
+            temperature: tempValue,
+            threshold: LOW_THRESHOLD,
+            alertType: 'low',
+          }).then(result => {
+            aiAnalysisLoading.value = false;
+            if (result.success && result.analysis) {
+              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
+              aiAnalysisData.value.analysis = result.analysis;
+            } else {
+              console.warn(`⚠️ AI 分析失败:`, result.error);
+              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
+            }
+          }).catch(err => {
+            aiAnalysisLoading.value = false;
+            console.error(`❌ AI 分析异常:`, err);
+            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
           });
         }
         
         // 温度恢复正常时重置报警标志
-        if (tempValue <= TEMP_THRESHOLD && tag._alertTriggered) {
-          tag._alertTriggered = false;
-          console.log(`✅ 温度恢复正常: ${tag.code} 温度 ${newTemp}°C`);
+        if (tempValue <= HIGH_THRESHOLD && tag._highAlertTriggered) {
+          tag._highAlertTriggered = false;
+          console.log(`✅ 温度恢复正常(高温): ${tag.code} 温度 ${newTemp}°C`);
+        }
+        if (tempValue >= LOW_THRESHOLD && tag._lowAlertTriggered) {
+          tag._lowAlertTriggered = false;
+          console.log(`✅ 温度恢复正常(低温): ${tag.code} 温度 ${newTemp}°C`);
         }
       }
     }
@@ -523,6 +634,44 @@ const getTagStyle = (t) => {
   if (t > 35) return { backgroundColor: '#ff4d4d', borderColor: '#d32f2f' };
   if (t > 30) return { backgroundColor: '#4caf50', borderColor: '#388e3c' };
   return { backgroundColor: '#0078d4', borderColor: '#005a9e' };
+};
+
+// AI 分析弹窗函数
+const closeAIAnalysisModal = () => {
+  showAIAnalysisModal.value = false;
+};
+
+const acknowledgeAlert = () => {
+  showAIAnalysisModal.value = false;
+  console.log('✅ 用户已确认报警');
+};
+
+// 格式化 AI 分析文本（Markdown 转 HTML）
+const formatAnalysisText = (text) => {
+  if (!text) return '';
+  
+  // 预处理：移除多余的空行和孤立的 #
+  let processed = text
+    .replace(/^#\s*$/gm, '')           // 移除孤立的 # 
+    .replace(/\n{3,}/g, '\n\n')        // 多个换行合并为两个
+    .replace(/^\s+|\s+$/g, '')         // 去掉首尾空白
+    .trim();
+  
+  // Markdown 转 HTML
+  return processed
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')      // ## 标题
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')     // ### 标题
+    .replace(/^# (.+)$/gm, '<h3>$1</h3>')       // # 标题也转为 h3
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')  // 粗体
+    .replace(/^- (.+)$/gm, '<li>$1</li>')       // 列表项
+    .replace(/^(\d+)\. (.+)$/gm, '<div class="numbered-item"><span class="num">$1.</span> $2</div>')  // 编号列表
+    .replace(/\n\n/g, '</p><p>')               // 段落
+    .replace(/\n/g, '<br>')                    // 换行
+    .replace(/^/, '<p>')                       // 开头加 p
+    .replace(/$/, '</p>')                      // 结尾加 p
+    .replace(/<p><h/g, '<h')                   // 清理标题前的 p
+    .replace(/<\/h(\d)><\/p>/g, '</h$1>')      // 清理标题后的 p
+    .replace(/<p><\/p>/g, '');                 // 移除空段落
 };
 
 // ================== 3. Viewer 逻辑 ==================
@@ -2522,12 +2671,13 @@ watch(locale, (newLocale, oldLocale) => {
 
 // 自动刷新数据的定时器
 let autoRefreshTimer = null;
-const AUTO_REFRESH_INTERVAL = 60000; // 60秒（1分钟）
+const AUTO_REFRESH_INTERVAL = 15000; // 15秒（更快的刷新频率以便及时检测报警）
 
 const startAutoRefresh = () => {
   if (autoRefreshTimer) return; // 防止重复启动
   
-  autoRefreshTimer = setInterval(async () => {
+  // 定义刷新函数
+  const doRefresh = async () => {
     if (!isInfluxConfigured()) return;
     
     const now = new Date();
@@ -2568,7 +2718,7 @@ const startAutoRefresh = () => {
           }
         });
         
-        // 更新温度标签显示
+        // 更新温度标签显示（会触发报警检测）
         setTagTempsAtCurrentTime();
       }
       
@@ -2579,9 +2729,15 @@ const startAutoRefresh = () => {
     } catch (err) {
       console.warn('⚠️ 自动刷新失败:', err);
     }
-  }, AUTO_REFRESH_INTERVAL);
+  };
   
-  console.log('✅ 自动刷新已启动 (每1分钟)');
+  // 立即执行一次刷新
+  doRefresh();
+  
+  // 设置定时刷新
+  autoRefreshTimer = setInterval(doRefresh, AUTO_REFRESH_INTERVAL);
+  
+  console.log(`✅ 自动刷新已启动 (每${AUTO_REFRESH_INTERVAL / 1000}秒)`);
 };
 
 const stopAutoRefresh = () => {
@@ -3127,5 +3283,248 @@ defineExpose({
 }
 
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+/* AI 分析弹窗样式 */
+.ai-analysis-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.ai-analysis-modal {
+  background: linear-gradient(145deg, #1a2332 0%, #0d1520 100%);
+  border: 1px solid #3d5a80;
+  border-radius: 16px;
+  width: 600px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(59, 130, 246, 0.15);
+  overflow: hidden;
+}
+
+.ai-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border-bottom: 1px solid #3b82f6;
+}
+
+.ai-header-icon {
+  color: #93c5fd;
+  display: flex;
+  align-items: center;
+}
+
+.ai-header-title {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.ai-close-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #93c5fd;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.ai-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.ai-modal-body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  color: #e2e8f0;
+  min-height: 200px;
+  max-height: calc(85vh - 150px); /* 减去header和footer的高度 */
+}
+
+.ai-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 16px;
+  color: #93c5fd;
+}
+
+.ai-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #1e3a5f;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ai-alert-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.alert-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.alert-badge.warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+}
+
+.alert-badge.critical {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+}
+
+.alert-location {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.alert-temp {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.ai-analysis-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #cbd5e1;
+}
+
+.ai-analysis-text h3 {
+  color: #60a5fa;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2d4a6a;
+}
+
+.ai-analysis-text h4 {
+  color: #93c5fd;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+}
+
+.ai-analysis-text strong {
+  color: #e2e8f0;
+}
+
+.ai-analysis-text li {
+  margin: 6px 0;
+  padding-left: 8px;
+  list-style: none;
+}
+
+.ai-analysis-text li::before {
+  content: "•";
+  color: #60a5fa;
+  margin-right: 8px;
+}
+
+.ai-analysis-text .numbered-item {
+  margin: 8px 0;
+  padding-left: 0;
+}
+
+.ai-analysis-text .numbered-item .num {
+  color: #60a5fa;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.ai-analysis-text p {
+  margin: 8px 0;
+}
+
+.ai-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #0d1520;
+  border-top: 1px solid #1e3a5f;
+}
+
+.ai-btn-secondary {
+  background: transparent;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+.ai-btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: none;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ai-btn-primary:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+}
 </style>
 // 叠加曲线颜色与默认一致：按阈值渐变

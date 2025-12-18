@@ -132,6 +132,9 @@ const messages = {
       average: '平均值',
       individual: '个体值',
       alert: '警报',
+      alertHigh: '高温警报',
+      alertLow: '低温警报',
+      lowAlert: '低温警报',
       alertAbove30: '警报 > 30°C',
       normal: '正常'
     },
@@ -433,6 +436,9 @@ const messages = {
       average: 'Average',
       individual: 'Individual',
       alert: 'Alert',
+      alertHigh: 'High Temp Alert',
+      alertLow: 'Low Temp Alert',
+      lowAlert: 'Low Temp Alert',
       alertAbove30: 'Alert > 30°C',
       normal: 'Normal'
     },

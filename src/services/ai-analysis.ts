@@ -15,6 +15,7 @@ export async function triggerTemperatureAlert(alertData: {
     roomName: string;
     temperature: number;
     threshold?: number;
+    alertType?: 'high' | 'low'; // 报警类型：high=高温, low=低温
     fileId?: number;
 }): Promise<{
     success: boolean;
@@ -31,7 +32,9 @@ export async function triggerTemperatureAlert(alertData: {
                 roomCode: alertData.roomCode,
                 roomName: alertData.roomName,
                 temperature: alertData.temperature,
-                threshold: alertData.threshold || 30,
+                // 根据报警类型设置默认阈值：高温28°C，低温0°C
+                threshold: alertData.threshold || (alertData.alertType === 'low' ? 0 : 28),
+                alertType: alertData.alertType || 'high',
                 fileId: alertData.fileId,
             }),
         });
@@ -41,6 +44,8 @@ export async function triggerTemperatureAlert(alertData: {
         }
 
         const result = await response.json();
+
+        console.log('📥 后端返回数据:', result);
 
         // 解析 Gemini 返回的分析文本
         let analysisText = '';
@@ -52,6 +57,8 @@ export async function triggerTemperatureAlert(alertData: {
                 analysisText = analysis.candidates[0].content.parts[0].text;
             }
         }
+
+        console.log(`📊 解析的分析文本长度: ${analysisText.length} 字符`);
 
         return {
             success: result.success,

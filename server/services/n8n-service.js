@@ -7,6 +7,23 @@
 const N8N_BASE_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678';
 
 /**
+ * 计算告警严重程度
+ */
+function calculateSeverity(alertData) {
+    const temp = alertData.temperature;
+    const threshold = alertData.threshold;
+    const alertType = alertData.alertType || 'high';
+
+    if (alertType === 'high') {
+        // 高温告警：超过阈值5度为严重
+        return temp >= threshold + 5 ? 'critical' : 'warning';
+    } else {
+        // 低温告警：低于阈值5度为严重
+        return temp <= threshold - 5 ? 'critical' : 'warning';
+    }
+}
+
+/**
  * 触发温度报警工作流
  * @param {Object} alertData - 报警数据
  * @param {string} alertData.roomCode - 房间编码
@@ -20,27 +37,32 @@ export async function triggerTemperatureAlert(alertData) {
     const webhookPath = process.env.N8N_TEMPERATURE_ALERT_WEBHOOK || '/webhook/temperature-alert';
 
     try {
+        const payload = {
+            eventType: 'temperature_alert',
+            data: {
+                roomCode: alertData.roomCode,
+                roomName: alertData.roomName,
+                temperature: alertData.temperature,
+                threshold: alertData.threshold,
+                alertType: alertData.alertType || 'high',
+                timestamp: alertData.timestamp || new Date().toISOString(),
+                fileId: alertData.fileId,
+                severity: calculateSeverity(alertData),
+            },
+            metadata: {
+                source: 'tandem-demo',
+                version: '1.0',
+            }
+        };
+
+        console.log('📤 发送到 n8n 的数据:', JSON.stringify(payload, null, 2));
+
         const response = await fetch(`${N8N_BASE_URL}${webhookPath}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                eventType: 'temperature_alert',
-                data: {
-                    roomCode: alertData.roomCode,
-                    roomName: alertData.roomName,
-                    temperature: alertData.temperature,
-                    threshold: alertData.threshold,
-                    timestamp: alertData.timestamp || new Date().toISOString(),
-                    fileId: alertData.fileId,
-                    severity: alertData.temperature >= alertData.threshold + 5 ? 'critical' : 'warning',
-                },
-                metadata: {
-                    source: 'tandem-demo',
-                    version: '1.0',
-                }
-            }),
+            body: JSON.stringify(payload),
         });
 
         if (!response.ok) {
@@ -50,6 +72,7 @@ export async function triggerTemperatureAlert(alertData) {
 
         const result = await response.json().catch(() => ({}));
         console.log('✅ 温度报警已触发 n8n 工作流:', alertData.roomCode);
+        console.log('📥 n8n 返回结果:', JSON.stringify(result, null, 2));
         return { success: true, result };
     } catch (error) {
         console.error('❌ n8n Webhook 调用异常:', error.message);

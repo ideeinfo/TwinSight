@@ -27,9 +27,13 @@
         <div class="grid-line" style="bottom: 66.7%"></div>
         <div class="grid-line" style="bottom: 83.3%"></div>
 
-      <!-- 阈值线 -->
-      <div class="threshold-line" :style="{ bottom: thresholdBottom + '%' }">
-        <span class="threshold-label">30°C {{ t('chartPanel.alert') }}</span>
+      <!-- 高温阈值线 -->
+      <div class="threshold-line high" :style="{ bottom: highThresholdBottom + '%' }">
+        <span class="threshold-label high">28°C {{ t('chartPanel.alert') }}</span>
+      </div>
+      <!-- 低温阈值线 -->
+      <div class="threshold-line low" :style="{ bottom: lowThresholdBottom + '%' }">
+        <span class="threshold-label low">10°C {{ t('chartPanel.lowAlert') }}</span>
       </div>
 
       <!-- SVG 曲线 -->
@@ -40,8 +44,8 @@
             <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
           </linearGradient>
           <linearGradient id="strokeGradBottom" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
-            <stop :offset="thresholdRatio - 0.01" stop-color="#ff4d4d" />
-            <stop :offset="thresholdRatio + 0.01" stop-color="#00b0ff" />
+            <stop :offset="highThresholdRatio - 0.01" stop-color="#ff4d4d" />
+            <stop :offset="highThresholdRatio + 0.01" stop-color="#00b0ff" />
           </linearGradient>
         </defs>
         <path :d="areaPath" fill="url(#areaGradBottom)" stroke="none" />
@@ -64,15 +68,15 @@
         <!-- 悬浮交互 -->
         <g v-if="hoverX > 0">
           <line :x1="hoverX" y1="0" :x2="hoverX" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
-          <circle :cx="hoverX" :cy="hoverY" r="4" :fill="parseFloat(hoverValue) >= 30 ? '#ff4d4d' : '#00b0ff'" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
+          <circle :cx="hoverX" :cy="hoverY" r="4" :fill="getPointColor(parseFloat(hoverValue))" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
         </g>
       </svg>
 
       <!-- Tooltip -->
       <div v-if="hoverX > 0" class="tooltip-box" :style="{ left: tooltipLeft, top: tooltipTop }">
-        <div class="val" :class="{ 'alert-val': parseFloat(hoverValue) >= 30 }">
+        <div class="val" :class="getValueClass(parseFloat(hoverValue))">
           {{ hoverValue }} °C
-          <span v-if="parseFloat(hoverValue) >= 30" class="alert-badge">!</span>
+          <span v-if="parseFloat(hoverValue) >= HIGH_THRESHOLD || parseFloat(hoverValue) <= LOW_THRESHOLD" class="alert-badge">!</span>
         </div>
         <div class="time">{{ hoverTime }}</div>
       </div>
@@ -90,7 +94,8 @@
         </div>
       </div>
       <div class="legend">
-        <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ overCount }})</span>
+        <span class="warn red">🔥 {{ t('chartPanel.alertHigh') }} ({{ highAlertCount }})</span>
+        <span class="warn cyan">❄️ {{ t('chartPanel.alertLow') }} ({{ lowAlertCount }})</span>
         <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
       </div>
     </div>
@@ -117,7 +122,8 @@ const { data: displayData } = toRefs(props);
 // === 配置 ===
 const MIN_Y = -20;
 const MAX_Y = 40;
-const THRESHOLD = 30;
+const HIGH_THRESHOLD = 28;
+const LOW_THRESHOLD = 10;
 
 // === 状态 ===
 const chartRef = ref(null);
@@ -129,8 +135,9 @@ const tooltipPxX = ref(0);
 const tooltipPxY = ref(0);
 
 // === 计算属性 ===
-const thresholdRatio = computed(() => 1 - (THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y));
-const thresholdBottom = computed(() => ((THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) * 100);
+const highThresholdRatio = computed(() => 1 - (HIGH_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y));
+const highThresholdBottom = computed(() => ((HIGH_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) * 100);
+const lowThresholdBottom = computed(() => ((LOW_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) * 100);
 
 const linePath = computed(() => {
   if (!displayData.value.length) return '';
@@ -150,18 +157,40 @@ const areaPath = computed(() => {
   return `${linePath.value} L 1000 100 L 0 100 Z`;
 });
 
+const highAlertCount = computed(() => {
+  if (!displayData.value.length) return 0;
+  return displayData.value.filter(p => p.value >= HIGH_THRESHOLD).length;
+});
+
+const lowAlertCount = computed(() => {
+  if (!displayData.value.length) return 0;
+  return displayData.value.filter(p => p.value <= LOW_THRESHOLD).length;
+});
+
 const overSegments = computed(() => {
   const res = [];
   if (!displayData.value.length) return res;
   for (let i = 1; i < displayData.value.length; i++) {
     const prev = displayData.value[i-1];
     const cur = displayData.value[i];
-    if (prev.value < THRESHOLD && cur.value >= THRESHOLD) res.push(i);
+    if (prev.value < HIGH_THRESHOLD && cur.value >= HIGH_THRESHOLD) res.push(i);
   }
   return res;
 });
 
-const overCount = computed(() => overSegments.value.length);
+// 获取点的颜色
+const getPointColor = (value) => {
+  if (value >= HIGH_THRESHOLD) return '#ff4d4d';
+  if (value <= LOW_THRESHOLD) return '#00bcd4';
+  return '#00b0ff';
+};
+
+// 获取值的样式类
+const getValueClass = (value) => {
+  if (value >= HIGH_THRESHOLD) return 'alert-val-high';
+  if (value <= LOW_THRESHOLD) return 'alert-val-low';
+  return '';
+};
 
 const dateRangeText = computed(() => {
   if (props.range && props.range.startMs && props.range.endMs) {
@@ -303,20 +332,34 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
   left: 0;
   right: 0;
   height: 1px;
-  border-top: 1px dashed #ff4d4d;
   z-index: 5;
   pointer-events: none;
+}
+
+.threshold-line.high {
+  border-top: 1px dashed #ff4d4d;
+}
+
+.threshold-line.low {
+  border-top: 1px dashed #00bcd4;
 }
 
 .threshold-label {
   position: absolute;
   right: 10px;
   bottom: 2px;
-  color: #ff4d4d;
   font-size: 10px;
   font-weight: bold;
   background: rgba(30,30,30,0.8);
   padding: 0 4px;
+}
+
+.threshold-label.high {
+  color: #ff4d4d;
+}
+
+.threshold-label.low {
+  color: #00bcd4;
 }
 
 .svg-chart {
@@ -417,8 +460,20 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
   color: #ff4d4d;
 }
 
+.warn.cyan {
+  color: #00bcd4;
+}
+
 .warn.blue {
   color: #00b0ff;
+}
+
+.alert-val-high {
+  color: #ff4d4d;
+}
+
+.alert-val-low {
+  color: #00bcd4;
 }
 </style>
 
