@@ -107,31 +107,6 @@
       </div>
     </div>
 
-    <!-- 低温警告弹窗 -->
-    <div v-if="showLowTempWarning" class="modal-overlay low-temp-overlay">
-      <div class="low-temp-modal">
-        <div class="low-temp-header">
-          <svg class="warning-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          <span class="warning-title">{{ t('timeline.lowTempWarning') }}</span>
-        </div>
-        <div class="low-temp-body">
-          <p class="warning-message">{{ t('timeline.lowTempMessage') }}</p>
-          <ul class="alert-list">
-            <li v-for="(alert, idx) in lowTempAlerts" :key="idx" class="alert-item">
-              <span class="room-name">{{ alert.room }}</span>
-              <span class="temp-value">{{ alert.temp }}°C</span>
-            </li>
-          </ul>
-        </div>
-        <div class="low-temp-footer">
-          <button class="btn-acknowledge" @click="closeLowTempWarning">{{ t('timeline.acknowledge') }}</button>
-        </div>
-      </div>
-    </div>
 
     <!-- 3D 画布区域 -->
     <div class="canvas-3d">
@@ -338,10 +313,7 @@ let roomSeriesCache = {};
 let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
 let isRestoringView = false;
 
-// 低温警告状态
-const showLowTempWarning = ref(false);
-const lowTempAlerts = ref([]);
-let lowTempAlertShownForProgress = null; // 记录当前进度是否已显示过警告
+
 
 // 从 InfluxDB 加载图表数据
 const loadChartData = async () => {
@@ -413,10 +385,6 @@ const setTagTempsAtCurrentTime = () => {
   if (!roomTags.value.length) return;
   const percent = Math.max(0, Math.min(1, progress.value / 100));
   
-  // 收集低温警告信息
-  const currentProgressKey = Math.round(progress.value * 10); // 精度到 0.1%
-  const alerts = [];
-  
   roomTags.value.forEach(tag => {
     const pts = roomSeriesCache[tag.code];
     if (pts && pts.length) {
@@ -424,27 +392,9 @@ const setTagTempsAtCurrentTime = () => {
       const v = pts[idx]?.value;
       if (v !== undefined) {
         tag.currentTemp = Number(v).toFixed(1);
-        // 检测负值温度
-        if (Number(v) < 0 && isPlaying.value) {
-          alerts.push({
-            room: tag.name || tag.code,
-            temp: Number(v).toFixed(1)
-          });
-        }
       }
     }
-    // 不再使用本地模拟数据，如果没有 InfluxDB 数据则不显示温度
   });
-  
-  // 如果检测到低温且是新的进度位置，显示警告弹窗
-  if (alerts.length > 0 && lowTempAlertShownForProgress !== currentProgressKey) {
-    lowTempAlerts.value = alerts;
-    showLowTempWarning.value = true;
-    lowTempAlertShownForProgress = currentProgressKey;
-    // 暂停播放
-    isPlaying.value = false;
-    cancelAnimationFrame(fId);
-  }
   
   if (isHeatmapEnabled.value && viewer) {
     if (!heatmapTimer) {
@@ -2442,10 +2392,6 @@ const handleDayClick = (d) => { if (!d.date) return; if (!tempStart.value || (te
 const formatDate = (d) => d ? d.toLocaleDateString() : '';
 const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: '', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
 const closeCustomModal = () => isCustomModalOpen.value = false;
-const closeLowTempWarning = () => {
-  showLowTempWarning.value = false;
-  lowTempAlerts.value = [];
-};
 const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); } };
 const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 const zoomOut = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d * 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };

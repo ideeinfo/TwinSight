@@ -56,27 +56,55 @@
 
 ## 🚀 快速开始
 
-### 1. 启动 PostgreSQL 数据库
+### 方式一：一键启动（推荐）
+
+从 Git 拉取代码后，只需运行启动脚本，脚本会自动安装依赖并启动服务器：
+
+**Windows 用户：**
+```bash
+cd server
+start.bat
+# 或者直接双击 start.bat 文件
+```
+
+**Linux/Mac 用户：**
+```bash
+cd server
+chmod +x start.sh  # 首次运行需要添加执行权限
+./start.sh
+```
+
+脚本会自动完成以下操作：
+- ✅ 检查 Node.js 是否已安装
+- ✅ 检测并安装缺失的 npm 依赖包
+- ✅ 提示 .env 配置文件状态
+- ✅ 启动后端服务器
+
+---
+
+### 方式二：手动安装
+
+#### 1. 启动 PostgreSQL 数据库
 
 ```bash
 # 启动 Docker 容器
 docker-compose up -d
 ```
 
-### 2. 安装后端依赖
+#### 2. 安装后端依赖
 
 ```bash
 cd server
 npm install
 ```
 
-### 3. 初始化数据库表
+#### 3. 初始化数据库表
 
 ```bash
 npm run db:init
 ```
 
-### 4. 启动后端服务
+#### 4. 启动后端服务
 
 ```bash
 npm run dev
