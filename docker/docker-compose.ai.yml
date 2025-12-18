@@ -1,0 +1,73 @@
+# n8n + Qdrant 智能分析服务
+# 可以独立运行，与现有的 InfluxDB/PostgreSQL Docker 环境配合使用
+
+version: '3.8'
+
+services:
+  # n8n 工作流自动化平台
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tandem-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # 基础配置
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+
+      # 时区设置
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - TZ=Asia/Shanghai
+
+      # 数据库配置 (使用 SQLite，轻量级)
+      # 如需使用 PostgreSQL，取消下面的注释
+      # - DB_TYPE=postgresdb
+      # - DB_POSTGRESDB_HOST=host.docker.internal
+      # - DB_POSTGRESDB_PORT=5432
+      # - DB_POSTGRESDB_DATABASE=n8n
+      # - DB_POSTGRESDB_USER=postgres
+      # - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+
+      # 安全配置
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-tandem123}
+
+      # 允许调用本地服务
+      - N8N_RUNNERS_TASK_BROKER_URI=http://host.docker.internal:3001
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tandem-ai-network
+
+  # Qdrant 向量数据库 (用于 RAG)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: tandem-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333" # REST API
+      - "6334:6334" # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    networks:
+      - tandem-ai-network
+
+volumes:
+  n8n_data:
+    driver: local
+  qdrant_storage:
+    driver: local
+
+networks:
+  tandem-ai-network:
+    driver: bridge

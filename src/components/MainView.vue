@@ -168,6 +168,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
 import { isInfluxConfigured, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
+import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
 
 const { t, locale } = useI18n();
@@ -391,7 +392,42 @@ const setTagTempsAtCurrentTime = () => {
       const idx = Math.round(percent * (pts.length - 1));
       const v = pts[idx]?.value;
       if (v !== undefined) {
-        tag.currentTemp = Number(v).toFixed(1);
+        const newTemp = Number(v).toFixed(1);
+        const prevTemp = parseFloat(tag.currentTemp) || 0;
+        tag.currentTemp = newTemp;
+        
+        // 温度报警：当温度超过28度时触发AI分析
+        const TEMP_THRESHOLD = 28;
+        const tempValue = parseFloat(newTemp);
+        
+        // 只在温度从正常变为超标时触发一次，避免重复报警
+        if (tempValue > TEMP_THRESHOLD && prevTemp <= TEMP_THRESHOLD && !tag._alertTriggered) {
+          tag._alertTriggered = true;
+          console.log(`🔥 温度报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${TEMP_THRESHOLD}°C`);
+          
+          // 异步调用 n8n AI 分析工作流
+          triggerTemperatureAlert({
+            roomCode: tag.code,
+            roomName: tag.name || tag.code,
+            temperature: tempValue,
+            threshold: TEMP_THRESHOLD,
+          }).then(result => {
+            if (result.success && result.analysis) {
+              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
+              // TODO: 可以显示弹窗或通知用户
+            } else {
+              console.warn(`⚠️ AI 分析失败:`, result.error);
+            }
+          }).catch(err => {
+            console.error(`❌ AI 分析异常:`, err);
+          });
+        }
+        
+        // 温度恢复正常时重置报警标志
+        if (tempValue <= TEMP_THRESHOLD && tag._alertTriggered) {
+          tag._alertTriggered = false;
+          console.log(`✅ 温度恢复正常: ${tag.code} 温度 ${newTemp}°C`);
+        }
       }
     }
   });
