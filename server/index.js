@@ -7,6 +7,8 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
+
+// 旧版路由（保留兼容）
 import apiRoutes from './routes/api.js';
 import fileRoutes from './routes/files.js';
 import documentRoutes from './routes/documents.js';
@@ -15,6 +17,12 @@ import viewsRoutes from './routes/views.js';
 import influxConfigRoutes from './routes/influx-config.js';
 import aiAnalysisRoutes from './routes/ai-analysis.js';
 import configRoutes from './routes/config.js';
+
+// 新版 v1 路由
+import v1Router from './routes/v1/index.js';
+
+// 中间件
+import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,13 +67,20 @@ app.use((req, res, next) => {
     next();
 });
 
-// API 路由
+// ========================================
+// 新版 API v1 路由（推荐使用）
+// ========================================
+app.use('/api/v1', v1Router);
+
+// ========================================
+// 旧版 API 路由（保留兼容，逐步废弃）
+// ========================================
 app.use('/api', apiRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/views', viewsRoutes);
 app.use('/api/influx-config', influxConfigRoutes);
-app.use('/api/v1/timeseries', timeseriesRoutes);
+app.use('/api/v1/timeseries', timeseriesRoutes); // 旧版时序路由
 app.use('/api/ai', aiAnalysisRoutes);
 app.use('/api/config', configRoutes);
 
