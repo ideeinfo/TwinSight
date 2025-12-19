@@ -11,6 +11,7 @@
   "dependencies": {
     "@photo-sphere-viewer/core": "^5.14.0",
     "multer": "^2.0.2",
+    "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
     "vue": "^3.5.24",
     "vue-i18n": "^9.14.5"
