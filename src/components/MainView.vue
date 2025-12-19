@@ -731,14 +731,14 @@ const initViewer = () => {
 };
 
 
-// 新增：加载新模型
+// 新增：加载新模型（返回 Promise，等待模型加载完成）
 const loadNewModel = async (modelPath) => {
-  if (!viewer) return;
+  if (!viewer) return Promise.resolve(false);
   
   // 防止重复加载同一个模型
   if (isLoadingModel || currentModelPath === modelPath) {
     console.log(`⏭️ 模型正在加载或已加载，跳过: ${modelPath}`);
-    return;
+    return Promise.resolve(true); // 已加载，返回成功
   }
   
   isLoadingModel = true;
@@ -799,41 +799,50 @@ const loadNewModel = async (modelPath) => {
     console.log('ℹ️ 没有需要卸载的模型');
   }
   
-  // 加载新模型
-  viewer.loadModel(finalPath, {}, (model) => {
-      console.log('✅ 新模型加载成功:', finalPath);
-      console.log('📊 模型信息:', { 
-        hasGeometry: model.getGeometryList ? 'Yes' : 'No',
-        rootId: model.getRootId ? model.getRootId() : 'N/A'
-      });
-      
-      // 标记模型路径和重置加载状态
-      currentModelPath = modelPath;
-      isLoadingModel = false;
-      
-      // 其他初始化设置
-      viewer.setTheme('dark-theme');
-      viewer.setLightPreset(17); // Field
-      if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
-      if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
-      
-      // 检查几何体是否已加载完成
-      // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
-      setTimeout(() => {
-        if (model.isLoadDone && model.isLoadDone()) {
-          console.log('📦 检测到几何体已加载完成，确保初始化执行');
-          // GEOMETRY_LOADED_EVENT 应该已经触发，但为了保险，我们检查状态
-          if (foundRoomDbIds.length === 0 && foundAssetDbIds.length === 0) {
-            console.log('⚠️ 数据未提取，手动触发 onModelLoaded');
-            onModelLoaded();
+  // 返回 Promise，等待模型加载完成
+  return new Promise((resolve, reject) => {
+    // 加载新模型
+    viewer.loadModel(finalPath, {}, (model) => {
+        console.log('✅ 新模型加载成功:', finalPath);
+        console.log('📊 模型信息:', { 
+          hasGeometry: model.getGeometryList ? 'Yes' : 'No',
+          rootId: model.getRootId ? model.getRootId() : 'N/A'
+        });
+        
+        // 标记模型路径和重置加载状态
+        currentModelPath = modelPath;
+        isLoadingModel = false;
+        
+        // 其他初始化设置
+        viewer.setTheme('dark-theme');
+        viewer.setLightPreset(17); // Field
+        if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
+        if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+        
+        // 检查几何体是否已加载完成
+        // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
+        setTimeout(() => {
+          if (model.isLoadDone && model.isLoadDone()) {
+            console.log('📦 检测到几何体已加载完成，确保初始化执行');
+            // GEOMETRY_LOADED_EVENT 应该已经触发，但为了保险，我们检查状态
+            if (foundRoomDbIds.length === 0 && foundAssetDbIds.length === 0) {
+              console.log('⚠️ 数据未提取，手动触发 onModelLoaded');
+              onModelLoaded();
+            }
           }
-        }
-      }, 1000);
-      
-      // 注意：onModelLoaded 会通过事件自动触发
-  }, (errorCode) => {
-      console.error('❌ 模型加载失败:', errorCode, finalPath);
-      // 如果预检都通过了还失败，那就没办法了
+          // 等待 1.5 秒后 resolve，确保 onModelLoaded 已完成
+          setTimeout(() => {
+            console.log('📦 模型加载 Promise 已解析');
+            resolve(true);
+          }, 1500);
+        }, 1000);
+        
+        // 注意：onModelLoaded 会通过事件自动触发
+    }, (errorCode) => {
+        console.error('❌ 模型加载失败:', errorCode, finalPath);
+        isLoadingModel = false;
+        reject(new Error(`模型加载失败: ${errorCode}`));
+    });
   });
 };
 

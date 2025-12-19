@@ -623,16 +623,20 @@ const onFileActivated = async (file) => {
     // 加载对应的 3D 模型
     if (file.extracted_path) {
       if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
-        // Viewer 已准备好，立即加载
+        // Viewer 已准备好，等待模型加载完成
         currentLoadedModelPath.value = file.extracted_path;
-        mainViewRef.value.loadNewModel(file.extracted_path);
+        console.log('📦 等待模型加载完成...');
+        try {
+          await mainViewRef.value.loadNewModel(file.extracted_path);
+          console.log('📦 模型加载完成，可以提取数据');
+        } catch (e) {
+          console.error('❌ 模型加载失败:', e);
+        }
         
-        // 模型加载后刷新时序数据（延迟执行，等待模型加载完成并触发 rooms-loaded）
-        setTimeout(() => {
-          if (mainViewRef.value && mainViewRef.value.refreshTimeSeriesData) {
-            mainViewRef.value.refreshTimeSeriesData();
-          }
-        }, 2000);
+        // 模型加载后刷新时序数据
+        if (mainViewRef.value && mainViewRef.value.refreshTimeSeriesData) {
+          mainViewRef.value.refreshTimeSeriesData();
+        }
       } else {
         // Viewer 尚未准备好，保存待加载文件
         console.log('📦 Viewer 尚未准备好，保存待加载文件');
