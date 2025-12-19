@@ -14,7 +14,7 @@ const API_V1 = `${API_BASE_URL}/api/v1`;
  */
 export async function checkApiHealth() {
     try {
-        const response = await fetch(`${API_BASE_URL}/health`);
+        const response = await fetch(`${API_V1}/health`);
         return response.ok;
     } catch {
         return false;
