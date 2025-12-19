@@ -44,7 +44,7 @@ export async function getClassifications(type = null) {
  * 获取所有资产规格
  */
 export async function getAssetSpecs() {
-    const response = await fetch(`${API_BASE_URL}/api/asset-specs`);
+    const response = await fetch(`${API_V1}/assets/specs`);
     const data = await response.json();
 
     if (!data.success) {
