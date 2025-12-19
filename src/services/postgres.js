@@ -6,6 +6,9 @@
 // 后端 API 基础 URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// API v1 路径
+const API_V1 = `${API_BASE_URL}/api/v1`;
+
 /**
  * 检查 API 服务是否可用
  */
@@ -55,7 +58,7 @@ export async function getAssetSpecs() {
  * 获取所有资产
  */
 export async function getAssets() {
-    const response = await fetch(`${API_BASE_URL}/api/assets`);
+    const response = await fetch(`${API_V1}/assets`);
     const data = await response.json();
 
     if (!data.success) {
@@ -97,7 +100,7 @@ export async function getAssetsByRoom(room) {
  * 获取所有空间
  */
 export async function getSpaces() {
-    const response = await fetch(`${API_BASE_URL}/api/spaces`);
+    const response = await fetch(`${API_V1}/spaces`);
     const data = await response.json();
 
     if (!data.success) {
@@ -189,7 +192,7 @@ export async function importAssetSpecs(specs) {
  * 批量导入资产
  */
 export async function importAssets(assets) {
-    const response = await fetch(`${API_BASE_URL}/api/assets/batch`, {
+    const response = await fetch(`${API_V1}/assets/batch`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -210,7 +213,7 @@ export async function importAssets(assets) {
  * 批量导入空间
  */
 export async function importSpaces(spaces) {
-    const response = await fetch(`${API_BASE_URL}/api/spaces/batch`, {
+    const response = await fetch(`${API_V1}/spaces/batch`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

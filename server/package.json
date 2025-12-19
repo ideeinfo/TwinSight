@@ -12,6 +12,7 @@
         "db:add-uuid": "node scripts/add-uuid-columns.js"
     },
     "dependencies": {
+        "@influxdata/influxdb-client": "^1.35.0",
         "adm-zip": "^0.5.16",
         "cors": "^2.8.5",
         "exif-parser": "^0.1.12",
