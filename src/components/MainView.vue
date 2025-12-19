@@ -702,6 +702,18 @@ const initViewer = () => {
       viewer.navigation.setReverseZoomDirection(true);
     }
     
+    // 禁用 Forge Viewer 的属性面板（我们使用自己的属性面板）
+    if (viewer.getPropertyPanel) {
+      const propPanel = viewer.getPropertyPanel(false); // false = 不创建
+      if (propPanel) {
+        propPanel.setVisible(false);
+      }
+    }
+    // 注销属性面板扩展，防止自动弹出
+    if (viewer.unloadExtension) {
+      viewer.unloadExtension('Autodesk.PropertiesManager');
+    }
+    
     // 设置 UI 观察器
     const root = viewerContainer.value;
     if (root) {
