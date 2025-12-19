@@ -7,7 +7,7 @@ export { useAppState } from './useAppState';
 export { useViewer } from './useViewer';
 export { useIoTData } from './useIoTData';
 export { useSelection } from './useSelection';
+export { useTimeline } from './useTimeline';
 
 // 未来扩展
-// export { useTimeline } from './useTimeline';
 // export { useHeatmap } from './useHeatmap';
