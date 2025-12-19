@@ -69,6 +69,11 @@
             <div class="panorama-controls">
               <button class="pano-btn" @click="panoramaZoomIn" title="放大">+</button>
               <button class="pano-btn" @click="panoramaZoomOut" title="缩小">−</button>
+              <div class="pano-separator"></div>
+              <button class="pano-btn" @click="panoramaRollLeft" title="向左滚转">↶</button>
+              <button class="pano-btn" @click="panoramaRollReset" title="重置滚转">⟳</button>
+              <button class="pano-btn" @click="panoramaRollRight" title="向右滚转">↷</button>
+              <div class="pano-separator"></div>
               <button class="pano-btn" @click="panoramaFullscreen" title="全屏">⛶</button>
             </div>
             <div class="panorama-hint">
@@ -78,7 +83,7 @@
                 <path d="M12 5l-3-3 3-3"/>
                 <path d="M12 19l-3 3 3 3"/>
               </svg>
-              <span>拖动或滑动查看 360° 全景</span>
+              <span>拖动查看 360° 全景 | ↶↷ 滚转调整</span>
             </div>
           </div>
 
@@ -153,6 +158,7 @@ const contentRef = ref(null);
 const videoRef = ref(null);
 const panoramaRef = ref(null);
 let panoramaViewer = null;
+const panoramaRoll = ref(0); // 全景图滚转角度
 
 // 获取文件 URL
 const fileUrl = computed(() => {
@@ -241,6 +247,8 @@ const initPanorama = () => {
     maxFov: 90,
     navbar: false,
     loadingTxt: '加载中...',
+    // 初始 roll 角度为 0
+    sphereCorrection: { roll: 0 },
   });
 
   // 加载完成后执行入场动画
@@ -276,12 +284,38 @@ const panoramaFullscreen = () => {
   }
 };
 
+// 全景图滚转控制 - 使用 sphereCorrection 实现真正的视角滚转
+const panoramaRollLeft = () => {
+  if (panoramaViewer) {
+    // 将角度转换为弧度，每次滚转 15 度
+    panoramaRoll.value -= 15;
+    const rollRad = (panoramaRoll.value * Math.PI) / 180;
+    panoramaViewer.setOption('sphereCorrection', { roll: rollRad });
+  }
+};
+
+const panoramaRollRight = () => {
+  if (panoramaViewer) {
+    panoramaRoll.value += 15;
+    const rollRad = (panoramaRoll.value * Math.PI) / 180;
+    panoramaViewer.setOption('sphereCorrection', { roll: rollRad });
+  }
+};
+
+const panoramaRollReset = () => {
+  if (panoramaViewer) {
+    panoramaRoll.value = 0;
+    panoramaViewer.setOption('sphereCorrection', { roll: 0 });
+  }
+};
+
 // 销毁全景图查看器
 const destroyPanorama = () => {
   if (panoramaViewer) {
     panoramaViewer.destroy();
     panoramaViewer = null;
   }
+  panoramaRoll.value = 0; // 重置滚转角度
 };
 
 // 组件卸载时清理
@@ -658,6 +692,12 @@ const close = () => {
 
 .pano-btn:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.pano-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 2px 6px;
 }
 
 /* Photo Sphere Viewer 样式覆盖 */
