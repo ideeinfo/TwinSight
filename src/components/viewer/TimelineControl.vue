@@ -209,20 +209,46 @@ const props = defineProps({
 const emit = defineEmits([
   'open', 'close', 'go-live', 'toggle-play', 'toggle-loop',
   'zoom-in', 'zoom-out', 'pan', 'cycle-speed',
-  'select-time-range', 'open-custom-modal', 'scrub-start'
+  'select-time-range', 'open-custom-modal', 'update:progress', 'scrub-start', 'scrub-end'
 ]);
 
 const dropdownRef = ref(null);
 const trackRef = ref(null);
 const isTimeRangeMenuOpen = ref(false);
+const isDragging = ref(false);
 
 const selectTimeRange = (option) => {
   emit('select-time-range', option);
   isTimeRangeMenuOpen.value = false;
 };
 
+// 计算并更新进度
+const updateProgress = (e) => {
+  if (!trackRef.value) return;
+  const r = trackRef.value.getBoundingClientRect();
+  const newProgress = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+  emit('update:progress', newProgress);
+};
+
 const onTrackMouseDown = (e) => {
-  emit('scrub-start', e);
+  isDragging.value = true;
+  emit('scrub-start');
+  updateProgress(e);
+  window.addEventListener('mousemove', onTrackMouseMove);
+  window.addEventListener('mouseup', onTrackMouseUp);
+};
+
+const onTrackMouseMove = (e) => {
+  if (isDragging.value) {
+    updateProgress(e);
+  }
+};
+
+const onTrackMouseUp = () => {
+  isDragging.value = false;
+  emit('scrub-end');
+  window.removeEventListener('mousemove', onTrackMouseMove);
+  window.removeEventListener('mouseup', onTrackMouseUp);
 };
 
 // 点击外部关闭下拉菜单
@@ -238,10 +264,94 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
+  // 清理可能残留的事件监听器
+  window.removeEventListener('mousemove', onTrackMouseMove);
+  window.removeEventListener('mouseup', onTrackMouseUp);
 });
 </script>
 
 <style scoped>
-/* 时间轴组件样式将在后续从 MainView.vue 提取 */
-/* 暂时保持空白，组件实际使用时需要迁移样式 */
+/* 时间轴组件样式 */
+.top-navigation-area { z-index: 100; transition: all 0.2s ease; }
+.top-navigation-area.floating { position: absolute; top: 12px; left: 12px; }
+.top-navigation-area.docked { position: relative; width: 100%; background: #202020; border-bottom: 1px solid #000; }
+
+/* 收起状态 - 时间胶囊 */
+.time-pill { background: rgba(43, 43, 43, 0.5); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; display: flex; align-items: center; height: 38px; cursor: pointer; color: #fff; user-select: none; transition: background 0.2s ease, box-shadow 0.2s ease; }
+.time-pill:hover { background: #252526; border-color: rgba(255, 255, 255, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.expand-action { width: 36px; display: flex; justify-content: center; color: #ddd; }
+.divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
+.pill-content { padding: 0 12px; display: flex; align-items: center; gap: 8px; font-family: 'Segoe UI', sans-serif; }
+.date-text { font-size: 13px; font-weight: 500; }
+.time-text { font-size: 13px; opacity: 0.9; }
+.live-status-box { padding: 0 8px; }
+.live-btn { border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; padding: 2px 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.live-btn.active .dot { animation: pulse 1.5s infinite; color: #ff4dcb; }
+.live-btn .dot { color: #666; }
+
+/* 展开状态 - 时间轴面板 */
+.timeline-dock { width: 100%; height: 108px; display: flex; flex-direction: column; background: #202020; color: #ccc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.timeline-toolbar { height: 44px; display: flex; justify-content: space-between; align-items: center; padding: 0 8px; background: #202020; user-select: none; }
+.toolbar-left, .toolbar-right { display: flex; align-items: center; height: 100%; }
+.toolbar-right { gap: 12px; padding-right: 8px; }
+.time-range-wrapper { position: relative; }
+.tool-btn { background: transparent; border: none; color: #aaa; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; }
+.tool-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.divider-v { width: 1px; height: 20px; background: #444; margin: 0 8px; }
+.current-info { display: flex; align-items: center; gap: 8px; margin-left: 4px; color: #eee; font-size: 13px; }
+.info-text strong { font-weight: 600; color: #fff; }
+.live-indicator { margin-left: 16px; border: 1px solid #444; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #aaa; background: #333; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.live-indicator.active { color: #fff; border-color: #ff4dcb; }
+.live-indicator.active .dot { color: #ff4dcb; animation: pulse 1.5s infinite; }
+
+/* 下拉菜单 */
+.dropdown-trigger { font-size: 12px; color: #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; }
+.dropdown-trigger:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.arrow { font-size: 10px; transition: transform 0.2s; }
+.arrow.rotated { transform: rotate(180deg); }
+.dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 4px; width: 160px; background: #2b2b2b; border: 1px solid #444; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 200; padding: 4px 0; }
+.menu-item { padding: 6px 12px; font-size: 12px; color: #ccc; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.menu-item:hover { background: #3e3e3e; color: #fff; }
+.menu-item.active { color: #2196f3; font-weight: 500; }
+.check-icon { color: #2196f3; }
+.menu-divider { height: 1px; background: #444; margin: 4px 0; }
+
+/* 控制按钮 */
+.control-group { display: flex; align-items: center; gap: 4px; }
+.circle-btn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #666; background: transparent; color: #ccc; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.circle-btn:hover { border-color: #999; color: #fff; }
+.icon-btn-lg { width: 28px; height: 28px; background: transparent; border: none; color: #aaa; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.icon-btn-lg:hover { color: #fff; }
+.active-blue { color: #2196f3; }
+.speed-box { background: #333; border: 1px solid #555; border-radius: 3px; width: 24px; text-align: center; font-size: 11px; cursor: pointer; line-height: 18px; color: #ccc; }
+
+/* 时间轴轨道 */
+.timeline-track-row { flex: 1; display: flex; background: #1a1a1a; border-top: 1px solid #333; position: relative; height: 64px; }
+.nav-arrow { width: 24px; background: #252526; border: none; border-right: 1px solid #333; border-left: 1px solid #333; color: #888; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
+.nav-arrow:hover { color: #fff; background: #333; }
+.track-container { flex: 1; position: relative; overflow: hidden; background: #1e1e1e; cursor: pointer; }
+
+/* 刻度和迷你图表 */
+.ticks-layer { position: absolute; top: 0; bottom: 0; width: 100%; pointer-events: none; z-index: 5; }
+.tick { position: absolute; bottom: 24px; height: 10px; border-left: 1px solid #444; }
+.tick.major { height: 16px; border-left: 1px solid #666; }
+.tick span { position: absolute; top: 20px; left: -50%; transform: translateX(-2px); font-size: 10px; color: #777; white-space: nowrap; }
+.tick.text-white span { color: #fff; font-weight: 500; }
+.mini-chart-layer { position: absolute; top: 12px; bottom: 24px; left: 0; right: 0; pointer-events: none; z-index: 1; }
+.svg-mini { width: 100%; height: 100%; }
+
+/* 播放头 */
+.scrubber { position: absolute; top: 0; bottom: 0; width: 16px; transform: translateX(-50%); pointer-events: none; z-index: 20; transition: left 0.1s linear; }
+.scrubber .line { position: absolute; left: 50%; top: 6px; bottom: 0; width: 2px; background: #2196f3; transform: translateX(-50%); z-index: 1; }
+.scrubber .head { position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #2196f3; z-index: 2; }
+
+/* 过渡动画 */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 脉冲动画 */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 </style>

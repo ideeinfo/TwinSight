@@ -1,95 +1,38 @@
 <template>
-  <div class="viewport-container" @mouseup="stopDrag" @mouseleave="stopDrag">
+  <div class="viewport-container">
     
-    <!-- 顶部导航区域 -->
-    <div :class="['top-navigation-area', isTimelineOpen ? 'docked' : 'floating']">
-      <!-- Pill State -->
-      <div v-if="!isTimelineOpen" class="time-pill" @click="openTimeline">
-        <div class="expand-action">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-        </div>
-        <div class="divider"></div>
-        <div class="pill-content">
-          <svg class="cal-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-          <span class="date-text">{{ currentDateStr }}</span>
-          <span class="time-text">{{ currentTimeStr }}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="live-status-box">
-          <div class="live-btn" :class="{ active: isLive }"><span class="dot">●</span> {{ t('timeline.live') }}</div>
-        </div>
-      </div>
-
-      <!-- Timeline Dock -->
-      <div v-else class="timeline-dock">
-        <div class="timeline-toolbar">
-          <div class="toolbar-left">
-            <button class="tool-btn collapse" @click="closeTimeline"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/></svg></button>
-            <div class="divider-v"></div>
-            <div class="current-info">
-              <svg class="cal-icon-sm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              <span class="info-text">{{ currentDateStr }} &nbsp; <strong>{{ currentTimeStr }}</strong></span>
-            </div>
-            <div class="live-indicator" :class="{ active: isLive }" @click="goLive"><span class="dot">●</span> {{ t('timeline.live') }}</div>
-          </div>
-          <div class="toolbar-right">
-            <div class="time-range-wrapper" ref="dropdownRef">
-              <div class="dropdown-trigger" @click="toggleTimeRangeMenu">{{ selectedTimeRangeLabel }} <svg class="arrow" :class="{ rotated: isTimeRangeMenuOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
-              <transition name="fade">
-                <div v-if="isTimeRangeMenuOpen" class="dropdown-menu">
-                  <div v-for="option in timeOptions" :key="option.value" class="menu-item" :class="{ active: selectedTimeRange.value === option.value }" @click="selectTimeRange(option)">{{ option.label }}<svg v-if="selectedTimeRange.value === option.value" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
-                  <div class="menu-divider"></div>
-                  <div class="menu-item" :class="{ active: selectedTimeRange.value === 'custom' }" @click="openCustomRangeModal">{{ t('timeline.custom') }}...<svg v-if="selectedTimeRange.value === 'custom'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
-                </div>
-              </transition>
-            </div>
-            <div class="control-group">
-              <button class="circle-btn" @click="zoomOut"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-              <button class="circle-btn" @click="zoomIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-            </div>
-            <div class="control-group">
-              <button class="icon-btn-lg" @click="togglePlay"><svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg></button>
-              <button class="icon-btn-lg" :class="{ 'active-blue': isLooping }" @click="isLooping = !isLooping"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg></button>
-            </div>
-            <div class="speed-box" @click="cycleSpeed">{{ playbackSpeed }}x</div>
-          </div>
-        </div>
-        <div class="timeline-track-row">
-          <button class="nav-arrow left" @click="panTimeline(-1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-          <div class="track-container" ref="trackRef" @mousedown="startDrag">
-            <div class="mini-chart-layer">
-      <svg class="svg-mini" viewBox="0 0 1000 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="miniAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.2" />
-                    <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
-                  </linearGradient>
-                  <!-- 温度色带：从上到下 = 高温到低温 -->
-                  <!-- 40°C=红, 30°C=橙, 20°C=黄, 10°C=绿, 0°C=青, -20°C=蓝 -->
-                  <linearGradient id="miniStrokeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="#ff0000" />    <!-- 40°C 红色 (最高) -->
-                    <stop offset="17%" stop-color="#ff6600" />   <!-- 30°C 橙色 -->
-                    <stop offset="33%" stop-color="#ffcc00" />   <!-- 20°C 黄色 -->
-                    <stop offset="50%" stop-color="#66cc00" />   <!-- 10°C 黄绿色 -->
-                    <stop offset="67%" stop-color="#00cc66" />   <!-- 0°C 青绿色 -->
-                    <stop offset="83%" stop-color="#00b0ff" />   <!-- -10°C 青色 -->
-                    <stop offset="100%" stop-color="#0066ff" />  <!-- -20°C 蓝色 (最低) -->
-                  </linearGradient>
-                </defs>
-        <path v-if="!miniOverlayPaths.length" :d="miniAreaPath" fill="url(#miniAreaGrad)" stroke="none" />
-        <path v-if="!miniOverlayPaths.length" :d="miniLinePath" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
-        <path v-for="(p, idx) in miniOverlayPaths" :key="idx" :d="p" fill="none" stroke="url(#miniStrokeGrad)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
-      </svg>
-            </div>
-            <div class="ticks-layer">
-              <div v-for="(tick, index) in generatedTicks" :key="index" class="tick" :class="[tick.type, { 'text-white': tick.highlight }]" :style="{ left: tick.percent + '%' }"><span v-if="tick.label">{{ tick.label }}</span></div>
-            </div>
-            <div class="scrubber" :style="{ left: progress + '%' }"><div class="head"></div><div class="line"></div></div>
-          </div>
-          <button class="nav-arrow right" @click="panTimeline(1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
-        </div>
-      </div>
-    </div>
+    <!-- 时间线控制组件 -->
+    <TimelineControl
+      :is-open="isTimelineOpen"
+      :is-live="isLive"
+      :is-playing="isPlaying"
+      :is-looping="isLooping"
+      :playback-speed="playbackSpeed"
+      :current-date-str="currentDateStr"
+      :current-time-str="currentTimeStr"
+      :selected-time-range="selectedTimeRange.value"
+      :selected-time-range-label="selectedTimeRangeLabel"
+      :time-options="timeOptions"
+      :progress="progress"
+      :ticks="generatedTicks"
+      :area-path="miniAreaPath"
+      :line-path="miniLinePath"
+      :overlay-paths="miniOverlayPaths"
+      @open="openTimeline"
+      @close="closeTimeline"
+      @go-live="goLive"
+      @toggle-play="togglePlay"
+      @toggle-loop="isLooping = !isLooping"
+      @zoom-in="zoomIn"
+      @zoom-out="zoomOut"
+      @pan="panTimeline"
+      @cycle-speed="cycleSpeed"
+      @select-time-range="selectTimeRange"
+      @open-custom-modal="openCustomRangeModal"
+      @update:progress="onProgressUpdate"
+      @scrub-start="onScrubStart"
+      @scrub-end="onScrubEnd"
+    />
     
     <!-- Custom Range Modal -->
     <div v-if="isCustomModalOpen" class="modal-overlay">
@@ -144,6 +87,7 @@ import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
 import OverlayTags from './viewer/OverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
+import TimelineControl from './viewer/TimelineControl.vue';
 import ViewerControls from './viewer/ViewerControls.vue';
 
 const { t, locale } = useI18n();
@@ -2719,13 +2663,14 @@ const animate = () => { if(!isPlaying.value) return; const step=0.05*playbackSpe
 const togglePlay = async () => { isPlaying.value=!isPlaying.value; if(isPlaying.value) { if(progress.value>=100) progress.value=0; await refreshRoomSeriesCache(selectedRoomCodes.value).catch(()=>{}); animate(); } else cancelAnimationFrame(fId); };
 const cycleSpeed = () => { const s=[1,2,4,8]; playbackSpeed.value=s[(s.indexOf(playbackSpeed.value)+1)%4]; };
 const goLive = () => { progress.value=100; isPlaying.value=false; };
-const startDrag = (e) => { isDragging.value=true; isPlaying.value=false; updateP(e); window.addEventListener('mousemove',onDrag); window.addEventListener('mouseup',stopDrag); };
-const onDrag = (e) => isDragging.value && updateP(e);
-const stopDrag = () => { isDragging.value=false; window.removeEventListener('mousemove',onDrag); window.removeEventListener('mouseup',stopDrag); };
-const updateP = (e) => { if(!trackRef.value)return; const r=trackRef.value.getBoundingClientRect(); progress.value=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100)); emitRangeChanged(); };
+
+// 时间轴拖拽事件处理
+const onProgressUpdate = (newProgress) => { progress.value = newProgress; emitRangeChanged(); };
+const onScrubStart = () => { isDragging.value = true; isPlaying.value = false; };
+const onScrubEnd = () => { isDragging.value = false; };
+
 const openTimeline = () => isTimelineOpen.value=true;
 const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false; };
-const handleClickOutside = (e) => { if(dropdownRef.value && !dropdownRef.value.contains(e.target)) isTimeRangeMenuOpen.value=false; };
 watch(isTimelineOpen, (newVal) => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
 watch([startDate, endDate], () => { loadChartData(); });
 
@@ -2821,7 +2766,7 @@ const stopAutoRefresh = () => {
 };
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
+  // 下拉菜单点击外部关闭已移入 TimelineControl 组件
   nextTick(() => initViewer());
   loadChartData();
   
@@ -2848,9 +2793,7 @@ onMounted(() => {
 onUnmounted(() => { 
   stopAutoRefresh(); // 停止自动刷新
   cancelAnimationFrame(fId); 
-  document.removeEventListener('click', handleClickOutside); 
-  window.removeEventListener('mousemove',onDrag); 
-  window.removeEventListener('mouseup',stopDrag); 
+  // 拖拽事件监听已移入 TimelineControl 组件 
   if(viewer) { viewer.finish(); viewer=null; } 
 });
 
