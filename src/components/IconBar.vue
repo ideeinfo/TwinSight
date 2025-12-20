@@ -47,6 +47,17 @@
 
     <!-- 下部按钮组 -->
     <div class="nav-group-bottom">
+      <!-- AI 分析开关 -->
+      <div class="nav-item" :class="{ 'active-blue': isAIEnabled }" @click="$emit('toggle-ai')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isAIEnabled ? '#38ABDF' : 'currentColor'" stroke-width="1.5">
+          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
+          <circle cx="15" cy="13" r="1.5" fill="currentColor"/>
+          <path d="M9 17h6"/>
+        </svg>
+        <span class="label" :style="{ color: isAIEnabled ? '#38ABDF' : '' }">{{ t('leftPanel.ai') }}</span>
+      </div>
+      <!-- 数据流 -->
       <div class="nav-item" :class="{ 'active-blue': isStreamsOpen }" @click="$emit('toggle-streams')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isStreamsOpen ? '#38ABDF' : 'currentColor'" stroke-width="1.5">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -80,10 +91,11 @@ const { t } = useI18n();
 
 defineProps({
   currentView: { type: String, default: 'connect' },
-  isStreamsOpen: { type: Boolean, default: false }
+  isStreamsOpen: { type: Boolean, default: false },
+  isAIEnabled: { type: Boolean, default: false }
 });
 
-defineEmits(['switch-view', 'toggle-streams']);
+defineEmits(['switch-view', 'toggle-streams', 'toggle-ai']);
 </script>
 
 <style scoped>

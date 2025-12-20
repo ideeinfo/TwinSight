@@ -10,8 +10,10 @@
         <IconBar
           :currentView="currentView"
           :isStreamsOpen="isChartPanelOpen"
+          :isAIEnabled="isAIAnalysisEnabled"
           @switch-view="switchView"
           @toggle-streams="toggleChartPanel"
+          @toggle-ai="toggleAIAnalysis"
         />
         
         <!-- 内容面板 -->
@@ -50,6 +52,7 @@
             :currentView="currentView"
             :assets="assetList"
             :rooms="roomList"
+            :isAIEnabled="isAIAnalysisEnabled"
             @rooms-loaded="onRoomsLoaded"
             @assets-loaded="onAssetsLoaded"
             @viewer-ready="onViewerReady"
@@ -166,6 +169,7 @@ const leftWidth = ref(400);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const isChartPanelOpen = ref(false);
+const isAIAnalysisEnabled = ref(false); // AI 分析功能开关，默认关闭
 const chartPanelHeight = ref(300);
 const roomList = ref([]);
 const assetList = ref([]);
@@ -1172,6 +1176,12 @@ const toggleChartPanel = (isOpen) => {
     }
     triggerResize();
   }, 350);
+};
+
+// 切换 AI 分析功能
+const toggleAIAnalysis = () => {
+  isAIAnalysisEnabled.value = !isAIAnalysisEnabled.value;
+  console.log(`🤖 AI 分析功能: ${isAIAnalysisEnabled.value ? '开启' : '关闭'}`);
 };
 
 // 关闭图表面板

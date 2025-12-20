@@ -89,6 +89,7 @@ import OverlayTags from './viewer/OverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
 import ViewerControls from './viewer/ViewerControls.vue';
+import { useHeatmap } from '../composables/useHeatmap';
 
 const { t, locale } = useI18n();
 
@@ -96,7 +97,8 @@ const { t, locale } = useI18n();
 const props = defineProps({
   currentView: { type: String, default: 'connect' },
   assets: { type: Array, default: () => [] }, // 从数据库加载的资产列表
-  rooms: { type: Array, default: () => [] }    // 从数据库加载的空间列表
+  rooms: { type: Array, default: () => [] },   // 从数据库加载的空间列表
+  isAIEnabled: { type: Boolean, default: true } // AI 分析功能开关
 });
 
 // 定义事件发射
@@ -120,7 +122,10 @@ const isSettingsPanelOpen = ref(false); // 设置面板打开状态
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
-const isHeatmapEnabled = ref(false); // 热力图开关状态
+
+// 初始化热力图 Composable
+const heatmap = useHeatmap({ opacity: 0.8, changeThreshold: 0.3, debounceDelay: 400 });
+const isHeatmapEnabled = heatmap.isEnabled; // 保持向后兼容
 
 // AI 分析弹窗状态
 const showAIAnalysisModal = ref(false);
@@ -237,8 +242,6 @@ const chartData = ref([]);
 const overlaySeries = ref([]);
 const isCacheReady = ref(false);
 let heatmapTimer = null;
-let lastAppliedTemps = {};
-const HEATMAP_EPS = 0.3;
 let uiObserver = null;
 const selectedRoomCodes = ref([]);
 let roomSeriesCache = {};
@@ -333,7 +336,7 @@ const setTagTempsAtCurrentTime = () => {
         const tempValue = parseFloat(newTemp);
         
         // 高温报警：当温度超过28度时触发AI分析
-        if (tempValue > HIGH_THRESHOLD && prevTemp <= HIGH_THRESHOLD && !tag._highAlertTriggered) {
+        if (props.isAIEnabled && tempValue > HIGH_THRESHOLD && prevTemp <= HIGH_THRESHOLD && !tag._highAlertTriggered) {
           tag._highAlertTriggered = true;
           console.log(`🔥 高温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${HIGH_THRESHOLD}°C`);
           
@@ -373,7 +376,7 @@ const setTagTempsAtCurrentTime = () => {
         }
         
         // 低温报警：当温度低于10度时触发AI分析
-        if (tempValue < LOW_THRESHOLD && prevTemp >= LOW_THRESHOLD && !tag._lowAlertTriggered) {
+        if (props.isAIEnabled && tempValue < LOW_THRESHOLD && prevTemp >= LOW_THRESHOLD && !tag._lowAlertTriggered) {
           tag._lowAlertTriggered = true;
           console.log(`❄️ 低温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 低于阈值 ${LOW_THRESHOLD}°C`);
           
@@ -573,6 +576,9 @@ const initViewer = () => {
     
     if (viewer.start() > 0) return;
     
+    // 设置热力图 Composable 的 Viewer 实例
+    heatmap.setViewer(viewer);
+    
     // 设置基础样式
     viewer.setTheme('dark-theme');
     viewer.setLightPreset(17); // Field environment
@@ -621,7 +627,7 @@ const initViewer = () => {
           }
         } else {
           // 非连接页面：取消激活并禁用
-          isHeatmapEnabled.value = false;
+          heatmap.disable();
           iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.DISABLED);
           iotHeatmapBtn.container.classList.add('adsk-button-disabled');
         }
@@ -1510,29 +1516,24 @@ const showAllRooms = () => {
 
 // 9. 切换热力图
 const toggleHeatmap = () => {
-  isHeatmapEnabled.value = !isHeatmapEnabled.value;
+  // 准备房间热力图数据
+  const roomsData = foundRoomDbIds.map(dbId => {
+    const tag = roomTags.value.find(t => t.dbId === dbId);
+    return {
+      dbId,
+      value: tag ? parseFloat(tag.currentTemp) : 28,
+      code: tag?.code,
+      name: tag?.name
+    };
+  });
 
-  if (isHeatmapEnabled.value) {
-    // 启用热力图：应用温度颜色
-    applyHeatmapStyle();
-  } else {
-    // 关闭热力图：清除主题颜色，恢复蓝色材质
-    viewer.clearThemingColors();
-    lastAppliedTemps = {};
+  // 使用 composable 切换热力图
+  const enabled = heatmap.toggle(roomsData);
 
-    const mat = getRoomMaterial();
-    const fragList = viewer.model.getFragmentList();
-    const tree = viewer.model.getInstanceTree();
-
-    foundRoomDbIds.forEach(dbId => {
-      tree.enumNodeFragments(dbId, (fragId) => {
-        fragList.setMaterial(fragId, mat);
-      });
-    });
-
-    viewer.impl.invalidate(true, true, true);
+  if (!enabled) {
+    // 关闭热力图时，恢复默认材质
+    heatmap.restoreDefaultMaterial(foundRoomDbIds, getRoomMaterial);
   }
-
 
   // 显示所有温度标签
   roomTags.value.forEach(tag => {
@@ -1556,73 +1557,23 @@ const toggleTemperatureLabels = () => {
 
 onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null; } });
 
-// 10. 应用热力图样式
+// 10. 应用热力图样式 (使用 composable)
 const applyHeatmapStyle = () => {
-  if (foundRoomDbIds.length === 0) return;
+  if (foundRoomDbIds.length === 0 || !isHeatmapEnabled.value) return;
 
-  let changed = false;
-  foundRoomDbIds.forEach(dbId => {
-    // 找到对应的房间标签获取温度
+  // 准备房间热力图数据
+  const roomsData = foundRoomDbIds.map(dbId => {
     const tag = roomTags.value.find(t => t.dbId === dbId);
-    const temperature = tag ? parseFloat(tag.currentTemp) : 28; // 默认温度，确保是数字
-
-    const prev = lastAppliedTemps[dbId];
-    if (prev !== undefined && Math.abs(prev - temperature) < HEATMAP_EPS) {
-      return;
-    }
-
-    // 计算热力图颜色
-    // 温度范围：-20°C (深蓝) 到 40°C (纯红)
-    // 0°C = 青色, 10°C = 绿色, 20°C = 黄绿色, 30°C = 橙色, 40°C = 红色
-    const minT = -20, maxT = 40;
-    let t = (temperature - minT) / (maxT - minT); // 0 到 1
-    t = Math.max(0, Math.min(1, t));
-
-    // 使用 HSL 色相：240(蓝) -> 180(青) -> 120(绿) -> 60(黄) -> 0(红)
-    // t=0 (-20°C): hue=240 (蓝)
-    // t=0.33 (0°C): hue=180 (青)
-    // t=0.5 (10°C): hue=120 (绿)
-    // t=0.67 (20°C): hue=60 (黄)
-    // t=1 (40°C): hue=0 (红)
-    let hue = 240 - (t * 240); // 240(蓝) -> 0(红)
-
-    // 转换 HSL 到 RGB
-    const hslToRgb = (h, s, l) => {
-      h = h / 360;
-      s = s / 100;
-      l = l / 100;
-      let r, g, b;
-      if (s === 0) {
-        r = g = b = l;
-      } else {
-        const hue2rgb = (p, q, t) => {
-          if (t < 0) t += 1;
-          if (t > 1) t -= 1;
-          if (t < 1/6) return p + (q - p) * 6 * t;
-          if (t < 1/2) return q;
-          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-          return p;
-        };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1/3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1/3);
-      }
-      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    return {
+      dbId,
+      value: tag ? parseFloat(tag.currentTemp) : 28,
+      code: tag?.code,
+      name: tag?.name
     };
-
-    const [r, g, b] = hslToRgb(hue, 100, 50);
-    const color = new window.THREE.Vector4(r / 255, g / 255, b / 255, 0.8);
-
-    // 使用 setThemingColor 而不是 setMaterial
-    viewer.setThemingColor(dbId, color);
-    lastAppliedTemps[dbId] = temperature;
-    changed = true;
   });
 
-  // 强制刷新渲染
-  if (changed) viewer.impl.invalidate(false, false, false);
+  // 使用 composable 应用热力图
+  heatmap.applyHeatmapStyle(roomsData);
 };
 
 // 11. 获取房间属性
