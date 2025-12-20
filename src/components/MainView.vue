@@ -708,8 +708,12 @@ const initViewer = () => {
       console.log('🎛️ IoT 控制按钮已添加到工具栏');
     };
     
-    // 延迟添加按钮（确保工具栏已完全初始化）
-    setTimeout(addIoTToolbarButtons, 500);
+    // 监听工具栏创建事件，确保按钮能正确添加
+    if (viewer.toolbar) {
+      addIoTToolbarButtons();
+    } else {
+      viewer.addEventListener(window.Autodesk.Viewing.TOOLBAR_CREATED_EVENT, addIoTToolbarButtons);
+    }
     
     // 监听页面切换，更新按钮状态
     watch(() => props.currentView, () => {
