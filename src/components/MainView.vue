@@ -112,92 +112,27 @@
     <div class="canvas-3d">
       <div id="forgeViewer" ref="viewerContainer"></div>
       
-      <!-- IoT 数据标签覆盖层 (所有房间) -->
-      <div class="overlay-tags">
-        <div
-          v-for="tag in roomTags"
-          :key="tag.dbId"
-          v-show="areTagsVisible && !isSettingsPanelOpen && tag.visible"
-          class="tag-wrapper"
-          :style="{ top: tag.y + 'px', left: tag.x + 'px' }"
-        >
-          <div class="tag-pin selected">
-            <div class="pin-val blue" :style="getTagStyle(tag.currentTemp)">
-              {{ tag.currentTemp }} °C
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- IoT 数据标签覆盖层 -->
+      <OverlayTags
+        :tags="roomTags"
+        :visible="areTagsVisible && !isSettingsPanelOpen"
+      />
 
 
-      <div
-        v-if="currentView === 'connect'"
-        class="temperature-label-btn"
-        :class="{ active: areTagsVisible }"
-        @click="toggleTemperatureLabels"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 6px;">
-          <text x="2" y="12" font-size="10" fill="currentColor" font-weight="bold">°C</text>
-        </svg>
-        {{ t('header.temperatureLabel') }}
-      </div>
-
-      <div
-        v-if="currentView === 'connect'"
-        class="heatmap-btn"
-        :class="{ active: isHeatmapEnabled }"
-        @click="toggleHeatmap"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 6px;">
-          <defs>
-            <linearGradient id="heatGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" style="stop-color:#4FC3F7;stop-opacity:1" />
-              <stop offset="50%" style="stop-color:#FFA726;stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#EF5350;stop-opacity:1" />
-            </linearGradient>
-          </defs>
-          <rect x="2" y="2" width="12" height="12" rx="2" fill="url(#heatGradient)" opacity="0.8"/>
-        </svg>
-        {{ t('header.heatmap') }}
-      </div>
+      <!-- 控制按钮已集成到 Viewer 工具栏 -->
     </div>
 
     <!-- AI 分析结果弹窗 -->
-    <div v-if="showAIAnalysisModal" class="ai-analysis-modal-overlay" @click.self="closeAIAnalysisModal">
-      <div class="ai-analysis-modal">
-        <div class="ai-modal-header">
-          <div class="ai-header-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-              <path d="M2 17l10 5 10-5"/>
-              <path d="M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <span class="ai-header-title">🤖 AI 智能分析</span>
-          <button class="ai-close-btn" @click="closeAIAnalysisModal">×</button>
-        </div>
-        <div class="ai-modal-body">
-          <div v-if="aiAnalysisLoading" class="ai-loading">
-            <div class="ai-spinner"></div>
-            <span>AI 正在分析中...</span>
-          </div>
-          <div v-else class="ai-content">
-            <div class="ai-alert-info">
-              <div class="alert-badge" :class="aiAnalysisData.severity">
-                {{ aiAnalysisData.severity === 'critical' ? '严重' : '警告' }}
-              </div>
-              <span class="alert-location">{{ aiAnalysisData.roomName }}</span>
-              <span class="alert-temp">{{ aiAnalysisData.temperature }}°C</span>
-            </div>
-            <div class="ai-analysis-text" v-html="formatAnalysisText(aiAnalysisData.analysis)"></div>
-          </div>
-        </div>
-        <div class="ai-modal-footer">
-          <button class="ai-btn-secondary" @click="closeAIAnalysisModal">关闭</button>
-          <button class="ai-btn-primary" @click="acknowledgeAlert">已了解</button>
-        </div>
-      </div>
-    </div>
+    <AIAnalysisModal
+      :visible="showAIAnalysisModal"
+      :loading="aiAnalysisLoading"
+      :severity="aiAnalysisData.severity"
+      :room-name="aiAnalysisData.roomName"
+      :temperature="aiAnalysisData.temperature"
+      :analysis="aiAnalysisData.analysis"
+      @close="closeAIAnalysisModal"
+      @acknowledge="acknowledgeAlert"
+    />
 
   </div>
 </template>
@@ -207,6 +142,9 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from
 import { isInfluxConfigured, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
 import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
+import OverlayTags from './viewer/OverlayTags.vue';
+import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
+import ViewerControls from './viewer/ViewerControls.vue';
 
 const { t, locale } = useI18n();
 
@@ -391,7 +329,7 @@ const refreshRoomSeriesCache = async (codes) => {
   if (!isInfluxConfigured()) { roomSeriesCache = {}; overlaySeries.value = []; isCacheReady.value = true; return; }
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
-  const windowMs = Math.max(60_000, Math.round((end - start)/300));
+  const windowMs = 0; // 不聚合，显示原始数据点
   roomSeriesRange = { startMs: start, endMs: end, windowMs };
   const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
   const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
@@ -704,7 +642,130 @@ const initViewer = () => {
     
     // TODO: 修复属性面板自动弹出问题（与 viewer.isolate 相关）
     
-    // 设置 UI 观察器
+    // 添加 IoT 控制按钮到 Viewer 工具栏右侧
+    let iotTempLabelBtn = null;
+    let iotHeatmapBtn = null;
+    
+    // 根据页面更新 IoT 按钮状态
+    const updateIoTButtonsState = () => {
+      const isConnectView = props.currentView === 'connect';
+      
+      if (iotTempLabelBtn) {
+        if (isConnectView) {
+          iotTempLabelBtn.container.classList.remove('adsk-button-disabled');
+          // 恢复当前状态
+          if (areTagsVisible.value) {
+            iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
+          } else {
+            iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
+          }
+        } else {
+          // 非连接页面：取消激活并禁用
+          areTagsVisible.value = false;
+          iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.DISABLED);
+          iotTempLabelBtn.container.classList.add('adsk-button-disabled');
+        }
+      }
+      
+      if (iotHeatmapBtn) {
+        if (isConnectView) {
+          iotHeatmapBtn.container.classList.remove('adsk-button-disabled');
+          if (isHeatmapEnabled.value) {
+            iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
+          } else {
+            iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
+          }
+        } else {
+          // 非连接页面：取消激活并禁用
+          isHeatmapEnabled.value = false;
+          iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.DISABLED);
+          iotHeatmapBtn.container.classList.add('adsk-button-disabled');
+        }
+      }
+    };
+    
+    const addIoTToolbarButtons = () => {
+      if (!viewer.toolbar) {
+        console.warn('⚠️ Viewer 工具栏尚未初始化');
+        return;
+      }
+      
+      // 创建控制按钮组
+      const iotControlGroup = new window.Autodesk.Viewing.UI.ControlGroup('iot-controls');
+      
+      // 温度标签按钮
+      iotTempLabelBtn = new window.Autodesk.Viewing.UI.Button('temp-labels-btn');
+      iotTempLabelBtn.setToolTip(t('header.temperatureLabel'));
+      iotTempLabelBtn.onClick = () => {
+        // 只在连接页面响应点击
+        if (props.currentView !== 'connect') return;
+        
+        toggleTemperatureLabels();
+        // 更新按钮状态
+        if (areTagsVisible.value) {
+          iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
+        } else {
+          iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
+        }
+      };
+      // 设置 SVG 图标 (温度计图标)
+      const tempIcon = iotTempLabelBtn.container.querySelector('.adsk-button-icon');
+      if (tempIcon) {
+        tempIcon.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 4V10.54C16.36 11.44 18 13.72 18 16.5C18 20.09 15.09 23 11.5 23C7.91 23 5 20.09 5 16.5C5 13.72 6.64 11.44 9 10.54V4C9 2.34 10.34 1 12 1C13.66 1 15 2.34 15 4H14Z"/>
+          <circle cx="11.5" cy="16.5" r="2.5"/>
+        </svg>`;
+      }
+      iotControlGroup.addControl(iotTempLabelBtn);
+      
+      // 热力图按钮
+      iotHeatmapBtn = new window.Autodesk.Viewing.UI.Button('heatmap-btn');
+      iotHeatmapBtn.setToolTip(t('header.heatmap'));
+      iotHeatmapBtn.onClick = () => {
+        // 只在连接页面响应点击
+        if (props.currentView !== 'connect') return;
+        
+        toggleHeatmap();
+        // 更新按钮状态
+        if (isHeatmapEnabled.value) {
+          iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
+        } else {
+          iotHeatmapBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
+        }
+      };
+      // 设置 SVG 图标 (热力图图标)
+      const heatIcon = iotHeatmapBtn.container.querySelector('.adsk-button-icon');
+      if (heatIcon) {
+        heatIcon.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <defs>
+            <linearGradient id="heatGradToolbar" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#4FC3F7"/>
+              <stop offset="50%" style="stop-color:#FFA726"/>
+              <stop offset="100%" style="stop-color:#EF5350"/>
+            </linearGradient>
+          </defs>
+          <rect x="3" y="3" width="18" height="18" rx="3" fill="url(#heatGradToolbar)" opacity="0.9"/>
+        </svg>`;
+      }
+      iotControlGroup.addControl(iotHeatmapBtn);
+      
+      // 添加到工具栏右侧
+      viewer.toolbar.addControl(iotControlGroup);
+      
+      // 初始化按钮状态
+      updateIoTButtonsState();
+      
+      console.log('🎛️ IoT 控制按钮已添加到工具栏');
+    };
+    
+    // 延迟添加按钮（确保工具栏已完全初始化）
+    setTimeout(addIoTToolbarButtons, 500);
+    
+    // 监听页面切换，更新按钮状态
+    watch(() => props.currentView, () => {
+      updateIoTButtonsState();
+    });
+    
     const root = viewerContainer.value;
     if (root) {
       const checkOpen = () => {
@@ -3019,7 +3080,7 @@ defineExpose({
     }
     const start = startDate.value.getTime();
     const end = endDate.value.getTime();
-    const windowMs = Math.max(60_000, Math.round((end - start)/300));
+    const windowMs = 0; // 不聚合，显示原始数据点
     const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
     const list = await Promise.all(promises);
     overlaySeries.value = list;

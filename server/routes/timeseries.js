@@ -398,14 +398,19 @@ router.get('/query/room', async (req, res) => {
 
         const startIso = new Date(parseInt(startMs)).toISOString();
         const endIso = new Date(parseInt(endMs)).toISOString();
-        const window = parseInt(windowMs) || 60000;
+        const window = windowMs ? parseInt(windowMs) : 0;
         const escapedCode = roomCode.replace(/[,= ]/g, '_');
+
+        // 当 windowMs > 0 时才进行聚合，否则返回原始数据点
+        const aggregateClause = window > 0
+            ? `|> aggregateWindow(every: ${window}ms, fn: mean, createEmpty: false)`
+            : '';
 
         const flux = `from(bucket: "${config.influx_bucket}")
   |> range(start: ${startIso}, stop: ${endIso})
   |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value")
   |> filter(fn: (r) => r.code == "${escapedCode}")
-  |> aggregateWindow(every: ${window}ms, fn: min, createEmpty: false)`;
+  ${aggregateClause}`;
 
         const result = await queryInflux(config, flux);
         if (!result.ok) {

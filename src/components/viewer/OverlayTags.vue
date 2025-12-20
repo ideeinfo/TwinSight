@@ -7,7 +7,7 @@
       :style="{ top: tag.y + 'px', left: tag.x + 'px' }"
     >
       <div class="tag-pin selected">
-        <div class="pin-val blue" :style="getTagStyle(tag.currentTemp)">
+        <div class="pin-val">
           {{ formatTemperature(tag.currentTemp) }}
         </div>
       </div>
@@ -50,26 +50,6 @@ const formatTemperature = (temp) => {
   if (temp === null || temp === undefined) return '--';
   return `${temp} °C`;
 };
-
-/**
- * 根据温度值计算标签样式
- */
-const getTagStyle = (temp) => {
-  if (temp === null || temp === undefined) {
-    return { backgroundColor: '#888' };
-  }
-  
-  // 归一化到 0-1
-  const normalized = Math.max(0, Math.min(1, (temp - props.minTemp) / (props.maxTemp - props.minTemp)));
-  
-  // 从蓝色 (240°) 到红色 (0°)
-  const hue = (1 - normalized) * 240;
-  
-  return {
-    backgroundColor: `hsl(${hue}, 80%, 50%)`,
-    color: normalized > 0.5 ? '#fff' : '#000',
-  };
-};
 </script>
 
 <style scoped>
@@ -85,7 +65,7 @@ const getTagStyle = (temp) => {
 
 .tag-wrapper {
   position: absolute;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
 }
@@ -96,35 +76,26 @@ const getTagStyle = (temp) => {
   align-items: center;
 }
 
-.tag-pin.selected .pin-val {
-  animation: pulse 2s infinite;
-}
-
 .pin-val {
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 16px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  transition: background-color 0.3s, transform 0.2s;
+  /* 透明底色 + 白边 */
+  background: rgba(128, 128, 128, 0.3);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  /* 白色粗体字 + 黑色阴影 */
+  color: #fff;
+  text-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
 }
 
 .pin-val:hover {
-  transform: scale(1.1);
-}
-
-.pin-val.blue {
-  background: linear-gradient(135deg, #4fc3f7, #29b6f6);
-  color: #fff;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
-  50% {
-    box-shadow: 0 2px 16px rgba(79, 195, 247, 0.6);
-  }
+  background: rgba(128, 128, 128, 0.4);
+  transform: scale(1.05);
 }
 </style>
