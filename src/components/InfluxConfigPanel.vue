@@ -122,12 +122,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirm/Alert Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -157,6 +168,36 @@ const isTesting = ref(false);
 const testResult = ref(null);
 const hasToken = ref(false);
 const hasPassword = ref(false);
+
+// Dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'alert',
+  title: '',
+  message: '',
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show alert
+const showAlert = (message, title = '') => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: 'alert',
+      title: title || t('common.alert'),
+      message,
+      onConfirm: () => {
+        dialogState.value.visible = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(false);
+      }
+    };
+  });
+};
 
 // 表单验证
 const isValid = computed(() => {
@@ -236,10 +277,10 @@ const saveConfig = async () => {
       emit('saved', data.data);
       emit('close');
     } else {
-      alert(data.error || '保存失败');
+      await showAlert(data.error || t('common.saveFailed'));
     }
   } catch (error) {
-    alert('保存失败: ' + error.message);
+    await showAlert(t('common.saveFailed') + ': ' + error.message);
   } finally {
     isSaving.value = false;
   }

@@ -1176,17 +1176,9 @@ const extractAssets = () => {
       if (pendingProps === 0) {
         console.log(`✅ 资产提取完成: 共 ${assetList.length} 个资产`);
         emit('assets-loaded', assetList);
-
-        // 如果当前是资产视图，立即显示资产
-        setTimeout(() => {
-          console.log(`🎯 检查视图状态: currentView = "${props.currentView}"`);
-          if (props.currentView === 'assets') {
-            console.log('📱 当前是资产视图，调用 showAllAssets()');
-            showAllAssets();
-          } else {
-            console.log(`ℹ️ 当前不是资产视图，跳过自动显示 (视图: ${props.currentView})`);
-          }
-        }, 100);
+        
+        // 【已移除】原自动显示资产逻辑
+        // 现在由默认视图功能控制，或保持模型原始状态
       }
     });
   });
@@ -2887,7 +2879,12 @@ const restoreViewState = (viewData) => {
     const otherSettings = viewData.other_settings || viewData.otherSettings;
     if (otherSettings) {
       if (typeof otherSettings.isHeatmapEnabled === 'boolean') {
-        isHeatmapEnabled.value = otherSettings.isHeatmapEnabled;
+        // 使用 heatmap composable 的 enable/disable 方法来控制状态
+        if (otherSettings.isHeatmapEnabled) {
+          heatmap.enable();
+        } else {
+          heatmap.disable();
+        }
       }
       if (typeof otherSettings.areTagsVisible === 'boolean') {
         areTagsVisible.value = otherSettings.areTagsVisible;

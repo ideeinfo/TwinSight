@@ -88,15 +88,27 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      :danger="dialogState.danger"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { checkApiHealth, importModelData } from '../services/postgres.js';
+import { checkApiHealth, importModelData, checkExistingData } from '../services/postgres.js';
 import { getMappingConfig, saveMappingConfig, getDefaultMapping } from '../services/mapping-config.js';
 import MappingConfigPanel from './MappingConfigPanel.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -125,6 +137,38 @@ const assetPropertyOptions = ref({});
 const spacePropertyOptions = ref({});
 const spaceMapping = ref({});
 const assetSpecMapping = ref({});
+
+// Dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'confirm',
+  title: '',
+  message: '',
+  danger: false,
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show confirm dialog
+const showConfirm = (options) => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: 'confirm',
+      title: options.title || t('common.confirm'),
+      message: options.message || '',
+      danger: options.danger || false,
+      onConfirm: () => {
+        dialogState.value.visible = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(false);
+      }
+    };
+  });
+};
 
 
 // 获取属性列表
@@ -196,6 +240,26 @@ async function extractAndExport() {
   if (!props.getFullAssetDataWithMapping || !props.getFullSpaceDataWithMapping) {
     exportResult.value = { success: false, message: '函数未提供，请确保模型已加载' };
     return;
+  }
+
+  // Check if there is existing data for this file
+  if (props.fileId) {
+    try {
+      const hasData = await checkExistingData(props.fileId);
+      if (hasData) {
+        const confirmed = await showConfirm({
+          title: t('dataExport.exportAction'),
+          message: t('dataExport.mappingConfig.confirmOverwrite'),
+          danger: true
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('检查现有数据失败:', error);
+      // Continue anyway if check fails
+    }
   }
 
   isExporting.value = true;

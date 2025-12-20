@@ -222,6 +222,18 @@
         @saved="onInfluxConfigSaved"
       />
     </Teleport>
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      :danger="dialogState.danger"
+      :confirm-text="dialogState.confirmText"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
@@ -229,6 +241,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import InfluxConfigPanel from './InfluxConfigPanel.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -265,6 +278,49 @@ const contextMenu = ref({
   y: 0,
   file: null
 });
+
+// Dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'confirm',
+  title: '',
+  message: '',
+  danger: false,
+  confirmText: '',
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show dialog
+const showDialog = (options) => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: options.type || 'confirm',
+      title: options.title || '',
+      message: options.message || '',
+      danger: options.danger || false,
+      confirmText: options.confirmText || '',
+      onConfirm: () => {
+        dialogState.value.visible = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(false);
+      }
+    };
+  });
+};
+
+// Helper to show alert
+const showAlert = (message, title = '') => {
+  return showDialog({
+    type: 'alert',
+    title: title || t('common.alert'),
+    message
+  });
+};
 
 // API 基础 URL
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -364,23 +420,23 @@ const uploadFile = async () => {
       }
     };
 
-    xhr.onload = () => {
+    xhr.onload = async () => {
       if (xhr.status === 200) {
         const result = JSON.parse(xhr.responseText);
         if (result.success) {
           closeUploadDialog();
           loadFiles();
         } else {
-          alert(result.error || '上传失败');
+          await showAlert(result.error || t('filePanel.uploadFailed'));
         }
       } else {
-        alert('上传失败');
+        await showAlert(t('filePanel.uploadFailed'));
       }
       isUploading.value = false;
     };
 
-    xhr.onerror = () => {
-      alert('上传失败');
+    xhr.onerror = async () => {
+      await showAlert(t('filePanel.uploadFailed'));
       isUploading.value = false;
     };
 
@@ -389,7 +445,7 @@ const uploadFile = async () => {
 
   } catch (error) {
     console.error('上传失败:', error);
-    alert('上传失败: ' + error.message);
+    await showAlert(t('filePanel.uploadFailed') + ': ' + error.message);
     isUploading.value = false;
   }
 };
@@ -414,7 +470,7 @@ const handleActivate = async () => {
   hideContextMenu();
 
   if (file.status !== 'ready') {
-    alert(t('filePanel.needExtractFirst'));
+    await showAlert(t('filePanel.needExtractFirst'));
     return;
   }
 
@@ -425,10 +481,10 @@ const handleActivate = async () => {
       await loadFiles();
       emit('file-activated', data.data);
     } else {
-      alert(data.error);
+      await showAlert(data.error);
     }
   } catch (error) {
-    alert('激活失败: ' + error.message);
+    await showAlert(t('filePanel.activateFailed') + ': ' + error.message);
   }
 };
 
@@ -462,10 +518,10 @@ const saveEdit = async () => {
       closeEditDialog();
       await loadFiles();
     } else {
-      alert(data.error);
+      await showAlert(data.error);
     }
   } catch (error) {
-    alert(t('filePanel.saveFailed') + ': ' + error.message);
+    await showAlert(t('filePanel.saveFailed') + ': ' + error.message);
   } finally {
     isSaving.value = false;
   }
@@ -496,11 +552,11 @@ const handleExtract = async () => {
       // 打开数据导出面板
       emit('open-data-export', file);
     } else {
-      alert(data.error);
+      await showAlert(data.error);
     }
   } catch (error) {
     isExtracting.value = false;
-    alert(t('filePanel.extractFailed') + ': ' + error.message);
+    await showAlert(t('filePanel.extractFailed') + ': ' + error.message);
   }
 };
 
@@ -509,9 +565,15 @@ const handleDelete = async () => {
   const file = contextMenu.value.file;
   hideContextMenu();
 
-  if (!confirm(t('filePanel.confirmDelete', { title: file.title }))) {
-    return;
-  }
+  const confirmed = await showDialog({
+    type: 'confirm',
+    title: t('filePanel.delete'),
+    message: t('filePanel.confirmDelete', { title: file.title }),
+    danger: true,
+    confirmText: t('filePanel.delete')
+  });
+
+  if (!confirmed) return;
 
   try {
     const response = await fetch(`${API_BASE}/api/files/${file.id}`, { method: 'DELETE' });
@@ -519,10 +581,10 @@ const handleDelete = async () => {
     if (data.success) {
       await loadFiles();
     } else {
-      alert(data.error);
+      await showAlert(data.error);
     }
   } catch (error) {
-    alert('删除失败: ' + error.message);
+    await showAlert(t('filePanel.deleteFailed') + ': ' + error.message);
   }
 };
 

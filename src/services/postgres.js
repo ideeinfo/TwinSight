@@ -147,6 +147,21 @@ export async function importModelData(modelData) {
 }
 
 /**
+ * 检查文件是否已有导出的数据
+ * @param {number|string} fileId - 文件ID
+ * @returns {boolean} - 是否已有数据
+ */
+export async function checkExistingData(fileId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/check-existing-data/${fileId}`);
+        const data = await response.json();
+        return data.success && data.hasData;
+    } catch {
+        return false;
+    }
+}
+
+/**
  * 批量导入分类编码
  */
 export async function importClassifications(classifications) {
@@ -240,6 +255,7 @@ export default {
     getSpaces,
     getSpacesByFloor,
     importModelData,
+    checkExistingData,
     importClassifications,
     importAssetSpecs,
     importAssets,

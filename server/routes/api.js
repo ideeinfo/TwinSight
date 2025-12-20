@@ -12,6 +12,34 @@ import { getMappingConfig, saveMappingConfig } from '../models/mapping-config.js
 const router = Router();
 
 // ========================================
+// 检查现有数据 API
+// ========================================
+
+/**
+ * 检查文件是否已有导出的数据
+ * GET /api/check-existing-data/:fileId
+ */
+router.get('/check-existing-data/:fileId', async (req, res) => {
+    try {
+        const fileId = parseInt(req.params.fileId);
+        if (isNaN(fileId)) {
+            return res.status(400).json({ success: false, error: '无效的文件ID' });
+        }
+
+        // Check if there are any assets or spaces for this file
+        const assets = await assetModel.getAssetsByFileId(fileId);
+        const spaces = await spaceModel.getSpacesByFileId(fileId);
+
+        const hasData = (assets && assets.length > 0) || (spaces && spaces.length > 0);
+
+        res.json({ success: true, hasData, counts: { assets: assets?.length || 0, spaces: spaces?.length || 0 } });
+    } catch (error) {
+        console.error('检查现有数据失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ========================================
 // 分类编码 API
 // ========================================
 

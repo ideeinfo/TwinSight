@@ -151,6 +151,18 @@
       :document="previewDocument" 
       @close="closePreview"
     />
+
+    <!-- Confirm Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      :danger="dialogState.danger"
+      :confirm-text="dialogState.confirmText"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
@@ -158,6 +170,7 @@
 import { ref, watch, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DocumentPreview from './DocumentPreview.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -183,6 +196,49 @@ const previewDocument = ref(null);
 const relatedCode = computed(() => {
   return props.assetCode || props.spaceCode || props.specCode;
 });
+
+// Dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'confirm',
+  title: '',
+  message: '',
+  danger: false,
+  confirmText: '',
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show dialog
+const showDialog = (options) => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: options.type || 'confirm',
+      title: options.title || '',
+      message: options.message || '',
+      danger: options.danger || false,
+      confirmText: options.confirmText || '',
+      onConfirm: () => {
+        dialogState.value.visible = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(false);
+      }
+    };
+  });
+};
+
+// Helper to show alert
+const showAlert = (message, title = '') => {
+  return showDialog({
+    type: 'alert',
+    title: title || t('common.alert'),
+    message
+  });
+};
 
 // 文件图标 - 正方形线形设计，不同文件类型使用不同颜色
 const getFileIcon = (doc) => {
@@ -327,7 +383,7 @@ const processFiles = (files) => {
   }
 
   if (invalidFiles.length > 0) {
-    alert(t('document.fileTooLarge') + ': ' + invalidFiles.join(', '));
+    showAlert(t('document.fileTooLarge') + ': ' + invalidFiles.join(', '));
   }
 
   if (validFiles.length === 0) {
@@ -503,9 +559,15 @@ const cancelEdit = () => {
 
 // 删除文档
 const confirmDelete = async (doc) => {
-  if (!confirm(t('document.deleteConfirm', { title: doc.title }))) {
-    return;
-  }
+  const confirmed = await showDialog({
+    type: 'confirm',
+    title: t('document.delete'),
+    message: t('document.deleteConfirm', { title: doc.title }),
+    danger: true,
+    confirmText: t('document.delete')
+  });
+
+  if (!confirmed) return;
 
   try {
     const response = await fetch(`${API_BASE}/api/documents/${doc.id}`, {
@@ -519,7 +581,7 @@ const confirmDelete = async (doc) => {
     }
   } catch (error) {
     console.error('删除文档失败:', error);
-    alert(t('document.deleteFailed'));
+    await showAlert(t('document.deleteFailed'));
   }
 };
 

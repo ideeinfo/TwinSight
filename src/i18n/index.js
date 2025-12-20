@@ -21,7 +21,8 @@ const messages = {
       save: '保存',
       saveFailed: '保存失败',
       saveSuccess: '保存成功',
-      clickToEditAll: '点击编辑所有选中对象'
+      clickToEditAll: '点击编辑所有选中对象',
+      alert: '提示'
     },
     header: {
       properties: '属性',
@@ -91,7 +92,8 @@ const messages = {
       specCode: '规格编码',
       specName: '规格名称',
       classificationCode: '分类编码',
-      classificationDesc: '分类描述'
+      classificationDesc: '分类描述',
+      partialUpdateFailed: '部分更新失败: {count} 个对象更新失败'
     },
     timeline: {
       live: 'LIVE',
@@ -233,7 +235,12 @@ const messages = {
       enterNewName: '请输入新名称',
       setAsDefault: '设为默认视图',
       removeDefault: '取消默认视图',
-      defaultView: '默认视图'
+      defaultView: '默认视图',
+      activateFileFirst: '请先激活一个文件',
+      selectViewOrFile: '请选择一个视图或激活一个文件',
+      captureStateFailed: '捕获视图状态失败，请重试',
+      deleteFailed: '删除视图失败',
+      updateDefaultFailed: '更新默认视图失败'
     },
     qrcode: {
       title: '二维码',
@@ -287,7 +294,10 @@ const messages = {
       statusExtracting: '解压中',
       statusReady: '就绪',
       statusError: '错误',
-      influxConfig: '时序数据库'
+      influxConfig: '时序数据库',
+      uploadFailed: '上传失败',
+      activateFailed: '激活失败',
+      deleteFailed: '删除失败'
     },
     influxConfig: {
       title: '时序数据库配置',
@@ -329,7 +339,8 @@ const messages = {
       status: 'Status',
       saveFailed: 'Save failed',
       saveSuccess: 'Saved successfully',
-      clickToEditAll: 'Click to edit all selected objects'
+      clickToEditAll: 'Click to edit all selected objects',
+      alert: 'Alert'
     },
     header: {
       properties: 'Properties',
@@ -399,7 +410,8 @@ const messages = {
       specCode: 'Spec Code',
       specName: 'Spec Name',
       classificationCode: 'Classification Code',
-      classificationDesc: 'Classification Desc'
+      classificationDesc: 'Classification Desc',
+      partialUpdateFailed: 'Partial update failed: {count} objects failed to update'
     },
     timeline: {
       live: 'LIVE',
@@ -541,7 +553,12 @@ const messages = {
       enterNewName: 'Enter new name',
       setAsDefault: 'Set as Default',
       removeDefault: 'Remove Default',
-      defaultView: 'Default View'
+      defaultView: 'Default View',
+      activateFileFirst: 'Please activate a file first',
+      selectViewOrFile: 'Please select a view or activate a file',
+      captureStateFailed: 'Failed to capture viewer state. Please try again.',
+      deleteFailed: 'Failed to delete view',
+      updateDefaultFailed: 'Failed to update default view'
     },
     qrcode: {
       title: 'QR Code',
@@ -595,7 +612,10 @@ const messages = {
       statusExtracting: 'Extracting',
       statusReady: 'Ready',
       statusError: 'Error',
-      influxConfig: 'Time Series DB'
+      influxConfig: 'Time Series DB',
+      uploadFailed: 'Upload failed',
+      activateFailed: 'Activation failed',
+      deleteFailed: 'Delete failed'
     },
     influxConfig: {
       title: 'Time Series Database Configuration',

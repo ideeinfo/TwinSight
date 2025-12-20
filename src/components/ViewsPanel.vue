@@ -134,13 +134,13 @@
     </div>
 
     <!-- Context menu -->
-    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenu.style">
-      <div class="menu-item" @click="toggleDefaultView">
+    <div v-if="contextMenu.visible" class="context-menu" :style="contextMenu.style" @click.stop>
+      <div class="menu-item" @click.stop="toggleDefaultView">
         {{ contextMenu.view?.is_default ? $t('views.removeDefault') : $t('views.setAsDefault') }}
       </div>
-      <div class="menu-item" @click="renameView">{{ $t('views.rename') }}</div>
-      <div class="menu-item" @click="updateView">{{ $t('views.update') }}</div>
-      <div class="menu-item danger" @click="deleteView">{{ $t('views.delete') }}</div>
+      <div class="menu-item" @click.stop="renameView">{{ $t('views.rename') }}</div>
+      <div class="menu-item" @click.stop="updateView">{{ $t('views.update') }}</div>
+      <div class="menu-item danger" @click.stop="deleteView">{{ $t('views.delete') }}</div>
     </div>
 
     <!-- Save dialog -->
@@ -164,12 +164,49 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete confirmation dialog -->
+    <div v-if="showDeleteDialog" class="dialog-overlay" @click.self="cancelDelete">
+      <div class="dialog delete-dialog">
+        <div class="dialog-header">
+          <h4>{{ $t('views.delete') }}</h4>
+          <button class="btn-close-dialog" @click="cancelDelete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <p class="delete-message">{{ $t('views.confirmDelete', { name: viewToDelete?.name || '' }) }}</p>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="cancelDelete">{{ $t('common.cancel') }}</button>
+          <button class="btn-confirm btn-danger" @click="confirmDelete">{{ $t('views.delete') }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- General Confirm/Prompt Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      :placeholder="dialogState.placeholder"
+      :default-value="dialogState.defaultValue"
+      :danger="dialogState.danger"
+      :confirm-text="dialogState.confirmText"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -193,6 +230,57 @@ const showSaveDialog = ref(false);
 const newViewName = ref('');
 const nameInput = ref(null);
 const currentView = ref(null);
+
+// Delete dialog state
+const showDeleteDialog = ref(false);
+const viewToDelete = ref(null);
+
+// General dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'confirm',
+  title: '',
+  message: '',
+  placeholder: '',
+  defaultValue: '',
+  danger: false,
+  confirmText: '',
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show dialog
+const showDialog = (options) => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: options.type || 'confirm',
+      title: options.title || '',
+      message: options.message || '',
+      placeholder: options.placeholder || '',
+      defaultValue: options.defaultValue || '',
+      danger: options.danger || false,
+      confirmText: options.confirmText || '',
+      onConfirm: (value) => {
+        dialogState.value.visible = false;
+        resolve(options.type === 'prompt' ? value : true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(options.type === 'prompt' ? null : false);
+      }
+    };
+  });
+};
+
+// Helper to show alert
+const showAlert = (message, title = '') => {
+  return showDialog({
+    type: 'alert',
+    title: title || t('common.alert'),
+    message
+  });
+};
 
 // Current view name for display
 const currentViewName = computed(() => currentView.value?.name || '');
@@ -250,7 +338,7 @@ const toggleSort = () => {
 // Save view (prefer current view, else use file name)
 const saveView = async () => {
   if (!props.fileId) {
-    alert('Please activate a file first');
+    await showAlert(t('views.activateFileFirst'));
     return;
   }
   
@@ -261,7 +349,7 @@ const saveView = async () => {
     console.log('Saving with file name:', props.fileName);
     await createOrUpdateView(props.fileName);
   } else {
-    alert('Please select a view or activate a file');
+    await showAlert(t('views.selectViewOrFile'));
   }
 };
 
@@ -297,7 +385,7 @@ const createOrUpdateView = async (name) => {
     // 验证状态是否有效
     if (!state || !state.viewerState) {
       console.error('❌ Failed to get viewer state:', state);
-      alert('Failed to capture viewer state. Please try again.');
+      await showAlert(t('views.captureStateFailed'));
       return;
     }
     
@@ -331,7 +419,13 @@ const createOrUpdateView = async (name) => {
         emit('current-view-changed', savedView.name);
       }
     } else if (response.status === 409) {
-      if (confirm(t('views.confirmOverwrite', { name }))) {
+      const confirmed = await showDialog({
+        type: 'confirm',
+        title: t('views.saveAs'),
+        message: t('views.confirmOverwrite', { name })
+      });
+      
+      if (confirmed) {
         const existingView = views.value.find(v => v.name === name);
         if (existingView) {
           await updateViewById(existingView.id, viewData);
@@ -344,11 +438,11 @@ const createOrUpdateView = async (name) => {
         }
       }
     } else {
-      alert(t('views.saveFailed'));
+      await showAlert(t('views.saveFailed'));
     }
   } catch (error) {
     console.error('Failed to save view:', error);
-    alert(t('views.saveFailed'));
+    await showAlert(t('views.saveFailed'));
   }
 };
 
@@ -421,7 +515,13 @@ const renameView = async () => {
   const view = contextMenu.value.view;
   closeContextMenu();
   
-  const newName = prompt(t('views.enterNewName'), view.name);
+  const newName = await showDialog({
+    type: 'prompt',
+    title: t('views.rename'),
+    placeholder: t('views.namePlaceholder'),
+    defaultValue: view.name
+  });
+  
   if (newName && newName !== view.name) {
     await updateViewById(view.id, { name: newName });
   }
@@ -435,13 +535,37 @@ const updateView = async () => {
   await createOrUpdateView(view.name);
 };
 
-// Delete view
-const deleteView = async () => {
+// Delete view - show custom confirmation dialog
+const deleteView = () => {
   const view = contextMenu.value.view;
-  console.log('🗑️ Deleting view:', view.name);
-  closeContextMenu();
+  if (!view) {
+    console.log('❌ No view found in context menu');
+    return;
+  }
   
-  if (!confirm(t('views.confirmDelete', { name: view.name }))) return;
+  console.log('🗑️ Opening delete dialog for view:', view.name, 'ID:', view.id);
+  
+  // 保存要删除的视图，关闭上下文菜单，显示确认对话框
+  viewToDelete.value = view;
+  closeContextMenu();
+  showDeleteDialog.value = true;
+};
+
+// Cancel delete
+const cancelDelete = () => {
+  showDeleteDialog.value = false;
+  viewToDelete.value = null;
+};
+
+// Confirm delete
+const confirmDelete = async () => {
+  const view = viewToDelete.value;
+  if (!view) return;
+  
+  console.log('🗑️ Confirmed delete view:', view.name, 'ID:', view.id);
+  
+  showDeleteDialog.value = false;
+  viewToDelete.value = null;
   
   try {
     const response = await fetch(`${API_BASE}/api/views/${view.id}`, {
@@ -450,17 +574,18 @@ const deleteView = async () => {
     
     const data = await response.json();
     if (data.success) {
+      console.log('✅ View deleted successfully');
       if (currentView.value?.id === view.id) {
         currentView.value = null;
         emit('current-view-changed', '');
       }
       await loadViews();
     } else {
-      alert('Failed to delete view');
+      await showAlert(t('views.deleteFailed'));
     }
   } catch (error) {
     console.error('Failed to delete view:', error);
-    alert('Failed to delete view');
+    await showAlert(t('views.deleteFailed'));
   }
 };
 
@@ -481,11 +606,11 @@ const toggleDefaultView = async () => {
       console.log(`🏠 ${view.is_default ? '取消' : '设置'}默认视图: ${view.name}`);
       await loadViews();
     } else {
-      alert('Failed to update default view');
+      await showAlert(t('views.updateDefaultFailed'));
     }
   } catch (error) {
     console.error('Failed to toggle default view:', error);
-    alert('Failed to update default view');
+    await showAlert(t('views.updateDefaultFailed'));
   }
 };
 
@@ -1006,5 +1131,24 @@ onUnmounted(() => {
   background: #3e3e42;
   color: #666;
   cursor: not-allowed;
+}
+
+.btn-confirm.btn-danger {
+  background: #dc3545;
+}
+
+.btn-confirm.btn-danger:hover {
+  background: #c82333;
+}
+
+.delete-message {
+  color: #ccc;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.delete-dialog {
+  min-width: 280px;
 }
 </style>

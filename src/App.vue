@@ -458,8 +458,13 @@ const onViewerReady = async () => {
                 const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
                 const fullViewData = await fullViewRes.json();
                 if (fullViewData.success && mainViewRef.value?.restoreViewState) {
-                  mainViewRef.value.restoreViewState(fullViewData.data);
-                  console.log('✅ 默认视图已恢复');
+                  // 延迟恢复，确保模型完全加载
+                  setTimeout(() => {
+                    if (mainViewRef.value?.restoreViewState) {
+                      mainViewRef.value.restoreViewState(fullViewData.data);
+                      console.log('✅ 默认视图已恢复');
+                    }
+                  }, 500);
                 }
               } else {
                 console.log('ℹ️ 没有设置默认视图，使用模型默认状态');

@@ -102,6 +102,16 @@
         />
       </div>
     </div>
+
+    <!-- Confirm/Alert Dialog -->
+    <ConfirmDialog
+      v-model:visible="dialogState.visible"
+      :type="dialogState.type"
+      :title="dialogState.title"
+      :message="dialogState.message"
+      @confirm="dialogState.onConfirm"
+      @cancel="dialogState.onCancel"
+    />
   </div>
 </template>
 
@@ -111,6 +121,7 @@ import { useI18n } from 'vue-i18n';
 import EditableField from './EditableField.vue';
 import DocumentList from './DocumentList.vue';
 import QRCodeDisplay from './QRCodeDisplay.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -133,6 +144,36 @@ const emit = defineEmits(['close-properties', 'property-changed']);
 const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
+
+// Dialog state for ConfirmDialog
+const dialogState = ref({
+  visible: false,
+  type: 'alert',
+  title: '',
+  message: '',
+  onConfirm: () => {},
+  onCancel: () => {}
+});
+
+// Helper to show alert
+const showAlert = (message, title = '') => {
+  return new Promise((resolve) => {
+    dialogState.value = {
+      visible: true,
+      type: 'alert',
+      title: title || t('common.alert'),
+      message,
+      onConfirm: () => {
+        dialogState.value.visible = false;
+        resolve(true);
+      },
+      onCancel: () => {
+        dialogState.value.visible = false;
+        resolve(false);
+      }
+    };
+  });
+};
 
 // 创建本地可编辑副本
 const localProperties = ref({});
@@ -282,7 +323,7 @@ const handleFieldChange = async (fieldName, newValue) => {
       }
       
       if (failCount > 0) {
-        alert(`部分更新失败: ${failCount} 个对象更新失败`);
+        await showAlert(t('rightPanel.partialUpdateFailed', { count: failCount }));
       }
       
     } else {
@@ -354,12 +395,12 @@ const handleFieldChange = async (fieldName, newValue) => {
       }
       
       if (failCount > 0) {
-        alert(`部分更新失败: ${failCount} 个对象更新失败`);
+        await showAlert(t('rightPanel.partialUpdateFailed', { count: failCount }));
       }
     }
   } catch (error) {
     console.error('保存失败:', error);
-    alert(t('common.saveFailed') || '保存失败: ' + error.message);
+    await showAlert(t('common.saveFailed') + ': ' + error.message);
   }
 };
 
