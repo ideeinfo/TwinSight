@@ -439,27 +439,10 @@ watch(currentTemp, () => setTagTempsAtCurrentTime());
 
 watch(progress, () => setTagTempsAtCurrentTime());
 
-// 监听数据库数据变化，当数据加载后重新应用孤立效果
-watch(() => [props.assets, props.rooms, props.currentView], ([newAssets, newRooms, newView]) => {
-  
-  // 必须等待 viewer 和模型都加载完成
-  if (!viewer || !modelLoaded) {
-    return;
-  }
-  
-  // 数据加载完成后，根据当前视图重新应用显示逻辑
-  if (newView === 'assets' && newAssets.length > 0) {
-    // 切换到资产视图时，隐藏温度标签
-    areTagsVisible.value = false;
-    setTimeout(() => {
-      showAllAssets();
-    }, 200);
-  } else if (newView === 'connect' && newRooms.length > 0) {
-    setTimeout(() => {
-      applyRoomStyle();
-    }, 200);
-  }
-}, { deep: true });
+// 【已移除】原自动孤立逻辑 - 现在模型加载后保持默认状态
+// 如果存在默认视图，由 App.vue 负责在 onViewerReady 后恢复
+// watch(() => [props.assets, props.rooms, props.currentView], ...)
+
 
 // isLive 放在这里，确保 progress 已定义
 const isLive = computed(() => progress.value > 99.5);

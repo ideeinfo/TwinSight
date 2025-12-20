@@ -230,7 +230,10 @@ const messages = {
       confirmDelete: '确定删除视图"{name}"吗？',
       confirmOverwrite: '视图"{name}"已存在，是否覆盖？',
       saveFailed: '保存视图失败',
-      enterNewName: '请输入新名称'
+      enterNewName: '请输入新名称',
+      setAsDefault: '设为默认视图',
+      removeDefault: '取消默认视图',
+      defaultView: '默认视图'
     },
     qrcode: {
       title: '二维码',
@@ -535,7 +538,10 @@ const messages = {
       confirmDelete: 'Delete view "{name}"?',
       confirmOverwrite: 'View "{name}" already exists. Overwrite?',
       saveFailed: 'Failed to save view',
-      enterNewName: 'Enter new name'
+      enterNewName: 'Enter new name',
+      setAsDefault: 'Set as Default',
+      removeDefault: 'Remove Default',
+      defaultView: 'Default View'
     },
     qrcode: {
       title: 'QR Code',

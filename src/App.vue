@@ -446,7 +446,28 @@ const onViewerReady = async () => {
           if (activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
             console.log('📦 加载当前激活的模型:', activeFile.extracted_path);
             currentLoadedModelPath.value = activeFile.extracted_path;
-            mainViewRef.value.loadNewModel(activeFile.extracted_path);
+            await mainViewRef.value.loadNewModel(activeFile.extracted_path);
+            
+            // 🏠 检查并恢复默认视图
+            try {
+              const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`);
+              const defaultViewData = await defaultViewRes.json();
+              if (defaultViewData.success && defaultViewData.data) {
+                console.log('🏠 找到默认视图，正在恢复:', defaultViewData.data.name);
+                // 获取完整视图数据
+                const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
+                const fullViewData = await fullViewRes.json();
+                if (fullViewData.success && mainViewRef.value?.restoreViewState) {
+                  mainViewRef.value.restoreViewState(fullViewData.data);
+                  console.log('✅ 默认视图已恢复');
+                }
+              } else {
+                console.log('ℹ️ 没有设置默认视图，使用模型默认状态');
+              }
+            } catch (viewErr) {
+              console.warn('⚠️ 恢复默认视图失败:', viewErr);
+            }
+            
             return;
           }
         }
@@ -474,19 +495,8 @@ const onRoomsLoaded = (rooms) => {
     roomList.value = rooms;
   }
   
-  if (currentView.value === 'connect' && mainViewRef.value) {
-    if (savedRoomSelections.value.length > 0 && mainViewRef.value.isolateAndFocusRooms) {
-      mainViewRef.value.isolateAndFocusRooms(savedRoomSelections.value);
-    } else if (mainViewRef.value.showAllRooms) {
-      // 延迟调用，确保 props 已经更新
-      setTimeout(() => {
-        if (mainViewRef.value && mainViewRef.value.showAllRooms) {
-          mainViewRef.value.showAllRooms();
-        }
-      }, 100);
-    }
-    // 温度标签现在由用户通过按钮控制，不再自动显示/隐藏
-  }
+  // 【已移除】原自动孤立逻辑 - 模型现在保持默认状态
+  // 如果存在默认视图，由 onViewerReady 自动恢复
 };
 
 const onAssetsLoaded = (assets) => {
@@ -498,20 +508,8 @@ const onAssetsLoaded = (assets) => {
     assetList.value = assets;
   }
 
-  // 如果当前是资产视图，自动显示资产
-  if (currentView.value === 'assets' && mainViewRef.value) {
-    if (savedAssetSelections.value.length > 0 && mainViewRef.value.isolateAndFocusAssets) {
-      mainViewRef.value.isolateAndFocusAssets(savedAssetSelections.value);
-    } else if (mainViewRef.value.showAllAssets) {
-      // 延迟调用，确保 props 已经更新
-      setTimeout(() => {
-        if (mainViewRef.value && mainViewRef.value.showAllAssets) {
-          mainViewRef.value.showAllAssets();
-        }
-      }, 100);
-    }
-    // 温度标签现在由用户通过按钮控制，不再自动显示/隐藏
-  }
+  // 【已移除】原自动孤立逻辑 - 模型现在保持默认状态
+  // 如果存在默认视图，由 onViewerReady 自动恢复
 };
 
 const onChartDataUpdate = async (data) => {

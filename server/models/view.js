@@ -19,7 +19,7 @@ async function getViewsByFileId(fileId, sortBy = 'name', sortOrder = 'asc') {
     const order = validOrders.includes(sortOrder.toLowerCase()) ? sortOrder.toUpperCase() : 'ASC';
 
     const sql = `
-        SELECT id, file_id, name, thumbnail, created_at, updated_at
+        SELECT id, file_id, name, thumbnail, is_default, created_at, updated_at
         FROM views 
         WHERE file_id = $1 
         ORDER BY ${field} ${order}
@@ -37,7 +37,7 @@ async function getViewsByFileId(fileId, sortBy = 'name', sortOrder = 'asc') {
  */
 async function searchViews(fileId, searchTerm) {
     const sql = `
-        SELECT id, file_id, name, thumbnail, created_at, updated_at
+        SELECT id, file_id, name, thumbnail, is_default, created_at, updated_at
         FROM views 
         WHERE file_id = $1 AND name ILIKE $2
         ORDER BY name ASC
@@ -177,6 +177,47 @@ async function isNameExists(fileId, name, excludeId = null) {
     return parseInt(result.rows[0].count) > 0;
 }
 
+/**
+ * 获取文件的默认视图
+ * @param {number} fileId - 文件ID
+ * @returns {Promise<Object>}
+ */
+async function getDefaultView(fileId) {
+    const sql = `SELECT * FROM views WHERE file_id = $1 AND is_default = TRUE`;
+    const result = await query(sql, [fileId]);
+    return result.rows[0];
+}
+
+/**
+ * 设置视图为默认视图
+ * @param {number} id - 视图ID
+ * @param {boolean} isDefault - 是否设为默认
+ * @returns {Promise<Object>}
+ */
+async function setDefaultView(id, isDefault = true) {
+    // 先获取视图信息
+    const view = await getViewById(id);
+    if (!view) return null;
+
+    if (isDefault) {
+        // 先取消该文件的其他默认视图
+        await query(
+            `UPDATE views SET is_default = FALSE WHERE file_id = $1 AND is_default = TRUE`,
+            [view.file_id]
+        );
+    }
+
+    // 设置当前视图的默认状态
+    const sql = `
+        UPDATE views 
+        SET is_default = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *
+    `;
+    const result = await query(sql, [isDefault, id]);
+    return result.rows[0];
+}
+
 export {
     getViewsByFileId,
     searchViews,
@@ -184,7 +225,9 @@ export {
     createView,
     updateView,
     deleteView,
-    isNameExists
+    isNameExists,
+    getDefaultView,
+    setDefaultView
 };
 
 export default {
@@ -194,5 +237,8 @@ export default {
     createView,
     updateView,
     deleteView,
-    isNameExists
+    isNameExists,
+    getDefaultView,
+    setDefaultView
 };
+

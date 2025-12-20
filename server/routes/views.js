@@ -41,6 +41,35 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/views/default
+ * 获取文件的默认视图
+ * Query: fileId
+ */
+router.get('/default', async (req, res) => {
+    try {
+        const { fileId } = req.query;
+
+        if (!fileId) {
+            return res.status(400).json({
+                success: false,
+                error: '缺少fileId参数'
+            });
+        }
+
+        const view = await viewModel.getDefaultView(parseInt(fileId));
+
+        if (!view) {
+            return res.json({ success: true, data: null });
+        }
+
+        res.json({ success: true, data: view });
+    } catch (error) {
+        console.error('获取默认视图失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
  * GET /api/views/:id
  * 获取单个视图（包含完整状态数据）
  */
@@ -177,4 +206,32 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+
+/**
+ * PUT /api/views/:id/set-default
+ * 设置视图为默认视图
+ */
+router.put('/:id/set-default', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isDefault } = req.body;
+
+        const view = await viewModel.setDefaultView(parseInt(id), isDefault !== false);
+
+        if (!view) {
+            return res.status(404).json({
+                success: false,
+                error: '视图不存在'
+            });
+        }
+
+        console.log(`🏠 ${isDefault !== false ? '设置' : '取消'}默认视图: ${view.name}`);
+        res.json({ success: true, data: view });
+    } catch (error) {
+        console.error('设置默认视图失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;
+

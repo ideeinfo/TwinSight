@@ -93,6 +93,12 @@
                 <path d="m21 15-5-5L5 21"/>
               </svg>
             </div>
+            <!-- 默认视图 Home 图标 -->
+            <div v-if="view.is_default" class="default-view-badge" :title="$t('views.defaultView')">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </div>
           </div>
           <div class="card-info">
             <span class="card-name">{{ view.name }}</span>
@@ -110,7 +116,12 @@
       <!-- List mode -->
       <div v-else class="list-view">
         <div v-for="view in views" :key="view.id" class="view-item" :class="{ active: currentView?.id === view.id }" @click="selectAndRestoreView(view)">
-          <span class="item-name">{{ view.name }}</span>
+          <div class="item-name-wrapper">
+            <svg v-if="view.is_default" class="default-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" :title="$t('views.defaultView')">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            <span class="item-name">{{ view.name }}</span>
+          </div>
           <button class="btn-menu" @click.stop="showViewMenu(view, $event)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="1"/>
@@ -124,6 +135,9 @@
 
     <!-- Context menu -->
     <div v-if="contextMenu.visible" class="context-menu" :style="contextMenu.style">
+      <div class="menu-item" @click="toggleDefaultView">
+        {{ contextMenu.view?.is_default ? $t('views.removeDefault') : $t('views.setAsDefault') }}
+      </div>
       <div class="menu-item" @click="renameView">{{ $t('views.rename') }}</div>
       <div class="menu-item" @click="updateView">{{ $t('views.update') }}</div>
       <div class="menu-item danger" @click="deleteView">{{ $t('views.delete') }}</div>
@@ -450,6 +464,31 @@ const deleteView = async () => {
   }
 };
 
+// Toggle default view
+const toggleDefaultView = async () => {
+  const view = contextMenu.value.view;
+  closeContextMenu();
+  
+  try {
+    const response = await fetch(`${API_BASE}/api/views/${view.id}/set-default`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isDefault: !view.is_default })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      console.log(`🏠 ${view.is_default ? '取消' : '设置'}默认视图: ${view.name}`);
+      await loadViews();
+    } else {
+      alert('Failed to update default view');
+    }
+  } catch (error) {
+    console.error('Failed to toggle default view:', error);
+    alert('Failed to update default view');
+  }
+};
+
 // Watch for visibility and fileId changes
 watch(() => [props.visible, props.fileId], ([visible, fileId]) => {
   if (visible && fileId) {
@@ -716,6 +755,45 @@ onUnmounted(() => {
 
 .no-thumbnail {
   color: #444;
+}
+
+/* Default view badge - Home icon overlay */
+.card-thumbnail {
+  position: relative;
+}
+
+.default-view-badge {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  background: rgba(56, 171, 223, 0.85);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.default-view-badge svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* List mode default icon */
+.item-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.default-icon {
+  color: #38ABDF;
+  flex-shrink: 0;
 }
 
 .card-info {
