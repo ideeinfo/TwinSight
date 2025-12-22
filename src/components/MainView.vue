@@ -802,6 +802,10 @@ const loadNewModel = async (modelPath) => {
   
   // 卸载所有当前加载的模型
   console.log('🧹 开始卸载旧模型...');
+  
+  // 重置 defaultView，让新模型的初始视角成为新的默认视图
+  defaultView = null;
+  
   const modelsToUnload = viewer.getVisibleModels ? viewer.getVisibleModels() : (viewer.model ? [viewer.model] : []);
   
   if (modelsToUnload.length > 0) {
