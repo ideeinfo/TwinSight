@@ -635,11 +635,28 @@ const onFileActivated = async (file) => {
     // 加载对应的 3D 模型
     if (file.extracted_path) {
       if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
-        // 模型切换时，刷新页面以确保干净的状态和正确的默认视图
-        // 这是最可靠的方式，因为 Forge Viewer 有复杂的内部状态
-        console.log('🔄 模型切换，刷新页面...');
-        window.location.reload();
-        return;
+        // 只有当切换到不同的模型时才刷新页面
+        // 避免初次加载或激活相同模型时无限刷新
+        if (currentLoadedModelPath.value && currentLoadedModelPath.value !== file.extracted_path) {
+          console.log('🔄 切换到不同模型，刷新页面...');
+          window.location.reload();
+          return;
+        }
+        
+        // 首次加载或相同模型，正常加载
+        currentLoadedModelPath.value = file.extracted_path;
+        console.log('📦 等待模型加载完成...');
+        try {
+          await mainViewRef.value.loadNewModel(file.extracted_path);
+          console.log('📦 模型加载完成');
+        } catch (e) {
+          console.error('❌ 模型加载失败:', e);
+        }
+        
+        // 模型加载后刷新时序数据
+        if (mainViewRef.value && mainViewRef.value.refreshTimeSeriesData) {
+          mainViewRef.value.refreshTimeSeriesData();
+        }
       } else {
         // Viewer 尚未准备好，保存待加载文件
         console.log('📦 Viewer 尚未准备好，保存待加载文件');
