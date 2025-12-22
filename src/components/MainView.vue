@@ -959,13 +959,22 @@ const onModelLoaded = () => {
   modelLoaded = true; // 标记模型已加载
   console.log('🧹 状态已重置');
   
-  if (!defaultView && viewer && viewer.navigation) {
-    try {
-      const pos = viewer.navigation.getPosition().clone();
-      const target = viewer.navigation.getTarget().clone();
-      const up = viewer.navigation.getWorldUpVector().clone();
-      defaultView = { pos, target, up };
-    } catch {}
+  // 延迟捕获默认视图，确保 Forge Viewer 完成初始相机设置
+  // 不同大小的模型需要不同时间来稳定相机
+  if (!defaultView) {
+    setTimeout(() => {
+      if (!defaultView && viewer && viewer.navigation) {
+        try {
+          const pos = viewer.navigation.getPosition().clone();
+          const target = viewer.navigation.getTarget().clone();
+          const up = viewer.navigation.getWorldUpVector().clone();
+          defaultView = { pos, target, up };
+          console.log('📷 已捕获默认视图（延迟）:', { pos, target, up });
+        } catch (e) {
+          console.warn('⚠️ 捕获默认视图失败:', e);
+        }
+      }
+    }, 500); // 等待 500ms 让相机稳定
   }
   // 递归获取所有叶子节点 ID
   const getAllLeafDbIds = (rootIds) => {
