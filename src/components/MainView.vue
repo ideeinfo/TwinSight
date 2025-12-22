@@ -263,7 +263,7 @@ let uiObserver = null;
 const selectedRoomCodes = ref([]);
 let roomSeriesCache = {};
 let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
-let isRestoringView = false;
+
 
 
 
@@ -1295,7 +1295,7 @@ const removeRoomStyle = () => {
 const onSelectionChanged = (event) => {
   const dbIds = event.dbIdArray;
   
-  if (isRestoringView) return;
+  if (viewState.getIsRestoringView()) return;
   
   // 如果是程序化选择（从列表触发），跳过处理但不影响反向定位
   if (isManualSelection) {
