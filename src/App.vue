@@ -458,16 +458,18 @@ const onViewerReady = async () => {
                 const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
                 const fullViewData = await fullViewRes.json();
                 if (fullViewData.success && mainViewRef.value?.restoreViewState) {
-                  // 延迟恢复视图，确保模型几何体和相机完全就绪
-                  // 注意：loadNewModel 返回时模型已加载，但渲染可能仍在进行
-                  console.log('⏳ 等待模型渲染完成后恢复视图...');
-                  setTimeout(() => {
-                    if (mainViewRef.value?.restoreViewState) {
-                      console.log('🔄 正在恢复默认视图...');
+                  // 使用事件驱动的方式恢复视图，确保模型完全就绪
+                  if (mainViewRef.value?.onModelReady) {
+                    console.log('⏳ 等待模型就绪后恢复视图...');
+                    mainViewRef.value.onModelReady(() => {
+                      console.log('🔄 模型已就绪，正在恢复默认视图...');
                       mainViewRef.value.restoreViewState(fullViewData.data);
                       console.log('✅ 默认视图已恢复');
-                    }
-                  }, 1500); // 增加到 1500ms，确保大模型也有足够时间
+                    });
+                  } else {
+                    // 后备方案：直接恢复
+                    mainViewRef.value.restoreViewState(fullViewData.data);
+                  }
                 }
               } else {
                 console.log('ℹ️ 没有设置默认视图，使用模型默认状态');

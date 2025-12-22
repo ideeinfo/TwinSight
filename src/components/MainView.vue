@@ -163,6 +163,8 @@ let modelLoaded = false; // 追踪模型是否已加载完成
 let currentModelPath = null; // 当前加载或已加载的模型路径
 let isLoadingModel = false; // 是否正在加载模型
 let defaultView = null;
+let modelReadyCallbacks = []; // 模型就绪后执行的回调队列
+let modelFullyReady = false; // 标记模型是否完全就绪（几何体+渲染）
 
 // 初始化数据导出 Composable
 const dataExport = useDataExport(
@@ -759,6 +761,7 @@ const loadNewModel = async (modelPath) => {
   }
   
   isLoadingModel = true;
+  modelFullyReady = false; // 重置模型就绪状态
   console.log('🔄 开始加载新模型:', modelPath);
   
   // 构造候选路径
@@ -851,11 +854,16 @@ const loadNewModel = async (modelPath) => {
               onModelLoaded();
             }
           }
-          // 等待 1.5 秒后 resolve，确保 onModelLoaded 已完成
+          // 标记模型完全就绪，并执行所有待处理回调
           setTimeout(() => {
-            console.log('📦 模型加载 Promise 已解析');
+            modelFullyReady = true;
+            console.log('📦 模型完全就绪，执行待处理回调:', modelReadyCallbacks.length);
+            modelReadyCallbacks.forEach(cb => {
+              try { cb(); } catch (e) { console.error('回调执行失败:', e); }
+            });
+            modelReadyCallbacks = [];
             resolve(true);
-          }, 1500);
+          }, 500); // 额外等待500ms确保渲染完成
         }, 1000);
         
         // 注意：onModelLoaded 会通过事件自动触发
@@ -2064,6 +2072,17 @@ const refreshTimeSeriesData = async () => {
 defineExpose({
   resizeViewer,
   loadNewModel,
+  // 模型就绪后执行回调（如果已就绪则立即执行）
+  onModelReady: (callback) => {
+    if (modelFullyReady && !isLoadingModel) {
+      // 模型已就绪，立即执行
+      callback();
+    } else {
+      // 模型尚未就绪，加入队列
+      modelReadyCallbacks.push(callback);
+      console.log('📌 回调已加入队列，当前队列长度:', modelReadyCallbacks.length);
+    }
+  },
   showAllAssets,
   showAllRooms,
   isolateAndFocusAssets,
