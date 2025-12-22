@@ -35,20 +35,12 @@
     />
     
     <!-- Custom Range Modal -->
-    <div v-if="isCustomModalOpen" class="modal-overlay">
-      <div class="custom-modal">
-        <div class="dialog-header"><span class="dialog-title">{{ t('timeline.selectDateRange') }}</span><button class="dialog-close-btn" @click="closeCustomModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
-        <div class="calendar-widget">
-          <div class="cal-header"><button @click="changeMonth(-1)">&#9664;</button><span>{{ calendarTitle }}</span><button @click="changeMonth(1)">&#9654;</button></div>
-          <div class="cal-grid">
-            <div class="cal-day-name" v-for="(d, idx) in calendarDayNames" :key="idx">{{d}}</div>
-            <div v-for="(day, idx) in calendarDays" :key="idx" class="cal-day" :class="{ 'empty': !day.inMonth, 'selected': isDaySelected(day.date), 'in-range': isDayInRange(day.date) }" @click="handleDayClick(day)">{{ day.date ? day.date.getDate() : '' }}</div>
-          </div>
-          <div class="range-preview"><div class="preview-box"><label>{{ t('timeline.startDate') }}</label><span :class="{ placeholder: !tempStart }">{{ formatDate(tempStart) || t('common.select') }}</span></div><div class="arrow">→</div><div class="preview-box"><label>{{ t('timeline.endDate') }}</label><span :class="{ placeholder: !tempEnd }">{{ formatDate(tempEnd) || t('common.select') }}</span></div></div>
-        </div>
-        <div class="modal-footer"><button class="btn-cancel" @click="closeCustomModal">{{ t('common.cancel') }}</button><button class="btn-apply" @click="applyCustomRange" :disabled="!tempStart || !tempEnd">{{ t('common.apply') }}</button></div>
-      </div>
-    </div>
+    <DateRangePicker
+      :visible="isCustomModalOpen"
+      v-model="dateRange"
+      @update:visible="isCustomModalOpen = $event"
+      @apply="onDateRangeApply"
+    />
 
 
     <!-- 3D 画布区域 -->
@@ -89,6 +81,7 @@ import OverlayTags from './viewer/OverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
 import ViewerControls from './viewer/ViewerControls.vue';
+import DateRangePicker from './DateRangePicker.vue';
 import { useHeatmap } from '../composables/useHeatmap';
 import { useDataExport } from '../composables/useDataExport';
 import { useViewState } from '../composables/useViewState';
@@ -219,9 +212,15 @@ const isTimeRangeMenuOpen = ref(false);
 const dropdownRef = ref(null);
 const selectedTimeRange = ref({ label: '', value: '24h' }); // 默认24小时
 const isCustomModalOpen = ref(false);
-const calendarViewDate = ref(new Date());
-const tempStart = ref(null);
-const tempEnd = ref(null);
+
+// DateRangePicker 绑定值
+const dateRange = computed({
+  get: () => ({ start: startDate.value, end: endDate.value }),
+  set: (val) => {
+    if (val?.start) startDate.value = new Date(val.start);
+    if (val?.end) endDate.value = new Date(val.end);
+  }
+});
 
 // ================== 2. 计算属性 (Computed) ==================
 
@@ -244,17 +243,6 @@ const selectedTimeRangeLabel = computed(() => {
   const option = timeOptions.value.find(o => o.value === selectedTimeRange.value.value);
   return option ? option.label : '';
 });
-
-// 日历星期名称（支持多语言）
-const calendarDayNames = computed(() => [
-  t('calendar.sun'),
-  t('calendar.mon'),
-  t('calendar.tue'),
-  t('calendar.wed'),
-  t('calendar.thu'),
-  t('calendar.fri'),
-  t('calendar.sat')
-]);
 
 // 图表数据从 InfluxDB 拉取（不使用本地模拟）
 const chartData = ref([]);
@@ -509,12 +497,6 @@ const generatedTicks = computed(() => {
   const ticks = []; let c = Math.floor(s/interval)*interval; if(c<s) c+=interval;
   while(c<=e) { const p=((c-s)/d)*100; const dt=new Date(c); let l='', h=false, t='major'; if(interval<864e5){ if(dt.getHours()===0){l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;}else{l=dt.toLocaleTimeString(localeCode,{hour:'numeric'}).replace(' ','');t='minor';}}else{l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;} ticks.push({percent:p,type:t,label:l,highlight:h}); c+=interval; } return ticks;
 });
-
-const calendarTitle = computed(() => {
-  const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
-  return calendarViewDate.value.toLocaleDateString(localeCode, { month: 'long', year: 'numeric' });
-});
-const calendarDays = computed(() => { const y = calendarViewDate.value.getFullYear(), m = calendarViewDate.value.getMonth(), fd = new Date(y, m, 1), ld = new Date(y, m + 1, 0), g = []; for(let i=0; i<fd.getDay(); i++) g.push({ date: null, inMonth: false }); for(let i=1; i<=ld.getDate(); i++) g.push({ date: new Date(y, m, i), inMonth: true }); return g; });
 
 // 辅助样式计算
 const getTagStyle = (t) => {
@@ -1879,15 +1861,21 @@ const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.va
 function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
 const toggleTimeRangeMenu = () => isTimeRangeMenuOpen.value = !isTimeRangeMenuOpen.value;
 const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '1h': 36e5, '3h': 3*36e5, '6h': 6*36e5, '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
-const changeMonth = (d) => calendarViewDate.value = new Date(calendarViewDate.value.setMonth(calendarViewDate.value.getMonth() + d));
-const isSameDay = (d1, d2) => d1 && d2 && d1.toDateString() === d2.toDateString();
-const isDaySelected = (d) => isSameDay(d, tempStart.value) || isSameDay(d, tempEnd.value);
-const isDayInRange = (d) => d && tempStart.value && tempEnd.value && d > tempStart.value && d < tempEnd.value;
-const handleDayClick = (d) => { if (!d.date) return; if (!tempStart.value || (tempStart.value && tempEnd.value)) { tempStart.value = d.date; tempEnd.value = null; } else { if (d.date < tempStart.value) { tempEnd.value = tempStart.value; tempStart.value = d.date; } else tempEnd.value = d.date; } };
-const formatDate = (d) => d ? d.toLocaleDateString() : '';
-const openCustomRangeModal = () => { isTimeRangeMenuOpen.value = false; selectedTimeRange.value = { label: '', value: 'custom' }; tempStart.value = new Date(startDate.value); tempEnd.value = new Date(endDate.value); calendarViewDate.value = new Date(startDate.value); isCustomModalOpen.value = true; };
-const closeCustomModal = () => isCustomModalOpen.value = false;
-const applyCustomRange = () => { if (tempStart.value && tempEnd.value) { startDate.value = new Date(tempStart.value); endDate.value = new Date(tempEnd.value); endDate.value.setHours(23,59,59); progress.value = 100; isCustomModalOpen.value = false; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); } };
+// DateRangePicker 事件处理
+const openCustomRangeModal = () => { 
+  isTimeRangeMenuOpen.value = false; 
+  selectedTimeRange.value = { label: '', value: 'custom' }; 
+  isCustomModalOpen.value = true; 
+};
+const onDateRangeApply = (range) => {
+  if (range?.start && range?.end) {
+    startDate.value = new Date(range.start);
+    endDate.value = new Date(range.end);
+    progress.value = 100;
+    emitRangeChanged();
+    refreshRoomSeriesCache().catch(() => {});
+  }
+};
 const zoomIn = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d / 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 const zoomOut = () => { const d = endDate.value.getTime() - startDate.value.getTime(); startDate.value = new Date(endDate.value.getTime() - d * 1.5); emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 let fId;
