@@ -833,9 +833,8 @@ const loadNewModel = async (modelPath) => {
           rootId: model.getRootId ? model.getRootId() : 'N/A'
         });
         
-        // 标记模型路径和重置加载状态
+        // 标记模型路径（注意：isLoadingModel 稍后与 modelFullyReady 一起重置）
         currentModelPath = modelPath;
-        isLoadingModel = false;
         
         // 其他初始化设置
         viewer.setTheme('dark-theme');
@@ -857,6 +856,7 @@ const loadNewModel = async (modelPath) => {
           // 标记模型完全就绪，并执行所有待处理回调
           setTimeout(() => {
             modelFullyReady = true;
+            isLoadingModel = false; // 移到这里，与 modelFullyReady 同步
             console.log('📦 模型完全就绪，执行待处理回调:', modelReadyCallbacks.length);
             modelReadyCallbacks.forEach(cb => {
               try { cb(); } catch (e) { console.error('回调执行失败:', e); }
