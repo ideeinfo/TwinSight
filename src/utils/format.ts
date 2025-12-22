@@ -86,3 +86,34 @@ export function truncate(text: string, maxLength: number, suffix = '...'): strin
 export function capitalize(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/**
+ * 格式化 AI 分析文本（Markdown 转 HTML）
+ * 将简单的 Markdown 语法转换为 HTML 用于显示
+ */
+export function formatAnalysisText(text: string): string {
+    if (!text) return '';
+
+    // 预处理：移除多余的空行和孤立的 #
+    let processed = text
+        .replace(/^#\s*$/gm, '')           // 移除孤立的 #
+        .replace(/\n{3,}/g, '\n\n')        // 多个换行合并为两个
+        .replace(/^\s+|\s+$/g, '')         // 去掉首尾空白
+        .trim();
+
+    // Markdown 转 HTML
+    return processed
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')      // ## 标题
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')     // ### 标题
+        .replace(/^# (.+)$/gm, '<h3>$1</h3>')       // # 标题也转为 h3
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')  // 粗体
+        .replace(/^- (.+)$/gm, '<li>$1</li>')       // 列表项
+        .replace(/^(\d+)\. (.+)$/gm, '<div class="numbered-item"><span class="num">$1.</span> $2</div>')  // 编号列表
+        .replace(/\n\n/g, '</p><p>')               // 段落
+        .replace(/\n/g, '<br>')                    // 换行
+        .replace(/^/, '<p>')                       // 开头加 p
+        .replace(/$/, '</p>')                      // 结尾加 p
+        .replace(/<p><h/g, '<h')                   // 清理标题前的 p
+        .replace(/<\/h(\d)><\/p>/g, '</h$1>')      // 清理标题后的 p
+        .replace(/<p><\/p>/g, '');                 // 移除空段落
+}
