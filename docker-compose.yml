@@ -6,9 +6,9 @@ name: tandem-demo
 services:
   # ==================== 数据库服务 ====================
 
-  # PostgreSQL 数据库
+  # PostgreSQL 数据库 (带 PGVector 扩展)
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: tandem-postgres
     restart: always
     environment:
@@ -158,12 +158,42 @@ services:
     networks:
       - tandem-network
 
+  # ==================== Open WebUI ====================
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: tandem-open-webui
+    restart: unless-stopped
+    ports:
+      - "3080:8080"
+    environment:
+      # 基础配置
+      - WEBUI_NAME=Tandem AI
+      - DEFAULT_LOCALE=zh-CN
+      # Gemini API 配置
+      - OPENAI_API_BASE_URLS=https://generativelanguage.googleapis.com/v1beta/openai
+      - OPENAI_API_KEYS=${GEMINI_API_KEY:-}
+      # 允许注册（首次使用需要创建管理员账户）
+      - ENABLE_SIGNUP=true
+      # RAG 配置（使用内置 ChromaDB）
+      - ENABLE_RAG_WEB_SEARCH=true
+      # 国内 Hugging Face 镜像源
+      - HF_ENDPOINT=https://hf-mirror.com
+      # RAG 配置 (强制使用本地多语言模型)
+      - RAG_EMBEDDING_ENGINE=
+      - RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - tandem-network
+
 volumes:
+
   postgres_data:
   pgadmin_data:
   grafana_data:
   n8n_data:
   qdrant_storage:
+  open_webui_data:
 
 
 networks:
@@ -202,6 +232,7 @@ networks:
 #
 # Qdrant: http://localhost:6333
 #   - 向量数据库 (用于 RAG)
+#
 #
 # API 服务 (server/): npm run dev
 #   - 端口: 3001
