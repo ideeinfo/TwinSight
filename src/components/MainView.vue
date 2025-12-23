@@ -261,7 +261,7 @@ let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
 const loadChartData = async () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
-  const windowMs = Math.max(60_000, Math.round((end - start) / 300));
+  const windowMs = 0; // 不聚合，显示原始数据点
   console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}`);
   if (isInfluxConfigured()) {
     try {
@@ -342,8 +342,13 @@ const setTagTempsAtCurrentTime = () => {
         const LOW_THRESHOLD = 0;
         const tempValue = parseFloat(newTemp);
         
-        // 高温报警：当温度超过28度时触发AI分析
-        if (props.isAIEnabled && tempValue > HIGH_THRESHOLD && prevTemp <= HIGH_THRESHOLD && !tag._highAlertTriggered) {
+        // 调试日志：打印报警判断条件
+        if (tempValue > HIGH_THRESHOLD) {
+          console.log(`🔍 [${tag.code}] 高温检测: tempValue=${tempValue}, isAIEnabled=${props.isAIEnabled}, _highAlertTriggered=${tag._highAlertTriggered}`);
+        }
+        
+        // 高温报警：当温度超过28度时触发AI分析（移除"跨越"条件限制）
+        if (props.isAIEnabled && tempValue > HIGH_THRESHOLD && !tag._highAlertTriggered) {
           tag._highAlertTriggered = true;
           console.log(`🔥 高温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${HIGH_THRESHOLD}°C`);
           
@@ -382,8 +387,8 @@ const setTagTempsAtCurrentTime = () => {
           });
         }
         
-        // 低温报警：当温度低于10度时触发AI分析
-        if (props.isAIEnabled && tempValue < LOW_THRESHOLD && prevTemp >= LOW_THRESHOLD && !tag._lowAlertTriggered) {
+        // 低温报警：当温度低于0度时触发AI分析（移除"跨越"条件限制）
+        if (props.isAIEnabled && tempValue < LOW_THRESHOLD && !tag._lowAlertTriggered) {
           tag._lowAlertTriggered = true;
           console.log(`❄️ 低温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 低于阈值 ${LOW_THRESHOLD}°C`);
           
@@ -1856,7 +1861,7 @@ const getSpacePropertyList = () => dataExport.getSpacePropertyList();
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
 
-const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDate.value.getTime(); const w = Math.max(60_000, Math.round((e - s) / 300)); emit('time-range-changed', { startMs: s, endMs: e, windowMs: w }); };
+const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDate.value.getTime(); const w = 0; /* 不聚合 */ emit('time-range-changed', { startMs: s, endMs: e, windowMs: w }); };
 const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); emitRangeChanged(); };
 function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
 const toggleTimeRangeMenu = () => isTimeRangeMenuOpen.value = !isTimeRangeMenuOpen.value;
