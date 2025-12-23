@@ -195,6 +195,12 @@ const modelAssetDbIds = ref([]);
 // 当前导出的文件 ID
 const currentExportFileId = ref(null);
 
+// 数据导出面板打开前的原模型路径（用于关闭时恢复）
+const previousModelPath = ref(null);
+
+// 数据导出面板打开前的原激活文件信息（用于关闭时恢复视图面板）
+const previousActiveFileInfo = ref(null);
+
 // 待加载的激活文件（在 viewer 初始化完成后加载）
 const pendingActiveFile = ref(null);
 const viewerReady = ref(false);
@@ -237,17 +243,56 @@ const handleRestoreView = (viewData) => {
 const openDataExportPanel = async (file) => {
   if (file && file.id) {
     currentExportFileId.value = file.id;
-    // 关键修复：打开导出面板时，自动加载该文件的模型到 Viewer
-    // 确保“所见即所得”，防止提取旧模型数据
-    await onFileActivated(file);
+    // 注意：不更新 activeFileId/activeFileName，保持视图面板不变
+    // 数据导出只是临时加载模型，不应影响视图面板
+    
+    // 方案 C：如果当前加载的模型不是目标文件，自动加载目标模型
+    if (file.extracted_path && currentLoadedModelPath.value !== file.extracted_path) {
+      console.log('📂 导出面板：需要加载目标模型', file.extracted_path);
+      
+      if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
+        try {
+          // 保存原模型路径，以便关闭面板时恢复
+          previousModelPath.value = currentLoadedModelPath.value;
+          currentLoadedModelPath.value = file.extracted_path;
+          console.log('📦 开始加载模型...');
+          await mainViewRef.value.loadNewModel(file.extracted_path);
+          console.log('✅ 模型加载完成，可以提取数据');
+        } catch (error) {
+          console.error('❌ 模型加载失败:', error);
+          // 即使失败也打开面板，让用户看到错误信息
+        }
+      } else {
+        console.warn('⚠️ Viewer 尚未准备好，无法加载模型');
+      }
+    } else {
+      console.log('📂 导出面板：模型已加载或无需加载');
+    }
   } else {
     currentExportFileId.value = null;
   }
+  
+  // 最后打开面板
   isDataExportOpen.value = true;
 };
 
-const closeDataExportPanel = () => {
+const closeDataExportPanel = async () => {
   isDataExportOpen.value = false;
+  
+  // 如果之前保存了原模型路径，恢复原模型
+  if (previousModelPath.value && previousModelPath.value !== currentLoadedModelPath.value) {
+    console.log('📂 正在恢复原模型:', previousModelPath.value);
+    if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
+      try {
+        currentLoadedModelPath.value = previousModelPath.value;
+        await mainViewRef.value.loadNewModel(previousModelPath.value);
+        console.log('✅ 原模型已恢复');
+      } catch (error) {
+        console.error('❌ 恢复原模型失败:', error);
+      }
+    }
+    previousModelPath.value = null;
+  }
 };
 
 // 从 MainView 获取完整资产数据

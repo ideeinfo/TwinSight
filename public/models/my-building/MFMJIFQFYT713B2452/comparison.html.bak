@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>模型与现场对比 (0dc31e2f)</title>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    
+    <!-- Core CSS -->
+    <link rel="stylesheet" href="../../../lib/SourceCode/style.css" type="text/css">
+    
+    <!-- Dependencies -->
+    <script src="../../../js/jquery.js"></script>
+    <script src="../../../lib/SourceCode/three.js"></script>
+    <script src="../../../lib/SourceCode/viewer3D.min.js?v=10"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 3D Model Layer (Bottom) */
+        #forgeViewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Image Layer (Top, with opacity) */
+        #imageLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            background-image: url('../../../images/fff09a76-ef72-4815-9397-0a8e290b3681.jpg');
+            background-size: cover; /* Adjust to 'contain' if aspect ratio is critical */
+            background-position: center;
+            opacity: 0.5;
+            pointer-events: none; /* Let events pass through to 3D viewer */
+        }
+
+        /* Controls UI */
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 250px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-row label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input[type=range] {
+            width: 120px;
+        }
+
+        button {
+            padding: 6px 12px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .value-display {
+            font-family: monospace;
+            width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <div id="forgeViewer"></div>
+    <div id="imageLayer"></div>
+    
+    <div id="controls">
+        <div class="control-row">
+            <label>图片透明度</label>
+            <input type="range" id="opacitySlider" min="0" max="100" value="50">
+            <span id="opacityValue" class="value-display">50%</span>
+        </div>
+        
+        <div class="control-row">
+            <label>模型爆炸</label>
+            <input type="range" id="explodeSlider" min="0" max="100" value="0">
+            <span id="explodeValue" class="value-display">0%</span>
+        </div>
+
+        <div class="control-row" style="justify-content: flex-start; gap: 10px; margin-top: 5px;">
+            <button id="toggleImageBtn">隐藏图片</button>
+            <button id="resetViewBtn">重置视角</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    var viewer;
+    var imageVisible = true;
+    
+    // Initial State Configuration
+    var initialState = {
+        "objectSet": [{
+            "id": [],
+            "idType": "lmv",
+            "isolated": [],
+            "hidden": [],
+            "explodeScale": 0
+        }],
+        "viewport": {
+            "name": "",
+            "eye": [0.7070022421015639, 27.345886118797388, 1.8000001540751702],
+            "target": [0.7969242496672455, 26.350055255583943, 1.7846728877116194],
+            "up": [0.0013784204832760635, -0.015265158073002952, 0.9998825305534534],
+            "worldUpVector": [0, 0, 1],
+            "pivotPoint": [-23.20689094717403, 6.715079258275476, 26.465391718643964],
+            "distanceToOrbit": 18.016355887930267,
+            "aspectRatio": 1.9349274800936604,
+            "projection": "perspective",
+            "isOrthographic": false,
+            "fieldOfView": 81.20258708381995
+        }
+    };
+
+    function launchViewer(divId) {
+        var options = {
+            env: 'Local',
+            offline: 'true',
+            useADP: false
+        };
+
+        Autodesk.Viewing.Initializer(options, function() {
+            var htmlDiv = document.getElementById(divId);
+            
+            // Using GuiViewer3D for standard toolbar, or Viewer3D for headless
+            viewer = new Autodesk.Viewing.Private.GuiViewer3D(htmlDiv, { 
+                extensions: ["Autodesk.AEC.LevelsExtension", "Autodesk.AEC.Minimap3DExtension"] 
+            });
+            
+            var startedCode = viewer.start();
+            if (startedCode > 0) {
+                console.error('Failed to create a Viewer: WebGL not supported.');
+                return;
+            }
+
+            // Load Model
+            var path = "./output/3d.svf";
+            viewer.loadModel(path, {}, onLoadSuccess, onLoadError);
+        });
+    }
+
+    function onLoadSuccess(model) {
+        console.log("Model Loaded Successfully");
+        
+        // Wait for geometry to be loaded to apply state
+        viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, function() {
+            restoreState();
+        });
+    }
+
+    function onLoadError(event) {
+        console.error("Failed to load model", event);
+        alert("无法加载模型文件 (./output/3d.svf)");
+    }
+
+    function restoreState() {
+        if (viewer && initialState) {
+            // Restore Viewport
+            viewer.restoreState(initialState);
+            
+            // Restore Explode Scale explicitly if needed
+            if (initialState.objectSet && initialState.objectSet[0]) {
+                var scale = initialState.objectSet[0].explodeScale || 0;
+                viewer.explode(scale);
+                $("#explodeSlider").val(scale * 100);
+                $("#explodeValue").text(Math.round(scale * 100) + "%");
+            }
+        }
+    }
+
+    // UI Event Listeners
+    $(document).ready(function() {
+        // 1. Opacity Slider
+        $("#opacitySlider").on("input", function() {
+            var val = $(this).val();
+            $("#imageLayer").css("opacity", val / 100);
+            $("#opacityValue").text(val + "%");
+        });
+
+        // 2. Explode Slider
+        $("#explodeSlider").on("input", function() {
+            var val = $(this).val() / 100;
+            if (viewer) {
+                viewer.explode(val);
+                $("#explodeValue").text(Math.round(val * 100) + "%");
+            }
+        });
+
+        // 3. Toggle Image Visibility
+        $("#toggleImageBtn").on("click", function() {
+            imageVisible = !imageVisible;
+            if (imageVisible) {
+                $("#imageLayer").show();
+                $(this).text("隐藏图片");
+            } else {
+                $("#imageLayer").hide();
+                $(this).text("显示图片");
+            }
+        });
+
+        // 4. Reset View
+        $("#resetViewBtn").on("click", function() {
+            restoreState();
+        });
+
+        // Initialize Viewer
+        launchViewer('forgeViewer');
+    });
+</script>
+
+</body>
+</html>

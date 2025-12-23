@@ -1,0 +1,2371 @@
+/**
+ * Material Design 3 主题变量
+ * 基于种子色 #35BCE1 生成
+ * 
+ * 使用方式：
+ * - .dark 类应用深色主题
+ * - .light 类应用浅色主题
+ * 
+ * 在组件中使用: var(--md-sys-color-primary)
+ */
+
+/* 导入 M3 主题 */
+@import './dark.css';
+@import './light.css';
+
+/* ============================================
+   语义化别名（简化使用）
+   ============================================ */
+
+:root {
+  /* 默认使用深色主题变量 */
+  --color-primary: var(--md-sys-color-primary);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+
+  --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
+  --color-secondary-container: var(--md-sys-color-secondary-container);
+  --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
+
+  --color-tertiary: var(--md-sys-color-tertiary);
+  --color-on-tertiary: var(--md-sys-color-on-tertiary);
+
+  --color-error: var(--md-sys-color-error);
+  --color-on-error: var(--md-sys-color-on-error);
+  --color-error-container: var(--md-sys-color-error-container);
+  --color-on-error-container: var(--md-sys-color-on-error-container);
+
+  --color-background: var(--md-sys-color-background);
+  --color-on-background: var(--md-sys-color-on-background);
+
+  --color-surface: var(--md-sys-color-surface);
+  --color-on-surface: var(--md-sys-color-on-surface);
+  --color-surface-variant: var(--md-sys-color-surface-variant);
+  --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-low: var(--md-sys-color-surface-container-low);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
+
+  --color-outline: var(--md-sys-color-outline);
+  --color-outline-variant: var(--md-sys-color-outline-variant);
+
+  --color-inverse-surface: var(--md-sys-color-inverse-surface);
+  --color-inverse-on-surface: var(--md-sys-color-inverse-on-surface);
+  --color-inverse-primary: var(--md-sys-color-inverse-primary);
+
+  --color-scrim: var(--md-sys-color-scrim);
+  --color-shadow: var(--md-sys-color-shadow);
+}
+
+/* ============================================
+   应用现有代码的颜色映射
+   将项目中硬编码的颜色映射到 M3 变量
+   ============================================ */
+
+:root {
+  /* 背景色映射 */
+  --bg-base: var(--md-sys-color-background);
+  --bg-elevated: var(--md-sys-color-surface-container-lowest, var(--md-sys-color-surface));
+  --bg-surface: var(--md-sys-color-surface-container-low);
+  --bg-panel: var(--md-sys-color-surface-container);
+  --bg-hover: var(--md-sys-color-surface-container-high);
+  --bg-card: var(--md-sys-color-surface-container-highest);
+
+  /* 边框色映射 */
+  --border-primary: var(--md-sys-color-outline-variant);
+  --border-secondary: var(--md-sys-color-outline);
+
+  /* 文字色映射 */
+  --text-primary: var(--md-sys-color-on-surface);
+  --text-secondary: var(--md-sys-color-on-surface-variant);
+  --text-muted: var(--md-sys-color-outline);
+
+  /* 强调色映射 */
+  --accent-primary: var(--md-sys-color-primary);
+  --accent-secondary: var(--md-sys-color-secondary);
+  --accent-tertiary: var(--md-sys-color-tertiary);
+
+  /* 状态色映射 */
+  --state-success: rgb(76 175 80);
+  /* 保持绿色 */
+  --state-warning: rgb(255 152 0);
+  /* 保持橙色 */
+  --state-error: var(--md-sys-color-error);
+}
+
+/* ============================================
+   全局主题应用
+   使主题切换立即生效
+   ============================================ */
+
+/* 深色主题全局样式 */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: var(--md-sys-color-background) !important;
+  color: var(--md-sys-color-on-background) !important;
+}
+
+/* 浅色主题全局样式 */
+html.light {
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: var(--md-sys-color-background) !important;
+  color: var(--md-sys-color-on-background) !important;
+}
+
+/* ============================================
+   浅色主题组件覆盖（使用 !important 覆盖 scoped 样式）
+   ============================================ */
+
+/* App 布局 */
+html.light .app-layout,
+html.light .main-body {
+  background-color: var(--md-sys-color-background) !important;
+}
+
+/* TopBar */
+html.light .top-bar {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .top-bar .logo-text,
+html.light .top-bar .project-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .search-box {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .search-box input {
+  color: var(--md-sys-color-on-surface) !important;
+  background: transparent !important;
+}
+
+html.light .search-box input::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .icon-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .icon-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* IconBar 左侧导航栏 */
+html.light .icon-bar {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-right-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .nav-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .nav-btn:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .nav-btn.active-blue,
+html.light .nav-btn.active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* 左侧面板容器 */
+html.light .left-section,
+html.light .left-container,
+html.light .panel-content,
+html.light .panel-wrapper {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .list-panel,
+html.light .left-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  border-right-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .panel-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .panel-header .title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .panel-header .actions {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .panel-header .actions:hover {
+  color: var(--md-sys-color-primary) !important;
+}
+
+/* 列表项 */
+html.light .list-item,
+html.light .item-list {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .list-item {
+  color: var(--md-sys-color-on-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .list-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .list-item.selected {
+  background-color: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+html.light .item-code,
+html.light .item-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .item-code {
+  color: var(--md-sys-color-primary) !important;
+}
+
+/* 右侧面板 */
+html.light .right-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  border-left-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .right-panel .header-row {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .right-panel .tabs {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .right-panel .tab {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .right-panel .tab.active {
+  color: var(--md-sys-color-primary) !important;
+  border-bottom-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .right-panel .group-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .right-panel .form-group,
+html.light .right-panel .group-body {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .right-panel label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .right-panel .val-box,
+html.light .right-panel .row input {
+  background-color: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .right-panel .scroll-content {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+/* 资产面板 */
+html.light .asset-panel {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .category-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .category-header:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .asset-item {
+  color: var(--md-sys-color-on-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .asset-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .asset-item.selected {
+  background-color: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+/* 时间轴面板 */
+html.light .timeline-panel {
+  background-color: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .time-display {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 图表面板 */
+html.light .chart-panel,
+html.light .bottom-chart-wrapper {
+  background-color: var(--md-sys-color-surface) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* Viewer 主视图区域 */
+html.light .main-content,
+html.light .viewer-wrapper {
+  background-color: var(--md-sys-color-surface-container-lowest, #fafafa) !important;
+}
+
+/* 拖拽条 */
+html.light .resizer {
+  background-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .resizer:hover,
+html.light .resizer:active {
+  background-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .horizontal-resizer {
+  background-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .horizontal-resizer:hover,
+html.light .horizontal-resizer:active {
+  background-color: var(--md-sys-color-primary) !important;
+}
+
+/* 弹窗和模态框 */
+html.light .modal-overlay {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+html.light .modal-container {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+/* 对话框样式 */
+html.light .dialog-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .dialog-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dialog-close-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .dialog-close-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 滚动条 - 浅色主题 */
+html.light ::-webkit-scrollbar-track {
+  background: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline) !important;
+}
+
+/* Checkbox */
+html.light .checkbox {
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .checkbox.checked {
+  background-color: var(--md-sys-color-primary) !important;
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+/* 视图面板 */
+html.light .views-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-btn.active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* 语言下拉菜单 */
+html.light .language-dropdown .dropdown-menu {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .language-dropdown .dropdown-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .language-dropdown .dropdown-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* 文档面板 */
+html.light .document-list,
+html.light .file-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 表单输入 */
+html.light input,
+html.light textarea,
+html.light select {
+  background-color: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light input:focus,
+html.light textarea:focus,
+html.light select:focus {
+  border-color: var(--md-sys-color-primary) !important;
+  outline-color: var(--md-sys-color-primary) !important;
+}
+
+/* 按钮 */
+html.light button {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .btn-primary,
+html.light .primary-btn {
+  background-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* 工具提示 */
+html.light .tooltip,
+html.light .copy-toast {
+  background-color: var(--md-sys-color-inverse-surface) !important;
+  color: var(--md-sys-color-inverse-on-surface) !important;
+}
+
+/* ============================================
+   AssetPanel 资产面板
+   ============================================ */
+html.light .tree-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .tree-header:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .tree-items {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .group-checkbox {
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .group-checkbox.checked,
+html.light .group-checkbox.indeterminate {
+  background-color: var(--md-sys-color-primary) !important;
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .group-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .classification-desc {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .group-count {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .list-content {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .empty-state {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   IconBar 左侧图标导航
+   ============================================ */
+html.light .icon-bar {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-right-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .nav-item {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .nav-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .nav-item.active-blue {
+  background-color: var(--md-sys-color-primary-container) !important;
+  border-left-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+html.light .nav-item.active-blue svg {
+  stroke: var(--md-sys-color-primary) !important;
+}
+
+html.light .nav-item .label {
+  color: inherit !important;
+}
+
+/* ============================================
+   ViewsPanel 视图面板
+   ============================================ */
+html.light .views-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .panel-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .search-bar {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light .views-panel .search-input-wrapper {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .search-input-wrapper input {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .tab-bar {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .tab-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .tab-btn.active {
+  color: var(--md-sys-color-primary) !important;
+  background-color: var(--md-sys-color-primary-container) !important;
+}
+
+html.light .views-panel .views-content {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .views-panel .view-card {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .view-card:hover {
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .views-panel .view-card.active {
+  border-color: var(--md-sys-color-primary) !important;
+  background-color: var(--md-sys-color-primary-container) !important;
+}
+
+html.light .views-panel .card-thumbnail {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .views-panel .card-title {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .view-item {
+  background-color: var(--md-sys-color-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .view-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .views-panel .view-item.active {
+  background-color: var(--md-sys-color-primary-container) !important;
+}
+
+html.light .views-panel .gallery-view,
+html.light .views-panel .list-view {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+/* ============================================
+   上下文菜单
+   ============================================ */
+html.light .context-menu {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .context-menu .menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .context-menu .menu-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .context-menu .menu-item.danger {
+  color: var(--md-sys-color-error) !important;
+}
+
+/* ============================================
+   语言下拉菜单
+   ============================================ */
+html.light .lang-trigger {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .lang-trigger:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .lang-menu {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .lang-menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .lang-menu-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .lang-menu-item.active {
+  color: var(--md-sys-color-primary) !important;
+}
+
+/* ============================================
+   DocumentList 文档列表和上传区
+   ============================================ */
+html.light .document-section,
+html.light .document-list-container {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .upload-zone {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .upload-zone:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .document-item {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .no-documents {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   二维码区域
+   ============================================ */
+html.light .qr-container,
+html.light .qr-section {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .qr-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   DataExportPanel 数据导出面板
+   ============================================ */
+html.light .data-export-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .export-header {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .export-section {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .config-section {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-table th {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .mapping-table td {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* ============================================
+   InfluxConfigPanel 时序数据库面板
+   ============================================ */
+html.light .influx-panel,
+html.light .influx-config-panel {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .influx-panel .form-group label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   FilePanel 文件面板和上下文菜单
+   ============================================ */
+html.light .file-panel {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .file-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .file-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .file-item.active {
+  background-color: var(--md-sys-color-primary-container) !important;
+}
+
+html.light .file-context-menu {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .file-context-menu .menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .file-context-menu .menu-item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* ============================================
+   对话框 Dialog
+   ============================================ */
+html.light .dialog,
+html.light .dialog-overlay .dialog {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dialog-body {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .dialog-footer {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-cancel {
+  background-color: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-confirm {
+  background-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .dialog-overlay {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ============================================
+   DataExportPanel 数据导出面板（详细覆盖）
+   ============================================ */
+html.light .data-export-panel {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .data-export-panel .panel-header {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .data-export-panel .dialog-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .data-export-panel .panel-content-scroll {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .data-export-panel .top-info-section {
+  background: transparent !important;
+}
+
+html.light .data-export-panel .section-title {
+  color: var(--md-sys-color-on-surface) !important;
+  border-left-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .data-export-panel .description-text {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .data-export-panel .config-section {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .data-export-panel .stats-section {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .data-export-panel .stat-value {
+  color: var(--md-sys-color-primary) !important;
+}
+
+html.light .data-export-panel .stat-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .data-export-panel .btn-secondary {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .data-export-panel .btn-secondary:hover {
+  background: var(--md-sys-color-surface-container-highest) !important;
+}
+
+html.light .data-export-panel .result-section {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+html.light .data-export-panel .result-summary {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* ============================================
+   MappingConfigPanel 映射配置面板
+   ============================================ */
+html.light .mapping-config-panel {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .mapping-config-panel .tabs,
+html.light .mapping-tabs {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-config-panel .tab,
+html.light .mapping-tab {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  background: transparent !important;
+}
+
+html.light .mapping-config-panel .tab.active,
+html.light .mapping-tab.active {
+  color: var(--md-sys-color-on-surface) !important;
+  background: var(--md-sys-color-surface) !important;
+  border-bottom-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .mapping-config-panel .tab:hover,
+html.light .mapping-tab:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .mapping-table-container {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .mapping-table {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .mapping-table th {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-table td {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-table tr:hover td {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .field-name,
+html.light .field-label {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .field-sub {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 下拉选择框 */
+html.light .mapping-select,
+html.light .mapping-table select {
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-select:hover,
+html.light .mapping-table select:hover {
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .mapping-select:focus,
+html.light .mapping-table select:focus {
+  border-color: var(--md-sys-color-primary) !important;
+  outline-color: var(--md-sys-color-primary) !important;
+}
+
+/* 帮助区域 */
+html.light .help-section,
+html.light .mapping-help {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .help-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 保存按钮 */
+html.light .save-btn,
+html.light .mapping-save-btn {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .save-message {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .save-message.success {
+  color: rgb(76 175 80) !important;
+}
+
+html.light .save-message.error {
+  color: var(--md-sys-color-error) !important;
+}
+
+/* 刷新按钮 */
+html.light .refresh-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .refresh-btn:hover {
+  color: var(--md-sys-color-primary) !important;
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* ============================================
+   MappingConfigPanel 正确类名覆盖
+   ============================================ */
+
+/* 面板整体 */
+html.light .mapping-config-panel {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .mapping-config-panel.embedded {
+  background: transparent !important;
+}
+
+/* Tab 栏 */
+html.light .mapping-config-panel .tabs {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-config-panel .tab {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  background: transparent !important;
+}
+
+html.light .mapping-config-panel .tab:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .mapping-config-panel .tab.active {
+  color: var(--md-sys-color-primary) !important;
+  border-bottom-color: var(--md-sys-color-primary) !important;
+}
+
+/* 映射网格 */
+html.light .mapping-grid {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* 网格头部 */
+html.light .grid-header {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 映射行 */
+html.light .mapping-rows {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .mapping-row {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .mapping-row:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* 字段名 */
+html.light .field-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .field-key {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 重置按钮 */
+html.light .btn-reset {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .btn-reset:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+/* 帮助区域 */
+html.light .help-section-inline {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .help-content h4 {
+  color: var(--md-sys-color-tertiary) !important;
+}
+
+html.light .help-content ol {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 保存消息 */
+html.light .save-msg {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+/* ============================================
+   SearchableSelect 可搜索下拉框（正确类名）
+   ============================================ */
+
+/* 触发按钮 */
+html.light .select-trigger {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .select-trigger:hover {
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .select-value {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .select-value.placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .select-arrow {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 下拉面板（Teleport 到 body） */
+html.light .select-dropdown-portal {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .select-dropdown-content {
+  background: var(--md-sys-color-surface) !important;
+}
+
+/* 搜索输入框 */
+html.light .select-search {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .select-search:focus {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .select-search::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 选项列表 */
+html.light .select-options {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .select-option {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .select-option:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .select-option.selected {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .select-empty {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   FilePanel 更多按钮
+   ============================================ */
+html.light .more-btn {
+  background: transparent !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .more-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* ============================================
+   ViewsPanel 视图卡片标题（补充）
+   ============================================ */
+html.light .card-title {
+  background: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 模态框补充覆盖 */
+html.light .modal-container {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .modal-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .modal-header h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .modal-close-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .modal-close-btn:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .modal-footer {
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* ============================================
+   InfluxConfigPanel 时序数据库配置面板
+   ============================================ */
+html.light .influx-config-modal {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+html.light .influx-config-modal .modal-content {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .influx-config-modal .modal-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .influx-config-modal .modal-header h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .influx-config-modal .modal-body {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .influx-config-modal .form-section h4 {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .influx-config-modal .form-group label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .influx-config-modal .form-group input[type="text"],
+html.light .influx-config-modal .form-group input[type="password"],
+html.light .influx-config-modal .form-group input[type="number"] {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .influx-config-modal .form-group input:focus {
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .influx-config-modal .form-group input::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 认证切换按钮 */
+html.light .influx-config-modal .auth-toggle {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+html.light .influx-config-modal .toggle-option {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .influx-config-modal .toggle-option.active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* 复选框标签 */
+html.light .influx-config-modal .checkbox-label {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 底部按钮 */
+html.light .influx-config-modal .modal-footer {
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .influx-config-modal .btn-outline {
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .influx-config-modal .btn-outline:hover:not(:disabled) {
+  border-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-primary) !important;
+}
+
+html.light .influx-config-modal .btn-secondary {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .influx-config-modal .btn-secondary:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-highest) !important;
+}
+
+/* ============================================
+   ViewsPanel 视图面板 - 补充覆盖
+   ============================================ */
+
+/* 视图切换按钮（列表/网格） */
+html.light .views-panel .tab-bar {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .tab-btn {
+  background: transparent !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .tab-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .tab-btn.active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* 缩略图信息区域（标题） */
+html.light .views-panel .card-info {
+  background: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light .views-panel .card-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 视图卡片 */
+html.light .views-panel .view-card {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .view-card:hover {
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .views-panel .card-thumbnail {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* 列表模式项 */
+html.light .views-panel .view-item {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+html.light .views-panel .view-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .views-panel .item-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 搜索栏 */
+html.light .views-panel .search-bar {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .search-input-wrapper {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .search-input-wrapper input {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .search-input-wrapper input::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .btn-sort {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .btn-sort:hover {
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 操作按钮 */
+html.light .views-panel .btn-save-as {
+  border-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-primary) !important;
+  background: transparent !important;
+}
+
+html.light .views-panel .btn-save-as:hover {
+  background: var(--md-sys-color-primary-container) !important;
+}
+
+/* 关闭按钮 */
+html.light .views-panel .btn-close {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .btn-close:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 菜单按钮 */
+html.light .views-panel .btn-menu {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .views-panel .btn-menu:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* ============================================
+   Forge Viewer 容器和内部元素背景色
+   ============================================ */
+
+/* 主容器 */
+html.light .canvas-3d,
+html.light #forgeViewer {
+  background: var(--md-sys-color-surface-container-lowest, #fafafa) !important;
+}
+
+/* Forge Viewer 内部元素 */
+html.light .adsk-viewing-viewer {
+  background: var(--md-sys-color-surface-container-lowest, #fafafa) !important;
+}
+
+html.light .adsk-viewing-viewer .canvas-wrap {
+  background: transparent !important;
+}
+
+html.light .adsk-viewing-viewer .homeViewWrapper {
+  background: transparent !important;
+}
+
+/* 视口容器 */
+html.light .viewport-container {
+  background: var(--md-sys-color-surface-container-lowest, #fafafa) !important;
+}
+
+/* ============================================
+   Forge Viewer 工具栏浅色主题
+   ============================================ */
+
+/* 工具栏容器 - 保持透明避免背景条 */
+html.light .adsk-viewing-viewer .adsk-toolbar {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 工具栏按钮组 */
+html.light .adsk-viewing-viewer .adsk-control-group {
+  background: transparent !important;
+}
+
+/* 工具栏按钮 */
+html.light .adsk-viewing-viewer .adsk-button {
+  background: transparent !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .adsk-viewing-viewer .adsk-button:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .adsk-viewing-viewer .adsk-button.active,
+html.light .adsk-viewing-viewer .adsk-button[aria-pressed="true"] {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+/* 按钮图标 */
+html.light .adsk-viewing-viewer .adsk-button-icon {
+  filter: brightness(0.4) !important;
+}
+
+html.light .adsk-viewing-viewer .adsk-button:hover .adsk-button-icon,
+html.light .adsk-viewing-viewer .adsk-button.active .adsk-button-icon {
+  filter: brightness(0.2) !important;
+}
+
+/* 分隔线 */
+html.light .adsk-viewing-viewer .adsk-control-separator {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+/* 下拉菜单 */
+html.light .adsk-viewing-viewer .adsk-menu,
+html.light .adsk-viewing-viewer .adsk-dropdown-menu {
+  background: var(--md-sys-color-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .adsk-viewing-viewer .adsk-menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .adsk-viewing-viewer .adsk-menu-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* 设置面板 */
+html.light .adsk-viewing-viewer .docking-panel,
+html.light .adsk-viewing-viewer .settings-panel {
+  background: var(--md-sys-color-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .adsk-viewing-viewer .docking-panel-title,
+html.light .adsk-viewing-viewer .settings-panel-title {
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .adsk-viewing-viewer .docking-panel-container-solid-color-a {
+  background: var(--md-sys-color-surface) !important;
+}
+
+/* 属性面板 */
+html.light .adsk-viewing-viewer .property-panel {
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .adsk-viewing-viewer .property-name,
+html.light .adsk-viewing-viewer .property-value {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 加载进度 */
+html.light .adsk-viewing-viewer .progressbg {
+  background: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light .adsk-viewing-viewer .progress {
+  background: var(--md-sys-color-primary) !important;
+}
+
+/* 提示工具 */
+html.light .adsk-viewing-viewer .tooltip {
+  background: var(--md-sys-color-surface-container-highest) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+
+/* ViewCube */
+html.light .adsk-viewing-viewer .viewcubeWrapper {
+  background: transparent !important;
+}
+
+/* ============================================
+   QRCodeDisplay 二维码组件浅色主题
+   ============================================ */
+
+html.light .qrcode-section {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .qrcode-section .section-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .qrcode-section .btn-download {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .qrcode-section .btn-download:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .qrcode-section .qrcode-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   TopBar 顶部栏浅色主题
+   ============================================ */
+
+html.light .top-bar {
+  background-color: var(--md-sys-color-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .top-bar .left-section,
+html.light .top-bar .logo-container {
+  background: transparent !important;
+}
+
+html.light .top-bar .divider {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .top-bar .app-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 搜索框 */
+html.light .top-bar .search-box {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .top-bar .search-box:hover {
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .top-bar .search-box input {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .top-bar .search-box input::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .top-bar .search-icon {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 图标按钮 */
+html.light .top-bar .icon-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .top-bar .icon-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 语言下拉 */
+html.light .top-bar .lang-trigger {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .top-bar .lang-trigger:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .top-bar .lang-menu {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .top-bar .lang-menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .top-bar .lang-menu-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* ============================================
+   TimelineControl 时间轴控制浅色主题
+   ============================================ */
+
+/* 收起状态 - 时间胶囊 */
+html.light .time-pill {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .time-pill:hover {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .time-pill .divider {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .time-pill .live-btn {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 展开状态 - 时间轴停靠栏 */
+html.light .top-navigation-area.docked {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .timeline-dock {
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .timeline-toolbar {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+html.light .timeline-toolbar .tool-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .timeline-toolbar .tool-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .timeline-toolbar .divider-v {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .timeline-toolbar .current-info {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .timeline-toolbar .live-indicator {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 时间范围下拉菜单 */
+html.light .dropdown-trigger {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dropdown-trigger:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .dropdown-menu {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .menu-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .menu-divider {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+/* 控制按钮 */
+html.light .circle-btn {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .circle-btn:hover {
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .icon-btn-lg {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .icon-btn-lg:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .speed-box {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 时间轴轨道 */
+html.light .timeline-track-row {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .nav-arrow {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .nav-arrow:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .track-container {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .tick {
+  border-left-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .tick.major {
+  border-left-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .tick span {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   ChartPanel 图表面板浅色主题
+   ============================================ */
+
+html.light .chart-container {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .chart-header {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .chart-header .label {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .chart-header .date-range {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .chart-header .close {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .chart-header .close:hover {
+  color: var(--md-sys-color-error) !important;
+}
+
+html.light .y-axis {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .y-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .chart-body {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .grid-line {
+  background: var(--md-sys-color-outline-variant) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .threshold-label {
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+html.light .tooltip-box {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .tooltip-box .time {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .chart-footer {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .axis-labels {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   DateRangePicker 日期范围选择器浅色主题
+   ============================================ */
+
+html.light .date-picker-overlay {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+html.light .date-picker-modal {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .picker-header {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .picker-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .close-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .close-btn:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 日历控件 */
+html.light .cal-header button {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .cal-header button:hover {
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .cal-header span {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .cal-day-name {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .cal-day {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .cal-day:hover:not(.empty) {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .cal-day.selected {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .cal-day.in-range {
+  background: rgba(0, 120, 212, 0.15) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 范围预览 */
+html.light .range-preview {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .preview-box label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .preview-box span {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .preview-box span.placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .range-preview .arrow {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 底部按钮 */
+html.light .picker-footer {
+  background: var(--md-sys-color-surface-container) !important;
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-cancel {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .btn-cancel:hover {
+  border-color: var(--md-sys-color-outline) !important;
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .btn-apply:disabled {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   DocumentList 文档列表浅色主题
+   ============================================ */
+
+html.light .document-section {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .document-section .section-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-item {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .document-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .doc-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .doc-meta {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 文档操作按钮 */
+html.light .doc-actions .btn-icon {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+  background: var(--md-sys-color-surface) !important;
+}
+
+html.light .doc-actions .btn-icon:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .doc-actions .btn-delete:hover {
+  background: rgba(185, 28, 28, 0.1) !important;
+  border-color: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-error) !important;
+}
+
+/* 空状态 */
+html.light .empty-state {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .empty-state small {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 上传队列 */
+html.light .upload-item {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .upload-item-name {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .upload-item-size {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .progress-bar {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .progress-percent {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   DocumentPreview 文档预览面板浅色主题
+   ============================================ */
+
+html.light .preview-overlay {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+html.light .preview-container {
+  background: var(--md-sys-color-surface) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+}
+
+html.light .preview-header {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .preview-title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .preview-btn {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .preview-btn:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .preview-btn.close-btn:hover {
+  background: rgba(185, 28, 28, 0.1) !important;
+  border-color: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-error) !important;
+}
+
+html.light .zoom-level {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .preview-content {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+/* 不支持格式提示 */
+html.light .unsupported {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   ConfirmDialog 确认对话框浅色主题
+   ============================================ */
+
+html.light .dialog-overlay {
+  background: rgba(0, 0, 0, 0.3) !important;
+}
+
+html.light .dialog {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .dialog-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .dialog-header h4 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .btn-close-dialog {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .btn-close-dialog:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dialog-message {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dialog-body input {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .dialog-footer {
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-cancel {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .btn-cancel:hover {
+  border-color: var(--md-sys-color-outline) !important;
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .btn-confirm:disabled {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   上下文菜单浅色主题
+   ============================================ */
+
+html.light .context-menu {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .context-menu-item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .context-menu-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .context-menu-divider {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+/* ============================================
+   FilePanel 对话框 (上传/编辑) 浅色主题
+   ============================================ */
+
+html.light .modal-container {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .modal-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .modal-header h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .modal-close-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .modal-close-btn:hover {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .form-group label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .form-group input[type="text"] {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .file-drop-zone {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .file-drop-zone:hover,
+html.light .file-drop-zone.dragging {
+  border-color: var(--md-sys-color-primary) !important;
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .drop-hint {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .selected-file {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .modal-footer {
+  border-top-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-secondary {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .btn-secondary:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-highest) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+
+html.light .progress-bar {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .progress-text {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 提取数据进度对话框 */
+html.light .extract-dialog .spinner {
+  border-color: var(--md-sys-color-outline-variant) !important;
+  border-top-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .extract-progress p {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}

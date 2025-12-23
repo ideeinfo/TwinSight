@@ -38,6 +38,26 @@
         </svg>
       </div>
 
+      <!-- 主题切换按钮 -->
+      <div class="icon-btn theme-toggle" @click="toggleTheme" :title="isDarkTheme ? '切换到浅色模式' : '切换到深色模式'">
+        <!-- 深色模式：显示太阳图标 -->
+        <svg v-if="isDarkTheme" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <!-- 浅色模式：显示月亮图标 -->
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </div>
+
       <!-- 语言切换下拉列表 -->
       <div class="language-dropdown" ref="langDropdownRef">
         <div class="lang-trigger" @click="toggleLangDropdown">
@@ -92,6 +112,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useThemeStore } from '../stores/theme';
 
 // 定义 props
 defineProps({
@@ -103,7 +124,9 @@ defineProps({
 defineEmits(['open-data-export', 'toggle-views']);
 
 const { locale } = useI18n();
+const themeStore = useThemeStore();
 const currentLocale = computed(() => locale.value);
+const isDarkTheme = computed(() => themeStore.isDark);
 const isLangDropdownOpen = ref(false);
 const langDropdownRef = ref(null);
 
@@ -113,6 +136,10 @@ const currentLangLabel = computed(() => {
 
 const toggleLangDropdown = () => {
   isLangDropdownOpen.value = !isLangDropdownOpen.value;
+};
+
+const toggleTheme = () => {
+  themeStore.toggleTheme();
 };
 
 const switchLanguage = (lang) => {
@@ -154,6 +181,10 @@ onUnmounted(() => {
 .left-section, .center-section, .right-section {
   display: flex;
   align-items: center;
+}
+
+.right-section {
+  gap: 8px;
 }
 
 .logo {
@@ -235,9 +266,7 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
-.views-btn {
-  margin-right: 8px;
-}
+
 
 .views-btn.active {
   background: #38ABDF;
@@ -275,7 +304,7 @@ onUnmounted(() => {
 /* 语言切换下拉列表样式 */
 .language-dropdown {
   position: relative;
-  margin-right: 16px;
+  /* gap 已在 right-section 中定义 */
 }
 
 .lang-trigger {

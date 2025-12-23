@@ -1,9 +1,11 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import './style.css'
+import './theme.css'  // M3 主题变量
 import App from './App.vue'
 import i18n from './i18n'
 import { useAuthStore } from './stores/auth'
+import { useThemeStore } from './stores/theme'
 
 // 创建 Vue 应用
 const app = createApp(App)
@@ -19,5 +21,10 @@ app.use(i18n)
 const authStore = useAuthStore()
 authStore.enableGuestMode()
 
+// 初始化主题
+const themeStore = useThemeStore()
+themeStore.init()
+
 // 挂载应用
 app.mount('#app')
+
