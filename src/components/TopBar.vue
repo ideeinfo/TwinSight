@@ -274,6 +274,10 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
+.views-btn.active:hover {
+  background: #2D9ACC;
+}
+
 .current-view-label {
   font-size: 12px;
   color: #38ABDF;

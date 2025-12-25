@@ -1,5 +1,15 @@
 <template>
-  <div class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
+  <div class="root-container">
+    <!-- 全景比对模式 -->
+    <PanoCompareView 
+      v-if="isPanoCompareMode"
+      :fileId="panoFileId"
+      :modelPath="panoModelPath"
+      :fileName="panoFileName"
+    />
+
+    <!-- 正常模式 -->
+    <div v-else class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
     <TopBar :isViewsPanelOpen="isViewsPanelOpen" :currentViewName="currentViewName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
 
     <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
@@ -147,6 +157,8 @@
       @current-view-changed="currentViewName = $event"
     />
   </div>
+
+  </div>
 </template>
 
 <script setup>
@@ -163,7 +175,56 @@ import MultiChartPanel from './components/MultiChartPanel.vue';
 import DataExportPanel from './components/DataExportPanel.vue';
 import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
+import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces } from './services/postgres.js';
+
+// 全景比对模式状态
+const isPanoCompareMode = ref(false);
+const panoFileId = ref('');
+const panoModelPath = ref('');
+const panoFileName = ref('');
+
+// 初始化全景比对模式
+const initPanoCompareMode = async () => {
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mode');
+  const fId = params.get('fileId');
+  console.log('🔍 [App] 初始化全景模式:', { mode, fileId: fId, href: window.location.href });
+  
+  if (mode === 'pano-compare') {
+    isPanoCompareMode.value = true;
+    panoFileId.value = fId;
+    
+    if (panoFileId.value) {
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        console.log('🔍 [App] 获取文件列表...');
+        const response = await fetch(`${API_BASE}/api/files`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // 注意：URL参数是字符串，API返回的ID可能是数字，使用 == 进行比较
+          const file = data.data.find(f => f.id == panoFileId.value);
+          if (file) {
+            console.log('✅ [App] 找到比对文件:', file);
+            panoFileName.value = file.title;
+            // 优先使用 extracted_path，如果没有则尝试构造默认路径
+            panoModelPath.value = file.extracted_path || `/models/${file.id}`; 
+            console.log('📂 [App] 设置模型路径:', panoModelPath.value);
+          } else {
+            console.warn('⚠️ [App] 未找到 ID 为', panoFileId.value, '的文件');
+          }
+        }
+      } catch (e) {
+        console.error('❌ [App] 获取全景比对文件详情失败:', e);
+      }
+    }
+  }
+};
+
+onMounted(() => {
+  initPanoCompareMode();
+});
 
 const leftWidth = ref(400);
 const rightWidth = ref(320);
@@ -499,6 +560,14 @@ const onViewerReady = async () => {
               const defaultViewData = await defaultViewRes.json();
               if (defaultViewData.success && defaultViewData.data) {
                 console.log('🏠 找到默认视图，正在恢复:', defaultViewData.data.name);
+                
+                // 🔑 更新 currentViewName 让 TopBar 显示视图名称
+                currentViewName.value = defaultViewData.data.name;
+                
+                // 🔑 更新激活文件信息让 ViewsPanel 同步
+                activeFileId.value = activeFile.id;
+                activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
+                
                 // 获取完整视图数据
                 const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
                 const fullViewData = await fullViewRes.json();
@@ -518,6 +587,9 @@ const onViewerReady = async () => {
                 }
               } else {
                 console.log('ℹ️ 没有设置默认视图，使用模型默认状态');
+                // 没有默认视图时也更新激活文件信息
+                activeFileId.value = activeFile.id;
+                activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
               }
             } catch (viewErr) {
               console.warn('⚠️ 恢复默认视图失败:', viewErr);
@@ -859,144 +931,109 @@ const onAssetsSelected = async (dbIds) => {
     const asset = assetList.value.find(a => a.dbId === dbId);
     return asset?.mcCode;
   }).filter(Boolean);
-  
-  // 调用 MainView 的方法来孤立并定位资产
-  if (mainViewRef.value) {
-    if (dbIds.length === 0) {
-      // 未选中任何资产，显示所有资产
-      selectedRoomProperties.value = null;
-      selectedObjectIds.value = [];
-      if (mainViewRef.value.showAllAssets) {
-        mainViewRef.value.showAllAssets();
-      }
-      // 温度标签由用户通过按钮控制，不再自动隐藏
-    } else if (dbIds.length === 1) {
-      // 选中了一个资产，从 assetList 中获取属性
-      if (mainViewRef.value.isolateAndFocusAssets) {
-        mainViewRef.value.isolateAndFocusAssets(dbIds);
-      }
 
-      // 优先从 assetList（数据库数据）获取属性
-      const dbAsset = assetList.value.find(a => a.dbId === dbIds[0]);
-      if (dbAsset) {
+  // 根据选中数量更新属性面板
+  if (dbIds.length === 0) {
+    // 未选中任何资产
+    selectedRoomProperties.value = null;
+    mainViewRef.value?.showAllAssets();
+  } else {
+    // 孤立显示选中的资产
+    if (mainViewRef.value?.isolateAndFocusAssets) {
+      if (dbIds.length > 500) {
+        // 如果选中数量过多，只聚焦不完全重绘，提升性能
+         mainViewRef.value.isolateAndFocusAssets(dbIds);
+      } else {
+         mainViewRef.value.isolateAndFocusAssets(dbIds);
+      }
+    }
+
+    if (dbIds.length === 1) {
+      // 单选：显示详情
+      const asset = assetList.value.find(a => a.dbId === dbIds[0]);
+      if (asset) {
         selectedRoomProperties.value = {
-          name: dbAsset.name || '',
-          mcCode: dbAsset.mcCode || '',
-          level: dbAsset.floor || '',
-          room: dbAsset.room || '',
-          omniClass21Number: dbAsset.classification_code || '',
-          omniClass21Description: dbAsset.classification_desc || '',
-          category: dbAsset.category || '',
-          family: dbAsset.family || '',
-          type: dbAsset.type || '',
-          typeComments: dbAsset.specCode || '',
-          specName: dbAsset.specName || '',
-          manufacturer: dbAsset.manufacturer || '',
-          address: dbAsset.address || '',
-          phone: dbAsset.phone || ''
+          name: asset.name,
+          mcCode: asset.mcCode,
+          level: asset.floor,
+          room: asset.room,
+          omniClass21Number: '', // TODO: DB 中没有这些字段，需要补充
+          omniClass21Description: '',
+          category: asset.category,
+          family: asset.family,
+          type: asset.type,
+          typeComments: asset.specCode, // 暂用 specCode 映射
+          specName: asset.specName,
+          manufacturer: asset.manufacturer,
+          address: asset.address,
+          phone: asset.phone
         };
-      } else if (mainViewRef.value.getAssetProperties) {
-        // 回退到模型数据
-        mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
-          selectedRoomProperties.value = props;
-        });
       }
     } else {
-      // 选中了多个资产，比较属性值
-      if (mainViewRef.value.isolateAndFocusAssets) {
-        mainViewRef.value.isolateAndFocusAssets(dbIds);
-      }
-
-      // 从 assetList 获取所有选中资产的属性
-      const allProps = dbIds.map(dbId => {
-        const dbAsset = assetList.value.find(a => a.dbId === dbId);
-        if (dbAsset) {
-          return {
-            name: dbAsset.name || '',
-            mcCode: dbAsset.mcCode || '',
-            level: dbAsset.floor || '',
-            room: dbAsset.room || '',
-            omniClass21Number: dbAsset.classification_code || '',
-            omniClass21Description: dbAsset.classification_desc || '',
-            category: dbAsset.category || '',
-            family: dbAsset.family || '',
-            type: dbAsset.type || '',
-            typeComments: dbAsset.specCode || '',
-            specName: dbAsset.specName || '',
-            manufacturer: dbAsset.manufacturer || '',
-            address: dbAsset.address || '',
-            phone: dbAsset.phone || ''
-          };
-        }
-        return null;
-      }).filter(Boolean);
+      // 多选：显示共有属性或 VARIES
+      // 优化：从 assetList Map 中获取数据，避免 O(N*M) 查找
+      // 假设 assetList 是数组，查找仍需优化。但 dbIds 对应的 asset 对象提取出来比每次 find 快
+      const selectedAssets = dbIds.map(id => assetList.value.find(a => a.dbId === id)).filter(Boolean);
+      
+      const allProps = selectedAssets.map(asset => ({
+        name: asset.name,
+        mcCode: asset.mcCode,
+        level: asset.floor,
+        room: asset.room,
+        omniClass21Number: '',
+        omniClass21Description: '',
+        category: asset.category,
+        family: asset.family,
+        type: asset.type,
+        typeComments: asset.specCode,
+        specName: asset.specName,
+        manufacturer: asset.manufacturer,
+        address: asset.address,
+        phone: asset.phone
+      }));
 
       if (allProps.length > 0) {
         // 比较属性值，相同则显示值，不同则显示 VARIES_VALUE
         const VARIES_VALUE = '__VARIES__';
         
-        console.log('🔍 多选资产属性比较开始', {
-          资产数量: allProps.length,
-          第一个资产: allProps[0]
-        });
+        console.log(`🔍 多选资产属性比较：处理 ${allProps.length} 个资产`);
         
         // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
         const isSameValue = (v1, v2) => {
           const normalize = (v) => (v == null || v === '') ? '' : String(v);
-          const n1 = normalize(v1);
-          const n2 = normalize(v2);
-          const result = n1 === n2;
-          
-          if (!result && v1 !== VARIES_VALUE && v2 !== VARIES_VALUE) {
-            console.log('  ❌ 值不同:', { v1, v2, n1, n2 });
-          }
-          
-          return result;
+          return normalize(v1) === normalize(v2);
         };
         
-        const mergedProps = {
-          name: allProps[0].name,
-          mcCode: allProps[0].mcCode,
-          level: allProps[0].level,
-          room: allProps[0].room,
-          omniClass21Number: allProps[0].omniClass21Number,
-          omniClass21Description: allProps[0].omniClass21Description,
-          category: allProps[0].category,
-          family: allProps[0].family,
-          type: allProps[0].type,
-          typeComments: allProps[0].typeComments,
-          specName: allProps[0].specName,
-          manufacturer: allProps[0].manufacturer,
-          address: allProps[0].address,
-          phone: allProps[0].phone,
-          isMultiple: true
-        };
+        const mergedProps = { ...allProps[0], isMultiple: true };
+        const keys = Object.keys(mergedProps).filter(k => k !== 'isMultiple');
 
-        // 比较每个属性
+        // 优化比较循环：一旦所有属性都变成 VARIES，提前退出
+        let allVaries = false;
+
         for (let i = 1; i < allProps.length; i++) {
-          console.log(`  比较第 ${i + 1} 个资产:`, allProps[i]);
+          if (allVaries) break; // 所有属性都不同了，无需继续比较
+
           const props = allProps[i];
-          const base = allProps[0]; // 用第一个元素作为基准
-          
-          // 每次都和base比较，避免在循环中污染merged
-          if (mergedProps.name !== VARIES_VALUE && !isSameValue(base.name, props.name)) mergedProps.name = VARIES_VALUE;
-          if (mergedProps.mcCode !== VARIES_VALUE && !isSameValue(base.mcCode, props.mcCode)) mergedProps.mcCode = VARIES_VALUE;
-          if (mergedProps.level !== VARIES_VALUE && !isSameValue(base.level, props.level)) mergedProps.level = VARIES_VALUE;
-          if (mergedProps.room !== VARIES_VALUE && !isSameValue(base.room, props.room)) mergedProps.room = VARIES_VALUE;
-          if (mergedProps.omniClass21Number !== VARIES_VALUE && !isSameValue(base.omniClass21Number, props.omniClass21Number)) mergedProps.omniClass21Number = VARIES_VALUE;
-          if (mergedProps.omniClass21Description !== VARIES_VALUE && !isSameValue(base.omniClass21Description, props.omniClass21Description)) mergedProps.omniClass21Description = VARIES_VALUE;
-          if (mergedProps.category !== VARIES_VALUE && !isSameValue(base.category, props.category)) mergedProps.category = VARIES_VALUE;
-          if (mergedProps.family !== VARIES_VALUE && !isSameValue(base.family, props.family)) mergedProps.family = VARIES_VALUE;
-          if (mergedProps.type !== VARIES_VALUE && !isSameValue(base.type, props.type)) mergedProps.type = VARIES_VALUE;
-          if (mergedProps.typeComments !== VARIES_VALUE && !isSameValue(base.typeComments, props.typeComments)) mergedProps.typeComments = VARIES_VALUE;
-          if (mergedProps.specName !== VARIES_VALUE && !isSameValue(base.specName, props.specName)) mergedProps.specName = VARIES_VALUE;
-          if (mergedProps.manufacturer !== VARIES_VALUE && !isSameValue(base.manufacturer, props.manufacturer)) mergedProps.manufacturer = VARIES_VALUE;
-          if (mergedProps.address !== VARIES_VALUE && !isSameValue(base.address, props.address)) mergedProps.address = VARIES_VALUE;
-          if (mergedProps.phone !== VARIES_VALUE && !isSameValue(base.phone, props.phone)) mergedProps.phone = VARIES_VALUE;
+          const base = allProps[0];
+          let stillConsistent = false;
+
+          for (const key of keys) {
+            if (mergedProps[key] !== VARIES_VALUE) {
+              if (!isSameValue(base[key], props[key])) {
+                mergedProps[key] = VARIES_VALUE;
+              } else {
+                stillConsistent = true; // 至少还有一个属性是一致的
+              }
+            }
+          }
+
+          if (!stillConsistent) {
+             // 检查是否所有 key 都是 VARIES (除了 isMultiple)
+             allVaries = keys.every(key => mergedProps[key] === VARIES_VALUE);
+          }
         }
         
-        console.log('✅ 合并后的属性:', mergedProps);
-
+        console.log('✅ 比较完成');
         selectedRoomProperties.value = mergedProps;
       } else {
         selectedRoomProperties.value = { isMultiple: true };
@@ -1456,6 +1493,14 @@ onUnmounted(() => {
 
 <style>
 /* 保持原有样式不变 */
+.root-container {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 * { box-sizing: border-box; }
 body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #1e1e1e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 #app { height: 100vh; width: 100vw; display: flex; flex-direction: column; max-width: none !important; margin: 0 !important; padding: 0 !important; }

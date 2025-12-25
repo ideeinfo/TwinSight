@@ -24,6 +24,12 @@ const messages = {
       clickToEditAll: '点击编辑所有选中对象',
       alert: '提示'
     },
+    assetPanel: {
+      assets: '资产列表',
+      loading: '加载中...',
+      uncategorized: '未分类',
+      noSpec: '未指定规格'
+    },
     header: {
       properties: '属性',
       rooms: '房间',
@@ -297,7 +303,10 @@ const messages = {
       influxConfig: '时序数据库',
       uploadFailed: '上传失败',
       activateFailed: '激活失败',
-      deleteFailed: '删除失败'
+      deleteFailed: '删除失败',
+      panoCompare: '全景比对',
+      deleteKnowledgeBase: '同时删除 Open WebUI 知识库',
+      deleteKnowledgeBaseHint: '勾选后将同时删除与该模型关联的 AI 知识库'
     },
     influxConfig: {
       title: '时序数据库配置',
@@ -341,6 +350,12 @@ const messages = {
       saveSuccess: 'Saved successfully',
       clickToEditAll: 'Click to edit all selected objects',
       alert: 'Alert'
+    },
+    assetPanel: {
+      assets: 'Asset List',
+      loading: 'Loading...',
+      uncategorized: 'Uncategorized',
+      noSpec: 'No Spec'
     },
     header: {
       properties: 'Properties',
@@ -615,7 +630,10 @@ const messages = {
       influxConfig: 'Time Series DB',
       uploadFailed: 'Upload failed',
       activateFailed: 'Activation failed',
-      deleteFailed: 'Delete failed'
+      deleteFailed: 'Delete failed',
+      panoCompare: 'Pano Compare',
+      deleteKnowledgeBase: 'Also delete Open WebUI knowledge base',
+      deleteKnowledgeBaseHint: 'When checked, the AI knowledge base associated with this model will also be deleted'
     },
     influxConfig: {
       title: 'Time Series Database Configuration',

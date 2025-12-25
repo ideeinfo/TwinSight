@@ -11,7 +11,9 @@
     "lint:fix": "eslint src --ext .vue,.js,.ts --fix"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@photo-sphere-viewer/core": "^5.14.0",
+    "element-plus": "^2.13.0",
     "multer": "^2.0.2",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",

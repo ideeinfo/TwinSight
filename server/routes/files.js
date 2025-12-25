@@ -12,6 +12,72 @@ import modelFileModel from '../models/model-file.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
 import assetSpecModel from '../models/asset-spec.js';
+import pg from 'pg';
+import config from '../config/index.js';
+
+const { Pool } = pg;
+const dbPool = new Pool(config.database);
+
+/**
+ * 为模型文件自动创建 Open WebUI 知识库
+ */
+async function createKnowledgeBaseForModel(modelFile) {
+    console.log('\n========== 知识库创建钩子触发 ==========');
+    console.log('🔍 模型文件信息:', JSON.stringify(modelFile, null, 2));
+
+    // 运行时读取环境变量（确保 dotenv 已加载）
+    const OPENWEBUI_URL = process.env.OPENWEBUI_URL || 'http://localhost:3080';
+    const OPENWEBUI_API_KEY = process.env.OPENWEBUI_API_KEY || '';
+
+    console.log('🔑 API Key 状态:', OPENWEBUI_API_KEY ? `已配置 (${OPENWEBUI_API_KEY.substring(0, 10)}...)` : '未配置');
+    console.log('🌐 Open WebUI URL:', OPENWEBUI_URL);
+
+    if (!OPENWEBUI_API_KEY) {
+        console.log('⚠️ 未配置 OPENWEBUI_API_KEY，跳过知识库创建');
+        return null;
+    }
+
+    try {
+        const kbName = `Tandem-${modelFile.title}`;
+        const kbDescription = `知识库关联模型文件: ${modelFile.title} (${modelFile.original_name})`;
+
+        console.log(`📚 为模型 ${modelFile.title} 创建知识库...`);
+
+        const response = await fetch(`${OPENWEBUI_URL}/api/v1/knowledge/create`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENWEBUI_API_KEY}`,
+                'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify({ name: kbName, description: kbDescription }),
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            console.error(`❌ 知识库创建失败: HTTP ${response.status}: ${text}`);
+            return null;
+        }
+
+        const kb = await response.json();
+        console.log(`✅ 知识库创建成功: ${kb.id}`);
+
+        // 保存映射关系到数据库
+        await dbPool.query(`
+            INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (file_id) DO UPDATE SET
+                openwebui_kb_id = EXCLUDED.openwebui_kb_id,
+                kb_name = EXCLUDED.kb_name,
+                updated_at = CURRENT_TIMESTAMP
+        `, [modelFile.id, kb.id, kbName]);
+
+        console.log(`💾 知识库映射已保存: ${modelFile.id} -> ${kb.id}`);
+        return kb;
+    } catch (error) {
+        console.error(`❌ 创建知识库异常: ${error.message}`);
+        return null;
+    }
+}
 
 const router = Router();
 
@@ -101,6 +167,16 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             filePath: `/files/${newFileName}`,
             fileSize: file.size,
             status: 'uploaded'
+        });
+
+        // 异步创建 Open WebUI 知识库（不阻塞响应）
+        console.log('\n🚀 模型上传成功，准备创建知识库...');
+        console.log('📝 模型 ID:', modelFile.id, '标题:', modelFile.title);
+        setImmediate(() => {
+            console.log('⏰ setImmediate 执行，开始创建知识库');
+            createKnowledgeBaseForModel(modelFile).catch(err => {
+                console.error('❌ 知识库创建失败:', err);
+            });
         });
 
         res.json({
@@ -200,6 +276,9 @@ router.post('/upload/chunk', upload.single('chunk'), async (req, res) => {
                 fileSize: stats.size,
                 status: 'uploaded'
             });
+
+            // 异步创建 Open WebUI 知识库（不阻塞响应）
+            setImmediate(() => createKnowledgeBaseForModel(modelFile));
 
             return res.json({
                 success: true,
@@ -302,9 +381,53 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
     try {
+        const { deleteKB } = req.query;  // 是否同时删除知识库
+        console.log('\n========== 删除文件请求 ==========');
+        console.log('📋 文件 ID:', req.params.id);
+        console.log('🗑️ deleteKB 参数:', deleteKB);
+
         const file = await modelFileModel.getModelFileById(req.params.id);
         if (!file) {
             return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+        console.log('📁 文件信息:', file.title);
+
+        // 如果需要删除知识库
+        if (deleteKB === 'true') {
+            console.log('✅ 需要删除知识库');
+            try {
+                // 查询关联的知识库
+                const kbResult = await dbPool.query(
+                    'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
+                    [req.params.id]
+                );
+
+                if (kbResult.rows.length > 0) {
+                    const kbId = kbResult.rows[0].openwebui_kb_id;
+                    const OPENWEBUI_URL = process.env.OPENWEBUI_URL || 'http://localhost:3080';
+                    const OPENWEBUI_API_KEY = process.env.OPENWEBUI_API_KEY || '';
+
+                    if (OPENWEBUI_API_KEY && kbId) {
+                        console.log(`🗑️ 删除 Open WebUI 知识库: ${kbId}`);
+                        // 正确的删除端点是 /api/v1/knowledge/{id}/delete
+                        const response = await fetch(`${OPENWEBUI_URL}/api/v1/knowledge/${kbId}/delete`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${OPENWEBUI_API_KEY}`,
+                            },
+                        });
+
+                        if (response.ok) {
+                            console.log(`✅ 知识库删除成功`);
+                        } else {
+                            console.error(`⚠️ 知识库删除失败: HTTP ${response.status}`);
+                        }
+                    }
+                }
+            } catch (kbError) {
+                console.error('删除知识库时出错:', kbError.message);
+                // 继续删除文件，不阻塞
+            }
         }
 
         // 删除物理文件
@@ -321,7 +444,7 @@ router.delete('/:id', async (req, res) => {
             }
         }
 
-        // 删除数据库记录（关联的资产、空间等会通过外键级联删除）
+        // 删除数据库记录（关联的资产、空间、知识库映射等会通过外键级联删除）
         await modelFileModel.deleteModelFile(req.params.id);
 
         res.json({ success: true, message: '文件删除成功' });

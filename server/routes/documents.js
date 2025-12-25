@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import ExifParser from 'exif-parser';
 import documentModel from '../models/document.js';
 import documentExifModel from '../models/document-exif.js';
+import openwebuiService from '../services/openwebui-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,15 +150,15 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ success: false, error: '没有上传文件' });
         }
 
-        const { assetCode, spaceCode, specCode, title } = req.body;
+        const { assetCode, spaceCode, specCode, viewId, title } = req.body;
 
         // 验证必须有一个关联对象
-        if (!assetCode && !spaceCode && !specCode) {
+        if (!assetCode && !spaceCode && !specCode && !viewId) {
             // 删除已上传的文件
             await fs.unlink(req.file.path);
             return res.status(400).json({
                 success: false,
-                error: '必须指定 assetCode, spaceCode 或 specCode'
+                error: '必须指定 assetCode, spaceCode, specCode 或 viewId'
             });
         }
 
@@ -181,7 +182,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             mimeType: req.file.mimetype,
             assetCode: assetCode || null,
             spaceCode: spaceCode || null,
-            specCode: specCode || null
+            specCode: specCode || null,
+            viewId: viewId || null
         };
 
         const result = await documentModel.createDocument(doc);
@@ -200,6 +202,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         }
 
         res.json({ success: true, data: result, exif: exifData });
+
+        // 文档同步由后台服务 (document-sync-service.js) 统一处理
+        // 不在这里进行即时同步，避免重复处理
     } catch (error) {
         console.error('文档上传失败:', error);
         // 如果创建记录失败，删除已上传的文件
@@ -378,6 +383,22 @@ router.get('/:id/download', async (req, res) => {
         res.download(filePath, document.file_name);
     } catch (error) {
         console.error('下载文档失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 获取视图关联的文档
+ * GET /api/documents/view/:viewId
+ */
+router.get('/view/:viewId', async (req, res) => {
+    try {
+        const { viewId } = req.params;
+        // 直接使用 documentModel.getDocuments 传入 viewId
+        const documents = await documentModel.getDocuments({ viewId: parseInt(viewId) });
+        res.json({ success: true, data: documents });
+    } catch (error) {
+        console.error('获取视图关联文档失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

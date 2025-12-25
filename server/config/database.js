@@ -36,9 +36,10 @@ export const query = async (text, params) => {
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
 
-    if (config.server.env === 'development') {
-        console.log('🔍 SQL 查询:', { text, duration: `${duration}ms`, rows: res.rowCount });
-    }
+    // 开发环境也不输出查询日志（太多）
+    // if (config.server.env === 'development') {
+    //     console.log('🔍 SQL 查询:', { text, duration: `${duration}ms`, rows: res.rowCount });
+    // }
 
     return res;
 };

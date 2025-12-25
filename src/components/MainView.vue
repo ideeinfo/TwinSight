@@ -85,8 +85,10 @@ import DateRangePicker from './DateRangePicker.vue';
 import { useHeatmap } from '../composables/useHeatmap';
 import { useDataExport } from '../composables/useDataExport';
 import { useViewState } from '../composables/useViewState';
+import { useThemeStore } from '../stores/theme';
 
 const { t, locale } = useI18n();
+const themeStore = useThemeStore();
 
 // 定义 props
 const props = defineProps({
@@ -569,7 +571,9 @@ const initViewer = () => {
     heatmap.setViewer(viewer);
     
     // 设置基础样式
-    viewer.setTheme('dark-theme');
+    // 根据系统主题设置 Forge 主题
+    const forgeTheme = themeStore.isDark ? 'dark-theme' : 'light-theme';
+    viewer.setTheme(forgeTheme);
     viewer.setLightPreset(17); // Field environment
     if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
     if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
@@ -709,6 +713,15 @@ const initViewer = () => {
       updateIoTButtonsState();
     });
     
+    // 监听系统主题变化，实时更新 Forge Viewer 主题
+    watch(() => themeStore.isDark, (isDark) => {
+      if (viewer) {
+        const forgeTheme = isDark ? 'dark-theme' : 'light-theme';
+        viewer.setTheme(forgeTheme);
+        console.log(`🎨 Forge Viewer 主题已切换为: ${forgeTheme}`);
+      }
+    });
+    
     const root = viewerContainer.value;
     if (root) {
       const checkOpen = () => {
@@ -824,7 +837,9 @@ const loadNewModel = async (modelPath) => {
         currentModelPath = modelPath;
         
         // 其他初始化设置
-        viewer.setTheme('dark-theme');
+        // 根据系统主题设置 Forge 主题
+        const forgeTheme = themeStore.isDark ? 'dark-theme' : 'light-theme';
+        viewer.setTheme(forgeTheme);
         viewer.setLightPreset(17); // Field
         if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
         if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);

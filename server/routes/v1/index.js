@@ -7,6 +7,7 @@ import spacesRouter from './spaces.js';
 import modelsRouter from './models.js';
 import timeseriesRouter from './timeseries.js';
 import documentsRouter from './documents.js';
+import aiRouter from './ai.js';
 // import authRouter from './auth.js'; // 预留
 // import facilitiesRouter from './facilities.js'; // 预留
 // import propertiesRouter from './properties.js'; // 预留
@@ -29,6 +30,7 @@ router.use('/spaces', spacesRouter);
 router.use('/models', modelsRouter);
 router.use('/timeseries', timeseriesRouter);
 router.use('/documents', documentsRouter);
+router.use('/ai', aiRouter);
 // router.use('/auth', authRouter); // 预留
 // router.use('/facilities', facilitiesRouter); // 预留
 // router.use('/properties', propertiesRouter); // 预留

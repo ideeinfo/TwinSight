@@ -156,7 +156,8 @@ async function writeToInflux(config, spaceCode, data, timestamp = Date.now()) {
     }
 
     const body = lines.join('\n');
-    console.log(`📊 写入 InfluxDB: ${lines.length} 条数据点, 空间=${spaceCode}`);
+    // 禁用日志
+    // console.log(`📊 写入 InfluxDB: ${lines.length} 条数据点, 空间=${spaceCode}`);
 
     try {
         const resp = await fetch(
@@ -165,7 +166,7 @@ async function writeToInflux(config, spaceCode, data, timestamp = Date.now()) {
         );
 
         if (resp.ok) {
-            console.log(`✅ InfluxDB 写入成功`);
+            // console.log(`✅ InfluxDB 写入成功`);
             return { ok: true };
         } else {
             const errorText = await resp.text();

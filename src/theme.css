@@ -259,6 +259,30 @@ html.light .right-panel .header-row {
   color: var(--md-sys-color-on-surface) !important;
 }
 
+html.light .right-panel .header-row .icon-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  stroke: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .right-panel .header-row .icon-btn:hover {
+  color: var(--md-sys-color-on-surface) !important;
+  stroke: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .right-panel .breadcrumb-row {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .right-panel .breadcrumb-text {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .right-panel .sub-label {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
 html.light .right-panel .tabs {
   background-color: var(--md-sys-color-surface-container-low) !important;
   border-bottom-color: var(--md-sys-color-outline-variant) !important;
@@ -431,6 +455,19 @@ html.light .views-btn.active {
   color: var(--md-sys-color-on-primary) !important;
 }
 
+html.light .views-btn.active svg {
+  stroke: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .views-panel .tab-btn.active {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .views-panel .tab-btn.active svg {
+  stroke: var(--md-sys-color-on-primary) !important;
+}
+
 /* 语言下拉菜单 */
 html.light .language-dropdown .dropdown-menu {
   background-color: var(--md-sys-color-surface) !important;
@@ -576,6 +613,38 @@ html.light .views-panel {
 html.light .views-panel .panel-header {
   background-color: var(--md-sys-color-surface-container-low) !important;
   border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .views-panel .panel-header h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .views-panel .current-view-name {
+  color: var(--md-sys-color-primary) !important;
+}
+
+/* 保存按钮 - 主色填充 */
+html.light .views-panel .btn-save {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+  border: none !important;
+}
+
+html.light .views-panel .btn-save:hover {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+/* 另存为按钮 - 边框样式 */
+html.light .views-panel .btn-save-as {
+  background: transparent !important;
+  border: 1px solid var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-primary) !important;
+}
+
+html.light .views-panel .btn-save-as:hover {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
 }
 
 html.light .views-panel .search-bar {
@@ -1520,19 +1589,24 @@ html.light .viewport-container {
    Forge Viewer 工具栏浅色主题
    ============================================ */
 
-/* 工具栏容器 - 保持透明避免背景条 */
+/* 工具栏容器 - 保持透明 */
 html.light .adsk-viewing-viewer .adsk-toolbar {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
 }
 
-/* 工具栏按钮组 */
+/* 工具栏按钮组 - 添加半透明浅色背景 */
 html.light .adsk-viewing-viewer .adsk-control-group {
-  background: transparent !important;
+  background: rgba(250, 250, 250, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  margin: 0 2px !important;
 }
 
-/* 工具栏按钮 */
+/* 工具栏按钮 - 保持透明（父容器已有背景） */
 html.light .adsk-viewing-viewer .adsk-button {
   background: transparent !important;
   color: var(--md-sys-color-on-surface-variant) !important;
@@ -1554,9 +1628,20 @@ html.light .adsk-viewing-viewer .adsk-button-icon {
   filter: brightness(0.4) !important;
 }
 
+/* 热力图按钮图标 - 保持原始渐变色 */
+html.light .adsk-viewing-viewer #heatmap-btn .adsk-button-icon {
+  filter: none !important;
+}
+
 html.light .adsk-viewing-viewer .adsk-button:hover .adsk-button-icon,
 html.light .adsk-viewing-viewer .adsk-button.active .adsk-button-icon {
   filter: brightness(0.2) !important;
+}
+
+/* 热力图按钮 hover/active 时也保持原始色 */
+html.light .adsk-viewing-viewer #heatmap-btn:hover .adsk-button-icon,
+html.light .adsk-viewing-viewer #heatmap-btn.active .adsk-button-icon {
+  filter: none !important;
 }
 
 /* 分隔线 */
@@ -1622,6 +1707,100 @@ html.light .adsk-viewing-viewer .tooltip {
   background: var(--md-sys-color-surface-container-highest) !important;
   color: var(--md-sys-color-on-surface) !important;
   border: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+
+/* ============================================
+   Model Browser 模型树面板浅色主题
+   ============================================ */
+
+/* 模型树容器 */
+html.light .adsk-viewing-viewer .model-browser-panel,
+html.light .adsk-viewing-viewer .model-browser {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 搜索框 */
+html.light .adsk-viewing-viewer .model-browser-panel input,
+html.light .adsk-viewing-viewer .docking-panel input[type="text"] {
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .adsk-viewing-viewer .model-browser-panel input::placeholder {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* 树视图容器 */
+html.light .adsk-viewing-viewer .treeview,
+html.light .adsk-viewing-viewer .docking-panel-scroll {
+  background: var(--md-sys-color-surface) !important;
+}
+
+/* 树节点 */
+html.light .adsk-viewing-viewer .treeview div,
+html.light .adsk-viewing-viewer .clusterTree div,
+html.light .adsk-viewing-viewer .modelDiv {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 树节点行 - 奇偶交替 */
+html.light .adsk-viewing-viewer .treeview .group,
+html.light .adsk-viewing-viewer .lmvtree .group {
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 树节点文字 */
+html.light .adsk-viewing-viewer .treeview .name,
+html.light .adsk-viewing-viewer .lmvtree .name,
+html.light .adsk-viewing-viewer .clusterTree .name,
+html.light .adsk-viewing-viewer .modelName {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* 悬停状态 */
+html.light .adsk-viewing-viewer .treeview .group:hover,
+html.light .adsk-viewing-viewer .lmvtree .group:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+/* 选中状态 */
+html.light .adsk-viewing-viewer .treeview .selected,
+html.light .adsk-viewing-viewer .lmvtree .selected {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+/* 展开/折叠图标 */
+html.light .adsk-viewing-viewer .treeview .collapsed:before,
+html.light .adsk-viewing-viewer .treeview .expanded:before,
+html.light .adsk-viewing-viewer .lmvtree .collapsed:before,
+html.light .adsk-viewing-viewer .lmvtree .expanded:before {
+  filter: brightness(0.3) !important;
+}
+
+/* 可见性切换图标 */
+html.light .adsk-viewing-viewer .visibility {
+  filter: brightness(0.5) !important;
+}
+
+html.light .adsk-viewing-viewer .visibility:hover {
+  filter: brightness(0.2) !important;
+}
+
+/* 滚动条 */
+html.light .adsk-viewing-viewer .docking-panel-scroll::-webkit-scrollbar-track {
+  background: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light .adsk-viewing-viewer .docking-panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .adsk-viewing-viewer .docking-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline) !important;
 }
 
 /* ViewCube */
@@ -2368,4 +2547,20 @@ html.light .extract-dialog .spinner {
 
 html.light .extract-progress p {
   color: var(--md-sys-color-on-surface-variant) !important;
+}
+/* ============================================
+   Element Plus 主题覆盖
+   同步 Checkbox 等组件颜色与主题种子颜色
+   ============================================ */
+:root, html.dark, html.light {
+  --el-color-primary: var(--md-sys-color-primary);
+  /* Checkbox */
+  --el-checkbox-checked-bg-color: var(--md-sys-color-primary);
+  --el-checkbox-checked-input-border-color: var(--md-sys-color-primary);
+  --el-checkbox-checked-icon-color: var(--md-sys-color-on-primary);
+  --el-checkbox-input-border-color-hover: var(--md-sys-color-primary);
+  /* Radio */
+  --el-radio-input-border-color-hover: var(--md-sys-color-primary);
+  /* Switch */
+  --el-switch-on-color: var(--md-sys-color-primary);
 }

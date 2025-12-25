@@ -143,50 +143,6 @@
       <div class="menu-item danger" @click.stop="deleteView">{{ $t('views.delete') }}</div>
     </div>
 
-    <!-- Save dialog -->
-    <div v-if="showSaveDialog" class="dialog-overlay" @click.self="closeSaveDialog">
-      <div class="dialog">
-        <div class="dialog-header">
-          <h4>{{ $t('views.saveAs') }}</h4>
-          <button class="btn-close-dialog" @click="closeSaveDialog">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <input type="text" v-model="newViewName" :placeholder="$t('views.namePlaceholder')" ref="nameInput" @keyup.enter="confirmSaveAs"/>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn-cancel" @click="closeSaveDialog">{{ $t('common.cancel') }}</button>
-          <button class="btn-confirm" @click="confirmSaveAs" :disabled="!newViewName.trim()">{{ $t('common.confirm') }}</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete confirmation dialog -->
-    <div v-if="showDeleteDialog" class="dialog-overlay" @click.self="cancelDelete">
-      <div class="dialog delete-dialog">
-        <div class="dialog-header">
-          <h4>{{ $t('views.delete') }}</h4>
-          <button class="btn-close-dialog" @click="cancelDelete">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <p class="delete-message">{{ $t('views.confirmDelete', { name: viewToDelete?.name || '' }) }}</p>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn-cancel" @click="cancelDelete">{{ $t('common.cancel') }}</button>
-          <button class="btn-confirm btn-danger" @click="confirmDelete">{{ $t('views.delete') }}</button>
-        </div>
-      </div>
-    </div>
-
     <!-- General Confirm/Prompt Dialog -->
     <ConfirmDialog
       v-model:visible="dialogState.visible"
@@ -226,14 +182,7 @@ const displayMode = ref('gallery');
 const searchTerm = ref('');
 const sortBy = ref('name');
 const sortOrder = ref('asc');
-const showSaveDialog = ref(false);
-const newViewName = ref('');
-const nameInput = ref(null);
 const currentView = ref(null);
-
-// Delete dialog state
-const showDeleteDialog = ref(false);
-const viewToDelete = ref(null);
 
 // General dialog state for ConfirmDialog
 const dialogState = ref({
@@ -312,6 +261,16 @@ const loadViews = async () => {
     
     if (data.success) {
       views.value = data.data;
+      
+      // 如果当前没有选中视图，自动选中默认视图
+      if (!currentView.value) {
+        const defaultView = views.value.find(v => v.is_default);
+        if (defaultView) {
+          currentView.value = defaultView;
+          emit('current-view-changed', defaultView.name);
+          console.log('🏠 自动选中默认视图:', defaultView.name);
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to load views:', error);
@@ -360,17 +319,18 @@ const selectAndRestoreView = async (view) => {
   await restoreView(view);
 };
 
-// Show save as dialog
+// Show save as dialog - using ConfirmDialog
 const showSaveAsDialog = async () => {
-  newViewName.value = '';
-  showSaveDialog.value = true;
-  await nextTick();
-  nameInput.value?.focus();
-};
-
-const closeSaveDialog = () => {
-  showSaveDialog.value = false;
-  newViewName.value = '';
+  const result = await showDialog({
+    type: 'prompt',
+    title: t('views.saveAs'),
+    placeholder: t('views.namePlaceholder'),
+    defaultValue: ''
+  });
+  
+  if (result && result.trim()) {
+    await createOrUpdateView(result.trim());
+  }
 };
 
 // Create or update view
@@ -421,7 +381,7 @@ const createOrUpdateView = async (name) => {
     } else if (response.status === 409) {
       const confirmed = await showDialog({
         type: 'confirm',
-        title: t('views.saveAs'),
+        title: t('views.save'),
         message: t('views.confirmOverwrite', { name })
       });
       
@@ -535,8 +495,8 @@ const updateView = async () => {
   await createOrUpdateView(view.name);
 };
 
-// Delete view - show custom confirmation dialog
-const deleteView = () => {
+// Delete view - using ConfirmDialog
+const deleteView = async () => {
   const view = contextMenu.value.view;
   if (!view) {
     console.log('❌ No view found in context menu');
@@ -544,28 +504,19 @@ const deleteView = () => {
   }
   
   console.log('🗑️ Opening delete dialog for view:', view.name, 'ID:', view.id);
-  
-  // 保存要删除的视图，关闭上下文菜单，显示确认对话框
-  viewToDelete.value = view;
   closeContextMenu();
-  showDeleteDialog.value = true;
-};
-
-// Cancel delete
-const cancelDelete = () => {
-  showDeleteDialog.value = false;
-  viewToDelete.value = null;
-};
-
-// Confirm delete
-const confirmDelete = async () => {
-  const view = viewToDelete.value;
-  if (!view) return;
+  
+  const confirmed = await showDialog({
+    type: 'confirm',
+    title: t('views.delete'),
+    message: t('views.confirmDelete', { name: view.name }),
+    danger: true,
+    confirmText: t('views.delete')
+  });
+  
+  if (!confirmed) return;
   
   console.log('🗑️ Confirmed delete view:', view.name, 'ID:', view.id);
-  
-  showDeleteDialog.value = false;
-  viewToDelete.value = null;
   
   try {
     const response = await fetch(`${API_BASE}/api/views/${view.id}`, {
@@ -757,6 +708,10 @@ onUnmounted(() => {
 .tab-btn.active {
   background: #38ABDF;
   color: #fff;
+}
+
+.tab-btn.active:hover {
+  background: #2D9ACC;
 }
 
 .search-bar {

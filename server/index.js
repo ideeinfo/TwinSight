@@ -11,6 +11,7 @@ import { config } from 'dotenv';
 // 旧版路由（保留兼容）
 import apiRoutes from './routes/api.js';
 import fileRoutes from './routes/files.js';
+
 import documentRoutes from './routes/documents.js';
 import timeseriesRoutes from './routes/timeseries.js';
 import viewsRoutes from './routes/views.js';
@@ -23,6 +24,9 @@ import v1Router from './routes/v1/index.js';
 
 // 中间件
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+
+// 后台服务
+import { startSyncService } from './services/document-sync-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,11 +65,12 @@ app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 // 使用绝对路径：server/../public/docs = project_root/public/docs
 app.use('/docs', express.static(path.join(__dirname, '../public/docs')));
 
-// 请求日志
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-    next();
-});
+// 请求日志（已禁用减少输出）
+// app.use((req, res, next) => {
+//     console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+//     next();
+// });
+app.use((req, res, next) => next());
 
 // ========================================
 // 新版 API v1 路由（推荐使用）
@@ -82,8 +87,6 @@ app.use('/api/views', viewsRoutes);
 app.use('/api/influx-config', influxConfigRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes); // 旧版时序路由
 app.use('/api/ai', aiAnalysisRoutes);
-app.use('/api/config', configRoutes);
-
 // 健康检查
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -147,6 +150,9 @@ app.listen(PORT, () => {
 ║  📦 数据库: PostgreSQL                         ║
 ╚════════════════════════════════════════════════╝
   `);
+
+    // 启动文档同步后台服务（每 5 分钟检查一次）
+    startSyncService(5 * 60 * 1000);
 });
 
 export default app;

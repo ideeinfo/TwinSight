@@ -10,7 +10,7 @@ import { query } from '../db/index.js';
  * @returns {Promise<Array>}
  */
 async function getDocuments(params) {
-    const { assetCode, spaceCode, specCode } = params;
+    const { assetCode, spaceCode, specCode, viewId } = params;
 
     let sql = 'SELECT * FROM documents WHERE ';
     let values = [];
@@ -24,8 +24,11 @@ async function getDocuments(params) {
     } else if (specCode) {
         sql += 'spec_code = $1';
         values.push(specCode);
+    } else if (viewId) {
+        sql += 'view_id = $1';
+        values.push(viewId);
     } else {
-        throw new Error('必须提供 assetCode, spaceCode 或 specCode 之一');
+        throw new Error('必须提供 assetCode, spaceCode, specCode 或 viewId 之一');
     }
 
     sql += ' ORDER BY created_at DESC';
@@ -62,16 +65,17 @@ async function createDocument(doc) {
         mimeType,
         assetCode,
         spaceCode,
-        specCode
+        specCode,
+        viewId
     } = doc;
 
     const result = await query(
         `INSERT INTO documents (
             title, file_name, file_path, file_size, file_type, mime_type,
-            asset_code, space_code, spec_code
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            asset_code, space_code, spec_code, view_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *`,
-        [title, fileName, filePath, fileSize, fileType, mimeType, assetCode, spaceCode, specCode]
+        [title, fileName, filePath, fileSize, fileType, mimeType, assetCode, spaceCode, specCode, viewId]
     );
 
     return result.rows[0];

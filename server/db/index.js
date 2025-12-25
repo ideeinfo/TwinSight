@@ -22,9 +22,9 @@ const pool = new Pool({
     connectionTimeoutMillis: 2000,
 });
 
-// 连接事件
+// 连接事件（禁用日志）
 pool.on('connect', () => {
-    console.log('📦 PostgreSQL 连接已建立');
+    // console.log('📦 PostgreSQL 连接已建立');
 });
 
 pool.on('error', (err) => {
@@ -42,7 +42,8 @@ export const query = async (text, params) => {
     try {
         const result = await pool.query(text, params);
         const duration = Date.now() - start;
-        console.log('📊 执行查询:', { text: text.substring(0, 50), duration, rows: result.rowCount });
+        // 禁用查询日志（太多）
+        // console.log('📊 执行查询:', { text: text.substring(0, 50), duration, rows: result.rowCount });
         return result;
     } catch (error) {
         console.error('❌ 查询错误:', error.message);

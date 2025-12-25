@@ -161,6 +161,15 @@
           </svg>
           {{ t('filePanel.influxConfig') }}
         </div>
+        <div class="context-menu-item" @click="handlePanoCompare">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" />
+            <circle cx="12" cy="12" r="3" />
+            <path d="M16 16l4 4" />
+            <path d="M16 20l4-4" />
+          </svg>
+          {{ t('filePanel.panoCompare') }}
+        </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="handleDelete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -223,7 +232,7 @@
       />
     </Teleport>
 
-    <!-- Confirm Dialog -->
+    <!-- Confirm Dialog with slot support -->
     <ConfirmDialog
       v-model:visible="dialogState.visible"
       :type="dialogState.type"
@@ -233,7 +242,18 @@
       :confirm-text="dialogState.confirmText"
       @confirm="dialogState.onConfirm"
       @cancel="dialogState.onCancel"
-    />
+    >
+      <!-- 删除模型时显示知识库选项 -->
+      <template v-if="dialogState.showDeleteKBOption" #extra>
+        <div class="delete-kb-option">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="deleteKnowledgeBase" />
+            <span>{{ t('filePanel.deleteKnowledgeBase') }}</span>
+          </label>
+          <p class="option-hint">{{ t('filePanel.deleteKnowledgeBaseHint') }}</p>
+        </div>
+      </template>
+    </ConfirmDialog>
   </div>
 </template>
 
@@ -261,6 +281,7 @@ const isEditDialogOpen = ref(false);
 const isSaving = ref(false);
 const isInfluxConfigOpen = ref(false);
 const influxConfigFileId = ref(null);
+const deleteKnowledgeBase = ref(true);
 
 const uploadForm = ref({
   title: '',
@@ -287,6 +308,7 @@ const dialogState = ref({
   message: '',
   danger: false,
   confirmText: '',
+  showDeleteKBOption: false,
   onConfirm: () => {},
   onCancel: () => {}
 });
@@ -301,6 +323,7 @@ const showDialog = (options) => {
       message: options.message || '',
       danger: options.danger || false,
       confirmText: options.confirmText || '',
+      showDeleteKBOption: options.showDeleteKBOption || false,
       onConfirm: () => {
         dialogState.value.visible = false;
         resolve(true);
@@ -564,19 +587,25 @@ const handleExtract = async () => {
 const handleDelete = async () => {
   const file = contextMenu.value.file;
   hideContextMenu();
+  
+  // 重置删除知识库选项为默认值
+  deleteKnowledgeBase.value = true;
 
   const confirmed = await showDialog({
     type: 'confirm',
     title: t('filePanel.delete'),
     message: t('filePanel.confirmDelete', { title: file.title }),
     danger: true,
-    confirmText: t('filePanel.delete')
+    confirmText: t('filePanel.delete'),
+    showDeleteKBOption: true  // 显示删除知识库选项
   });
 
   if (!confirmed) return;
 
   try {
-    const response = await fetch(`${API_BASE}/api/files/${file.id}`, { method: 'DELETE' });
+    // 构建删除 URL，包含是否删除知识库的参数
+    const url = `${API_BASE}/api/files/${file.id}?deleteKB=${deleteKnowledgeBase.value}`;
+    const response = await fetch(url, { method: 'DELETE' });
     const data = await response.json();
     if (data.success) {
       await loadFiles();
@@ -609,6 +638,14 @@ const closeInfluxConfig = () => {
 const onInfluxConfigSaved = (config) => {
   console.log('InfluxDB 配置已保存:', config);
   // 可以在这里添加保存成功的提示
+};
+
+const handlePanoCompare = () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+  // 在新标签页打开全景比对视图
+  const url = `/?mode=pano-compare&fileId=${file.id}`;
+  window.open(url, '_blank');
 };
 
 onMounted(() => {
@@ -726,4 +763,10 @@ onUnmounted(() => {
 .list-content::-webkit-scrollbar-track { background: #1e1e1e; }
 .list-content::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 5px; }
 .list-content::-webkit-scrollbar-thumb:hover { background: #4e4e52; }
+
+/* 删除知识库选项 */
+.delete-kb-option { margin-top: 16px; padding-top: 12px; border-top: 1px solid #3e3e42; }
+.checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ccc; font-size: 13px; }
+.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #38ABDF; }
+.option-hint { margin: 6px 0 0 24px; font-size: 11px; color: #888; }
 </style>

@@ -3,9 +3,14 @@
  * 统一管理所有配置项
  */
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// 加载环境变量
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 加载环境变量 - 从项目根目录的 .env 文件
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const config = {
     // 服务器配置
@@ -17,11 +22,11 @@ const config = {
 
     // 数据库配置
     database: {
-        host: process.env.PGHOST || 'localhost',
-        port: parseInt(process.env.PGPORT || '5432', 10),
-        database: process.env.PGDATABASE || 'tandem',
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || 'postgres',
+        host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.PGPORT || process.env.DB_PORT || '5432', 10),
+        database: process.env.PGDATABASE || process.env.DB_NAME || 'tandem',
+        user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+        password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
     },
 
     // InfluxDB 配置

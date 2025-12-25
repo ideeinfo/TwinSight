@@ -23,6 +23,8 @@
           />
           <!-- Message mode -->
           <p v-else class="dialog-message">{{ message }}</p>
+          <!-- Extra slot for custom content -->
+          <slot name="extra"></slot>
         </div>
         <div class="dialog-footer">
           <button v-if="type !== 'alert'" class="btn-cancel" @click="handleCancel">
