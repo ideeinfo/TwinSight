@@ -10,13 +10,13 @@
       {{ displayValue }}
     </div>
     
-    <!-- 编辑模式 -->
-    <input
+    <!-- 编辑模式：使用 el-input -->
+    <el-input
       v-else
       ref="inputRef"
       v-model="editValue"
       :type="inputType"
-      class="edit-input"
+      size="small"
       @blur="handleBlur"
       @keydown.enter="confirmEdit"
       @keydown.esc="cancelEdit"
@@ -25,7 +25,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -79,7 +79,7 @@ const isVaries = computed(() => {
 // 根据字段类型确定 input type
 const inputType = computed(() => {
   if (props.fieldType === 'number') return 'number';
-  if (props.fieldType === 'date') return 'date';
+  // el-input 不支持 date type，使用 text
   return 'text';
 });
 
@@ -97,13 +97,14 @@ const startEdit = async () => {
   }
   
   await nextTick();
+  // el-input 的 focus 需要访问内部 input 元素
   inputRef.value?.focus();
   inputRef.value?.select();
 };
 
 // 确认编辑
 const confirmEdit = () => {
-  const newValue = editValue.value?.trim();
+  const newValue = editValue.value?.toString().trim();
   if (newValue !== props.modelValue) {
     emit('update:modelValue', newValue);
     emit('change', newValue);
@@ -130,70 +131,58 @@ const handleBlur = () => {
 }
 
 .val-box {
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
+  background: var(--el-fill-color-blank, #1e1e1e);
+  border: 1px solid var(--el-border-color, #3e3e42);
   min-height: 24px;
   display: flex;
   align-items: center;
   padding: 0 8px;
-  border-radius: 2px;
-  color: #eee;
+  border-radius: var(--el-border-radius-small, 2px);
+  color: var(--el-text-color-primary, #eee);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: text;
   transition: all 0.2s;
+  font-size: 10px;
 }
 
 .val-box:hover {
-  border-color: #555;
-  background: #252526;
+  border-color: var(--el-border-color-hover, #555);
+  background: var(--el-fill-color-light, #252526);
 }
 
 .val-box.placeholder {
-  color: #777;
+  color: var(--el-text-color-placeholder, #777);
   font-style: normal;
 }
 
 .val-box.varies {
-  color: #9cdcfe;
+  color: var(--el-color-primary, #9cdcfe);
   font-style: italic;
-  border-color: #4a4a4a;
+  border-color: var(--el-border-color, #4a4a4a);
 }
 
 .val-box.varies:hover {
-  border-color: #0078d4;
-  background: #1e1e1e;
-  color: #6cb6ff;
+  border-color: var(--el-color-primary, #0078d4);
+  background: var(--el-fill-color-blank, #1e1e1e);
+  color: var(--el-color-primary-light-3, #6cb6ff);
 }
 
-.edit-input {
-  width: 100%;
-  background: #1e1e1e;
-  border: 1px solid #0078d4;
+/* el-input 尺寸适配 - 紧凑风格 */
+:deep(.el-input__wrapper) {
   min-height: 24px;
   padding: 0 8px;
-  border-radius: 2px;
-  color: #eee;
-  font-size: 11px;
-  font-family: inherit;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.3);
+  box-shadow: none !important;
 }
 
-.edit-input:focus {
-  border-color: #0078d4;
+:deep(.el-input__inner) {
+  height: 22px;
+  line-height: 22px;
+  font-size: 10px;
 }
 
-/* 隐藏数字输入框的上下箭头（spinner） */
-.edit-input[type="number"]::-webkit-outer-spin-button,
-.edit-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.edit-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+:deep(.el-input) {
+  --el-input-height: 24px;
 }
 </style>
