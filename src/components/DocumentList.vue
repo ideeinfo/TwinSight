@@ -4,14 +4,14 @@
       <span class="section-title">{{ $t('document.title') }}</span>
       <button 
         class="btn-text" 
-        @click="triggerFileInput"
         :disabled="!relatedCode"
         :title="$t('document.upload')"
+        @click="triggerFileInput"
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
         {{ $t('document.upload') }}
       </button>
@@ -20,8 +20,8 @@
         type="file" 
         accept=".pdf,.jpg,.jpeg,.png,.svg,.mp4"
         multiple
-        @change="handleFileSelect"
         style="display: none"
+        @change="handleFileSelect"
       />
     </div>
 
@@ -49,9 +49,9 @@
           <div 
             v-else 
             class="doc-title clickable" 
+            :title="$t('document.preview')"
             @click="openPreview(doc)"
             @dblclick.stop="startEdit(doc)"
-            :title="$t('document.preview')"
           >
             {{ doc.title }}
           </div>
@@ -64,23 +64,23 @@
         <div class="doc-actions">
           <button 
             class="btn-icon" 
-            @click="downloadDocument(doc)"
             :title="$t('document.download')"
+            @click="downloadDocument(doc)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </button>
           <button 
             class="btn-icon btn-delete" 
-            @click="confirmDelete(doc)"
             :title="$t('document.delete')"
+            @click="confirmDelete(doc)"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
         </div>
@@ -90,8 +90,8 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
-        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-        <polyline points="13 2 13 9 20 9"/>
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+        <polyline points="13 2 13 9 20 9" />
       </svg>
       <p>{{ $t('document.noDocuments') }}</p>
       <small>{{ $t('document.supportedFormats') }}</small>
@@ -122,24 +122,24 @@
         <button 
           v-if="item.status === 'uploading'" 
           class="btn-cancel" 
-          @click="cancelUpload(item.id)"
           :title="$t('common.cancel')"
+          @click="cancelUpload(item.id)"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
         <span v-else-if="item.status === 'success'" class="upload-status-icon success">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"></polyline>
+            <polyline points="20 6 9 17 4 12" />
           </svg>
         </span>
         <span v-else-if="item.status === 'error'" class="upload-status-icon error">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </span>
       </div>
@@ -152,25 +152,15 @@
       @close="closePreview"
     />
 
-    <!-- Confirm Dialog -->
-    <ConfirmDialog
-      v-model:visible="dialogState.visible"
-      :type="dialogState.type"
-      :title="dialogState.title"
-      :message="dialogState.message"
-      :danger="dialogState.danger"
-      :confirm-text="dialogState.confirmText"
-      @confirm="dialogState.onConfirm"
-      @cancel="dialogState.onCancel"
-    />
+    <!-- Confirm Dialog removed, using ElMessageBox -->
   </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessageBox } from 'element-plus';
 import DocumentPreview from './DocumentPreview.vue';
-import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -197,46 +187,30 @@ const relatedCode = computed(() => {
   return props.assetCode || props.spaceCode || props.specCode;
 });
 
-// Dialog state for ConfirmDialog
-const dialogState = ref({
-  visible: false,
-  type: 'confirm',
-  title: '',
-  message: '',
-  danger: false,
-  confirmText: '',
-  onConfirm: () => {},
-  onCancel: () => {}
-});
-
-// Helper to show dialog
-const showDialog = (options) => {
-  return new Promise((resolve) => {
-    dialogState.value = {
-      visible: true,
-      type: options.type || 'confirm',
-      title: options.title || '',
-      message: options.message || '',
-      danger: options.danger || false,
-      confirmText: options.confirmText || '',
-      onConfirm: () => {
-        dialogState.value.visible = false;
-        resolve(true);
-      },
-      onCancel: () => {
-        dialogState.value.visible = false;
-        resolve(false);
+// Helper to show confirm dialog using ElMessageBox
+const showDialog = async (options) => {
+  try {
+    await ElMessageBox.confirm(
+      options.message || '',
+      options.title || t('common.confirm'),
+      {
+        confirmButtonText: options.confirmText || t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: options.danger ? 'warning' : 'info',
+        dangerouslyUseHTMLString: false
       }
-    };
-  });
+    );
+    return true;
+  } catch {
+    return false;
+  }
 };
 
-// Helper to show alert
-const showAlert = (message, title = '') => {
-  return showDialog({
-    type: 'alert',
-    title: title || t('common.alert'),
-    message
+// Helper to show alert using ElMessageBox
+const showAlert = async (message, title = '') => {
+  await ElMessageBox.alert(message, title || t('common.alert'), {
+    confirmButtonText: t('common.confirm'),
+    type: 'warning'
   });
 };
 
@@ -461,7 +435,7 @@ const uploadFile = (uploadItem) => {
           item.status = 'error';
           item.errorMessage = data.error;
         }
-      } catch (e) {
+      } catch {
         item.status = 'error';
         item.errorMessage = '解析响应失败';
       }

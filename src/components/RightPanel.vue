@@ -101,25 +101,17 @@
       </div>
     </div>
 
-    <!-- Confirm/Alert Dialog -->
-    <ConfirmDialog
-      v-model:visible="dialogState.visible"
-      :type="dialogState.type"
-      :title="dialogState.title"
-      :message="dialogState.message"
-      @confirm="dialogState.onConfirm"
-      @cancel="dialogState.onCancel"
-    />
+    <!-- Confirm/Alert Dialog removed, using ElMessageBox -->
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessageBox } from 'element-plus';
 import EditableField from './EditableField.vue';
 import DocumentList from './DocumentList.vue';
 import QRCodeDisplay from './QRCodeDisplay.vue';
-import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -143,33 +135,11 @@ const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
 
-// Dialog state for ConfirmDialog
-const dialogState = ref({
-  visible: false,
-  type: 'alert',
-  title: '',
-  message: '',
-  onConfirm: () => {},
-  onCancel: () => {}
-});
-
-// Helper to show alert
-const showAlert = (message, title = '') => {
-  return new Promise((resolve) => {
-    dialogState.value = {
-      visible: true,
-      type: 'alert',
-      title: title || t('common.alert'),
-      message,
-      onConfirm: () => {
-        dialogState.value.visible = false;
-        resolve(true);
-      },
-      onCancel: () => {
-        dialogState.value.visible = false;
-        resolve(false);
-      }
-    };
+// Helper to show alert using ElMessageBox
+const showAlert = async (message, title = '') => {
+  await ElMessageBox.alert(message, title || t('common.alert'), {
+    confirmButtonText: t('common.confirm'),
+    type: 'warning'
   });
 };
 

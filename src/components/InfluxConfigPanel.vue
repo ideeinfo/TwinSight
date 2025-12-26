@@ -122,23 +122,13 @@
         </div>
       </div>
     </div>
-
-    <!-- Confirm/Alert Dialog -->
-    <ConfirmDialog
-      v-model:visible="dialogState.visible"
-      :type="dialogState.type"
-      :title="dialogState.title"
-      :message="dialogState.message"
-      @confirm="dialogState.onConfirm"
-      @cancel="dialogState.onCancel"
-    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ConfirmDialog from './ConfirmDialog.vue';
+import { ElMessageBox } from 'element-plus';
 
 const { t } = useI18n();
 
@@ -169,33 +159,11 @@ const testResult = ref(null);
 const hasToken = ref(false);
 const hasPassword = ref(false);
 
-// Dialog state for ConfirmDialog
-const dialogState = ref({
-  visible: false,
-  type: 'alert',
-  title: '',
-  message: '',
-  onConfirm: () => {},
-  onCancel: () => {}
-});
-
-// Helper to show alert
-const showAlert = (message, title = '') => {
-  return new Promise((resolve) => {
-    dialogState.value = {
-      visible: true,
-      type: 'alert',
-      title: title || t('common.alert'),
-      message,
-      onConfirm: () => {
-        dialogState.value.visible = false;
-        resolve(true);
-      },
-      onCancel: () => {
-        dialogState.value.visible = false;
-        resolve(false);
-      }
-    };
+// Helper to show alert using ElMessageBox
+const showAlert = async (message, title = '') => {
+  await ElMessageBox.alert(message, title || t('common.alert'), {
+    confirmButtonText: t('common.confirm'),
+    type: 'warning'
   });
 };
 

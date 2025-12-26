@@ -8,7 +8,6 @@
     </div>
 
     <div class="panel-content-scroll">
-      
       <!-- 1. 顶部说明区域 (移至最上) -->
       <div class="top-info-section">
         <div class="section-title">{{ $t('dataExport.stepExport') }}</div>
@@ -19,21 +18,20 @@
       <div class="config-section">
         <MappingConfigPanel
           :embedded="true"
-          :assetMapping="assetMapping"
-          :assetSpecMapping="assetSpecMapping"
-          :spaceMapping="spaceMapping"
-          :assetPropertyOptions="assetPropertyOptions"
-          :spacePropertyOptions="spacePropertyOptions"
-          :saveMessage="saveMessage"
-          :saveMessageType="saveMessageType"
+          :asset-mapping="assetMapping"
+          :asset-spec-mapping="assetSpecMapping"
+          :space-mapping="spaceMapping"
+          :asset-property-options="assetPropertyOptions"
+          :space-property-options="spacePropertyOptions"
+          :save-message="saveMessage"
+          :save-message-type="saveMessageType"
           @save="handleSaveMapping"
         />
       </div>
 
       <!-- 3. 导出操作区域 -->
       <div class="export-section">
-        
-        <div class="stats-section" v-if="extractionStats">
+        <div v-if="extractionStats" class="stats-section">
           <div class="stat-item">
             <span class="stat-value">{{ extractionStats.assets }}</span>
             <span class="stat-label">{{ $t('dataExport.assets') }}</span>
@@ -62,8 +60,8 @@
 
           <button 
             class="btn btn-primary" 
-            @click="extractAndExport" 
-            :disabled="isExporting || apiStatus !== 'connected'"
+            :disabled="isExporting || apiStatus !== 'connected'" 
+            @click="extractAndExport"
           >
             <span v-if="isExporting" class="spinner"></span>
             <span v-else>📤</span>
@@ -71,7 +69,7 @@
           </button>
         </div>
 
-        <div class="result-section" v-if="exportResult" :class="{ success: exportResult.success, error: !exportResult.success }">
+        <div v-if="exportResult" class="result-section" :class="{ success: exportResult.success, error: !exportResult.success }">
           <div class="result-message">
             <span class="icon">{{ exportResult.success ? '✅' : '❌' }}</span>
             <span>{{ exportResult.message }}</span>
@@ -88,27 +86,16 @@
         </div>
       </div>
     </div>
-
-    <!-- Confirm Dialog -->
-    <ConfirmDialog
-      v-model:visible="dialogState.visible"
-      :type="dialogState.type"
-      :title="dialogState.title"
-      :message="dialogState.message"
-      :danger="dialogState.danger"
-      @confirm="dialogState.onConfirm"
-      @cancel="dialogState.onCancel"
-    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, toRaw } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessageBox } from 'element-plus';
 import { checkApiHealth, importModelData, checkExistingData } from '../services/postgres.js';
 import { getMappingConfig, saveMappingConfig, getDefaultMapping } from '../services/mapping-config.js';
 import MappingConfigPanel from './MappingConfigPanel.vue';
-import ConfirmDialog from './ConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -138,36 +125,23 @@ const spacePropertyOptions = ref({});
 const spaceMapping = ref({});
 const assetSpecMapping = ref({});
 
-// Dialog state for ConfirmDialog
-const dialogState = ref({
-  visible: false,
-  type: 'confirm',
-  title: '',
-  message: '',
-  danger: false,
-  onConfirm: () => {},
-  onCancel: () => {}
-});
-
-// Helper to show confirm dialog
-const showConfirm = (options) => {
-  return new Promise((resolve) => {
-    dialogState.value = {
-      visible: true,
-      type: 'confirm',
-      title: options.title || t('common.confirm'),
-      message: options.message || '',
-      danger: options.danger || false,
-      onConfirm: () => {
-        dialogState.value.visible = false;
-        resolve(true);
-      },
-      onCancel: () => {
-        dialogState.value.visible = false;
-        resolve(false);
+// Helper to show confirm dialog using ElMessageBox
+const showConfirm = async (options) => {
+  try {
+    await ElMessageBox.confirm(
+      options.message || '',
+      options.title || t('common.confirm'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: options.danger ? 'warning' : 'info',
+        dangerouslyUseHTMLString: false
       }
-    };
-  });
+    );
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 

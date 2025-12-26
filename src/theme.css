@@ -2548,11 +2548,14 @@ html.light .extract-dialog .spinner {
 html.light .extract-progress p {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
+
 /* ============================================
    Element Plus 主题覆盖
    同步 Checkbox 等组件颜色与主题种子颜色
    ============================================ */
-:root, html.dark, html.light {
+:root,
+html.dark,
+html.light {
   --el-color-primary: var(--md-sys-color-primary);
   /* Checkbox */
   --el-checkbox-checked-bg-color: var(--md-sys-color-primary);
@@ -2563,4 +2566,43 @@ html.light .extract-progress p {
   --el-radio-input-border-color-hover: var(--md-sys-color-primary);
   /* Switch */
   --el-switch-on-color: var(--md-sys-color-primary);
+}
+
+/* ============================================
+   Element Plus 按钮浅色主题修复
+   确保深色背景按钮显示白色文字
+   ============================================ */
+
+/* Primary 按钮 */
+html.light .el-button--primary {
+  --el-button-text-color: #ffffff !important;
+  --el-button-bg-color: var(--md-sys-color-primary) !important;
+  --el-button-border-color: var(--md-sys-color-primary) !important;
+  color: #ffffff !important;
+}
+
+html.light .el-button--primary:hover,
+html.light .el-button--primary:focus {
+  color: #ffffff !important;
+  background-color: color-mix(in srgb, var(--md-sys-color-primary), black 10%) !important;
+  border-color: color-mix(in srgb, var(--md-sys-color-primary), black 10%) !important;
+}
+
+/* Warning 按钮（删除等危险操作） */
+html.light .el-button--warning {
+  color: #ffffff !important;
+}
+
+html.light .el-button--danger {
+  color: #ffffff !important;
+}
+
+/* MessageBox 对话框按钮覆盖 */
+html.light .el-message-box .el-button--primary {
+  color: #ffffff !important;
+}
+
+html.light .el-message-box .el-button--primary:hover,
+html.light .el-message-box .el-button--primary:focus {
+  color: #ffffff !important;
 }
