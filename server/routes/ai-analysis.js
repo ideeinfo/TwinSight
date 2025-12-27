@@ -4,10 +4,10 @@
  */
 
 import express from 'express';
-// 使用 n8n 工作流调用方式
-import { triggerTemperatureAlert, triggerManualAnalysis, checkN8nHealth } from '../services/n8n-service.js';
-// 直接调用 Gemini API（备用）
-// import { analyzeTemperatureAlert } from '../services/gemini-service.js';
+// 直接调用 Open WebUI API
+import { chatWithRAG, checkHealth as checkOpenWebUIHealth } from '../services/openwebui-service.js';
+// 获取上下文数据的 API
+import pool from '../db/index.js';
 
 const router = express.Router();
 
@@ -17,11 +17,11 @@ const router = express.Router();
  */
 router.get('/health', async (req, res) => {
     try {
-        const isHealthy = await checkN8nHealth();
+        const isHealthy = await checkOpenWebUIHealth();
         res.json({
             success: true,
             data: {
-                n8n: isHealthy ? 'connected' : 'disconnected',
+                openwebui: isHealthy ? 'connected' : 'disconnected',
                 timestamp: new Date().toISOString(),
             }
         });
@@ -35,7 +35,7 @@ router.get('/health', async (req, res) => {
 
 /**
  * POST /api/ai/temperature-alert
- * 触发温度报警分析（通过 n8n 工作流）
+ * 触发温度报警分析（直接调用 Open WebUI RAG）
  * 
  * Body:
  * {
@@ -58,55 +58,617 @@ router.post('/temperature-alert', async (req, res) => {
             });
         }
 
-        // 根据报警类型设置默认阈值：高温28°C，低温0°C
-        const defaultThreshold = alertType === 'low' ? 0 : 28;
+        // 根据报警类型设置默认阈值
+        const defaultThreshold = alertType === 'low' ? 10 : 23;
         const finalThreshold = threshold || defaultThreshold;
         const finalAlertType = alertType || 'high';
+        const isHighTemp = finalAlertType === 'high';
+        const alertTypeText = isHighTemp ? '高温' : '低温';
 
-        console.log(`📡 收到温度报警请求 (n8n):`, {
+        console.log(`📡 收到温度报警请求 (Direct Open WebUI):`, {
             roomName, roomCode, temperature, threshold: finalThreshold, alertType: finalAlertType
         });
 
-        // 调用 n8n 工作流
-        const n8nResult = await triggerTemperatureAlert({
-            roomCode,
-            roomName: roomName || roomCode,
-            temperature,
-            threshold: finalThreshold,
-            alertType: finalAlertType,
-            fileId,
+        // 1. 获取房间上下文（设备、文档）
+        let context = { assets: [], documents: [] };
+        try {
+            // 查询房间内的设备（使用正确的列名 asset_code）
+            const assetsResult = await pool.query(`
+                SELECT asset_code, name, spec_code, floor, room
+                FROM assets WHERE room ILIKE $1 OR room ILIKE $2
+            `, [`%${roomCode}%`, `%${roomName}%`]);
+            context.assets = assetsResult.rows;
+            console.log(`📦 查询到 ${context.assets.length} 个设备`);
+
+            // 1.1 收集搜索关键词
+            const searchPatterns = [`%${roomCode}%`, `%${roomName}%`];
+            // 收集资产名称作为模糊搜索关键词
+            if (context.assets.length > 0) {
+                const assetPatterns = context.assets
+                    .flatMap(a => [a.name]) // 只保留名称用于文件名模糊匹配
+                    .filter(val => val && val.length > 2)
+                    .map(val => `%${val}%`);
+                searchPatterns.push(...assetPatterns);
+            }
+
+            const assetCodes = context.assets.map(a => a.asset_code).filter(c => c);
+            const specCodes = context.assets.map(a => a.spec_code).filter(c => c);
+
+            // 查询相关文档（包括房间相关、设备相关、规范相关）
+            const docsQuery = `
+                SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
+                FROM documents
+                WHERE (
+                    space_code ILIKE $1 
+                    OR space_code ILIKE $2 
+                    ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
+                    ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
+                    OR file_name ILIKE ANY($3)
+                    OR title ILIKE ANY($3)
+                )
+                  AND file_name NOT ILIKE '%.jpg' 
+                  AND file_name NOT ILIKE '%.png'
+                  AND file_name NOT ILIKE '%.jpeg'
+                  AND file_name NOT ILIKE '%.gif'
+                  AND file_name NOT ILIKE '%.webp'
+                LIMIT 20
+            `;
+
+            const docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns];
+            if (assetCodes.length > 0) docsParams.push(assetCodes);
+            if (specCodes.length > 0) docsParams.push(specCodes);
+
+            const docsResult = await pool.query(docsQuery, docsParams);
+
+            context.documents = docsResult.rows;
+            console.log(`📄 查询到 ${context.documents.length} 个相关文档 (含设备文档)`);
+        } catch (dbError) {
+            console.warn('⚠️ 获取上下文数据失败:', dbError.message);
+        }
+
+        // 2. 构建 Prompt
+
+
+        const prompt = `你是一个建筑设施运维专家。请根据以下报警信息和上下文，提供运维建议。
+
+**重要规则**：
+1. **全程必须使用中文回答**。
+2. **不要**输出你的思考过程、任务复述或英文摘要。
+3. **不要**使用英文标题，必须严格按照下方的【输出格式】回答。
+
+## 报警信息
+- 房间：${roomName} (${roomCode})
+- 当前温度：${temperature}°C
+- 报警阈值：${threshold}°C
+- 报警类型：${alertType === 'high' ? '高温报警' : '低温报警'}
+
+## 上下文信息
+${context.assets.length > 0 ? `### 房间内设备\n${context.assets.map(a => `- ${a.name} (${a.asset_code})`).join('\n')}` : '（无设备信息）'}
+
+## 可用参考文档
+${context.documents && context.documents.length > 0 ? context.documents.map(d => `- ${d.file_name}`).join('\n') : '（无相关文档）'}
+
+## 【输出格式】
+请严格按照以下格式输出，不同层级使用不同编号样式和缩进：
+
+### 1. 可能原因分析
+（一级标题使用"### 数字."格式）
+  1) 二级条目使用"数字)"格式，缩进2空格
+    - 三级细节使用"- "格式，缩进4空格
+
+### 2. 建议的处理步骤
+  1) 第一步操作说明
+    - 具体操作细节
+    - 注意事项
+  2) 第二步操作说明
+    - 具体操作细节
+
+### 3. 需要检查的设备
+  1) 设备类型一
+    - 设备名称 (编码)
+  2) 设备类型二
+    - 设备名称 (编码)
+
+**注意**：请不要输出"参考的文档"部分，系统会自动根据你的引用生成。在正文中使用 [N] 格式引用文档即可（N为数字）。`;
+
+        console.log('📝 [Prompt Debug] 即将发送给 Open WebUI 的提示词:');
+        console.log('--------------------------------------------------');
+        console.log(prompt);
+        console.log('--------------------------------------------------');
+
+        console.log(`📝 Prompt 长度: ${prompt.length} 字符`);
+
+        // 3. 获取知识库 ID 和相关文档的 Open WebUI 文件 ID
+        let kbId = null;
+        let fileIds = [];
+        try {
+            if (fileId) {
+                // 根据 fileId 查询对应的 Open WebUI 知识库 ID
+                const kbResult = await pool.query(`
+                    SELECT openwebui_kb_id, kb_name
+                    FROM knowledge_bases
+                    WHERE file_id = $1
+                `, [fileId]);
+
+                if (kbResult.rows.length > 0) {
+                    kbId = kbResult.rows[0].openwebui_kb_id;
+                    console.log(`📚 使用知识库: ${kbResult.rows[0].kb_name} (${kbId})`);
+                }
+
+                // 3.1 准备搜索关键词
+                const searchPatterns = [`%${roomCode}%`, `%${roomName}%`];
+                if (context.assets.length > 0) {
+                    const assetPatterns = context.assets
+                        .flatMap(a => [a.name])
+                        .filter(val => val && val.length > 2)
+                        .map(val => `%${val}%`);
+                    searchPatterns.push(...assetPatterns);
+                }
+
+                const assetCodes = context.assets.map(a => a.asset_code).filter(c => c);
+                const specCodes = context.assets.map(a => a.spec_code).filter(c => c);
+
+                // 从 kb_documents 表查询与房间或设备相关的已同步文档的 Open WebUI 文件 ID
+                const fileIdsQuery = `
+                    SELECT kbd.openwebui_file_id, d.file_name
+                    FROM kb_documents kbd
+                    JOIN documents d ON kbd.document_id = d.id
+                    WHERE kbd.openwebui_file_id IS NOT NULL
+                      AND kbd.sync_status = 'synced'
+                      AND (
+                          d.space_code ILIKE $1 
+                          OR d.space_code ILIKE $2 
+                          ${assetCodes.length > 0 ? 'OR d.asset_code = ANY($4)' : ''}
+                          ${specCodes.length > 0 ? 'OR d.spec_code = ANY($5)' : ''}
+                          OR d.file_name ILIKE ANY($3)
+                          OR d.title ILIKE ANY($3)
+                      )
+                      AND d.file_name NOT ILIKE '%.jpg' 
+                      AND d.file_name NOT ILIKE '%.png'
+                      AND d.file_name NOT ILIKE '%.jpeg'
+                      AND d.file_name NOT ILIKE '%.gif'
+                      AND d.file_name NOT ILIKE '%.webp'
+                    LIMIT 20
+                `;
+
+                const fileIdsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns];
+                if (assetCodes.length > 0) fileIdsParams.push(assetCodes);
+                if (specCodes.length > 0) fileIdsParams.push(specCodes);
+
+                const fileIdsResult = await pool.query(fileIdsQuery, fileIdsParams);
+
+                if (fileIdsResult.rows.length > 0) {
+                    fileIds = fileIdsResult.rows.map(r => r.openwebui_file_id);
+                    console.log(`📄 找到 ${fileIds.length} 个相关文档 (含设备文档):`,
+                        fileIdsResult.rows.map(r => r.file_name).join(', '));
+                }
+            } else {
+                console.warn('⚠️ 未提供 fileId，无法查询知识库');
+            }
+        } catch (kbError) {
+            console.warn('⚠️ 查询知识库失败:', kbError.message);
+        }
+
+        // 4. 调用 Open WebUI RAG（使用文件 ID 精确引用 + 知识库作为补充）
+        const ragResult = await chatWithRAG({
+            prompt,
+            kbId,
+            fileIds,
+            model: 'models/gemini-2.5-flash',
         });
 
-        console.log(`📊 n8n 工作流返回:`, JSON.stringify(n8nResult, null, 2));
+        console.log(`✅ Open WebUI RAG 返回成功`);
+        console.log(`🔍 ragResult 顶级字段:`, Object.keys(ragResult));
+        console.log(`🔍 ragResult.sources 存在:`, !!ragResult.sources);
+        if (ragResult.sources) {
+            console.log(`🔍 ragResult.sources 内容:`, JSON.stringify(ragResult.sources).substring(0, 500));
+        }
 
-        if (n8nResult.success && n8nResult.result) {
-            const workflowResult = n8nResult.result;
+        // 5. 提取分析结果
+        let analysisText = '';
+        if (ragResult.choices?.[0]?.message?.content) {
+            analysisText = ragResult.choices[0].message.content;
+        } else if (ragResult.message?.content) {
+            analysisText = ragResult.message.content;
+        } else if (typeof ragResult === 'string') {
+            analysisText = ragResult;
+        }
 
-            // 检查是否是空对象
-            if (Object.keys(workflowResult).length === 0) {
-                console.error('⚠️ n8n 返回了空对象，可能工作流中某个节点执行失败');
-                return res.status(500).json({
-                    success: false,
-                    error: 'n8n workflow returned empty result. Check n8n execution logs.'
+        console.log(`📊 分析结果长度: ${analysisText.length} 字符`);
+
+        // 5.4 [新增] 将未出现在文本中的来源补充到“参考的文档”部分
+        const refSectionRegex = /### 4\. 参考的文档/;
+        const hasRefSection = refSectionRegex.test(analysisText);
+
+        // 收集所有在 sources 列表中但未在文本中被引用的文档
+        // 使用文件名或 ID 进行检查以避免重复
+        // 此时 sources 已经包含了 Open WebUI 返回的 + Fallback 的所有文档
+        // 注意：我们需要先完成 source 收集（即把步骤 6 和 7 的逻辑提前到这里，或者分两步处理）
+        // 由于当前的逻辑顺序是：先提取文本 -> 后处理 Sources -> 再回填 Sources 到文本，
+        // 我们需要调整顺序：
+        // 1. 获取分析文本
+        // 2. 处理 Open WebUI sources
+        // 3. Fallback sources
+        // 4. 文本扫描 sources
+        // 5. (NEW) 将未被引用的 sources 追加到文本
+        // 6. 格式化 HTML 链接
+
+        // 为了最小化改动，我们在这一步先只做占位，等下方 sources 列表整理完毕后（即 response 前），再执行追加和格式化
+
+        // --- 逻辑移动到下方 --- 
+
+        console.log(`📊 分析结果长度: ${analysisText.length} 字符`);
+
+        // 6. 从 Open WebUI 返回的 sources 字段提取真实引用的文档
+        // 重构：每个 ragResult.sources[i] 代表一个被引用的文档
+        // AI 使用 [source 1] 格式引用，其中 1 对应 sources[0] (1-indexed)
+        let sources = [];
+        let sourceIndexMap = new Map(); // Map<sourceIndex (1-indexed), {docId, docName, url}>
+
+        try {
+            if (ragResult.sources && Array.isArray(ragResult.sources) && ragResult.sources.length > 0) {
+                console.log(`📚 Open WebUI 返回 ${ragResult.sources.length} 个引用来源`);
+
+                for (let i = 0; i < ragResult.sources.length; i++) {
+                    const sourceItem = ragResult.sources[i];
+                    const sourceIndex = i + 1; // 1-indexed for AI citations
+
+                    // 获取 Open WebUI 文件 ID (UUID)
+                    const openwebuiFileId = sourceItem.source?.id ||
+                        (sourceItem.metadata?.[0]?.file_id);
+                    const docName = sourceItem.metadata?.[0]?.name ||
+                        sourceItem.metadata?.[0]?.source ||
+                        `Source ${sourceIndex}`;
+
+                    console.log(`  → [source ${sourceIndex}] ${docName} (UUID: ${openwebuiFileId || 'N/A'})`);
+
+                    if (!openwebuiFileId) {
+                        console.log(`    ⚠️ 无 Open WebUI 文件 ID，跳过`);
+                        continue;
+                    }
+
+                    // 通过 openwebui_file_id 查找本地文档
+                    const matchResult = await pool.query(`
+                        SELECT d.id, d.title, d.file_name, d.file_path, d.file_type
+                        FROM kb_documents kbd
+                        JOIN documents d ON kbd.document_id = d.id
+                        WHERE kbd.openwebui_file_id = $1
+                        LIMIT 1
+                    `, [openwebuiFileId]);
+
+                    if (matchResult.rows.length > 0) {
+                        const doc = matchResult.rows[0];
+                        const sourceInfo = {
+                            index: sourceIndex,
+                            docId: doc.id,
+                            name: doc.title || doc.file_name,
+                            fileName: doc.file_name,
+                            url: `/api/documents/${doc.id}/preview`,
+                            downloadUrl: `/api/documents/${doc.id}/download`,
+                            fileType: doc.file_type,
+                            openwebuiFileId: openwebuiFileId
+                        };
+
+                        sources.push(sourceInfo);
+                        sourceIndexMap.set(sourceIndex, sourceInfo);
+                        console.log(`    ✅ 匹配成功: ${doc.file_name} (本地ID: ${doc.id})`);
+                    } else {
+                        console.log(`    ⚠️ 未在 kb_documents 中找到匹配: ${openwebuiFileId}`);
+                    }
+                }
+
+                console.log(`📎 共解析 ${sources.length} 个有效文档来源`);
+                console.log('📋 sourceIndexMap 完整映射:');
+                for (const [idx, info] of sourceIndexMap.entries()) {
+                    console.log(`    [${idx}] => docId:${info.docId}, fileName:${info.fileName}`);
+                }
+            } else {
+                console.log('⚠️ Open WebUI 未返回 sources 字段或为空');
+            }
+
+            // 7. [新增] 文本扫描：检查分析文本中是否提到了上下文中的文档
+            // Open WebUI 有时可能使用了上下文中的文件名但没有返回 structured source
+            if (context.documents && context.documents.length > 0) {
+                console.log('🔍 扫描 AI 文本以匹配上下文文档引用...');
+                const existingNames = new Set(sources.map(s => s.name));
+
+                for (const doc of context.documents) {
+                    // 如果文档已在来源列表中，跳过
+                    if (existingNames.has(doc.title) || existingNames.has(doc.file_name)) continue;
+
+                    // 检查文件名是否出现在文本中
+                    // 去掉扩展名进行匹配可能更准确
+                    const baseName = doc.file_name.replace(/\.[^/.]+$/, '');
+
+                    // 构建简单的正则匹配
+                    // 注意：这里需要转义文件名中的特殊字符
+                    const escapedName = doc.file_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                    const namePattern = new RegExp(escapedName, 'i');
+                    const baseNamePattern = new RegExp(escapedBaseName, 'i');
+
+                    if (namePattern.test(analysisText) || baseNamePattern.test(analysisText)) {
+                        console.log(`    ➕ 从文本中找回引用: ${doc.file_name}`);
+                        sources.push({
+                            name: doc.title || doc.file_name,
+                            fileName: doc.file_name,
+                            url: `/api/documents/${doc.id}/preview`,
+                            downloadUrl: `/api/documents/${doc.id}/download`,
+                            fileType: doc.file_type,
+                            matchedBy: 'text_reference',
+                            isTextReference: true
+                        });
+                        existingNames.add(doc.title || doc.file_name);
+                    }
+                }
+            }
+
+            // Fallback: 如果 Open WebUI 没有返回来源 (可能是没检索到)，使用本地上下文文档
+            if (sources.length === 0 && context.documents && context.documents.length > 0) {
+                console.log(`⚠️ Open WebUI 未返回有效来源，使用本地上下文文档作为建议参考 (${context.documents.length} 个)`);
+                for (const doc of context.documents) {
+                    // 避免重复添加 (虽然此时 sources 为空，但为了逻辑严谨)
+                    sources.push({
+                        name: doc.title || doc.file_name,
+                        fileName: doc.file_name,
+                        url: `/api/documents/${doc.id}/preview`,
+                        downloadUrl: `/api/documents/${doc.id}/download`,
+                        fileType: doc.file_type,
+                        matchedBy: 'context_fallback',
+                        isContextFallback: true // 标记为上下文回退文档
+                    });
+                }
+                console.log('📚 Open WebUI 未返回有效来源，使用 Fallback 本地文档:', sources.map(s => s.name).join(', '));
+            }
+
+            // 9. [新增] 自动为文中出现的纯文件名（无 ID 标记）添加链接
+            // 仅针对确认为来源的文档
+            for (const source of sources) {
+                const docName = source.fileName || source.name;
+                if (!docName) continue;
+
+                // 查找该文档的 ID
+                const urlMatch = source.url.match(/\/documents\/(\d+)\//);
+                const docId = urlMatch ? urlMatch[1] : null;
+                if (!docId) continue;
+
+                // 构建正则
+                const escapedName = docName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                // 同时也尝试匹配不带扩展名的文件名 (baseName)
+                const baseName = docName.replace(/\.[^/.]+$/, '');
+                let patternStr = `(${escapedName})`;
+
+                if (baseName && baseName.length >= 2 && baseName !== docName) {
+                    const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    patternStr = `(${escapedName}|${escapedBaseName})`;
+                }
+
+                const plainNameRegex = new RegExp(`${patternStr}(?!\\s*\\[id)`, 'g');
+
+                // 替换为HTML链接
+                analysisText = analysisText.replace(plainNameRegex, (match) => {
+                    return `<span class="ai-doc-link" data-id="${docId}" data-name="${docName}">${match}</span>`;
                 });
             }
 
-            console.log(`✅ n8n 返回成功: analysis 长度=${workflowResult.analysis?.length || 0}`);
+            // 构建 Maps 用于查找
+            const docMap = new Map();
+            const nameToDocMap = new Map();
 
-            res.json({
-                success: true,
-                data: {
-                    analysis: workflowResult.analysis,
-                    alert: workflowResult.alert
+            const addToMaps = (doc) => {
+                if (!doc || !doc.id) return;
+                const idStr = String(doc.id);
+                // 统一格式的对象
+                const docObj = {
+                    id: idStr,
+                    file_name: doc.file_name || doc.title,
+                    title: doc.title || doc.file_name
+                };
+
+                docMap.set(idStr, docObj);
+
+                // 建立文件名映射 (全名)
+                if (docObj.file_name) {
+                    nameToDocMap.set(docObj.file_name.toLowerCase(), docObj);
+                }
+                // 建立文件名映射 (无后缀)
+                if (docObj.file_name && docObj.file_name.includes('.')) {
+                    const baseName = docObj.file_name.replace(/\.[^/.]+$/, '');
+                    if (baseName.length >= 2) {
+                        nameToDocMap.set(baseName.toLowerCase(), docObj);
+                    }
+                }
+            };
+
+            if (context.documents) {
+                context.documents.forEach(addToMaps);
+            }
+            // 确保 sources 里的也能查到 (主要是有 id 的)
+            sources.forEach(s => {
+                const urlMatch = s.url.match(/\/documents\/(\d+)\//);
+                const docId = urlMatch ? urlMatch[1] : null;
+                if (docId) {
+                    addToMaps({
+                        id: docId,
+                        file_name: s.fileName || s.name,
+                        title: s.name
+                    });
                 }
             });
-        } else {
-            console.error('❌ n8n 工作流调用失败:', n8nResult.error);
-            res.status(500).json({
-                success: false,
-                error: n8nResult.error || 'n8n workflow failed'
+
+            // 10. [格式化] 格式化分析结果中的 [source X] 引用为 HTML 链接
+            // Open WebUI 返回的 AI 文本使用 [source X] 格式引用，其中 X 是 sources 数组的 1-indexed 索引
+            console.log('🎨 格式化 [source X] 引用为 HTML 链接...');
+            console.log('   sourceIndexMap 内容:', [...sourceIndexMap.entries()].map(([k, v]) => `${k}:${v.fileName}`).join(', '));
+
+            // 匹配 [source 1] 或 [source 1, source 9, source 11] 格式
+            analysisText = analysisText.replace(/\[source\s*([0-9,\s]+|[0-9]+(?:,\s*source\s*[0-9]+)*)\]/gi, (match) => {
+                // 提取所有数字
+                const numbers = match.match(/\d+/g);
+                if (!numbers || numbers.length === 0) return match;
+
+                const linkedSources = numbers.map(numStr => {
+                    const sourceIndex = parseInt(numStr, 10); // 1-indexed
+                    const sourceInfo = sourceIndexMap.get(sourceIndex);
+
+                    if (sourceInfo && sourceInfo.docId) {
+                        console.log(`   [source ${sourceIndex}] => docId ${sourceInfo.docId} (${sourceInfo.fileName})`);
+                        return `<span class="ai-doc-link" data-id="${sourceInfo.docId}" data-name="${sourceInfo.fileName || sourceInfo.name}">${numStr}</span>`;
+                    } else {
+                        console.log(`   [source ${sourceIndex}] => 未找到映射`);
+                    }
+                    return numStr; // 如果找不到对应的 source，保持原样
+                });
+
+                return `[source ${linkedSources.join(', ')}]`;
             });
+
+            // 10.2 处理 [id: X] 格式 (AI 有时会把 source 索引误写成 [id: X])
+            // 策略：如果 X 是小数字（1-50）且 docMap 中不存在，则当作 source 索引处理
+            console.log('🎨 格式化 [id: X] 引用为 HTML 链接...');
+            analysisText = analysisText.replace(/\[id:?\s*([0-9,\s]+)\]/gi, (match, idsContent) => {
+                const numbers = idsContent.split(/[,，\s]+/).filter(i => i);
+                if (!numbers || numbers.length === 0) return match;
+
+                const linkedIds = numbers.map(numStr => {
+                    const num = parseInt(numStr, 10);
+
+                    // 1. 首先检查是否是有效的数据库文档 ID (通常是 2-3 位数)
+                    if (docMap.has(String(num))) {
+                        const doc = docMap.get(String(num));
+                        console.log(`   [id: ${num}] => 数据库文档 ID (${doc.file_name})`);
+                        return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${numStr}</span>`;
+                    }
+
+                    // 2. 如果是小数字 (1-50) 且不在 docMap 中，当作 source 索引处理
+                    if (num >= 1 && num <= 50 && sourceIndexMap.has(num)) {
+                        const sourceInfo = sourceIndexMap.get(num);
+                        console.log(`   [id: ${num}] => 当作 source 索引处理 => docId ${sourceInfo.docId} (${sourceInfo.fileName})`);
+                        return `<span class="ai-doc-link" data-id="${sourceInfo.docId}" data-name="${sourceInfo.fileName}">${numStr}</span>`;
+                    }
+
+                    console.log(`   [id: ${num}] => 未找到匹配`);
+                    return numStr;
+                });
+
+                return `[id: ${linkedIds.join(', ')}]`;
+            });
+
+            // 10.3 处理简单的 [X] 格式 (如 [1], [3], [9] 或 [1], [5], [13])
+            // 这是 AI 使用的类似学术论文的引用格式
+            console.log('🎨 格式化 [X] 引用为 HTML 链接...');
+            analysisText = analysisText.replace(/\[(\d+(?:,\s*\d+)*)\]/g, (match, content) => {
+                // 跳过已经处理过的 (包含 span 标签的)
+                if (match.includes('data-id')) return match;
+
+                const numbers = content.split(/[,，\s]+/).filter(i => i);
+                if (!numbers || numbers.length === 0) return match;
+
+                const linkedNums = numbers.map(numStr => {
+                    const num = parseInt(numStr, 10);
+
+                    // 检查 sourceIndexMap
+                    if (sourceIndexMap.has(num)) {
+                        const sourceInfo = sourceIndexMap.get(num);
+                        console.log(`   [${num}] => docId ${sourceInfo.docId} (${sourceInfo.fileName})`);
+                        return `<span class="ai-doc-link" data-id="${sourceInfo.docId}" data-name="${sourceInfo.fileName}">${numStr}</span>`;
+                    }
+
+                    // 检查 docMap (以防万一是直接的数据库 ID)
+                    if (docMap.has(String(num))) {
+                        const doc = docMap.get(String(num));
+                        console.log(`   [${num}] => docMap ID (${doc.file_name})`);
+                        return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${numStr}</span>`;
+                    }
+
+                    console.log(`   [${num}] => 未找到匹配`);
+                    return numStr;
+                });
+
+                return `[${linkedNums.join(', ')}]`;
+            });
+
+            // 10.4 自动生成"参考的文档"部分（替换 AI 可能生成的错误版本）
+            console.log('📝 自动生成"参考的文档"部分...');
+
+            // 移除 AI 可能生成的"参考的文档"部分
+            analysisText = analysisText.replace(/\n*### 4\. 参考的文档[\s\S]*$/i, '');
+            analysisText = analysisText.replace(/\n*\*\*?参考的文档\*\*?[\s\S]*$/i, '');
+
+            // 提取正文中实际出现的引用索引 (查找已处理的 span 标签中的 data-id)
+            const citedDocIds = new Set();
+            const spanRegex = /<span class="ai-doc-link" data-id="(\d+)"/g;
+            let spanMatch;
+            while ((spanMatch = spanRegex.exec(analysisText)) !== null) {
+                citedDocIds.add(spanMatch[1]);
+            }
+            console.log(`    📊 正文中实际引用的文档ID: ${[...citedDocIds].join(', ')}`);
+
+            // 从 sourceIndexMap 中提取去重的文档列表，只保留实际被引用的
+            const uniqueDocs = new Map(); // docId => {fileName, indices: []}
+            for (const [idx, info] of sourceIndexMap.entries()) {
+                // 只添加实际被引用的文档
+                if (!citedDocIds.has(String(info.docId))) continue;
+
+                if (!uniqueDocs.has(info.docId)) {
+                    uniqueDocs.set(info.docId, {
+                        docId: info.docId,
+                        fileName: info.fileName,
+                        indices: []
+                    });
+                }
+                uniqueDocs.get(info.docId).indices.push(idx);
+            }
+
+            // 按第一次出现的索引排序
+            const sortedDocs = [...uniqueDocs.values()].sort((a, b) => Math.min(...a.indices) - Math.min(...b.indices));
+
+            if (sortedDocs.length > 0) {
+                let refSection = '\n\n### 4. 参考的文档\n';
+                for (const doc of sortedDocs) {
+                    // 使用文档对应的最小引用索引作为编号
+                    const minIndex = Math.min(...doc.indices);
+                    // 生成带原始编号和链接的文档名
+                    refSection += `[${minIndex}] <span class="ai-doc-link" data-id="${doc.docId}" data-name="${doc.fileName}">${doc.fileName}</span>\n`;
+                }
+                analysisText += refSection;
+                console.log(`    ✅ 已生成 ${sortedDocs.length} 个实际引用的文档`);
+            } else {
+                console.log('    ⚠️ 正文中无有效文档引用');
+            }
+
+        } catch (sourceError) {
+            console.warn('⚠️ 解析文档来源失败:', sourceError.message);
+            // 出错时也尝试使用上下文文档
+            if (context.documents && context.documents.length > 0) {
+                sources = context.documents.map(doc => ({
+                    name: doc.title || doc.file_name,
+                    fileName: doc.file_name,
+                    url: `/api/documents/${doc.id}/preview`,
+                    downloadUrl: `/api/documents/${doc.id}/download`,
+                    fileType: doc.file_type,
+                    matchedBy: 'error_fallback'
+                }));
+                console.log('📚 Open WebUI RAG 返回的参考文献:', sources.map(s => s.name).join(', '));
+            }
         }
+
+        res.json({
+            success: true,
+            data: {
+                analysis: analysisText,
+                sources,  // 添加文档来源数组
+                alert: {
+                    roomCode,
+                    roomName,
+                    temperature,
+                    threshold: finalThreshold,
+                    alertType: finalAlertType,
+                }
+            }
+        });
     } catch (error) {
         console.error('❌ 温度报警 API 错误:', error);
         res.status(500).json({
@@ -115,6 +677,7 @@ router.post('/temperature-alert', async (req, res) => {
         });
     }
 });
+
 
 /**
  * POST /api/ai/analyze

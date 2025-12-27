@@ -65,8 +65,17 @@
       :room-name="aiAnalysisData.roomName"
       :temperature="aiAnalysisData.temperature"
       :analysis="aiAnalysisData.analysis"
+      :sources="aiAnalysisData.sources || []"
       @close="closeAIAnalysisModal"
       @acknowledge="acknowledgeAlert"
+      @openSource="handleOpenSource"
+    />
+
+    <!-- 文档预览弹窗 -->
+    <DocumentPreview
+      :visible="showDocPreview"
+      :document="previewDoc"
+      @close="showDocPreview = false"
     />
 
   </div>
@@ -79,6 +88,7 @@ import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
 import OverlayTags from './viewer/OverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
+import DocumentPreview from './DocumentPreview.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
 import ViewerControls from './viewer/ViewerControls.vue';
 import DateRangePicker from './DateRangePicker.vue';
@@ -133,7 +143,8 @@ const aiAnalysisData = ref({
   temperature: 0,
   threshold: 28,
   severity: 'warning',
-  analysis: ''
+  analysis: '',
+  sources: []  // 文档来源列表
 });
 
 // 辅助函数：设置手动选择标志，并在短时间后自动重置
@@ -144,6 +155,48 @@ const setManualSelection = () => {
   setTimeout(() => {
     isManualSelection = false;
   }, 100);
+};
+
+// 文档预览状态
+const showDocPreview = ref(false);
+const previewDoc = ref(null);
+
+const handleOpenSource = async (source) => {
+  console.log('📄 打开文档预览:', source);
+  
+  // 从 API 获取完整的文档信息（包括正确的 file_path）
+  try {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`);
+    const data = await response.json();
+    
+    if (data.success && data.data) {
+      previewDoc.value = data.data;
+    } else {
+      // 降级：使用传入的信息构造文档对象
+      previewDoc.value = {
+        id: source.documentId,
+        title: source.title || source.name,
+        file_name: source.name || source.title,
+        file_path: `/docs/${source.documentId}`, // 这个可能不正确，但作为降级方案
+        file_type: source.fileType || 'pdf',
+        image_width: source.width,
+        image_height: source.height
+      };
+    }
+  } catch (error) {
+    console.error('获取文档信息失败:', error);
+    // 降级处理
+    previewDoc.value = {
+      id: source.documentId,
+      title: source.title || source.name,
+      file_name: source.name || source.title,
+      file_path: `/docs/${source.documentId}`,
+      file_type: source.fileType || 'pdf'
+    };
+  }
+  
+  showDocPreview.value = true;
 };
 
 // 资产状态
@@ -340,8 +393,8 @@ const setTagTempsAtCurrentTime = () => {
         tag.currentTemp = newTemp;
         
         // 温度阈值
-        const HIGH_THRESHOLD = 28;
-        const LOW_THRESHOLD = 0;
+        const HIGH_THRESHOLD = 26;
+        const LOW_THRESHOLD = 10;
         const tempValue = parseFloat(newTemp);
         
         // 调试日志：打印报警判断条件
@@ -361,23 +414,39 @@ const setTagTempsAtCurrentTime = () => {
             temperature: tempValue,
             threshold: HIGH_THRESHOLD,
             severity: tempValue >= HIGH_THRESHOLD + 5 ? 'critical' : 'warning',
-            analysis: ''
+            analysis: '',
+            sources: []
           };
           aiAnalysisLoading.value = true;
           showAIAnalysisModal.value = true;
           
           // 异步调用 n8n AI 分析工作流
+
+          console.log(`🚀 发送高温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
+          console.log(`👀 [DEBUG] tag dump:`, JSON.stringify(tag));
           triggerTemperatureAlert({
             roomCode: tag.code,
             roomName: tag.name || tag.code,
             temperature: tempValue,
             threshold: HIGH_THRESHOLD,
             alertType: 'high',
+            fileId: tag.fileId,
           }).then(result => {
             aiAnalysisLoading.value = false;
             if (result.success && result.analysis) {
               console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
               aiAnalysisData.value.analysis = result.analysis;
+              // 保存文档来源列表
+              if (result.sources && result.sources.length > 0) {
+                aiAnalysisData.value.sources = result.sources.map(s => ({
+                  ...s,
+                  isInternal: true,  // 标记为内部文档
+                  documentId: s.id || null
+                }));
+                console.log(`📄 MainView 更新 sources:`, aiAnalysisData.value.sources);
+              } else {
+                console.warn(`⚠️ MainView 收到的 result.sources 为空或不存在`, result);
+              }
             } else {
               console.warn(`⚠️ AI 分析失败:`, result.error);
               aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
@@ -401,23 +470,36 @@ const setTagTempsAtCurrentTime = () => {
             temperature: tempValue,
             threshold: LOW_THRESHOLD,
             severity: tempValue <= LOW_THRESHOLD - 5 ? 'critical' : 'warning',
-            analysis: ''
+            analysis: '',
+            sources: []
           };
           aiAnalysisLoading.value = true;
           showAIAnalysisModal.value = true;
           
           // 异步调用 n8n AI 分析工作流（低温报警）
+
+          console.log(`🚀 发送低温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
           triggerTemperatureAlert({
             roomCode: tag.code,
             roomName: tag.name || tag.code,
             temperature: tempValue,
             threshold: LOW_THRESHOLD,
             alertType: 'low',
+            fileId: tag.fileId,
           }).then(result => {
             aiAnalysisLoading.value = false;
             if (result.success && result.analysis) {
               console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
               aiAnalysisData.value.analysis = result.analysis;
+              // 保存文档来源列表
+              if (result.sources && result.sources.length > 0) {
+                aiAnalysisData.value.sources = result.sources.map(s => ({
+                  ...s,
+                  isInternal: true,
+                  documentId: s.id || null
+                }));
+                console.log(`📄 文档来源: ${result.sources.length} 个`);
+              }
             } else {
               console.warn(`⚠️ AI 分析失败:`, result.error);
               aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
@@ -466,6 +548,41 @@ const currentDateStr = computed(() => {
   const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
   return currentDisplayDate.value.toLocaleDateString(localeCode, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 });
+
+// 监听 rooms 变化更新 roomTags，确保 fileId 被传递
+watch(() => props.rooms, (newRooms) => {
+  if (newRooms && newRooms.length > 0) {
+    // 只有当 roomTags 为空或者需要更新时才重新赋值
+    // 这里我们要小心不要覆盖了已有的 tag 状态（如 currentTemp）
+    // 所以我们只更新/合并属性
+    
+    // 如果 roomTags 为空，直接初始化
+    if (roomTags.value.length === 0) {
+      roomTags.value = newRooms.map(r => ({
+        ...r,
+        code: r.code,
+        name: r.name,
+        dbId: r.dbId,
+        fileId: r.fileId, // 确保 fileId 被复制
+        currentTemp: '20.0', // 默认温度
+        visible: false,
+        _highAlertTriggered: false,
+        _lowAlertTriggered: false
+      }));
+      console.log(`🏠 初始化 roomTags: ${roomTags.value.length} 个, 第一个tag.fileId=${roomTags.value[0]?.fileId}`);
+    } else {
+      // 如果已存在，更新 fileId (如果缺失)
+      roomTags.value.forEach(tag => {
+        const room = newRooms.find(r => r.code === tag.code || r.dbId === tag.dbId);
+        if (room && room.fileId) {
+          tag.fileId = room.fileId;
+        }
+      });
+      console.log(`🏠 更新 roomTags fileId: ${roomTags.value[0]?.fileId}, 原始 rooms[0].fileId=${newRooms[0]?.fileId}`);
+      console.log('👀 [DEBUG] MainView roomTags[0] full dump:', JSON.stringify(roomTags.value[0]));
+    }
+  }
+}, { immediate: true, deep: true });
 const currentTimeStr = computed(() => {
   const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
   const timeStr = currentDisplayDate.value.toLocaleTimeString(localeCode, { hour: 'numeric', minute: '2-digit', hour12: locale.value !== 'zh' });
@@ -1128,7 +1245,16 @@ const processRooms = (dbIds) => {
           code: code
         });
         const tag = newTags.find(t => t.dbId === dbId);
-        if (tag) tag.code = code;
+        if (tag) {
+          tag.code = code;
+          // 尝试从 props.rooms 中匹配 fileId
+          if (props.rooms && props.rooms.length > 0) {
+            const match = props.rooms.find(r => r.code === code || r.dbId === dbId);
+            if (match && match.fileId) {
+              tag.fileId = match.fileId;
+            }
+          }
+        }
       }
 
       pendingProps--;

@@ -63,7 +63,7 @@
           </div>
 
           <!-- 全景图预览 -->
-          <div v-if="isPanorama" class="panorama-wrapper">
+          <div v-else-if="isPanorama" class="panorama-wrapper">
             <div ref="panoramaRef" class="panorama-viewer"></div>
             <!-- 自定义控制按钮 -->
             <div class="panorama-controls">
@@ -163,7 +163,12 @@ const panoramaRoll = ref(0); // 全景图滚转角度
 // 获取文件 URL
 const fileUrl = computed(() => {
   if (!props.document) return '';
-  return `${API_BASE}${props.document.file_path}`;
+  let url = `${API_BASE}${props.document.file_path}`;
+  // 对于 PDF，添加参数隐藏浏览器 PDF 查看器的侧边栏
+  if (props.document?.file_type?.toLowerCase() === 'pdf') {
+    url += '#toolbar=1&navpanes=0&scrollbar=1';
+  }
+  return url;
 });
 
 // 文件类型判断
