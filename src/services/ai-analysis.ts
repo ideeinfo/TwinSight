@@ -20,6 +20,16 @@ export async function triggerTemperatureAlert(alertData: {
 }): Promise<{
     success: boolean;
     analysis?: string;
+    sources?: Array<{
+        name: string;
+        fileName?: string;
+        url?: string;
+        downloadUrl?: string;
+        fileType?: string;
+        matchedBy?: string;
+        isInternal?: boolean;
+        documentId?: number;
+    }>;
     error?: string;
 }> {
     try {
@@ -63,6 +73,7 @@ export async function triggerTemperatureAlert(alertData: {
         return {
             success: result.success,
             analysis: analysisText,
+            sources: result.data?.sources || [],
             error: result.error,
         };
     } catch (error: any) {

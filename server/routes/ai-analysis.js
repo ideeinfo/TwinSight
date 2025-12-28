@@ -11,6 +11,25 @@ import pool from '../db/index.js';
 
 const router = express.Router();
 
+// ============================================
+// 配置开关：选择使用直接调用 Open WebUI 还是 n8n 工作流
+// ============================================
+const USE_N8N_WORKFLOW = process.env.USE_N8N_WORKFLOW === 'true' || false;
+// 使用现有的环境变量配置
+const N8N_BASE_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678';
+const N8N_TEMPERATURE_WEBHOOK = process.env.N8N_TEMPERATURE_ALERT_WEBHOOK || '/webhook/temperature-alert';
+const N8N_MANUAL_WEBHOOK = process.env.N8N_MANUAL_ANALYSIS_WEBHOOK || '/webhook/manual-analysis';
+
+// 构建完整的 webhook URL
+const N8N_TEMPERATURE_ALERT_URL = `${N8N_BASE_URL}${N8N_TEMPERATURE_WEBHOOK}`;
+const N8N_MANUAL_ANALYSIS_URL = `${N8N_BASE_URL}${N8N_MANUAL_WEBHOOK}`;
+
+console.log(`🔧 AI 分析模式: ${USE_N8N_WORKFLOW ? 'n8n 工作流' : '直接调用 Open WebUI'}`);
+if (USE_N8N_WORKFLOW) {
+    console.log(`🔗 n8n 温度报警 Webhook: ${N8N_TEMPERATURE_ALERT_URL}`);
+    console.log(`🔗 n8n 手动分析 Webhook: ${N8N_MANUAL_ANALYSIS_URL}`);
+}
+
 /**
  * GET /api/ai/health
  * 检查 AI 服务是否可用
@@ -65,6 +84,189 @@ router.post('/temperature-alert', async (req, res) => {
         const isHighTemp = finalAlertType === 'high';
         const alertTypeText = isHighTemp ? '高温' : '低温';
 
+        // ============================================
+        // 分支：使用 n8n 工作流还是直接调用 Open WebUI
+        // ============================================
+        if (USE_N8N_WORKFLOW) {
+            console.log(`📡 收到温度报警请求 (n8n 工作流):`, {
+                roomName, roomCode, temperature, threshold: finalThreshold, alertType: finalAlertType
+            });
+
+            try {
+                // 调用 n8n webhook
+                const n8nResponse = await fetch(N8N_TEMPERATURE_ALERT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        roomCode,
+                        roomName,
+                        temperature,
+                        threshold: finalThreshold,
+                        alertType: finalAlertType,
+                        fileId
+                    })
+                });
+
+                if (!n8nResponse.ok) {
+                    throw new Error(`n8n webhook 返回错误: ${n8nResponse.status}`);
+                }
+
+                const n8nResult = await n8nResponse.json();
+                console.log(`✅ n8n 工作流返回成功`);
+
+                // 在后端处理来源格式化（n8n 只负责 AI 调用编排）
+                let analysisText = n8nResult.analysis || '';
+                const rawSources = n8nResult.rawSources || [];
+                const sourceIndexMap = n8nResult.sourceIndexMap || {};
+                let formattedSources = [];
+
+                try {
+                    // 从 sourceIndexMap 中提取 Open WebUI 文件 ID
+                    const openwebuiFileIds = [];
+                    for (const [idx, info] of Object.entries(sourceIndexMap)) {
+                        if (info.openwebuiFileId) {
+                            openwebuiFileIds.push(info.openwebuiFileId);
+                        }
+                    }
+
+                    // 查询本地文档信息
+                    const docMap = new Map();
+                    if (openwebuiFileIds.length > 0) {
+                        const docsResult = await pool.query(`
+                            SELECT d.id, d.title, d.file_name, d.file_type, kbd.openwebui_file_id
+                            FROM kb_documents kbd
+                            JOIN documents d ON kbd.document_id = d.id
+                            WHERE kbd.openwebui_file_id = ANY($1)
+                        `, [openwebuiFileIds]);
+
+                        for (const doc of docsResult.rows) {
+                            for (const [idx, info] of Object.entries(sourceIndexMap)) {
+                                if (info.openwebuiFileId === doc.openwebui_file_id) {
+                                    sourceIndexMap[idx].docId = doc.id;
+                                    sourceIndexMap[idx].fileName = doc.file_name;
+                                }
+                            }
+                            docMap.set(String(doc.id), {
+                                id: doc.id,
+                                file_name: doc.file_name,
+                                title: doc.title
+                            });
+                        }
+                        console.log(`📚 映射了 ${docsResult.rows.length} 个文档 ID`);
+                    }
+
+                    // 格式化引用 - 处理 [source X], [id: X], [X] 格式
+                    analysisText = analysisText.replace(/\[source\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
+                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+                        const linkedNums = indices.map(idx => {
+                            const info = sourceIndexMap[String(idx)];
+                            if (info && info.docId) {
+                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${idx}</span>`;
+                            }
+                            return String(idx);
+                        });
+                        return `[${linkedNums.join(', ')}]`;
+                    });
+
+                    analysisText = analysisText.replace(/\[id:?\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
+                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+                        const linkedNums = indices.map(num => {
+                            if (docMap.has(String(num))) {
+                                const doc = docMap.get(String(num));
+                                return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
+                            }
+                            const info = sourceIndexMap[String(num)];
+                            if (info && info.docId) {
+                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
+                            }
+                            return String(num);
+                        });
+                        return `[${linkedNums.join(', ')}]`;
+                    });
+
+                    analysisText = analysisText.replace(/(?<!\w)\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (match, nums) => {
+                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+                        const linkedNums = indices.map(num => {
+                            const info = sourceIndexMap[String(num)];
+                            if (info && info.docId) {
+                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
+                            }
+                            if (docMap.has(String(num))) {
+                                const doc = docMap.get(String(num));
+                                return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
+                            }
+                            return String(num);
+                        });
+                        return `[${linkedNums.join(', ')}]`;
+                    });
+
+                    // 提取引用的文档 ID 生成参考文档列表
+                    const citedDocIds = new Set();
+                    const spanRegex = /<span class="ai-doc-link" data-id="(\d+)"/g;
+                    let spanMatch;
+                    while ((spanMatch = spanRegex.exec(analysisText)) !== null) {
+                        citedDocIds.add(spanMatch[1]);
+                    }
+
+                    // 构建去重的文档列表
+                    const uniqueDocs = new Map();
+                    for (const [idx, info] of Object.entries(sourceIndexMap)) {
+                        if (!info.docId || !citedDocIds.has(String(info.docId))) continue;
+                        if (!uniqueDocs.has(info.docId)) {
+                            uniqueDocs.set(info.docId, {
+                                docId: info.docId,
+                                fileName: info.fileName,
+                                indices: []
+                            });
+                        }
+                        uniqueDocs.get(info.docId).indices.push(parseInt(idx));
+                    }
+
+                    const sortedDocs = [...uniqueDocs.values()].sort((a, b) => Math.min(...a.indices) - Math.min(...b.indices));
+
+                    // 自动生成"参考的文档"部分
+                    analysisText = analysisText.replace(/\n*### 4\. 参考的文档[\s\S]*$/i, '');
+                    if (sortedDocs.length > 0) {
+                        let refSection = '\n\n### 4. 参考的文档\n';
+                        for (const doc of sortedDocs) {
+                            const minIndex = Math.min(...doc.indices);
+                            refSection += `[${minIndex}] <span class="ai-doc-link" data-id="${doc.docId}" data-name="${doc.fileName}">${doc.fileName}</span>\n`;
+                        }
+                        analysisText += refSection;
+                    }
+
+                    formattedSources = sortedDocs.map(doc => ({
+                        name: doc.fileName,
+                        url: `/api/documents/${doc.docId}/preview`,
+                        downloadUrl: `/api/documents/${doc.docId}/download`,
+                        docId: doc.docId
+                    }));
+
+                    console.log(`📝 n8n 结果格式化完成，引用了 ${formattedSources.length} 个文档`);
+                } catch (formatError) {
+                    console.warn('⚠️ n8n 来源格式化失败，使用原始数据:', formatError.message);
+                }
+
+                return res.json({
+                    success: true,
+                    data: {
+                        analysis: analysisText,
+                        sources: formattedSources,
+                        alert: n8nResult.alert
+                    }
+                });
+            } catch (n8nError) {
+                console.error('❌ n8n 工作流调用失败:', n8nError.message);
+                return res.status(500).json({
+                    success: false,
+                    error: `n8n 工作流调用失败: ${n8nError.message}`
+                });
+            }
+        }
+
+        // ============================================
+        // 直接调用 Open WebUI 模式
+        // ============================================
         console.log(`📡 收到温度报警请求 (Direct Open WebUI):`, {
             roomName, roomCode, temperature, threshold: finalThreshold, alertType: finalAlertType
         });
@@ -723,6 +925,304 @@ router.post('/analyze', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ 手动分析 API 错误:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================
+// n8n 工作流支持 API
+// ============================================
+
+/**
+ * GET /api/ai/context
+ * 获取上下文数据（供 n8n 工作流使用）
+ * 
+ * Query:
+ *   roomCode: string
+ *   roomName: string
+ *   fileId: number
+ */
+router.get('/context', async (req, res) => {
+    try {
+        const { roomCode, roomName, fileId } = req.query;
+
+        if (!roomCode) {
+            return res.status(400).json({
+                success: false,
+                error: '缺少必要参数: roomCode'
+            });
+        }
+
+        console.log(`📡 n8n 请求上下文: roomCode=${roomCode}, roomName=${roomName}, fileId=${fileId}`);
+
+        // 查询房间内的设备
+        const assetsResult = await pool.query(`
+            SELECT asset_code, name, spec_code, floor, room
+            FROM assets WHERE room ILIKE $1 OR room ILIKE $2
+        `, [`%${roomCode}%`, `%${roomName || ''}%`]);
+        const assets = assetsResult.rows;
+        console.log(`📦 查询到 ${assets.length} 个设备`);
+
+        // 收集搜索关键词
+        const searchPatterns = [`%${roomCode}%`];
+        if (roomName) searchPatterns.push(`%${roomName}%`);
+        if (assets.length > 0) {
+            const assetPatterns = assets
+                .flatMap(a => [a.name])
+                .filter(val => val && val.length > 2)
+                .map(val => `%${val}%`);
+            searchPatterns.push(...assetPatterns);
+        }
+
+        const assetCodes = assets.map(a => a.asset_code).filter(c => c);
+        const specCodes = assets.map(a => a.spec_code).filter(c => c);
+
+        // 查询相关文档
+        const docsQuery = `
+            SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
+            FROM documents
+            WHERE (
+                space_code ILIKE $1 
+                ${roomName ? 'OR space_code ILIKE $2' : ''}
+                ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
+                ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
+                OR file_name ILIKE ANY($3)
+                OR title ILIKE ANY($3)
+            )
+              AND file_name NOT ILIKE '%.jpg' 
+              AND file_name NOT ILIKE '%.png'
+              AND file_name NOT ILIKE '%.jpeg'
+              AND file_name NOT ILIKE '%.gif'
+              AND file_name NOT ILIKE '%.webp'
+            LIMIT 20
+        `;
+
+        const docsParams = [`%${roomCode}%`];
+        if (roomName) docsParams.push(`%${roomName}%`);
+        docsParams.push(searchPatterns);
+        if (assetCodes.length > 0) docsParams.push(assetCodes);
+        if (specCodes.length > 0) docsParams.push(specCodes);
+
+        const docsResult = await pool.query(docsQuery, docsParams);
+        const documents = docsResult.rows;
+        console.log(`📄 查询到 ${documents.length} 个相关文档`);
+
+        // 获取知识库 ID 和文件 IDs
+        let kbId = null;
+        let fileIds = [];
+
+        if (fileId) {
+            const kbResult = await pool.query(`
+                SELECT openwebui_kb_id, kb_name
+                FROM knowledge_bases
+                WHERE file_id = $1
+            `, [fileId]);
+
+            if (kbResult.rows.length > 0) {
+                kbId = kbResult.rows[0].openwebui_kb_id;
+            }
+
+            // 查询相关文档的 Open WebUI 文件 ID
+            const fileIdsResult = await pool.query(`
+                SELECT kbd.openwebui_file_id, d.file_name
+                FROM kb_documents kbd
+                JOIN documents d ON kbd.document_id = d.id
+                WHERE kbd.openwebui_file_id IS NOT NULL
+                  AND kbd.sync_status = 'synced'
+                  AND (
+                      d.space_code ILIKE $1 
+                      ${roomName ? 'OR d.space_code ILIKE $2' : ''}
+                      OR d.file_name ILIKE ANY($3)
+                  )
+                  AND d.file_name NOT ILIKE '%.jpg' 
+                  AND d.file_name NOT ILIKE '%.png'
+                LIMIT 20
+            `, docsParams.slice(0, 3));
+
+            if (fileIdsResult.rows.length > 0) {
+                fileIds = fileIdsResult.rows.map(r => r.openwebui_file_id);
+            }
+        }
+
+        res.json({
+            success: true,
+            assets,
+            documents,
+            kbId,
+            fileIds
+        });
+    } catch (error) {
+        console.error('❌ 获取上下文失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/ai/format-citations
+ * 格式化引用和来源（供 n8n 工作流使用）
+ * 
+ * Body:
+ *   analysisText: string
+ *   sourceIndexMap: object
+ *   sources: array
+ */
+router.post('/format-citations', async (req, res) => {
+    try {
+        const { analysisText, sourceIndexMap, sources } = req.body;
+
+        if (!analysisText) {
+            return res.status(400).json({
+                success: false,
+                error: '缺少必要参数: analysisText'
+            });
+        }
+
+        console.log(`📝 格式化引用: 文本长度=${analysisText.length}, sources=${sources?.length || 0}`);
+
+        // 将 sourceIndexMap 对象转换为 Map
+        const indexMap = new Map(Object.entries(sourceIndexMap || {}).map(([k, v]) => [parseInt(k), v]));
+
+        // 构建 docMap (通过查询数据库获取本地文档信息)
+        const docMap = new Map();
+        const openwebuiFileIds = [...indexMap.values()].map(v => v.openwebuiFileId).filter(Boolean);
+
+        if (openwebuiFileIds.length > 0) {
+            const docsResult = await pool.query(`
+                SELECT d.id, d.title, d.file_name, d.file_type, kbd.openwebui_file_id
+                FROM kb_documents kbd
+                JOIN documents d ON kbd.document_id = d.id
+                WHERE kbd.openwebui_file_id = ANY($1)
+            `, [openwebuiFileIds]);
+
+            for (const doc of docsResult.rows) {
+                // 更新 indexMap 中的 docId
+                for (const [idx, info] of indexMap.entries()) {
+                    if (info.openwebuiFileId === doc.openwebui_file_id) {
+                        info.docId = doc.id;
+                        info.fileName = doc.file_name;
+                        indexMap.set(idx, info);
+                    }
+                }
+                docMap.set(String(doc.id), {
+                    id: doc.id,
+                    file_name: doc.file_name,
+                    title: doc.title
+                });
+            }
+        }
+
+        let formattedText = analysisText;
+
+        // 10.1 处理 [source X] 格式
+        formattedText = formattedText.replace(/\[source\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
+            const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+            const linkedNums = indices.map(idx => {
+                const info = indexMap.get(idx);
+                if (info && info.docId) {
+                    return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${idx}</span>`;
+                }
+                return String(idx);
+            });
+            return `[${linkedNums.join(', ')}]`;
+        });
+
+        // 10.2 处理 [id: X] 格式
+        formattedText = formattedText.replace(/\[id:?\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
+            const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+            const linkedNums = indices.map(num => {
+                // 先尝试直接作为文档 ID
+                if (docMap.has(String(num))) {
+                    const doc = docMap.get(String(num));
+                    return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
+                }
+                // 再尝试作为 source index (1-50 范围)
+                if (num <= 50) {
+                    const info = indexMap.get(num);
+                    if (info && info.docId) {
+                        return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
+                    }
+                }
+                return String(num);
+            });
+            return `[${linkedNums.join(', ')}]`;
+        });
+
+        // 10.3 处理简单 [X] 格式
+        formattedText = formattedText.replace(/(?<!\w)\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (match, nums) => {
+            const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+            const linkedNums = indices.map(num => {
+                // 尝试作为 source index
+                const info = indexMap.get(num);
+                if (info && info.docId) {
+                    return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
+                }
+                // 尝试作为文档 ID
+                if (docMap.has(String(num))) {
+                    const doc = docMap.get(String(num));
+                    return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
+                }
+                return String(num);
+            });
+            return `[${linkedNums.join(', ')}]`;
+        });
+
+        // 10.4 自动生成"参考的文档"部分
+        formattedText = formattedText.replace(/\n*### 4\. 参考的文档[\s\S]*$/i, '');
+
+        // 提取正文中实际引用的文档 ID
+        const citedDocIds = new Set();
+        const spanRegex = /<span class="ai-doc-link" data-id="(\d+)"/g;
+        let spanMatch;
+        while ((spanMatch = spanRegex.exec(formattedText)) !== null) {
+            citedDocIds.add(spanMatch[1]);
+        }
+
+        // 构建去重的文档列表
+        const uniqueDocs = new Map();
+        for (const [idx, info] of indexMap.entries()) {
+            if (!info.docId || !citedDocIds.has(String(info.docId))) continue;
+            if (!uniqueDocs.has(info.docId)) {
+                uniqueDocs.set(info.docId, {
+                    docId: info.docId,
+                    fileName: info.fileName,
+                    indices: []
+                });
+            }
+            uniqueDocs.get(info.docId).indices.push(idx);
+        }
+
+        const sortedDocs = [...uniqueDocs.values()].sort((a, b) => Math.min(...a.indices) - Math.min(...b.indices));
+
+        if (sortedDocs.length > 0) {
+            let refSection = '\n\n### 4. 参考的文档\n';
+            for (const doc of sortedDocs) {
+                const minIndex = Math.min(...doc.indices);
+                refSection += `[${minIndex}] <span class="ai-doc-link" data-id="${doc.docId}" data-name="${doc.fileName}">${doc.fileName}</span>\n`;
+            }
+            formattedText += refSection;
+        }
+
+        // 构建最终的 sources 列表
+        const formattedSources = sortedDocs.map(doc => ({
+            name: doc.fileName,
+            url: `/api/documents/${doc.docId}/preview`,
+            downloadUrl: `/api/documents/${doc.docId}/download`,
+            docId: doc.docId
+        }));
+
+        res.json({
+            success: true,
+            formattedText,
+            sources: formattedSources
+        });
+    } catch (error) {
+        console.error('❌ 格式化引用失败:', error);
         res.status(500).json({
             success: false,
             error: error.message

@@ -28,7 +28,7 @@
                 <span class="alert-location">{{ roomName }}</span>
                 <span class="alert-temp">{{ temperature }}°C</span>
               </div>
-              <div class="ai-analysis-text" v-html="formattedAnalysis"></div>
+              <div class="ai-analysis-text" v-html="formattedAnalysis" @click="handleTextClick"></div>
             </div>
           </div>
           
@@ -70,9 +70,54 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  sources: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-defineEmits(['close', 'acknowledge']);
+const emit = defineEmits(['close', 'acknowledge', 'openSource']);
+
+/**
+ * 处理来源链接点击
+ * @param {Object} source - 来源对象
+ */
+const handleSourceClick = (source) => {
+  if (source.isInternal && source.documentId) {
+    // 内部文档：通过 emit 通知父组件打开预览
+    emit('openSource', source);
+  } else if (source.url) {
+    // 外部链接：新窗口打开
+    window.open(source.url, '_blank');
+  }
+};
+
+/**
+ * 处理分析文本中的点击事件
+ * 捕获 .ai-doc-link 的点击
+ */
+const handleTextClick = (e) => {
+  const link = e.target.closest('.ai-doc-link');
+  if (link) {
+    const id = link.dataset.id;
+    const name = link.dataset.name;
+    if (id && name) {
+      // 从文件名推断文件类型
+      const fileType = name.split('.').pop().toLowerCase();
+      
+      emit('openSource', { 
+        documentId: id, 
+        name, 
+        isInternal: true,
+        fileType, // 传递文件类型
+        // 添加额外信息以便 DocumentPreview 知道如何处理
+        title: name,
+        url: `/api/documents/${id}/preview`,
+        downloadUrl: `/api/documents/${id}/download`
+      });
+    }
+  }
+};
 
 /**
  * 格式化分析文本
@@ -311,5 +356,157 @@ const formattedAnalysis = computed(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* 参考来源样式 */
+.ai-sources {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sources-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sources-header svg {
+  stroke: rgba(255, 255, 255, 0.6);
+}
+
+.sources-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+}
+
+.source-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.source-link.internal {
+  background: rgba(102, 126, 234, 0.15);
+  color: #a8b8ff;
+}
+
+.source-link.internal:hover {
+  background: rgba(102, 126, 234, 0.25);
+  color: #c8d4ff;
+}
+
+.source-link.external {
+  background: rgba(76, 175, 80, 0.15);
+  color: #a5d6a7;
+}
+
+.source-link.external:hover {
+  background: rgba(76, 175, 80, 0.25);
+  color: #c8d6c9;
+}
+
+.source-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  width: 100%;
+}
+
+.source-icon {
+  font-size: 16px;
+}
+
+.ai-modal-footer {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ai-btn-primary, .ai-btn-secondary {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.ai-btn-primary {
+  background: #667eea;
+  color: #fff;
+}
+
+.ai-btn-primary:hover {
+  background: #5a6fd6;
+  transform: translateY(-1px);
+}
+
+.ai-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.ai-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* 深度选择器以应用样式到 v-html 内容 */
+:deep(.ai-doc-link) {
+  color: #4fc3f7;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s;
+  padding: 0 4px;
+}
+
+:deep(.ai-doc-link:hover) {
+  color: #81d4fa;
+  background: rgba(79, 195, 247, 0.1);
+  border-radius: 4px;
+}
+
+.source-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.source-icon {
+  font-size: 14px;
 }
 </style>

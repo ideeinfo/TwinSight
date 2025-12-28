@@ -388,6 +388,47 @@ router.get('/:id/download', async (req, res) => {
 });
 
 /**
+ * 预览文档 (Inline)
+ * GET /api/documents/:id/preview
+ */
+router.get('/:id/preview', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const document = await documentModel.getDocumentById(id);
+
+        if (!document) {
+            return res.status(404).send('文档不存在');
+        }
+
+        const filePath = path.join(__dirname, '../../public', document.file_path);
+
+        // 检查文件是否存在
+        try {
+            await fs.access(filePath);
+        } catch {
+            return res.status(404).send('文件不存在');
+        }
+
+        // 显式设置 Content-Type，防止部分浏览器无法正确识别
+        if (document.mime_type) {
+            res.setHeader('Content-Type', document.mime_type);
+        } else if (document.file_type === 'pdf') {
+            res.setHeader('Content-Type', 'application/pdf');
+        }
+
+        // 设置 Content-Disposition 为 inline 以支持浏览器预览
+        // 使用 encodeURIComponent 处理中文文件名
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(document.file_name)}"`);
+
+        // 发送文件
+        res.sendFile(filePath);
+    } catch (error) {
+        console.error('预览文档失败:', error);
+        res.status(500).send(error.message);
+    }
+});
+
+/**
  * 获取视图关联的文档
  * GET /api/documents/view/:viewId
  */

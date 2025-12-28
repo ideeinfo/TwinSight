@@ -230,34 +230,60 @@ export async function listDocuments(kbId) {
  * 使用 RAG 进行聊天查询
  * @param {Object} options - 查询选项
  * @param {string} options.prompt - 用户问题
- * @param {string} options.kbId - 知识库 ID
+ * @param {string} options.kbId - 知识库 ID（Collection Tag 或 UUID）
+ * @param {Array<string>} [options.fileIds] - 具体文件 ID 列表（用于精确引用）
  * @param {string} [options.model] - 使用的模型
- * @param {boolean} [options.allowWebSearch] - 是否允许联网搜索
  * @returns {Promise<Object>} AI 回复
  */
 export async function chatWithRAG(options) {
     const {
         prompt,
         kbId,
+        fileIds = [],
         model = openwebuiConfig.defaultModel,
-        allowWebSearch = openwebuiConfig.rag.allowWebSearch,
     } = options;
 
     console.log(`💬 RAG 查询: ${prompt.substring(0, 50)}...`);
 
+    // 构建请求体
+    const requestBody = {
+        model,
+        messages: [
+            { role: 'user', content: prompt }
+        ],
+    };
+
+    // 构建 files 数组
+    const filesArray = [];
+
+    // 优先使用具体的文件 ID（更精确的引用）
+    if (fileIds && fileIds.length > 0) {
+        console.log(`📄 使用 ${fileIds.length} 个具体文件 ID`);
+        for (const fid of fileIds) {
+            filesArray.push({
+                type: 'file',
+                id: fid
+            });
+        }
+    }
+
+    // 如果有知识库 ID，也添加到 files 数组（作为补充）
+    if (kbId) {
+        console.log(`📚 使用知识库: ${kbId}`);
+        filesArray.push({
+            type: 'collection',
+            id: kbId
+        });
+    }
+
+    // 设置 files 参数
+    if (filesArray.length > 0) {
+        requestBody.files = filesArray;
+    }
+
     const result = await request(endpoints.chat, {
         method: 'POST',
-        body: JSON.stringify({
-            model,
-            messages: [
-                { role: 'user', content: prompt }
-            ],
-            // RAG 配置
-            knowledge_base_id: kbId,
-            search_mode: openwebuiConfig.rag.searchMode,
-            top_k: openwebuiConfig.rag.topK,
-            allow_web_search: allowWebSearch,
-        }),
+        body: JSON.stringify(requestBody),
     });
 
     console.log(`✅ RAG 查询完成`);

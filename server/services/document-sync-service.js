@@ -15,14 +15,14 @@ const __dirname = path.dirname(__filename);
 let isSyncing = false;
 
 /**
- * 获取未同步的文档列表（包含失败的，只有成功的才算完成）
+ * 获取未同步的文档列表（排除已成功和已失败的）
  * @returns {Promise<Array>} 未同步的文档
  */
 async function getUnsyncedDocuments() {
     const result = await dbQuery(`
         SELECT d.id, d.file_path, d.file_name, d.file_type, d.asset_code, d.space_code, d.spec_code
         FROM documents d
-        LEFT JOIN kb_documents kbd ON d.id = kbd.document_id AND kbd.sync_status = 'synced'
+        LEFT JOIN kb_documents kbd ON d.id = kbd.document_id
         WHERE kbd.id IS NULL
           AND d.file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt', 'csv', 'json')
         ORDER BY d.created_at ASC
@@ -108,20 +108,41 @@ async function syncDocument(doc, kbId) {
         const originalFileName = doc.file_name || path.basename(doc.file_path);
         const uploadResult = await openwebuiService.uploadDocument(kbId, filePath, originalFileName);
 
-        // 记录同步状态
+        // 获取 Open WebUI 返回的文件 ID
+        const openwebuiFileId = uploadResult.id || uploadResult.fileId || null;
+
+        if (openwebuiFileId) {
+            console.log(`📎 Open WebUI 文件 ID: ${openwebuiFileId}`);
+        }
+
+        // 记录同步成功状态（openwebui_kb_id = 知识库 ID, openwebui_file_id = 文档文件 ID）
         await dbQuery(
-            `INSERT INTO kb_documents (kb_id, document_id, openwebui_doc_id, sync_status, synced_at)
-             SELECT kb.id, $2, $3, 'synced', NOW()
+            `INSERT INTO kb_documents (kb_id, document_id, openwebui_kb_id, openwebui_file_id, sync_status, synced_at)
+             SELECT kb.id, $2, $1, $3, 'synced', NOW()
              FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1
              ON CONFLICT (kb_id, document_id) DO UPDATE SET
-             openwebui_doc_id = $3, sync_status = 'synced', synced_at = NOW()`,
-            [kbId, doc.id, uploadResult.id || 'unknown']
+             openwebui_kb_id = $1, openwebui_file_id = $3, sync_status = 'synced', synced_at = NOW()`,
+            [kbId, doc.id, openwebuiFileId]
         );
 
         return true;
     } catch (error) {
         console.error(`❌ 同步文档失败 [${doc.id}]:`, error.message);
-        // 失败时不记录，让它下次可以重试
+
+        // 记录同步失败状态，避免无限重试
+        try {
+            await dbQuery(
+                `INSERT INTO kb_documents (kb_id, document_id, sync_status, sync_error)
+                 SELECT kb.id, $2, 'failed', $3
+                 FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1
+                 ON CONFLICT (kb_id, document_id) DO UPDATE SET
+                 sync_status = 'failed', sync_error = $3`,
+                [kbId, doc.id, error.message.substring(0, 500)]
+            );
+        } catch (dbError) {
+            console.error(`❌ 记录失败状态失败:`, dbError.message);
+        }
+
         return false;
     }
 }

@@ -231,4 +231,185 @@ router.post('/query', async (req, res) => {
     }
 });
 
+/**
+ * 获取 AI 分析上下文
+ * GET /api/v1/ai/context
+ * 根据房间编码获取关联设备、文档和知识库信息
+ * Query: roomCode, fileId
+ */
+router.get('/context', async (req, res) => {
+    try {
+        const { roomCode, fileId } = req.query;
+
+        if (!roomCode) {
+            return res.status(400).json({ success: false, error: '缺少 roomCode 参数' });
+        }
+
+        // 1. 获取房间信息
+        const spaceResult = await pool.query(
+            `SELECT * FROM spaces WHERE space_code = $1 ${fileId ? 'AND file_id = $2' : ''} LIMIT 1`,
+            fileId ? [roomCode, fileId] : [roomCode]
+        );
+
+        if (spaceResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: '未找到该房间' });
+        }
+
+        const space = spaceResult.rows[0];
+        const targetFileId = space.file_id;
+
+        // 2. 获取房间内的设备列表（room 字段包含房间名称和编码，如"泵房 BF02US01"）
+        const assetsResult = await pool.query(`
+            SELECT a.asset_code, a.name, a.spec_code, 
+                   s.spec_name, s.category, s.family, s.type, s.classification_code, s.classification_desc
+            FROM assets a
+            LEFT JOIN asset_specs s ON a.spec_code = s.spec_code AND a.file_id = s.file_id
+            WHERE a.room ILIKE $1 AND a.file_id = $2
+            ORDER BY a.asset_code
+            LIMIT 50
+        `, [`%${roomCode}%`, targetFileId]);
+
+        // 3. 获取相关文档
+        // 3.1 房间直接关联的文档
+        const spaceDocsResult = await pool.query(`
+            SELECT id, title, file_name, file_path, file_type, 'space' as source_type
+            FROM documents
+            WHERE space_code = $1
+              AND file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt')
+        `, [roomCode]);
+
+        // 3.2 房间内资产关联的文档
+        const assetCodes = assetsResult.rows.map(a => a.asset_code);
+        let assetDocsResult = { rows: [] };
+        if (assetCodes.length > 0) {
+            assetDocsResult = await pool.query(`
+                SELECT id, title, file_name, file_path, file_type, 'asset' as source_type
+                FROM documents
+                WHERE asset_code = ANY($1)
+                  AND file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt')
+            `, [assetCodes]);
+        }
+
+        // 3.3 设备规格关联的文档
+        const specCodes = [...new Set(assetsResult.rows.map(a => a.spec_code).filter(Boolean))];
+        let specDocsResult = { rows: [] };
+        if (specCodes.length > 0) {
+            specDocsResult = await pool.query(`
+                SELECT id, title, file_name, file_path, file_type, 'spec' as source_type
+                FROM documents
+                WHERE spec_code = ANY($1)
+                  AND file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt')
+            `, [specCodes]);
+        }
+
+        // 合并文档并去重
+        const allDocs = [...spaceDocsResult.rows, ...assetDocsResult.rows, ...specDocsResult.rows];
+        const uniqueDocs = allDocs.filter((doc, index, self) =>
+            index === self.findIndex(d => d.id === doc.id)
+        );
+
+        // 4. 获取知识库 ID
+        const kbResult = await pool.query(
+            'SELECT openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
+            [targetFileId]
+        );
+
+        const knowledgeBase = kbResult.rows.length > 0 ? {
+            id: kbResult.rows[0].openwebui_kb_id,
+            name: kbResult.rows[0].kb_name
+        } : null;
+
+        res.json({
+            success: true,
+            data: {
+                space: {
+                    code: space.space_code,
+                    name: space.name,
+                    classification: space.classification_code,
+                    classificationDesc: space.classification_desc
+                },
+                assets: assetsResult.rows.map(a => ({
+                    code: a.asset_code,
+                    name: a.name,
+                    specCode: a.spec_code,
+                    specName: a.spec_name,
+                    category: a.category,
+                    family: a.family,
+                    type: a.type
+                })),
+                documents: uniqueDocs.map(d => ({
+                    id: d.id,
+                    title: d.title || d.file_name,
+                    fileName: d.file_name,
+                    fileType: d.file_type,
+                    sourceType: d.source_type
+                })),
+                knowledgeBase,
+                fileId: targetFileId
+            }
+        });
+    } catch (error) {
+        console.error('获取 AI 上下文失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 格式化 AI 回复中的来源链接
+ * POST /api/v1/ai/format-sources
+ * 将来源文档名转换为系统内可点击的预览 URL
+ * Body: { sources: [{ name, ... }], fileId }
+ */
+router.post('/format-sources', async (req, res) => {
+    try {
+        const { sources, fileId } = req.body;
+
+        if (!sources || !Array.isArray(sources)) {
+            return res.status(400).json({ success: false, error: '缺少 sources 数组' });
+        }
+
+        const formattedSources = [];
+
+        for (const source of sources) {
+            const sourceName = source.name || source.title || source;
+
+            // 尝试在 documents 表中匹配文件名
+            const docResult = await pool.query(`
+                SELECT id, title, file_name, file_path
+                FROM documents
+                WHERE (file_name ILIKE $1 OR title ILIKE $1)
+                ${fileId ? 'AND (space_code IN (SELECT space_code FROM spaces WHERE file_id = $2) OR asset_code IN (SELECT asset_code FROM assets WHERE file_id = $2))' : ''}
+                LIMIT 1
+            `, fileId ? [`%${sourceName}%`, fileId] : [`%${sourceName}%`]);
+
+            if (docResult.rows.length > 0) {
+                const doc = docResult.rows[0];
+                formattedSources.push({
+                    name: sourceName,
+                    title: doc.title || doc.file_name,
+                    url: `/api/documents/${doc.id}/preview`,
+                    documentId: doc.id,
+                    isInternal: true
+                });
+            } else {
+                // 外部来源或未找到匹配
+                formattedSources.push({
+                    name: sourceName,
+                    url: source.url || null,
+                    isInternal: false
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            data: { formattedSources }
+        });
+    } catch (error) {
+        console.error('格式化来源失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;
+

@@ -520,7 +520,8 @@ const onViewerReady = async () => {
                 type: asset.type,
                 manufacturer: asset.manufacturer,
                 address: asset.address,
-                phone: asset.phone
+                phone: asset.phone,
+                fileId: activeFile.id // 添加 fileId
               }));
               console.log(`✅ 页面刷新：从数据库加载了 ${assetList.value.length} 个资产`);
             }
@@ -537,7 +538,8 @@ const onViewerReady = async () => {
                 classificationDesc: space.classification_desc,
                 floor: space.floor,
                 area: space.area,
-                perimeter: space.perimeter
+                perimeter: space.perimeter,
+                fileId: activeFile.id // 添加 fileId
               }));
               console.log(`✅ 页面刷新：从数据库加载了 ${roomList.value.length} 个空间`);
             }
@@ -689,7 +691,10 @@ const onFileActivated = async (file) => {
   try {
     // 从数据库加载该文件的资产和空间
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    
+    // 加载文件的资产和空间数据
+    console.log('📂 [App.vue] onFileActivated called with file:', file);
+    console.log('📂 [App.vue] file.id:', file.id);
+
     // 获取该文件的资产
     const assetsRes = await fetch(`${API_BASE}/api/files/${file.id}/assets`);
     const assetsData = await assetsRes.json();
@@ -710,7 +715,8 @@ const onFileActivated = async (file) => {
         type: asset.type,
         manufacturer: asset.manufacturer,
         address: asset.address,
-        phone: asset.phone
+        phone: asset.phone,
+        fileId: file.id // 添加 fileId 以便 AI 分析使用
       }));
       console.log(`📊 加载了 ${assetList.value.length} 个资产`);
     } else {
@@ -730,7 +736,8 @@ const onFileActivated = async (file) => {
         classificationDesc: space.classification_desc,
         floor: space.floor,
         area: space.area,
-        perimeter: space.perimeter
+        perimeter: space.perimeter,
+        fileId: file.id // 添加 fileId 以便 AI 分析使用
       }));
       console.log(`📊 加载了 ${roomList.value.length} 个空间`);
     } else {

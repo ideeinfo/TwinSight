@@ -2380,6 +2380,29 @@ html.light .unsupported {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
 
+/* 全景图控制面板 */
+html.light .panorama-controls {
+  background: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+html.light .pano-btn {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .pano-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .pano-separator {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .panorama-hint {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
 /* ============================================
    ConfirmDialog 确认对话框浅色主题
    ============================================ */

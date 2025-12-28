@@ -122,6 +122,10 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
+      # 添加这行允许工作流访问环境变量
+      - N8N_RUNNERS_ENABLED=true
+
       # 时区设置
       - GENERIC_TIMEZONE=Asia/Shanghai
       - TZ=Asia/Shanghai
@@ -133,9 +137,12 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       # 允许在表达式中访问环境变量
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES=true
       # 允许调用本地服务
       - N8N_RUNNERS_TASK_BROKER_URI=http://host.docker.internal:3001
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - API_BASE_URL=http://host.docker.internal:3001
+      - OPENWEBUI_URL=http://host.docker.internal:3080
     volumes:
       - n8n_data:/home/node/.n8n
     extra_hosts:
