@@ -1943,6 +1943,16 @@ html.light .time-pill .live-btn {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
 
+html.light .time-pill .expand-action {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .time-pill .pill-content,
+html.light .time-pill .date-text,
+html.light .time-pill .time-text {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
 /* 展开状态 - 时间轴停靠栏 */
 html.light .top-navigation-area.docked {
   background: var(--md-sys-color-surface-container) !important;
@@ -1972,6 +1982,10 @@ html.light .timeline-toolbar .divider-v {
 }
 
 html.light .timeline-toolbar .current-info {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .timeline-toolbar .current-info .info-text strong {
   color: var(--md-sys-color-on-surface) !important;
 }
 
@@ -2080,6 +2094,10 @@ html.light .chart-header {
   border-bottom-color: var(--md-sys-color-outline-variant) !important;
 }
 
+html.light .chart-header .chart-icon {
+  color: var(--md-sys-color-primary) !important;
+}
+
 html.light .chart-header .label {
   color: var(--md-sys-color-on-surface) !important;
 }
@@ -2127,12 +2145,67 @@ html.light .tooltip-box .time {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
 
+html.light .tooltip-box .val {
+  color: var(--md-sys-color-primary) !important;
+}
+
+html.light .close {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .close:hover {
+  color: var(--md-sys-color-error) !important;
+}
+
 html.light .chart-footer {
   background: var(--md-sys-color-surface-container-lowest) !important;
   border-top-color: var(--md-sys-color-outline-variant) !important;
 }
 
 html.light .axis-labels {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   MultiChartPanel 多图表面板浅色主题
+   ============================================ */
+
+html.light .multi-container {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .multi-grid {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+}
+
+html.light .multi-grid::-webkit-scrollbar-track {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+html.light .multi-grid::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .multi-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline) !important;
+}
+
+html.light .grid-item {
+  background: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .item-header {
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .item-header .title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .legend {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
 

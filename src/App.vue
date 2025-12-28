@@ -10,7 +10,7 @@
 
     <!-- 正常模式 -->
     <div v-else class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
-    <TopBar :isViewsPanelOpen="isViewsPanelOpen" :currentViewName="currentViewName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
+    <TopBar :isViewsPanelOpen="isViewsPanelOpen" :currentViewName="currentViewName" :activeFileName="activeFileName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
 
     <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
 

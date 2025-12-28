@@ -8,7 +8,7 @@
       </div>
       <div class="app-info">
         <div class="divider"></div>
-        <span class="app-name">乐龄汇</span>
+        <span class="app-name">{{ displayName }}</span>
       </div>
     </div>
 
@@ -19,7 +19,7 @@
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" placeholder="Search 乐龄汇" />
+        <input type="text" :placeholder="searchPlaceholder" />
       </div>
     </div>
 
@@ -115,10 +115,15 @@ import { useI18n } from 'vue-i18n';
 import { useThemeStore } from '../stores/theme';
 
 // 定义 props
-defineProps({
+const props = defineProps({
   isViewsPanelOpen: { type: Boolean, default: false },
-  currentViewName: { type: String, default: '' }
+  currentViewName: { type: String, default: '' },
+  activeFileName: { type: String, default: '' }
 });
+
+// 计算属性：显示名称（优先使用激活文件名，否则使用默认名称）
+const displayName = computed(() => props.activeFileName || '乐龄汇');
+const searchPlaceholder = computed(() => `Search ${displayName.value}`);
 
 // 定义事件
 defineEmits(['open-data-export', 'toggle-views']);
