@@ -1545,7 +1545,7 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 1000; /* 降低 z-index，让 Element Plus 对话框 (z-index: 2000+) 能正常显示 */
   backdrop-filter: blur(4px);
 }
 
