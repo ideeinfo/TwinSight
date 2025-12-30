@@ -7,8 +7,8 @@
           <span class="picker-title">{{ t('timeline.selectDateRange') }}</span>
           <button class="close-btn" @click="close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -21,7 +21,7 @@
             <button @click="changeMonth(1)">&#9654;</button>
           </div>
           <div class="cal-grid">
-            <div class="cal-day-name" v-for="(d, idx) in calendarDayNames" :key="idx">{{ d }}</div>
+            <div v-for="(d, idx) in calendarDayNames" :key="idx" class="cal-day-name">{{ d }}</div>
             <div
               v-for="(day, idx) in calendarDays"
               :key="idx"
@@ -58,7 +58,7 @@
         <!-- Footer -->
         <div class="picker-footer">
           <button class="btn-cancel" @click="close">{{ t('common.cancel') }}</button>
-          <button class="btn-apply" @click="apply" :disabled="!tempStart || !tempEnd">
+          <button class="btn-apply" :disabled="!tempStart || !tempEnd" @click="apply">
             {{ t('common.apply') }}
           </button>
         </div>

@@ -570,9 +570,9 @@ export function useDataExport(
 
                     res.properties.forEach((prop: any) => {
                         const originalCat = prop.displayCategory || '其他';
-                        let cat = CATEGORY_MAP[originalCat] || originalCat;
+                        const cat = CATEGORY_MAP[originalCat] || originalCat;
 
-                        let name = prop.displayName || prop.attributeName;
+                        const name = prop.displayName || prop.attributeName;
                         if (!name || name.trim() === '') return;
 
                         if (!categories[cat]) {
@@ -631,9 +631,9 @@ export function useDataExport(
 
                     res.properties.forEach((prop: any) => {
                         const originalCat = prop.displayCategory || '其他';
-                        let cat = CATEGORY_MAP[originalCat] || originalCat;
+                        const cat = CATEGORY_MAP[originalCat] || originalCat;
 
-                        let name = prop.displayName || prop.attributeName;
+                        const name = prop.displayName || prop.attributeName;
                         if (!name || name.trim() === '') return;
 
                         if (!categories[cat]) {

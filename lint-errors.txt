@@ -1,0 +1,199 @@
+
+> tandem-demo@0.0.0 lint
+> eslint src --ext .vue,.js,.ts
+
+
+D:\Tandem\antigravity\tandem-demo\src\AppViewer.vue
+  260:7  error  'previousActiveFileInfo' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\ChartPanel.vue
+  195:7  error  'dateRangeText' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\MainView.vue
+    83:66  error  'reactive' is defined but never used                      @typescript-eslint/no-unused-vars
+    91:8   error  'ViewerControls' is defined but never used                @typescript-eslint/no-unused-vars
+   121:7   error  'trackRef' is assigned a value but never used             @typescript-eslint/no-unused-vars
+   202:5   error  'assetFragData' is assigned a value but never used        @typescript-eslint/no-unused-vars
+   207:7   error  'MODEL_URL' is assigned a value but never used            @typescript-eslint/no-unused-vars
+   208:5   error  'modelLoaded' is assigned a value but never used          @typescript-eslint/no-unused-vars
+   265:7   error  'dropdownRef' is assigned a value but never used          @typescript-eslint/no-unused-vars
+   308:5   error  'roomSeriesRange' is assigned a value but never used      @typescript-eslint/no-unused-vars
+   369:7   error  'valueAtTime' is assigned a value but never used          @typescript-eslint/no-unused-vars
+   390:15  error  'prevTemp' is assigned a value but never used             @typescript-eslint/no-unused-vars
+   624:7   error  'getTagStyle' is assigned a value but never used          @typescript-eslint/no-unused-vars
+   641:7   error  'formatAnalysisText' is assigned a value but never used   @typescript-eslint/no-unused-vars
+   915:11  error  'found' is assigned a value but never used                @typescript-eslint/no-unused-vars
+   918:16  error  'e' is defined but never used                             @typescript-eslint/no-unused-vars
+  1053:7   error  'getHeatmapMaterial' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  1261:7   error  'worldPos' is assigned a value but never used             @typescript-eslint/no-unused-vars
+  1330:9   error  'err' is defined but never used                           @typescript-eslint/no-unused-vars
+  1409:7   error  'applyRoomStyle' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  1480:7   error  'removeRoomStyle' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  2063:7   error  'toggleTimeRangeMenu' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  2095:24  error  'newVal' is defined but never used                        @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\PanoCompareView.vue
+  170:7   error  'emit' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  189:7   error  'panoRoll' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  367:36  error  'model' is defined but never used              @typescript-eslint/no-unused-vars
+  810:28  error  'e' is defined but never used                  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\RightPanel.vue
+  273:17  error  'result' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  345:17  error  'result' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\SearchableSelect.vue
+  47:25  error  'watch' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\backup.vue
+  126:66  error  'reactive' is defined but never used  @typescript-eslint/no-unused-vars
+  434:24  error  'newVal' is defined but never used    @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\viewer\AIAnalysisModal.vue
+  85:7  error  'handleSourceClick' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\components\viewer\TimelineControl.vue
+  186:15  error  'computed' is defined but never used        @typescript-eslint/no-unused-vars
+  191:7   error  'props' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useDataExport.ts
+   62:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   74:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   88:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  146:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  214:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  231:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  306:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  332:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  367:75  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  375:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  377:74  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  387:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  433:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  436:79  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  452:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  478:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  562:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  571:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  606:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  625:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  632:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  666:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useHeatmap.ts
+  135:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  195:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  211:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  275:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useIoTData.ts
+   5:10  warning  'ref' is defined but never used           @typescript-eslint/no-unused-vars
+  89:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  96:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useTimeline.ts
+  5:25  warning  'watch' is defined but never used      @typescript-eslint/no-unused-vars
+  5:32  warning  'onMounted' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useViewState.ts
+   15:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   68:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   73:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   74:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   75:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  156:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  181:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  181:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  182:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  183:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  200:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  201:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\composables\useViewer.ts
+    5:27  warning  'onMounted' is defined but never used     @typescript-eslint/no-unused-vars
+    5:38  warning  'onUnmounted' is defined but never used   @typescript-eslint/no-unused-vars
+   16:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   33:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  100:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  153:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  175:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  176:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  194:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\i18n\index.js
+  150:5  error  Duplicate key 'assetPanel'  no-dupe-keys
+  515:5  error  Duplicate key 'assetPanel'  no-dupe-keys
+
+D:\Tandem\antigravity\tandem-demo\src\services\ai-analysis.ts
+   79:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  141:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\services\api\assets.ts
+  6:15  warning  'ApiResponse' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\services\http.ts
+   13:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   28:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   55:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  102:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  115:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  128:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  130:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  143:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  145:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  158:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  168:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  172:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\services\influx.ts
+  33:40  warning  'roomCode' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  33:58  warning  'points' is defined but never used. Allowed unused args must match /^_/u    @typescript-eslint/no-unused-vars
+
+D:\Tandem\antigravity\tandem-demo\src\stores\assets.ts
+  17:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  27:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\stores\spaces.ts
+  18:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\types\api.ts
+  8:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\types\asset.ts
+  16:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  63:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\types\facility.ts
+  34:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\types\space.ts
+  17:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\utils\validate.ts
+  36:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Tandem\antigravity\tandem-demo\src\views\HomeView.vue
+  251:28  error  '_i' is defined but never used  @typescript-eslint/no-unused-vars
+  262:25  error  '_i' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 136 problems (39 errors, 97 warnings)
+

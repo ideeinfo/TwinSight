@@ -1,5 +1,5 @@
 <template>
-  <div class="searchable-select" ref="dropdownRef">
+  <div ref="dropdownRef" class="searchable-select">
     <div class="select-trigger" @click="toggleDropdown">
       <span class="select-value" :class="{ placeholder: !modelValue }">
         {{ modelValue || placeholder }}
@@ -11,9 +11,9 @@
     <Teleport to="body">
       <div 
         v-if="isOpen" 
+        ref="dropdownPortalRef"
         class="select-dropdown-portal"
         :style="dropdownStyle"
-        ref="dropdownPortalRef"
       >
         <div class="select-dropdown-content">
           <input 
@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },

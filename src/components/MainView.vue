@@ -1,6 +1,5 @@
 <template>
   <div class="viewport-container">
-    
     <!-- 时间线控制组件 -->
     <TimelineControl
       :is-open="isTimelineOpen"
@@ -36,8 +35,8 @@
     
     <!-- Custom Range Modal -->
     <DateRangePicker
-      :visible="isCustomModalOpen"
       v-model="dateRange"
+      :visible="isCustomModalOpen"
       @update:visible="isCustomModalOpen = $event"
       @apply="onDateRangeApply"
     />
@@ -68,7 +67,7 @@
       :sources="aiAnalysisData.sources || []"
       @close="closeAIAnalysisModal"
       @acknowledge="acknowledgeAlert"
-      @openSource="handleOpenSource"
+      @open-source="handleOpenSource"
     />
 
     <!-- 文档预览弹窗 -->
@@ -77,12 +76,11 @@
       :document="previewDoc"
       @close="showDocPreview = false"
     />
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { isInfluxConfigured, queryAverageSeries, queryLatestByRooms, queryRoomSeries } from '../services/influx';
 import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
@@ -90,7 +88,6 @@ import OverlayTags from './viewer/OverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import DocumentPreview from './DocumentPreview.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
-import ViewerControls from './viewer/ViewerControls.vue';
 import DateRangePicker from './DateRangePicker.vue';
 import { useHeatmap } from '../composables/useHeatmap';
 import { useDataExport } from '../composables/useDataExport';
@@ -120,7 +117,6 @@ const isLooping = ref(false);
 const isDragging = ref(false);
 const playbackSpeed = ref(1);
 const progress = ref(95);
-const trackRef = ref(null);
 
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
@@ -201,13 +197,10 @@ const handleOpenSource = async (source) => {
 
 // 资产状态
 let foundAssetDbIds = [];
-let assetFragData = {}; // 资产材质缓存
 
 // Viewer 状态
 const viewerContainer = ref(null);
 let viewer = null;
-const MODEL_URL = '/models/my-building/output/3d.svf';
-let modelLoaded = false; // 追踪模型是否已加载完成
 let currentModelPath = null; // 当前加载或已加载的模型路径
 let isLoadingModel = false; // 是否正在加载模型
 let defaultView = null;
@@ -264,7 +257,6 @@ const startDate = ref(new Date(MOCK_NOW.getTime() - 24 * 60 * 60 * 1000)); // �
 
 // Dropdown & Modal 状态
 const isTimeRangeMenuOpen = ref(false);
-const dropdownRef = ref(null);
 const selectedTimeRange = ref({ label: '', value: '24h' }); // 默认24小时
 const isCustomModalOpen = ref(false);
 
@@ -307,7 +299,6 @@ let heatmapTimer = null;
 let uiObserver = null;
 const selectedRoomCodes = ref([]);
 let roomSeriesCache = {};
-let roomSeriesRange = { startMs: 0, endMs: 0, windowMs: 0 };
 
 
 
@@ -339,7 +330,6 @@ const refreshRoomSeriesCache = async (codes) => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
-  roomSeriesRange = { startMs: start, endMs: end, windowMs };
   const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
   const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
   const cache = {};
@@ -367,17 +357,6 @@ watch(chartData, (newData) => {
   emit('chart-data-update', newData);
 }, { immediate: true });
 
-// 监听温度变化，更新房间标签数值
-const valueAtTime = (pts, ms) => {
-  if (!pts || !pts.length) return undefined;
-  let l = 0, r = pts.length - 1;
-  while (l < r) { const m = (l + r) >> 1; if (pts[m].timestamp < ms) l = m + 1; else r = m; }
-  const i = l;
-  const prev = pts[Math.max(0, i-1)], cur = pts[i];
-  const pick = !prev ? cur : (!cur ? prev : (Math.abs(prev.timestamp - ms) <= Math.abs(cur.timestamp - ms) ? prev : cur));
-  return pick?.value;
-};
-
 const setTagTempsAtCurrentTime = () => {
   if (!roomTags.value.length) return;
   const percent = Math.max(0, Math.min(1, progress.value / 100));
@@ -389,7 +368,6 @@ const setTagTempsAtCurrentTime = () => {
       const v = pts[idx]?.value;
       if (v !== undefined) {
         const newTemp = Number(v).toFixed(1);
-        const prevTemp = parseFloat(tag.currentTemp) || 20; // 默认20度作为正常值
         tag.currentTemp = newTemp;
         
         // 温度阈值
@@ -622,13 +600,6 @@ const generatedTicks = computed(() => {
   while(c<=e) { const p=((c-s)/d)*100; const dt=new Date(c); let l='', h=false, t='major'; if(interval<864e5){ if(dt.getHours()===0){l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;}else{l=dt.toLocaleTimeString(localeCode,{hour:'numeric'}).replace(' ','');t='minor';}}else{l=dt.toLocaleDateString(localeCode,{month:'short',day:'numeric'});h=true;} ticks.push({percent:p,type:t,label:l,highlight:h}); c+=interval; } return ticks;
 });
 
-// 辅助样式计算
-const getTagStyle = (t) => {
-  if (t > 35) return { backgroundColor: '#ff4d4d', borderColor: '#d32f2f' };
-  if (t > 30) return { backgroundColor: '#4caf50', borderColor: '#388e3c' };
-  return { backgroundColor: '#0078d4', borderColor: '#005a9e' };
-};
-
 // AI 分析弹窗函数
 const closeAIAnalysisModal = () => {
   showAIAnalysisModal.value = false;
@@ -637,34 +608,6 @@ const closeAIAnalysisModal = () => {
 const acknowledgeAlert = () => {
   showAIAnalysisModal.value = false;
   console.log('✅ 用户已确认报警');
-};
-
-// 格式化 AI 分析文本（Markdown 转 HTML）
-const formatAnalysisText = (text) => {
-  if (!text) return '';
-  
-  // 预处理：移除多余的空行和孤立的 #
-  let processed = text
-    .replace(/^#\s*$/gm, '')           // 移除孤立的 # 
-    .replace(/\n{3,}/g, '\n\n')        // 多个换行合并为两个
-    .replace(/^\s+|\s+$/g, '')         // 去掉首尾空白
-    .trim();
-  
-  // Markdown 转 HTML
-  return processed
-    .replace(/^## (.+)$/gm, '<h3>$1</h3>')      // ## 标题
-    .replace(/^### (.+)$/gm, '<h4>$1</h4>')     // ### 标题
-    .replace(/^# (.+)$/gm, '<h3>$1</h3>')       // # 标题也转为 h3
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')  // 粗体
-    .replace(/^- (.+)$/gm, '<li>$1</li>')       // 列表项
-    .replace(/^(\d+)\. (.+)$/gm, '<div class="numbered-item"><span class="num">$1.</span> $2</div>')  // 编号列表
-    .replace(/\n\n/g, '</p><p>')               // 段落
-    .replace(/\n/g, '<br>')                    // 换行
-    .replace(/^/, '<p>')                       // 开头加 p
-    .replace(/$/, '</p>')                      // 结尾加 p
-    .replace(/<p><h/g, '<h')                   // 清理标题前的 p
-    .replace(/<\/h(\d)><\/p>/g, '</h$1>')      // 清理标题后的 p
-    .replace(/<p><\/p>/g, '');                 // 移除空段落
 };
 
 // ================== 3. Viewer 逻辑 ==================
@@ -902,7 +845,6 @@ const loadNewModel = async (modelPath) => {
   
   // 预检路径，防止 Viewer 弹出错误提示
   try {
-    let found = false;
     for (const p of candidates) {
       try {
         const res = await fetch(p, { method: 'HEAD' });
@@ -914,16 +856,15 @@ const loadNewModel = async (modelPath) => {
             continue;
           }
           finalPath = p;
-          found = true;
           break;
         }
-      } catch (e) {
+      } catch {
         // 网络错误等忽略
       }
     }
     // 如果没有任何路径 ok，保留默认的第一个路径去让 viewer 报错（或者处理失败）
-  } catch (e) {
-    console.warn('⚠️ 模型路径预检失败，将尝试默认路径:', e);
+  } catch (err) {
+    console.warn('⚠️ 模型路径预检失败，将尝试默认路径:', err);
   }
   
   // 卸载所有当前加载的模型
@@ -1048,73 +989,6 @@ const getRoomMaterial = () => {
   return customRoomMat;
 };
 
-// 热力图材质缓存
-const heatmapMaterialCache = {};
-
-// 根据温度生成热力图材质
-const getHeatmapMaterial = (temperature) => {
-  // 使用缓存避免重复创建材质
-  const tempKey = Math.round(temperature * 10) / 10; // 精确到0.1度
-  if (heatmapMaterialCache[tempKey]) {
-    return heatmapMaterialCache[tempKey];
-  }
-
-  const minT = 25, maxT = 35;
-  let t = (temperature - minT) / (maxT - minT);
-  t = Math.max(0, Math.min(1, t));
-
-  // 从蓝色(冷)到红色(热)
-  let hue = 200 - (t * 200); // 200(蓝) -> 0(红)
-
-  // 转换 HSL 到 RGB
-  const hslToRgb = (h, s, l) => {
-    h = h / 360;
-    s = s / 100;
-    l = l / 100;
-    let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
-      const hue2rgb = (p, q, t) => {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1/6) return p + (q - p) * 6 * t;
-        if (t < 1/2) return q;
-        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-        return p;
-      };
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-      const p = 2 * l - q;
-      r = hue2rgb(p, q, h + 1/3);
-      g = hue2rgb(p, q, h);
-      b = hue2rgb(p, q, h - 1/3);
-    }
-    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-  };
-
-  const [r, g, b] = hslToRgb(hue, 100, 50);
-  const color = (r << 16) | (g << 8) | b;
-
-  const mat = new window.THREE.MeshPhongMaterial({
-    color: color,
-    opacity: 0.8,
-    transparent: true,
-    side: window.THREE.DoubleSide,
-    depthWrite: true,
-    depthTest: true,
-    shininess: 30
-  });
-
-  // 注册到材质管理器
-  const matman = viewer.impl.matman();
-  matman.addMaterial(`heatmap-${tempKey}`, mat, true);
-
-  // 缓存材质
-  heatmapMaterialCache[tempKey] = mat;
-
-  return mat;
-};
-
 // 1. 模型加载
 const onModelLoaded = () => {
   console.log('🎯 onModelLoaded 被触发');
@@ -1139,7 +1013,7 @@ const onModelLoaded = () => {
   roomFragData = {};
   foundRoomDbIds = [];
   foundAssetDbIds = [];
-  modelLoaded = true; // 标记模型已加载
+  // 模型已加载（通过 modelFullyReady 标志控制）
   console.log('🧹 状态已重置');
   
   // 延迟捕获默认视图，确保 Forge Viewer 完成初始相机设置
@@ -1256,11 +1130,9 @@ const processRooms = (dbIds) => {
       bounds.union(b);
     });
 
-    let worldPos = null;
     if (!bounds.isEmpty()) {
       const center = new window.THREE.Vector3();
       bounds.getCenter(center);
-      worldPos = center;
 
       newTags.push({
         dbId: dbId,
@@ -1329,7 +1201,7 @@ emit('rooms-loaded', roomList);
           applyRoomStyleOnly(); // 只上色，不孤立
         }, 100);
       }
-    }, (err) => {
+    }, () => {
       // 属性获取失败，跳过该房间（没有编号）
       pendingProps--;
       if (pendingProps === 0) {
@@ -1407,44 +1279,6 @@ const extractAssets = () => {
   });
 };
 
-// 3. 应用青绿色样式到所有房间（用于连接视图，包含孤立效果）
-const applyRoomStyle = () => {
-  if (!viewer) return;
-
-  // 优先使用从数据库传入的空间列表
-  let dbIdsToShow = [];
-  if (props.rooms && props.rooms.length > 0) {
-    // 使用数据库中的空间列表
-    dbIdsToShow = props.rooms.map(r => r.dbId).filter(Boolean);
-  } else if (foundRoomDbIds.length > 0) {
-    // 回退到模型提取的房间列表（基于"编号"属性）
-    dbIdsToShow = foundRoomDbIds;
-  }
-
-  if (dbIdsToShow.length === 0) return;
-
-  // 清除所有主题颜色
-  viewer.clearThemingColors();
-
-  const mat = getRoomMaterial();
-  const fragList = viewer.model.getFragmentList();
-  const tree = viewer.model.getInstanceTree();
-
-  dbIdsToShow.forEach(dbId => {
-    tree.enumNodeFragments(dbId, (fragId) => {
-      fragList.setMaterial(fragId, mat);
-    });
-  });
-
-  // 孤立房间（隐藏其他构件）
-  viewer.isolate(dbIdsToShow);
-
-  // 强制刷新渲染
-  viewer.impl.invalidate(true, true, true);
-
-  updateAllTagPositions();
-};
-
 // 3.5 应用青绿色样式到所有房间（只上色，不孤立，适用于所有视图）
 const applyRoomStyleOnly = () => {
   if (!viewer || !viewer.model) return;
@@ -1476,25 +1310,6 @@ const applyRoomStyleOnly = () => {
 
   // 强制刷新渲染（不孤立，所有构件都可见）
   viewer.impl.invalidate(true, true, true);
-};
-
-// 4. 移除样式 (恢复)
-const removeRoomStyle = () => {
-  if (foundRoomDbIds.length === 0) return;
-  const fragList = viewer.model.getFragmentList();
-  const tree = viewer.model.getInstanceTree();
-
-  foundRoomDbIds.forEach(dbId => {
-    tree.enumNodeFragments(dbId, (fragId) => {
-      const original = roomFragData[fragId];
-      // 关键修复：绝对不传 null，必须传回原始对象
-      if (original) {
-        fragList.setMaterial(fragId, original);
-      }
-    });
-  });
-  
-  viewer.impl.invalidate(true);
 };
 
 // 5. 选择变更（在模型上直接点击时触发）
@@ -2062,7 +1877,6 @@ const getSpacePropertyList = () => dataExport.getSpacePropertyList();
 const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDate.value.getTime(); const w = 0; /* 不聚合 */ emit('time-range-changed', { startMs: s, endMs: e, windowMs: w }); };
 const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); emitRangeChanged(); };
 function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
-const toggleTimeRangeMenu = () => isTimeRangeMenuOpen.value = !isTimeRangeMenuOpen.value;
 const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '1h': 36e5, '3h': 3*36e5, '6h': 6*36e5, '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 // DateRangePicker 事件处理
 const openCustomRangeModal = () => { 
@@ -2094,7 +1908,7 @@ const onScrubEnd = () => { isDragging.value = false; };
 
 const openTimeline = () => isTimelineOpen.value=true;
 const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false; };
-watch(isTimelineOpen, (newVal) => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
+watch(isTimelineOpen, () => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
 watch([startDate, endDate], () => { loadChartData(); });
 
 // 监听语言切换，更新 Viewer 语言

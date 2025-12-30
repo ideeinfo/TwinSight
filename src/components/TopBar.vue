@@ -2,7 +2,7 @@
   <div class="top-bar">
     <div class="left-section">
       <!-- Logo 区域 -->
-      <div class="logo-container" @click="goToHome" style="cursor: pointer;">
+      <div class="logo-container" style="cursor: pointer;" @click="goToHome">
         <!-- 注意：这里使用了相对路径 ../assets/logo.png -->
         <img src="../assets/logo.png" alt="Logo" class="logo" />
       </div>
@@ -16,59 +16,58 @@
       <div class="search-box">
         <!-- Search Icon -->
         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <input type="text" :placeholder="searchPlaceholder" />
       </div>
     </div>
 
     <div class="right-section">
-
       <!-- 当前视图名称 -->
       <span v-if="currentViewName" class="current-view-label">{{ currentViewName }}</span>
 
       <!-- 视图按钮 -->
-      <div class="icon-btn views-btn" :class="{ active: isViewsPanelOpen }" @click="$emit('toggle-views')" :title="$t('views.title')">
+      <div class="icon-btn views-btn" :class="{ active: isViewsPanelOpen }" :title="$t('views.title')" @click="$emit('toggle-views')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/>
-          <rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
         </svg>
       </div>
 
       <!-- 主题切换按钮 -->
-      <div class="icon-btn theme-toggle" @click="toggleTheme" :title="isDarkTheme ? '切换到浅色模式' : '切换到深色模式'">
+      <div class="icon-btn theme-toggle" :title="isDarkTheme ? '切换到浅色模式' : '切换到深色模式'" @click="toggleTheme">
         <!-- 深色模式：显示太阳图标 -->
         <svg v-if="isDarkTheme" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="5"></circle>
-          <line x1="12" y1="1" x2="12" y2="3"></line>
-          <line x1="12" y1="21" x2="12" y2="23"></line>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-          <line x1="1" y1="12" x2="3" y2="12"></line>
-          <line x1="21" y1="12" x2="23" y2="12"></line>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
         </svg>
         <!-- 浅色模式：显示月亮图标 -->
         <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
         </svg>
       </div>
 
       <!-- 语言切换下拉列表 -->
-      <div class="language-dropdown" ref="langDropdownRef">
+      <div ref="langDropdownRef" class="language-dropdown">
         <div class="lang-trigger" @click="toggleLangDropdown">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="2" y1="12" x2="22" y2="12"></line>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
           <span>{{ currentLangLabel }}</span>
           <svg class="arrow" :class="{ rotated: isLangDropdownOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
+            <polyline points="6 9 12 15 18 9" />
           </svg>
         </div>
         <transition name="fade">
@@ -76,13 +75,13 @@
             <div class="lang-menu-item" :class="{ active: currentLocale === 'zh' }" @click="switchLanguage('zh')">
               中文
               <svg v-if="currentLocale === 'zh'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12"></polyline>
+                <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
             <div class="lang-menu-item" :class="{ active: currentLocale === 'en' }" @click="switchLanguage('en')">
               English
               <svg v-if="currentLocale === 'en'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12"></polyline>
+                <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
           </div>
@@ -91,16 +90,16 @@
 
       <div class="icon-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
       </div>
 
       <div class="icon-btn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
       </div>
 

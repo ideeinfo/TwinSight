@@ -95,7 +95,7 @@ export function formatAnalysisText(text: string): string {
     if (!text) return '';
 
     // 预处理：移除多余的空行和孤立的 #
-    let processed = text
+    const processed = text
         .replace(/^#\s*$/gm, '')           // 移除孤立的 #
         .replace(/\n{3,}/g, '\n\n')        // 多个换行合并为两个
         .replace(/^\s+|\s+$/g, '')         // 去掉首尾空白

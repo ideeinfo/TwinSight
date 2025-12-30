@@ -4,16 +4,16 @@
     <div v-if="!isOpen" class="time-pill" @click="$emit('open')">
       <div class="expand-action">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
         </svg>
       </div>
       <div class="divider"></div>
       <div class="pill-content">
         <svg class="cal-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
         <span class="date-text">{{ currentDateStr }}</span>
         <span class="time-text">{{ currentTimeStr }}</span>
@@ -32,16 +32,16 @@
         <div class="toolbar-left">
           <button class="tool-btn collapse" @click="$emit('close')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>
+              <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7" />
             </svg>
           </button>
           <div class="divider-v"></div>
           <div class="current-info">
             <svg class="cal-icon-sm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
             <span class="info-text">{{ currentDateStr }} &nbsp; <strong>{{ currentTimeStr }}</strong></span>
           </div>
@@ -51,11 +51,11 @@
         </div>
         <div class="toolbar-right">
           <!-- 时间范围选择 -->
-          <div class="time-range-wrapper" ref="dropdownRef">
+          <div ref="dropdownRef" class="time-range-wrapper">
             <div class="dropdown-trigger" @click="isTimeRangeMenuOpen = !isTimeRangeMenuOpen">
               {{ selectedTimeRangeLabel }}
               <svg class="arrow" :class="{ rotated: isTimeRangeMenuOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"></polyline>
+                <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
             <transition name="fade">
@@ -69,7 +69,7 @@
                 >
                   {{ option.label }}
                   <svg v-if="selectedTimeRange === option.value" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="20 6 9 17 4 12"></polyline>
+                    <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
                 <div class="menu-divider"></div>
@@ -84,13 +84,13 @@
           <div class="control-group">
             <button class="circle-btn" @click="$emit('zoom-out')">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
             <button class="circle-btn" @click="$emit('zoom-in')">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
           </div>
@@ -99,19 +99,19 @@
           <div class="control-group">
             <button class="icon-btn-lg" @click="$emit('toggle-play')">
               <svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <rect x="6" y="4" width="4" height="16"></rect>
-                <rect x="14" y="4" width="4" height="16"></rect>
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
               </svg>
             </button>
             <button class="icon-btn-lg" :class="{ 'active-blue': isLooping }" @click="$emit('toggle-loop')">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                <path d="M16 21h5v-5"/>
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <path d="M16 21h5v-5" />
               </svg>
             </button>
           </div>
@@ -125,10 +125,10 @@
       <div class="timeline-track-row">
         <button class="nav-arrow left" @click="$emit('pan', -1)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"></polyline>
+            <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div class="track-container" ref="trackRef" @mousedown="onTrackMouseDown">
+        <div ref="trackRef" class="track-container" @mousedown="onTrackMouseDown">
           <!-- 迷你图表层 -->
           <div class="mini-chart-layer">
             <svg class="svg-mini" viewBox="0 0 1000 100" preserveAspectRatio="none">
@@ -174,7 +174,7 @@
         </div>
         <button class="nav-arrow right" @click="$emit('pan', 1)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"></polyline>
+            <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
       </div>
@@ -183,12 +183,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
-const props = defineProps({
+defineProps({
   isOpen: { type: Boolean, default: false },
   isLive: { type: Boolean, default: true },
   isPlaying: { type: Boolean, default: false },

@@ -2,7 +2,7 @@
  * IoT 数据 Composable
  * 封装温度数据获取和处理逻辑
  */
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useIoTStore } from '@/stores/iot';
 
 export interface TimeSeriesPoint {

@@ -5,31 +5,31 @@
       <div class="hero-background">
         <div class="grid-overlay"></div>
         <div class="floating-data">
-          <div class="data-point" v-for="i in 12" :key="i" :style="getDataPointStyle(i)"></div>
+          <div v-for="i in 12" :key="i" class="data-point" :style="getDataPointStyle(i)"></div>
         </div>
         <div class="gradient-mesh"></div>
       </div>
 
       <div class="hero-content">
-        <div class="hero-badge" v-animate="{ delay: 0 }">
+        <div v-animate="{ delay: 0 }" class="hero-badge">
           <span class="pulse-dot"></span>
           <span>{{ $t('home.liveSystem') }}</span>
         </div>
 
-        <h1 class="hero-title" v-animate="{ delay: 100 }">
+        <h1 v-animate="{ delay: 100 }" class="hero-title">
           <span class="title-line">{{ $t('home.titleLine1') }}</span>
           <span class="title-line title-highlight">{{ $t('home.titleLine2') }}</span>
         </h1>
 
-        <p class="hero-description" v-animate="{ delay: 200 }">
+        <p v-animate="{ delay: 200 }" class="hero-description">
           {{ $t('home.description') }}
         </p>
 
-        <div class="hero-actions" v-animate="{ delay: 300 }">
+        <div v-animate="{ delay: 300 }" class="hero-actions">
           <button class="btn-primary" @click="router.push('/viewer')">
             <span>{{ $t('home.launchViewer') }}</span>
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
           </button>
           <button class="btn-secondary" @click="router.push('/viewer')">
@@ -38,8 +38,8 @@
         </div>
 
         <!-- Quick Stats -->
-        <div class="hero-stats" v-animate="{ delay: 400 }">
-          <div class="stat-item" v-for="stat in quickStats" :key="stat.label">
+        <div v-animate="{ delay: 400 }" class="hero-stats">
+          <div v-for="stat in quickStats" :key="stat.label" class="stat-item">
             <div class="stat-value">{{ stat.value }}</div>
             <div class="stat-label">{{ stat.label }}</div>
           </div>
@@ -47,7 +47,7 @@
       </div>
 
       <!-- Scroll Indicator -->
-      <div class="scroll-indicator" v-animate="{ delay: 500 }">
+      <div v-animate="{ delay: 500 }" class="scroll-indicator">
         <div class="mouse">
           <div class="wheel"></div>
         </div>
@@ -57,16 +57,16 @@
     <!-- Features Grid -->
     <section class="features-section">
       <div class="section-header">
-        <span class="section-tag" v-animate>// {{ $t('home.capabilities') }}</span>
-        <h2 class="section-title" v-animate>{{ $t('home.featureTitle') }}</h2>
+        <span v-animate class="section-tag">// {{ $t('home.capabilities') }}</span>
+        <h2 v-animate class="section-title">{{ $t('home.featureTitle') }}</h2>
       </div>
 
       <div class="features-grid">
         <div
-          class="feature-card"
           v-for="(feature, index) in features"
           :key="feature.title"
           v-animate="{ delay: index * 100 }"
+          class="feature-card"
           @mouseenter="feature.hovered = true"
           @mouseleave="feature.hovered = false"
         >
@@ -78,7 +78,7 @@
             <h3 class="feature-title">{{ $t(feature.title) }}</h3>
             <p class="feature-description">{{ $t(feature.description) }}</p>
             <div class="feature-metrics">
-              <span class="metric" v-for="metric in feature.metrics" :key="metric">
+              <span v-for="metric in feature.metrics" :key="metric" class="metric">
                 {{ metric }}
               </span>
             </div>
@@ -91,12 +91,12 @@
     <!-- Data Visualization Preview -->
     <section class="preview-section">
       <div class="preview-container">
-        <div class="preview-info" v-animate>
+        <div v-animate class="preview-info">
           <h2 class="section-title">{{ $t('home.monitoringTitle') }}</h2>
           <p class="section-description">{{ $t('home.monitoringDesc') }}</p>
 
           <div class="preview-metrics">
-            <div class="metric-row" v-for="metric in previewMetrics" :key="metric.label">
+            <div v-for="metric in previewMetrics" :key="metric.label" class="metric-row">
               <div class="metric-info">
                 <span class="metric-label">{{ $t(metric.label) }}</span>
                 <span class="metric-value" :class="metric.status">{{ metric.value }}</span>
@@ -108,15 +108,15 @@
           </div>
         </div>
 
-        <div class="preview-visual" v-animate="{ delay: 200 }">
+        <div v-animate="{ delay: 200 }" class="preview-visual">
           <div class="building-model">
-            <div class="model-floor" v-for="i in 5" :key="i" :style="{ animationDelay: `${i * 0.1}s` }">
+            <div v-for="i in 5" :key="i" class="model-floor" :style="{ animationDelay: `${i * 0.1}s` }">
               <div class="floor-rooms">
-                <div class="room" v-for="j in 8" :key="j"></div>
+                <div v-for="j in 8" :key="j" class="room"></div>
               </div>
             </div>
             <div class="model-data-points">
-              <div class="data-point-marker" v-for="i in 16" :key="i" :style="getMarkerStyle(i)"></div>
+              <div v-for="i in 16" :key="i" class="data-point-marker" :style="getMarkerStyle(i)"></div>
             </div>
           </div>
         </div>
@@ -125,7 +125,7 @@
 
     <!-- CTA Section -->
     <section class="cta-section">
-      <div class="cta-content" v-animate>
+      <div v-animate class="cta-content">
         <h2 class="cta-title">{{ $t('home.ctaTitle') }}</h2>
         <p class="cta-description">{{ $t('home.ctaDescription') }}</p>
         <div class="cta-actions">
@@ -149,8 +149,8 @@
         <div class="footer-brand">
           <div class="brand-logo">
             <svg viewBox="0 0 40 40" fill="none">
-              <path d="M20 4L36 36H4L20 4Z" stroke="currentColor" stroke-width="2"/>
-              <circle cx="20" cy="24" r="6" fill="currentColor"/>
+              <path d="M20 4L36 36H4L20 4Z" stroke="currentColor" stroke-width="2" />
+              <circle cx="20" cy="24" r="6" fill="currentColor" />
             </svg>
           </div>
           <span class="brand-name">TANDEM</span>
@@ -248,7 +248,7 @@ const previewMetrics = ref([
 ]);
 
 // Generate random positions for data points
-const getDataPointStyle = (i) => {
+const getDataPointStyle = () => {
   const top = Math.random() * 100;
   const left = Math.random() * 100;
   const delay = Math.random() * 3;
@@ -259,7 +259,7 @@ const getDataPointStyle = (i) => {
   };
 };
 
-const getMarkerStyle = (i) => {
+const getMarkerStyle = () => {
   const top = 10 + Math.random() * 80;
   const left = 10 + Math.random() * 80;
   return {

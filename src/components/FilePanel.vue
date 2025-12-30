@@ -12,14 +12,14 @@
       <div class="search-row">
         <div class="search-input-wrapper">
           <svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input type="text" :placeholder="t('common.search')" v-model="searchText" />
+          <input v-model="searchText" type="text" :placeholder="t('common.search')" />
         </div>
         <div class="filter-icon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
         </div>
       </div>
@@ -42,8 +42,8 @@
           >
             <div class="file-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
               </svg>
             </div>
             <div class="item-content">
@@ -57,9 +57,9 @@
             <div class="item-actions">
               <button class="more-btn" @click.stop="showContextMenu($event, file)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="1"></circle>
-                  <circle cx="12" cy="5" r="1"></circle>
-                  <circle cx="12" cy="19" r="1"></circle>
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="19" r="1" />
                 </svg>
               </button>
             </div>
@@ -84,29 +84,31 @@
           <div class="modal-body">
             <div class="form-group">
               <label>{{ t('filePanel.fileTitle') }} *</label>
-              <input type="text" v-model="uploadForm.title" :placeholder="t('filePanel.fileTitlePlaceholder')" />
+              <input v-model="uploadForm.title" type="text" :placeholder="t('filePanel.fileTitlePlaceholder')" />
             </div>
             <div class="form-group">
               <label>{{ t('filePanel.selectFile') }}</label>
-              <div class="file-drop-zone" 
-                   @click="triggerFileInput"
-                   @dragover.prevent="onDragOver"
-                   @dragleave="onDragLeave"
-                   @drop.prevent="onFileDrop"
-                   :class="{ dragging: isDragging }">
-                <input type="file" ref="fileInput" @change="onFileSelect" accept=".zip,.svfzip" hidden />
+              <div
+                class="file-drop-zone" 
+                :class="{ dragging: isDragging }"
+                @click="triggerFileInput"
+                @dragover.prevent="onDragOver"
+                @dragleave="onDragLeave"
+                @drop.prevent="onFileDrop"
+              >
+                <input ref="fileInput" type="file" accept=".zip,.svfzip" hidden @change="onFileSelect" />
                 <div v-if="!uploadForm.file" class="drop-hint">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                   <p>{{ t('filePanel.dropHint') }}</p>
                 </div>
                 <div v-else class="selected-file">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38ABDF" stroke-width="1.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
                   </svg>
                   <span>{{ uploadForm.file.name }}</span>
                   <button class="remove-file" @click.stop="uploadForm.file = null">×</button>
@@ -122,7 +124,7 @@
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeUploadDialog">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" @click="uploadFile" :disabled="!uploadForm.title || !uploadForm.file || isUploading">
+            <button class="btn btn-primary" :disabled="!uploadForm.title || !uploadForm.file || isUploading" @click="uploadFile">
               {{ isUploading ? t('filePanel.uploading') : t('filePanel.upload') }}
             </button>
           </div>
@@ -135,29 +137,29 @@
       <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
         <div class="context-menu-item" @click="handleEdit">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
           {{ t('filePanel.edit') }}
         </div>
         <div class="context-menu-item" @click="handleActivate">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           {{ t('filePanel.activate') }}
         </div>
         <div class="context-menu-item" @click="handleExtract">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           {{ t('filePanel.extractData') }}
         </div>
         <div class="context-menu-item" @click="handleInfluxConfig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
           {{ t('filePanel.influxConfig') }}
         </div>
@@ -173,8 +175,8 @@
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="handleDelete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           </svg>
           {{ t('filePanel.delete') }}
         </div>
@@ -192,12 +194,12 @@
           <div class="modal-body">
             <div class="form-group">
               <label>{{ t('filePanel.fileTitle') }} *</label>
-              <input type="text" v-model="editForm.title" :placeholder="t('filePanel.fileTitlePlaceholder')" />
+              <input v-model="editForm.title" type="text" :placeholder="t('filePanel.fileTitlePlaceholder')" />
             </div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-secondary" @click="closeEditDialog">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" @click="saveEdit" :disabled="!editForm.title || isSaving">
+            <button class="btn btn-primary" :disabled="!editForm.title || isSaving" @click="saveEdit">
               {{ isSaving ? t('common.saving') : t('common.apply') }}
             </button>
           </div>
@@ -226,7 +228,7 @@
     <Teleport to="body">
       <InfluxConfigPanel
         v-if="isInfluxConfigOpen"
-        :fileId="influxConfigFileId"
+        :file-id="influxConfigFileId"
         @close="closeInfluxConfig"
         @saved="onInfluxConfigSaved"
       />
@@ -247,7 +249,7 @@
       <template v-if="dialogState.showDeleteKBOption" #extra>
         <div class="delete-kb-option">
           <label class="checkbox-label">
-            <input type="checkbox" v-model="deleteKnowledgeBase" />
+            <input v-model="deleteKnowledgeBase" type="checkbox" />
             <span>{{ t('filePanel.deleteKnowledgeBase') }}</span>
           </label>
           <p class="option-hint">{{ t('filePanel.deleteKnowledgeBaseHint') }}</p>

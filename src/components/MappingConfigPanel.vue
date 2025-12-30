@@ -1,9 +1,9 @@
 <template>
   <div class="mapping-config-panel" :class="{ 'embedded': embedded }">
-    <div class="dialog-header" v-if="!embedded">
+    <div v-if="!embedded" class="dialog-header">
       <h3 class="dialog-title">🔧 {{ $t('dataExport.mappingConfig.title') }}</h3>
       <button class="dialog-close-btn" @click="$emit('close')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
     </div>
 
@@ -43,7 +43,7 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('asset', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
+            <button class="btn-reset" :title="$t('dataExport.mappingConfig.reset') || '重置'" @click="resetField('asset', field)">↻</button>
           </div>
         </div>
 
@@ -63,7 +63,7 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('spec', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
+            <button class="btn-reset" :title="$t('dataExport.mappingConfig.reset') || '重置'" @click="resetField('spec', field)">↻</button>
           </div>
         </div>
 
@@ -83,7 +83,7 @@
               :placeholder="$t('dataExport.mappingConfig.propertyPlaceholder')"
             />
 
-            <button class="btn-reset" @click="resetField('space', field)" :title="$t('dataExport.mappingConfig.reset') || '重置'">↻</button>
+            <button class="btn-reset" :title="$t('dataExport.mappingConfig.reset') || '重置'" @click="resetField('space', field)">↻</button>
           </div>
         </div>
       </div>
@@ -111,7 +111,6 @@
           <button class="btn btn-primary" @click="saveMapping">{{ $t('dataExport.mappingConfig.save') }}</button>
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -128,7 +127,6 @@ const props = defineProps({
   assetSpecMapping: { type: Object, default: () => ({}) },
   spaceMapping: { type: Object, default: () => ({}) },
   assetPropertyOptions: { type: Object, default: () => ({}) },
-  spacePropertyOptions: { type: Object, default: () => ({}) },
   spacePropertyOptions: { type: Object, default: () => ({}) },
   embedded: { type: Boolean, default: false },
   saveMessage: { type: String, default: '' },

@@ -30,7 +30,7 @@ export async function isInfluxConfigured(fileId?: number): Promise<boolean> {
  * 写入房间历史数据（通过 Stream API）
  * 注意：这个方法主要用于外部数据接入，前端一般不直接调用
  */
-export async function writeRoomHistory(roomCode: string, points: Point[]) {
+export async function writeRoomHistory(_roomCode: string, _points: Point[]) {
   // 写入操作需要 API Key，通常由外部系统调用
   // 前端不应直接调用此方法
   console.warn('writeRoomHistory: 前端不应直接调用，请使用 Stream URL 接入数据');

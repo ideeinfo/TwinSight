@@ -10,49 +10,49 @@
           <div class="preview-actions">
             <!-- 图片缩放控制 (非全景图) -->
             <template v-if="isImage && !isPanorama">
-              <button class="preview-btn" @click="zoomOut" :disabled="zoom <= 0.25" title="缩小">
+              <button class="preview-btn" :disabled="zoom <= 0.25" title="缩小" @click="zoomOut">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
                 </svg>
               </button>
               <span class="zoom-level">{{ Math.round(zoom * 100) }}%</span>
-              <button class="preview-btn" @click="zoomIn" :disabled="zoom >= 4" title="放大">
+              <button class="preview-btn" :disabled="zoom >= 4" title="放大" @click="zoomIn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  <line x1="11" y1="8" x2="11" y2="14"></line>
-                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="11" y1="8" x2="11" y2="14" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
                 </svg>
               </button>
-              <button class="preview-btn" @click="resetZoom" title="重置">
+              <button class="preview-btn" title="重置" @click="resetZoom">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
                 </svg>
               </button>
             </template>
             <!-- 下载按钮 -->
-            <button class="preview-btn" @click="download" title="下载">
+            <button class="preview-btn" title="下载" @click="download">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
             <!-- 关闭按钮 -->
-            <button class="preview-btn close-btn" @click="close" title="关闭">
+            <button class="preview-btn close-btn" title="关闭" @click="close">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
         </div>
 
         <!-- 内容区域 -->
-        <div class="preview-content" ref="contentRef">
+        <div ref="contentRef" class="preview-content">
           <!-- PDF 预览 -->
           <div v-if="isPdf" class="pdf-wrapper">
             <iframe 
@@ -67,21 +67,21 @@
             <div ref="panoramaRef" class="panorama-viewer"></div>
             <!-- 自定义控制按钮 -->
             <div class="panorama-controls">
-              <button class="pano-btn" @click="panoramaZoomIn" title="放大">+</button>
-              <button class="pano-btn" @click="panoramaZoomOut" title="缩小">−</button>
+              <button class="pano-btn" title="放大" @click="panoramaZoomIn">+</button>
+              <button class="pano-btn" title="缩小" @click="panoramaZoomOut">−</button>
               <div class="pano-separator"></div>
-              <button class="pano-btn" @click="panoramaRollLeft" title="向左滚转">↶</button>
-              <button class="pano-btn" @click="panoramaRollReset" title="重置滚转">⟳</button>
-              <button class="pano-btn" @click="panoramaRollRight" title="向右滚转">↷</button>
+              <button class="pano-btn" title="向左滚转" @click="panoramaRollLeft">↶</button>
+              <button class="pano-btn" title="重置滚转" @click="panoramaRollReset">⟳</button>
+              <button class="pano-btn" title="向右滚转" @click="panoramaRollRight">↷</button>
               <div class="pano-separator"></div>
-              <button class="pano-btn" @click="panoramaFullscreen" title="全屏">⛶</button>
+              <button class="pano-btn" title="全屏" @click="panoramaFullscreen">⛶</button>
             </div>
             <div class="panorama-hint">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 9l-3 3 3 3"/>
-                <path d="M19 9l3 3-3 3"/>
-                <path d="M12 5l-3-3 3-3"/>
-                <path d="M12 19l-3 3 3 3"/>
+                <path d="M5 9l-3 3 3 3" />
+                <path d="M19 9l3 3-3 3" />
+                <path d="M12 5l-3-3 3-3" />
+                <path d="M12 19l-3 3 3 3" />
               </svg>
               <span>拖动查看 360° 全景 | ↶↷ 滚转调整</span>
             </div>
@@ -101,8 +101,8 @@
               :src="fileUrl" 
               class="image-viewer"
               :style="imageStyle"
-              @load="onImageLoad"
               draggable="false"
+              @load="onImageLoad"
             />
           </div>
 
@@ -123,8 +123,8 @@
           <!-- 不支持的格式 -->
           <div v-else class="unsupported">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
             </svg>
             <p>此文件格式不支持预览</p>
             <button class="download-btn" @click="download">下载文件</button>

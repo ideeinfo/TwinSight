@@ -3,161 +3,158 @@
     <!-- 全景比对模式 -->
     <PanoCompareView 
       v-if="isPanoCompareMode"
-      :fileId="panoFileId"
-      :modelPath="panoModelPath"
-      :fileName="panoFileName"
+      :file-id="panoFileId"
+      :model-path="panoModelPath"
+      :file-name="panoFileName"
     />
 
     <!-- 正常模式 -->
     <div v-else class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
-    <TopBar :isViewsPanelOpen="isViewsPanelOpen" :currentViewName="currentViewName" :activeFileName="activeFileName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
+      <TopBar :is-views-panel-open="isViewsPanelOpen" :current-view-name="currentViewName" :active-file-name="activeFileName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
 
-    <div class="main-body" ref="mainBody" @mousemove="onMouseMove">
-
-      <!-- 左侧区域：IconBar + 内容面板 -->
-      <div class="left-section" :style="{ width: leftWidth + 'px' }">
-        <!-- 全局导航栏 -->
-        <IconBar
-          :currentView="currentView"
-          :isStreamsOpen="isChartPanelOpen"
-          :isAIEnabled="isAIAnalysisEnabled"
-          @switch-view="switchView"
-          @toggle-streams="toggleChartPanel"
-          @toggle-ai="toggleAIAnalysis"
-        />
+      <div ref="mainBody" class="main-body" @mousemove="onMouseMove">
+        <!-- 左侧区域：IconBar + 内容面板 -->
+        <div class="left-section" :style="{ width: leftWidth + 'px' }">
+          <!-- 全局导航栏 -->
+          <IconBar
+            :current-view="currentView"
+            :is-streams-open="isChartPanelOpen"
+            :is-a-i-enabled="isAIAnalysisEnabled"
+            @switch-view="switchView"
+            @toggle-streams="toggleChartPanel"
+            @toggle-ai="toggleAIAnalysis"
+          />
         
-        <!-- 内容面板 -->
-        <div class="panel-content">
-          <LeftPanel
-            v-if="currentView === 'connect'"
-            :rooms="roomList"
-            :selectedDbIds="savedRoomSelections"
-            @open-properties="openRightPanel"
-            @rooms-selected="onRoomsSelected"
-          />
-          <AssetPanel
-            v-else-if="currentView === 'assets'"
-            ref="assetPanelRef"
-            :assets="assetList"
-            :selectedDbIds="savedAssetSelections"
-            @open-properties="openRightPanel"
-            @assets-selected="onAssetsSelected"
-          />
-          <FilePanel
-            v-else-if="currentView === 'files'"
-            @file-activated="onFileActivated"
-            @open-data-export="openDataExportPanel"
-          />
-        </div>
-      </div>
-
-      <div class="resizer" @mousedown="startResize($event, 'left')"></div>
-
-      <!-- 中间主视图区域 -->
-      <div class="main-content">
-        <!-- 3D 视图 -->
-        <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
-          <MainView
-            ref="mainViewRef"
-            :currentView="currentView"
-            :assets="assetList"
-            :rooms="roomList"
-            :isAIEnabled="isAIAnalysisEnabled"
-            @rooms-loaded="onRoomsLoaded"
-            @assets-loaded="onAssetsLoaded"
-            @viewer-ready="onViewerReady"
-            @chart-data-update="onChartDataUpdate"
-            @time-range-changed="onTimeRangeChanged"
-            @model-selection-changed="onModelSelectionChanged"
-          />
-        </div>
-
-        <!-- 底部图表高度调节拖拽条 -->
-        <div v-if="isChartPanelOpen" class="horizontal-resizer" @mousedown="startResize($event, 'chart')"></div>
-
-        <!-- 底部图表面板 -->
-        <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
-          <template v-if="selectedRoomSeries.length">
-            <ChartPanel
-              v-if="selectedRoomSeries.length === 1"
-              :data="selectedRoomSeries[0].points"
-              :range="currentRange"
-              :label-text="$t('chartPanel.individual')"
-              @hover-sync="onHoverSync"
-              @close="closeChartPanel"
+          <!-- 内容面板 -->
+          <div class="panel-content">
+            <LeftPanel
+              v-if="currentView === 'connect'"
+              :rooms="roomList"
+              :selected-db-ids="savedRoomSelections"
+              @open-properties="openRightPanel"
+              @rooms-selected="onRoomsSelected"
             />
-            <MultiChartPanel
-              v-else
-              :seriesList="selectedRoomSeries"
-              :range="currentRange"
-              @hover-sync="onHoverSync"
-              @close="closeChartPanel"
+            <AssetPanel
+              v-else-if="currentView === 'assets'"
+              ref="assetPanelRef"
+              :assets="assetList"
+              :selected-db-ids="savedAssetSelections"
+              @open-properties="openRightPanel"
+              @assets-selected="onAssetsSelected"
             />
-          </template>
-          <ChartPanel v-else :data="chartData" :range="currentRange" :label-text="$t('chartPanel.average')" @close="closeChartPanel" @hover-sync="onHoverSync" />
+            <FilePanel
+              v-else-if="currentView === 'files'"
+              @file-activated="onFileActivated"
+              @open-data-export="openDataExportPanel"
+            />
+          </div>
         </div>
-      </div>
 
-      <!-- 右侧拖拽条 -->
-      <div
-        v-if="isRightPanelOpen"
-        class="resizer"
-        @mousedown="startResize($event, 'right')"
-      ></div>
+        <div class="resizer" @mousedown="startResize($event, 'left')"></div>
 
-      <!-- 右侧面板 -->
-      <div
-        v-if="isRightPanelOpen"
-        class="panel-wrapper"
-        :style="{ width: rightWidth + 'px' }"
-      >
-        <RightPanel
-          :roomProperties="selectedRoomProperties"
-          :selectedIds="selectedObjectIds"
-          :viewMode="currentView"
-          @close-properties="closeRightPanel"
-          @property-changed="onPropertyChanged"
-        />
-      </div>
+        <!-- 中间主视图区域 -->
+        <div class="main-content">
+          <!-- 3D 视图 -->
+          <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
+            <MainView
+              ref="mainViewRef"
+              :current-view="currentView"
+              :assets="assetList"
+              :rooms="roomList"
+              :is-a-i-enabled="isAIAnalysisEnabled"
+              @rooms-loaded="onRoomsLoaded"
+              @assets-loaded="onAssetsLoaded"
+              @viewer-ready="onViewerReady"
+              @chart-data-update="onChartDataUpdate"
+              @time-range-changed="onTimeRangeChanged"
+              @model-selection-changed="onModelSelectionChanged"
+            />
+          </div>
 
-    </div>
+          <!-- 底部图表高度调节拖拽条 -->
+          <div v-if="isChartPanelOpen" class="horizontal-resizer" @mousedown="startResize($event, 'chart')"></div>
 
-    <!-- 数据导出面板弹窗 -->
-    <Teleport to="body">
-      <div v-if="isDataExportOpen" class="modal-overlay" @click.self="closeDataExportPanel">
-        <div class="modal-container">
-          <DataExportPanel
-            :fileId="currentExportFileId"
-            :getFullAssetData="getFullAssetDataFromMainView"
-            :getFullSpaceData="getFullSpaceDataFromMainView"
-            :getAssetPropertyList="getAssetPropertyListFromMainView"
-            :getSpacePropertyList="getSpacePropertyListFromMainView"
-            :getFullAssetDataWithMapping="getFullAssetDataWithMappingFromMainView"
-            :getFullSpaceDataWithMapping="getFullSpaceDataWithMappingFromMainView"
+          <!-- 底部图表面板 -->
+          <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
+            <template v-if="selectedRoomSeries.length">
+              <ChartPanel
+                v-if="selectedRoomSeries.length === 1"
+                :data="selectedRoomSeries[0].points"
+                :range="currentRange"
+                :label-text="$t('chartPanel.individual')"
+                @hover-sync="onHoverSync"
+                @close="closeChartPanel"
+              />
+              <MultiChartPanel
+                v-else
+                :series-list="selectedRoomSeries"
+                :range="currentRange"
+                @hover-sync="onHoverSync"
+                @close="closeChartPanel"
+              />
+            </template>
+            <ChartPanel v-else :data="chartData" :range="currentRange" :label-text="$t('chartPanel.average')" @close="closeChartPanel" @hover-sync="onHoverSync" />
+          </div>
+        </div>
+
+        <!-- 右侧拖拽条 -->
+        <div
+          v-if="isRightPanelOpen"
+          class="resizer"
+          @mousedown="startResize($event, 'right')"
+        ></div>
+
+        <!-- 右侧面板 -->
+        <div
+          v-if="isRightPanelOpen"
+          class="panel-wrapper"
+          :style="{ width: rightWidth + 'px' }"
+        >
+          <RightPanel
+            :room-properties="selectedRoomProperties"
+            :selected-ids="selectedObjectIds"
+            :view-mode="currentView"
+            @close-properties="closeRightPanel"
+            @property-changed="onPropertyChanged"
           />
-          <button class="dialog-close-btn modal-close-btn" @click="closeDataExportPanel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
         </div>
       </div>
-    </Teleport>
+
+      <!-- 数据导出面板弹窗 -->
+      <Teleport to="body">
+        <div v-if="isDataExportOpen" class="modal-overlay" @click.self="closeDataExportPanel">
+          <div class="modal-container">
+            <DataExportPanel
+              :file-id="currentExportFileId"
+              :get-full-asset-data="getFullAssetDataFromMainView"
+              :get-full-space-data="getFullSpaceDataFromMainView"
+              :get-asset-property-list="getAssetPropertyListFromMainView"
+              :get-space-property-list="getSpacePropertyListFromMainView"
+              :get-full-asset-data-with-mapping="getFullAssetDataWithMappingFromMainView"
+              :get-full-space-data-with-mapping="getFullSpaceDataWithMappingFromMainView"
+            />
+            <button class="dialog-close-btn modal-close-btn" @click="closeDataExportPanel">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Teleport>
     
-    <!-- 视图面板 -->
-    <ViewsPanel
-      :visible="isViewsPanelOpen"
-      :fileId="activeFileId"
-      :fileName="activeFileName"
-      @close="isViewsPanelOpen = false"
-      @get-viewer-state="handleGetViewerState"
-      @capture-screenshot="handleCaptureScreenshot"
-      @restore-view="handleRestoreView"
-      @current-view-changed="currentViewName = $event"
-    />
-  </div>
-
+      <!-- 视图面板 -->
+      <ViewsPanel
+        :visible="isViewsPanelOpen"
+        :file-id="activeFileId"
+        :file-name="activeFileName"
+        @close="isViewsPanelOpen = false"
+        @get-viewer-state="handleGetViewerState"
+        @capture-screenshot="handleCaptureScreenshot"
+        @restore-view="handleRestoreView"
+        @current-view-changed="currentViewName = $event"
+      />
+    </div>
   </div>
 </template>
 
@@ -258,9 +255,6 @@ const currentExportFileId = ref(null);
 
 // 数据导出面板打开前的原模型路径（用于关闭时恢复）
 const previousModelPath = ref(null);
-
-// 数据导出面板打开前的原激活文件信息（用于关闭时恢复视图面板）
-const previousActiveFileInfo = ref(null);
 
 // 待加载的激活文件（在 viewer 初始化完成后加载）
 const pendingActiveFile = ref(null);

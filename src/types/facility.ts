@@ -31,7 +31,7 @@ export interface Facility {
     children?: Facility[];
 
     // 元数据
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     createdAt: string;
     updatedAt?: string;
 }

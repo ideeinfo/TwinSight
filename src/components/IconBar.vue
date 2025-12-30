@@ -4,42 +4,42 @@
     <div class="nav-group-top">
       <div class="nav-item disabled">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
         </svg>
         <span class="label">{{ t('leftPanel.filters') }}</span>
       </div>
       <div class="nav-item" :class="{ 'active-blue': currentView === 'assets' }" @click="$emit('switch-view', 'assets')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
         </svg>
         <span class="label">{{ t('leftPanel.assets') }}</span>
       </div>
       <div class="nav-item" :class="{ 'active-blue': currentView === 'files' }" @click="$emit('switch-view', 'files')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
         <span class="label">{{ t('leftPanel.files') }}</span>
       </div>
       <div class="nav-item disabled">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="5" r="3"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="12" x2="6" y2="15"></line>
-          <line x1="12" y1="12" x2="18" y2="15"></line>
-          <circle cx="6" cy="18" r="3"></circle>
-          <circle cx="18" cy="18" r="3"></circle>
+          <circle cx="12" cy="5" r="3" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="12" x2="6" y2="15" />
+          <line x1="12" y1="12" x2="18" y2="15" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="18" r="3" />
         </svg>
         <span class="label">{{ t('leftPanel.systems') }}</span>
       </div>
       <div class="nav-item" :class="{ 'active-blue': currentView === 'connect' }" @click="$emit('switch-view', 'connect')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="18" cy="5" r="3"></circle>
-          <circle cx="6" cy="12" r="3"></circle>
-          <circle cx="18" cy="19" r="3"></circle>
-          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
         </svg>
         <span class="label">{{ t('leftPanel.connect') }}</span>
       </div>
@@ -50,33 +50,33 @@
       <!-- AI 分析开关 -->
       <div class="nav-item" :class="{ 'active-blue': isAIEnabled }" @click="$emit('toggle-ai')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isAIEnabled ? '#38ABDF' : 'currentColor'" stroke-width="1.5">
-          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
-          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
-          <circle cx="15" cy="13" r="1.5" fill="currentColor"/>
-          <path d="M9 17h6"/>
+          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+          <circle cx="9" cy="13" r="1.5" fill="currentColor" />
+          <circle cx="15" cy="13" r="1.5" fill="currentColor" />
+          <path d="M9 17h6" />
         </svg>
         <span class="label" :style="{ color: isAIEnabled ? '#38ABDF' : '' }">{{ t('leftPanel.ai') }}</span>
       </div>
       <!-- 数据流 -->
       <div class="nav-item" :class="{ 'active-blue': isStreamsOpen }" @click="$emit('toggle-streams')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="isStreamsOpen ? '#38ABDF' : 'currentColor'" stroke-width="1.5">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
         <span class="label" :style="{ color: isStreamsOpen ? '#38ABDF' : '' }">{{ t('leftPanel.streams') }}</span>
       </div>
       <div class="nav-item disabled">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
         </svg>
         <span class="label">{{ t('leftPanel.history') }}</span>
       </div>
       <div class="nav-item disabled">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
         </svg>
         <span class="label">{{ t('leftPanel.inventory') }}</span>
       </div>

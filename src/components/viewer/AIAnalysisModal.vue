@@ -6,9 +6,9 @@
           <div class="ai-modal-header">
             <div class="ai-header-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
             <span class="ai-header-title">🤖 AI 智能分析</span>
@@ -28,7 +28,7 @@
                 <span class="alert-location">{{ roomName }}</span>
                 <span class="alert-temp">{{ temperature }}°C</span>
               </div>
-              <div class="ai-analysis-text" v-html="formattedAnalysis" @click="handleTextClick"></div>
+              <div class="ai-analysis-text" @click="handleTextClick" v-html="formattedAnalysis"></div>
             </div>
           </div>
           
@@ -77,20 +77,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'acknowledge', 'openSource']);
-
-/**
- * 处理来源链接点击
- * @param {Object} source - 来源对象
- */
-const handleSourceClick = (source) => {
-  if (source.isInternal && source.documentId) {
-    // 内部文档：通过 emit 通知父组件打开预览
-    emit('openSource', source);
-  } else if (source.url) {
-    // 外部链接：新窗口打开
-    window.open(source.url, '_blank');
-  }
-};
 
 /**
  * 处理分析文本中的点击事件

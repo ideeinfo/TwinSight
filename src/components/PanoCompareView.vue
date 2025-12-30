@@ -3,7 +3,7 @@
     <!-- 顶部控制栏 -->
     <div class="compare-header">
       <div class="header-left">
-        <button class="icon-btn" @click="goBack" title="返回">
+        <button class="icon-btn" title="返回" @click="goBack">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
@@ -13,34 +13,34 @@
       <div class="header-center">
         <!-- 模式切换 -->
         <div class="mode-group">
-            <button class="mode-btn" :class="{ active: !isOverlayMode }" @click="setOverlayMode(false)" title="左右对比">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="3" width="20" height="18" rx="2" />
-                    <line x1="12" y1="3" x2="12" y2="21" />
-                </svg>
-            </button>
-            <button class="mode-btn" :class="{ active: isOverlayMode }" @click="setOverlayMode(true)" title="重叠对比">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="4" />
-                    <rect x="2" y="2" width="20" height="20" rx="2" stroke-opacity="0.5" />
-                </svg>
-            </button>
+          <button class="mode-btn" :class="{ active: !isOverlayMode }" title="左右对比" @click="setOverlayMode(false)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="18" rx="2" />
+              <line x1="12" y1="3" x2="12" y2="21" />
+            </svg>
+          </button>
+          <button class="mode-btn" :class="{ active: isOverlayMode }" title="重叠对比" @click="setOverlayMode(true)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="4" />
+              <rect x="2" y="2" width="20" height="20" rx="2" stroke-opacity="0.5" />
+            </svg>
+          </button>
         </div>
 
         <!-- 透明度滑块 (仅重叠模式显示) -->
         <div v-if="isOverlayMode" class="opacity-slider">
-            <span>透明度</span>
-            <input type="range" min="0" max="1" step="0.1" v-model.number="panoOpacity">
+          <span>透明度</span>
+          <input v-model.number="panoOpacity" type="range" min="0" max="1" step="0.1" />
         </div>
 
         <div class="divider"></div>
 
-        <button class="mode-btn" :class="{ active: isFineTuneMode }" @click="toggleFineTune" title="微调模式">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            微调
+        <button class="mode-btn" :class="{ active: isFineTuneMode }" title="微调模式" @click="toggleFineTune">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+          微调
         </button>
 
         <div class="divider"></div>
@@ -58,18 +58,18 @@
         </button>
       </div>
       <div class="header-right">
-        <button v-if="defaultViewState" class="icon-btn" @click="applyDefaultView" title="应用默认视图">
+        <button v-if="defaultViewState" class="icon-btn" title="应用默认视图" @click="applyDefaultView">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7Z" />
           </svg>
           重置视角
         </button>
-        <button v-if="currentViewId" class="icon-btn" @click="saveDefaultView" title="保存当前状态为默认视图">
+        <button v-if="currentViewId" class="icon-btn" title="保存当前状态为默认视图" @click="saveDefaultView">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
           </svg>
           保存默认
         </button>
@@ -80,64 +80,64 @@
     <div class="split-container" :class="{ 'overlay-mode': isOverlayMode }">
       <!-- 微调控制面板 -->
       <div v-if="isFineTuneMode" class="fine-tune-panel">
-          <div class="control-section">
-              <span class="section-title">模型相机移动</span>
-              <div class="dpad-grid">
-                  <div class="dpad-cell"></div>
-                  <button class="dpad-btn" @click="moveModelCamera('forward')" title="前进">▲</button>
-                  <div class="dpad-cell"></div>
+        <div class="control-section">
+          <span class="section-title">模型相机移动</span>
+          <div class="dpad-grid">
+            <div class="dpad-cell"></div>
+            <button class="dpad-btn" title="前进" @click="moveModelCamera('forward')">▲</button>
+            <div class="dpad-cell"></div>
                   
-                  <button class="dpad-btn" @click="moveModelCamera('left')" title="左移">◀</button>
-                  <button class="dpad-btn" @click="moveModelCamera('backward')" title="后退">▼</button>
-                  <button class="dpad-btn" @click="moveModelCamera('right')" title="右移">▶</button>
+            <button class="dpad-btn" title="左移" @click="moveModelCamera('left')">◀</button>
+            <button class="dpad-btn" title="后退" @click="moveModelCamera('backward')">▼</button>
+            <button class="dpad-btn" title="右移" @click="moveModelCamera('right')">▶</button>
                   
-                  <div class="dpad-cell"></div>
-                  <div class="dpad-vertical">
-                      <button class="dpad-btn" @click="moveModelCamera('up')" title="上升">↑</button>
-                      <button class="dpad-btn" @click="moveModelCamera('down')" title="下降">↓</button>
-                  </div>
-                  <div class="dpad-cell"></div>
-              </div>
+            <div class="dpad-cell"></div>
+            <div class="dpad-vertical">
+              <button class="dpad-btn" title="上升" @click="moveModelCamera('up')">↑</button>
+              <button class="dpad-btn" title="下降" @click="moveModelCamera('down')">↓</button>
+            </div>
+            <div class="dpad-cell"></div>
           </div>
-          <div class="divider-h"></div>
-          <div class="control-section">
-              <span class="section-title">模型滚转 ({{ modelRoll }}°)</span>
-              <div class="roll-controls">
-                  <button class="roll-btn" @click="updateModelRoll(-1)" title="左滚转">↶ -1°</button>
-                  <button class="roll-btn" @click="updateModelRoll(1)" title="右滚转">↷ +1°</button>
-              </div>
+        </div>
+        <div class="divider-h"></div>
+        <div class="control-section">
+          <span class="section-title">模型滚转 ({{ modelRoll }}°)</span>
+          <div class="roll-controls">
+            <button class="roll-btn" title="左滚转" @click="updateModelRoll(-1)">↶ -1°</button>
+            <button class="roll-btn" title="右滚转" @click="updateModelRoll(1)">↷ +1°</button>
           </div>
-          <div class="divider-h"></div>
-          <div class="control-section">
-              <span class="section-title">模型 FOV ({{ modelFov.toFixed(1) }}°)</span>
-              <div class="fov-controls">
-                  <button class="roll-btn" @click="changeModelFov(-0.1)" title="减小 FOV">-</button>
-                  <span class="fov-display">{{ modelFov.toFixed(1) }}°</span>
-                  <button class="roll-btn" @click="changeModelFov(0.1)" title="增大 FOV">+</button>
-              </div>
+        </div>
+        <div class="divider-h"></div>
+        <div class="control-section">
+          <span class="section-title">模型 FOV ({{ modelFov.toFixed(1) }}°)</span>
+          <div class="fov-controls">
+            <button class="roll-btn" title="减小 FOV" @click="changeModelFov(-0.1)">-</button>
+            <span class="fov-display">{{ modelFov.toFixed(1) }}°</span>
+            <button class="roll-btn" title="增大 FOV" @click="changeModelFov(0.1)">+</button>
           </div>
+        </div>
       </div>
 
       <!-- 左侧：全景图 (上层) -->
       <div 
-        class="pane left-pane" 
-        ref="leftPane"
+        ref="leftPane" 
+        class="pane left-pane"
         :style="isOverlayMode ? { opacity: panoOpacity, pointerEvents: (isOverlayMode && !isFineTuneMode) ? 'auto' : 'none' } : {}"
       >
         <div v-if="!panoUrl" class="upload-placeholder" @click="triggerUpload">
           <div class="upload-content">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
             </svg>
             <p>点击上传全景图</p>
             <span class="sub-text">支持 .jpg, .png 格式</span>
           </div>
         </div>
         <input 
-          type="file" 
           ref="fileInput" 
+          type="file" 
           accept="image/jpeg,image/png" 
           style="display: none" 
           @change="handleFileUpload"
@@ -147,10 +147,10 @@
 
       <!-- 右侧：BIM 模型 (底层) -->
       <div 
-        class="pane right-pane" 
-        ref="rightPane"
+        ref="rightPane" 
+        class="pane right-pane"
       >
-        <div ref="forgeContainer" id="compare-forge-viewer"></div>
+        <div id="compare-forge-viewer" ref="forgeContainer"></div>
       </div>
     </div>
   </div>
@@ -167,7 +167,7 @@ const props = defineProps({
   modelPath: { type: String, default: '' }
 });
 
-const emit = defineEmits(['close']);
+defineEmits(['close']);
 
 // 状态
 const isSyncEnabled = ref(false);
@@ -186,7 +186,6 @@ const pendingPanoState = ref(null); // 暂存待恢复的全景视角状态
 const isOverlayMode = ref(false); // 是否为重叠对比模式
 const panoOpacity = ref(0.5); // 全景图透明度 (0-1)
 const isFineTuneMode = ref(false); // 是否为微调模式
-const panoRoll = ref(0); // 全景图滚转角度 (度)
 const modelFov = ref(90); // 模型视场角 (FOV)，默认90
 const modelRoll = ref(0); // 模型滚转角度 (累计值)
 
@@ -283,7 +282,6 @@ const initPanoViewer = () => {
     mousewheelCtrlKey: true,
     minFov: 30,
     maxFov: 90,
-    maxFov: 90,
     navbar: [
       'zoom',
       'fullscreen',
@@ -365,7 +363,7 @@ const loadModel = (path) => {
   }
   
   console.log('📦 [PanoView] 最终模型路径:', finalPath);
-  viewer.loadModel(finalPath, {}, (model) => {
+  viewer.loadModel(finalPath, {}, () => {
     console.log('✅ 模型加载请求已发送');
     
     // 默认启用第一人称模式
@@ -542,7 +540,6 @@ const saveDefaultView = async () => {
           panoState = {
               yaw: pos.yaw,
               pitch: pos.pitch,
-              zoom: zoom,
               zoom: zoom,
               // roll: panoRoll.value // 移除全景滚转保存
           };
@@ -809,7 +806,7 @@ const onPanoPositionUpdated = (e) => {
   }
 };
 
-const onPanoZoomUpdated = (e) => {
+const onPanoZoomUpdated = () => {
   // 可选：同步 FOV
 };
 

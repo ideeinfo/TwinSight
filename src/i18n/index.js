@@ -147,11 +147,6 @@ const messages = {
       alertAbove30: '警报 > 30°C',
       normal: '正常'
     },
-    assetPanel: {
-      assets: '资产',
-      loading: '正在加载资产...',
-      uncategorized: '未分类'
-    },
     dataExport: {
       button: '数据',
       title: '数据导出到 PostgreSQL',
@@ -511,11 +506,6 @@ const messages = {
       lowAlert: 'Low Temp Alert',
       alertAbove30: 'Alert > 30°C',
       normal: 'Normal'
-    },
-    assetPanel: {
-      assets: 'Assets',
-      loading: 'Loading assets...',
-      uncategorized: 'Uncategorized'
     },
     dataExport: {
       button: 'Data',
