@@ -698,6 +698,12 @@ const initViewer = () => {
     // 反转鼠标缩放方向（滚轮向上放大）
     if (viewer.navigation) {
       viewer.navigation.setReverseZoomDirection(true);
+      
+      // 设置默认的 WorldUpVector 为 Z 轴向上
+      // 这确保新加载的模型使用正确的坐标系
+      const defaultUpVector = new window.THREE.Vector3(0, 0, 1);
+      viewer.navigation.setWorldUpVector(defaultUpVector);
+      console.log('🧭 已设置默认 WorldUpVector 为 Z 轴向上');
     }
     
     // TODO: 修复属性面板自动弹出问题（与 viewer.isolate 相关）
@@ -940,10 +946,37 @@ const loadNewModel = async (modelPath) => {
     console.log('ℹ️ 没有需要卸载的模型');
   }
   
+  // 关键：在卸载旧模型后、加载新模型前，重置 WorldUpVector 为标准 Z 轴向上
+  // 这样可以避免旧模型的错误坐标系影响新模型的加载
+  if (viewer.navigation && viewer.navigation.setWorldUpVector) {
+    const resetUpVector = new window.THREE.Vector3(0, 0, 1);
+    viewer.navigation.setWorldUpVector(resetUpVector);
+    console.log('🔄 已重置 WorldUpVector 为 Z 轴向上（准备加载新模型）');
+  }
+  
   // 返回 Promise，等待模型加载完成
   return new Promise((resolve, reject) => {
-    // 加载新模型
-    viewer.loadModel(finalPath, {}, (model) => {
+    // 加载新模型，并明确指定全局坐标系
+    const loadOptions = {
+      globalOffset: { x: 0, y: 0, z: 0 },
+      // 关键：明确指定使用全局坐标系，Z 轴向上
+      applyRefPoint: false,
+      placementTransform: null,
+      // 禁用自动相机调整，保持当前相机位置
+      preserveView: false,
+      // 强制使用正确的坐标系
+      modelSpace: null
+    };
+    
+    viewer.loadModel(finalPath, loadOptions, (model) => {
+        // ❗ 最高优先级：立即设置 WorldUpVector，必须在任何其他操作之前
+        // 这样 ViewCube 等工具也会使用正确的坐标系
+        if (viewer.navigation && viewer.navigation.setWorldUpVector) {
+          const correctUpVector = new window.THREE.Vector3(0, 0, 1);
+          viewer.navigation.setWorldUpVector(correctUpVector);
+          console.log('⚡ 模型加载回调：立即强制设置 WorldUpVector 为 Z 轴向上');
+        }
+        
         console.log('✅ 新模型加载成功:', finalPath);
         console.log('📊 模型信息:', { 
           hasGeometry: model.getGeometryList ? 'Yes' : 'No',
@@ -960,6 +993,14 @@ const loadNewModel = async (modelPath) => {
         viewer.setLightPreset(17); // Field
         if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
         if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+        
+        // 重要：强制设置正确的 WorldUpVector，避免模型文件中的错误元数据
+        // 大多数 BIM 模型使用 Z 轴向上 (0, 0, 1)
+        if (viewer.navigation && viewer.navigation.setWorldUpVector) {
+          const correctUpVector = new window.THREE.Vector3(0, 0, 1);
+          viewer.navigation.setWorldUpVector(correctUpVector);
+          console.log('🧭 已强制设置 WorldUpVector 为 Z 轴向上:', correctUpVector);
+        }
         
         // 检查几何体是否已加载完成
         // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
@@ -1078,6 +1119,21 @@ const getHeatmapMaterial = (temperature) => {
 const onModelLoaded = () => {
   console.log('🎯 onModelLoaded 被触发');
   
+  // 关键：再次强制设置 WorldUpVector，确保模型加载后也是正确的坐标系
+  if (viewer && viewer.navigation && viewer.navigation.setWorldUpVector) {
+    // 先读取当前的 WorldUpVector，用于调试
+    const currentUpVector = viewer.navigation.getWorldUpVector();
+    console.log('🔍 当前 WorldUpVector:', currentUpVector);
+    
+    const correctUpVector = new window.THREE.Vector3(0, 0, 1);
+    viewer.navigation.setWorldUpVector(correctUpVector);
+    console.log('🧭 onModelLoaded: 已再次强制设置 WorldUpVector 为 Z 轴向上');
+    
+    // 验证设置是否成功
+    const verifyUpVector = viewer.navigation.getWorldUpVector();
+    console.log('✅ 验证设置后的 WorldUpVector:', verifyUpVector);
+  }
+  
   // 重置状态（确保每次加载新模型时都从干净状态开始）
   roomTags.value = [];
   roomFragData = {};
@@ -1094,9 +1150,10 @@ const onModelLoaded = () => {
         try {
           const pos = viewer.navigation.getPosition().clone();
           const target = viewer.navigation.getTarget().clone();
-          const up = viewer.navigation.getWorldUpVector().clone();
+          // 强制使用 Z 轴向上，而不是从模型中读取可能错误的 WorldUpVector
+          const up = new window.THREE.Vector3(0, 0, 1);
           defaultView = { pos, target, up };
-          console.log('📷 已捕获默认视图（延迟）:', { pos, target, up });
+          console.log('📷 已捕获默认视图（延迟，强制 Z 轴向上）:', { pos, target, up });
         } catch (e) {
           console.warn('⚠️ 捕获默认视图失败:', e);
         }

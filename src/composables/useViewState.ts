@@ -12,10 +12,14 @@ import type { Ref } from 'vue';
 // Viewer 类型声明（简化版）
 interface ViewerInstance {
     getState: (options: object) => object;
-    restoreState: (state: object) => boolean;
+    restoreState: (state: object, filter?: any) => boolean;
     getScreenShot: (width: number, height: number, callback: (data: string) => void) => void;
     getIsolatedNodes: () => number[];
     isolate: (dbIds: number[]) => void;
+    navigation?: {
+        setView: (position: number[], target: number[]) => void;
+        setVerticalFov: (fov: number, adjustPosition: boolean) => void;
+    };
     impl: {
         invalidate: (renderOverlay: boolean, renderScene: boolean, renderOverlayOnly: boolean) => void;
         currentLightPreset?: () => string;
@@ -147,7 +151,7 @@ export function useViewState(options: UseViewStateOptions) {
     };
 
     /**
-     * 恢复视图状态
+     * 恢复视图状态（带平滑过渡动画）
      */
     const restoreViewState = (viewData: any) => {
         console.log('🔄 开始恢复视图状态:', viewData);
@@ -163,8 +167,6 @@ export function useViewState(options: UseViewStateOptions) {
         }
 
         try {
-            // 优先使用 viewerState（Forge Viewer 官方格式）
-            // restoreState 会自动处理孤立/隐藏状态（如果保存时包含了 objectSet）
             if (viewData.viewer_state || viewData.viewerState) {
                 const viewerState = viewData.viewer_state || viewData.viewerState;
                 console.log('🔄 使用 Forge Viewer restoreState API 恢复视图:', viewerState);
@@ -173,18 +175,41 @@ export function useViewState(options: UseViewStateOptions) {
                     console.error('❌ viewerState 无效');
                 } else {
                     isRestoringView = true;
-                    // 使用 restoreState 恢复所有状态
-                    const success = viewer.restoreState(viewerState);
-                    console.log('✅ restoreState 调用完成，返回值:', success);
-                    setTimeout(() => { isRestoringView = false; }, 500);
+                    
+                    // ❗❗ 最关键：在恢复任何状态之前，先强制重置 WorldUpVector
+                    // 这可以避免用户手动旋转模型后，导致坐标系变化
+                    if ((viewer as any).navigation && (viewer as any).navigation.setWorldUpVector) {
+                        (viewer as any).navigation.setWorldUpVector(
+                            new (window as any).THREE.Vector3(0, 0, 1)
+                        );
+                        console.log('🔄 恢复视图前：已重置 WorldUpVector 为 Z 轴向上');
+                    }
+                    
+                    // ❗ 关键修复：删除 viewport 中的 worldUpVector，强制使用 Z 轴向上
+                    const cleanedState = { ...viewerState };
+                    if (cleanedState.viewport && cleanedState.viewport.worldUpVector) {
+                        console.log('⚠️ 检测到保存的 worldUpVector:', cleanedState.viewport.worldUpVector, '，已删除');
+                        delete cleanedState.viewport.worldUpVector;
+                    }
+                    
+                    // 直接使用 Forge Viewer 的 restoreState （无动画）
+                    viewer.restoreState(cleanedState);
+                    
+                    // 恢复后再次确认 WorldUpVector
+                    if ((viewer as any).navigation && (viewer as any).navigation.setWorldUpVector) {
+                        (viewer as any).navigation.setWorldUpVector(
+                            new (window as any).THREE.Vector3(0, 0, 1)
+                        );
+                        console.log('✅ 恢复视图后：再次确认 WorldUpVector 为 Z 轴向上');
+                    }
+                    
+                    setTimeout(() => { isRestoringView = false; }, 100);
 
                     // 补救措施：强制应用孤立状态
-                    // 某些情况下 restoreState 可能不会正确清除之前的孤立状态，或者不应用新的孤立状态
                     if (viewerState.objectSet) {
                         const isolated = viewerState.objectSet.isolated || [];
                         const currentIsolated = viewer.getIsolatedNodes();
 
-                        // 如果存档有孤立，但当前没有生效，强制应用
                         if (isolated.length > 0 && (!currentIsolated || currentIsolated.length === 0)) {
                             console.warn('⚠️ 强制应用孤立状态...');
                             viewer.isolate(isolated);
@@ -199,7 +224,6 @@ export function useViewState(options: UseViewStateOptions) {
             const otherSettings = viewData.other_settings || viewData.otherSettings;
             if (otherSettings) {
                 if (typeof otherSettings.isHeatmapEnabled === 'boolean') {
-                    // 使用 heatmap composable 的 enable/disable 方法来控制状态
                     if (otherSettings.isHeatmapEnabled) {
                         heatmap.enable();
                     } else {
