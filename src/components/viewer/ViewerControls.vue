@@ -28,7 +28,7 @@
             <stop offset="100%" style="stop-color:#EF5350;stop-opacity:1" />
           </linearGradient>
         </defs>
-        <rect x="2" y="2" width="12" height="12" rx="2" fill="url(#heatGradient)" opacity="0.8"/>
+        <rect x="2" y="2" width="12" height="12" rx="2" fill="url(#heatGradient)" opacity="0.8" />
       </svg>
       {{ t('header.heatmap') }}
     </div>

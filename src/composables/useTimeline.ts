@@ -2,7 +2,7 @@
  * 时间轴 Composable
  * 封装时间轴控制逻辑
  */
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { useIoTStore } from '@/stores/iot';
 
 export interface TimeRange {

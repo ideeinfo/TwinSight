@@ -3,7 +3,7 @@
  */
 import http from '../http';
 import type { Asset, AssetSpec, AssetCreateRequest, AssetUpdateRequest } from '@/types/asset';
-import type { ApiResponse, BatchOperationResponse } from '@/types/api';
+import type { BatchOperationResponse } from '@/types/api';
 
 const BASE_PATH = '/api';
 

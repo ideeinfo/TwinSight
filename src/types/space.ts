@@ -14,7 +14,7 @@ export interface Space {
     classificationCode?: string;
 
     // 动态属性（预留）
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 
     createdAt?: string;
     updatedAt?: string;
@@ -29,7 +29,7 @@ export interface SpaceCreateRequest {
     dbId?: number;
     fileId?: number;
     classificationCode?: string;
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }
 
 export interface SpaceUpdateRequest {
@@ -38,5 +38,5 @@ export interface SpaceUpdateRequest {
     floor?: string;
     area?: number;
     classificationCode?: string;
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }

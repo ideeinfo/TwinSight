@@ -2,7 +2,7 @@
  * 3D Viewer Composable
  * 封装与 Forge Viewer 交互的逻辑
  */
-import { ref, shallowRef, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef } from 'vue';
 
 export interface ViewerOptions {
     containerRef: HTMLElement | null;

@@ -14,8 +14,8 @@
           <div class="form-group">
             <label>{{ t('influxConfig.url') }} <span class="required">*</span></label>
             <input 
-              type="text" 
               v-model="form.influxUrl" 
+              type="text" 
               placeholder="http://localhost 或 /influx"
             />
           </div>
@@ -24,16 +24,16 @@
             <div class="form-group half">
               <label>{{ t('influxConfig.port') }}</label>
               <input 
-                type="number" 
                 v-model.number="form.influxPort" 
+                type="number" 
                 placeholder="8086"
               />
             </div>
             <div class="form-group half">
               <label>{{ t('influxConfig.org') }} <span class="required">*</span></label>
               <input 
-                type="text" 
                 v-model="form.influxOrg" 
+                type="text" 
                 placeholder="demo"
               />
             </div>
@@ -42,8 +42,8 @@
           <div class="form-group">
             <label>{{ t('influxConfig.bucket') }} <span class="required">*</span></label>
             <input 
-              type="text" 
               v-model="form.influxBucket" 
+              type="text" 
               placeholder="tandem"
             />
           </div>
@@ -55,11 +55,11 @@
           
           <div class="auth-toggle">
             <label class="toggle-option" :class="{ active: !form.useBasicAuth }">
-              <input type="radio" :value="false" v-model="form.useBasicAuth" />
+              <input v-model="form.useBasicAuth" type="radio" :value="false" />
               Token API
             </label>
             <label class="toggle-option" :class="{ active: form.useBasicAuth }">
-              <input type="radio" :value="true" v-model="form.useBasicAuth" />
+              <input v-model="form.useBasicAuth" type="radio" :value="true" />
               Basic Auth
             </label>
           </div>
@@ -67,8 +67,8 @@
           <div v-if="!form.useBasicAuth" class="form-group">
             <label>API Token</label>
             <input 
-              type="password" 
               v-model="form.influxToken" 
+              type="password" 
               :placeholder="hasToken ? t('influxConfig.keepExisting') : t('influxConfig.enterToken')"
             />
           </div>
@@ -77,16 +77,16 @@
             <div class="form-group half">
               <label>{{ t('influxConfig.username') }}</label>
               <input 
-                type="text" 
                 v-model="form.influxUser" 
+                type="text" 
                 placeholder="root"
               />
             </div>
             <div class="form-group half">
               <label>{{ t('influxConfig.password') }}</label>
               <input 
-                type="password" 
                 v-model="form.influxPassword" 
+                type="password" 
                 :placeholder="hasPassword ? t('influxConfig.keepExisting') : t('influxConfig.enterPassword')"
               />
             </div>
@@ -96,7 +96,7 @@
         <!-- 启用状态 -->
         <div class="form-section">
           <label class="checkbox-label">
-            <input type="checkbox" v-model="form.isEnabled" />
+            <input v-model="form.isEnabled" type="checkbox" />
             {{ t('influxConfig.enabled') }}
           </label>
         </div>
@@ -109,14 +109,14 @@
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-outline" @click="testConnection" :disabled="isTesting">
+        <button class="btn btn-outline" :disabled="isTesting" @click="testConnection">
           {{ isTesting ? t('influxConfig.testing') : t('influxConfig.testConnection') }}
         </button>
         <div class="footer-right">
           <button class="btn btn-secondary" @click="$emit('close')">
             {{ t('common.cancel') }}
           </button>
-          <button class="btn btn-primary" @click="saveConfig" :disabled="isSaving || !isValid">
+          <button class="btn btn-primary" :disabled="isSaving || !isValid" @click="saveConfig">
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>

@@ -19,7 +19,7 @@
       </div>
       
       <!-- 图表绘制区域 -->
-      <div class="chart-body" ref="chartRef">
+      <div ref="chartRef" class="chart-body">
         <!-- 静态网格线 -->
         <div class="grid-line" style="bottom: 16.7%"></div>
         <div class="grid-line" style="bottom: 33.3%"></div>
@@ -27,61 +27,61 @@
         <div class="grid-line" style="bottom: 66.7%"></div>
         <div class="grid-line" style="bottom: 83.3%"></div>
 
-      <!-- 高温阈值线 -->
-      <div class="threshold-line high" :style="{ bottom: highThresholdBottom + '%' }">
-        <span class="threshold-label high">28°C {{ t('chartPanel.alert') }}</span>
-      </div>
-      <!-- 低温阈值线 -->
-      <div class="threshold-line low" :style="{ bottom: lowThresholdBottom + '%' }">
-        <span class="threshold-label low">10°C {{ t('chartPanel.lowAlert') }}</span>
-      </div>
-
-      <!-- SVG 曲线 -->
-      <svg class="svg-chart" viewBox="0 0 1000 100" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="areaGradBottom" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.3" />
-            <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
-          </linearGradient>
-          <linearGradient id="strokeGradBottom" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
-            <stop :offset="highThresholdRatio - 0.01" stop-color="#ff4d4d" />
-            <stop :offset="highThresholdRatio + 0.01" stop-color="#00b0ff" />
-          </linearGradient>
-        </defs>
-        <path :d="areaPath" fill="url(#areaGradBottom)" stroke="none" />
-        <path :d="linePath" fill="none" stroke="url(#strokeGradBottom)" stroke-width="2" vector-effect="non-scaling-stroke" />
-
-        <g class="threshold-markers">
-          <circle
-            v-for="i in overSegments"
-            :key="'m'+i"
-            :cx="(i / (displayData.length - 1)) * 1000"
-            :cy="100 - (((displayData[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
-            r="3"
-            fill="#ff4d4d"
-            stroke="#fff"
-            stroke-width="1.5"
-            vector-effect="non-scaling-stroke"
-          />
-        </g>
-
-        <!-- 悬浮交互 -->
-        <g v-if="hoverX > 0">
-          <line :x1="hoverX" y1="0" :x2="hoverX" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
-          <circle :cx="hoverX" :cy="hoverY" r="4" :fill="getPointColor(parseFloat(hoverValue))" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
-        </g>
-      </svg>
-
-      <!-- Tooltip -->
-      <div v-if="hoverX > 0" class="tooltip-box" :style="{ left: tooltipLeft, top: tooltipTop }">
-        <div class="val" :class="getValueClass(parseFloat(hoverValue))">
-          {{ hoverValue }} °C
-          <span v-if="parseFloat(hoverValue) >= HIGH_THRESHOLD || parseFloat(hoverValue) <= LOW_THRESHOLD" class="alert-badge">!</span>
+        <!-- 高温阈值线 -->
+        <div class="threshold-line high" :style="{ bottom: highThresholdBottom + '%' }">
+          <span class="threshold-label high">28°C {{ t('chartPanel.alert') }}</span>
         </div>
-        <div class="time">{{ hoverTime }}</div>
-      </div>
+        <!-- 低温阈值线 -->
+        <div class="threshold-line low" :style="{ bottom: lowThresholdBottom + '%' }">
+          <span class="threshold-label low">10°C {{ t('chartPanel.lowAlert') }}</span>
+        </div>
 
-      <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
+        <!-- SVG 曲线 -->
+        <svg class="svg-chart" viewBox="0 0 1000 100" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="areaGradBottom" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.3" />
+              <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
+            </linearGradient>
+            <linearGradient id="strokeGradBottom" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+              <stop :offset="highThresholdRatio - 0.01" stop-color="#ff4d4d" />
+              <stop :offset="highThresholdRatio + 0.01" stop-color="#00b0ff" />
+            </linearGradient>
+          </defs>
+          <path :d="areaPath" fill="url(#areaGradBottom)" stroke="none" />
+          <path :d="linePath" fill="none" stroke="url(#strokeGradBottom)" stroke-width="2" vector-effect="non-scaling-stroke" />
+
+          <g class="threshold-markers">
+            <circle
+              v-for="i in overSegments"
+              :key="'m'+i"
+              :cx="(i / (displayData.length - 1)) * 1000"
+              :cy="100 - (((displayData[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
+              r="3"
+              fill="#ff4d4d"
+              stroke="#fff"
+              stroke-width="1.5"
+              vector-effect="non-scaling-stroke"
+            />
+          </g>
+
+          <!-- 悬浮交互 -->
+          <g v-if="hoverX > 0">
+            <line :x1="hoverX" y1="0" :x2="hoverX" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
+            <circle :cx="hoverX" :cy="hoverY" r="4" :fill="getPointColor(parseFloat(hoverValue))" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
+          </g>
+        </svg>
+
+        <!-- Tooltip -->
+        <div v-if="hoverX > 0" class="tooltip-box" :style="{ left: tooltipLeft, top: tooltipTop }">
+          <div class="val" :class="getValueClass(parseFloat(hoverValue))">
+            {{ hoverValue }} °C
+            <span v-if="parseFloat(hoverValue) >= HIGH_THRESHOLD || parseFloat(hoverValue) <= LOW_THRESHOLD" class="alert-badge">!</span>
+          </div>
+          <div class="time">{{ hoverTime }}</div>
+        </div>
+
+        <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
       </div>
     </div>
 
@@ -192,17 +192,6 @@ const getValueClass = (value) => {
   return '';
 };
 
-const dateRangeText = computed(() => {
-  if (props.range && props.range.startMs && props.range.endMs) {
-    const s = new Date(props.range.startMs);
-    const e = new Date(props.range.endMs);
-    return `${s.toLocaleDateString()} - ${e.toLocaleDateString()}`;
-  }
-  if (!displayData.value.length) return '';
-  const s = new Date(displayData.value[0].timestamp);
-  const e = new Date(displayData.value[displayData.value.length-1].timestamp);
-  return `${s.toLocaleDateString()} - ${e.toLocaleDateString()}`;
-});
 
 const xLabels = computed(() => {
   if (!displayData.value.length) return [];

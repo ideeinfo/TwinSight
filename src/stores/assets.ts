@@ -14,7 +14,7 @@ export interface Asset {
     dbId?: number;
     fileId?: number;
     // 动态属性预留
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }
 
 export interface AssetSpec {
@@ -24,7 +24,7 @@ export interface AssetSpec {
     specName: string;
     manufacturer?: string;
     // 动态属性预留
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }
 
 export interface AssetsState {

@@ -33,14 +33,14 @@ export function isValidUrl(url: string): boolean {
 /**
  * 验证是否为非空字符串
  */
-export function isNotEmpty(value: any): boolean {
+export function isNotEmpty(value: unknown): boolean {
     return typeof value === 'string' && value.trim().length > 0;
 }
 
 /**
  * 验证是否为数字
  */
-export function isNumber(value: any): boolean {
+export function isNumber(value: unknown): boolean {
     return typeof value === 'number' && !isNaN(value);
 }
 

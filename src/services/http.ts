@@ -10,7 +10,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
  * HTTP 请求选项
  */
 interface RequestOptions extends RequestInit {
-    params?: Record<string, any>;
+    params?: Record<string, unknown>;
     timeout?: number;
 }
 
@@ -25,7 +25,7 @@ function getAuthToken(): string | null {
 /**
  * 构建请求 URL（包含查询参数）
  */
-function buildUrl(endpoint: string, params?: Record<string, any>): string {
+function buildUrl(endpoint: string, params?: Record<string, unknown>): string {
     const url = new URL(endpoint, API_BASE);
 
     if (params) {
@@ -42,17 +42,20 @@ function buildUrl(endpoint: string, params?: Record<string, any>): string {
 /**
  * 统一错误处理
  */
-function handleError(error: any): never {
-    if (error.name === 'AbortError') {
+function handleError(error: unknown): never {
+    if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('请求超时');
     }
-    throw error;
+    if (error instanceof Error) {
+        throw error;
+    }
+    throw new Error(String(error));
 }
 
 /**
  * 发送 HTTP 请求
  */
-async function request<T = any>(
+async function request<T = unknown>(
     endpoint: string,
     options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
@@ -99,9 +102,9 @@ async function request<T = any>(
 /**
  * GET 请求
  */
-export async function get<T = any>(
+export async function get<T = unknown>(
     endpoint: string,
-    params?: Record<string, any>,
+    params?: Record<string, unknown>,
     options?: RequestOptions
 ): Promise<ApiResponse<T>> {
     return request<T>(endpoint, { ...options, method: 'GET', params });
@@ -110,9 +113,9 @@ export async function get<T = any>(
 /**
  * POST 请求
  */
-export async function post<T = any>(
+export async function post<T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     options?: RequestOptions
 ): Promise<ApiResponse<T>> {
     return request<T>(endpoint, {
@@ -125,9 +128,9 @@ export async function post<T = any>(
 /**
  * PUT 请求
  */
-export async function put<T = any>(
+export async function put<T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     options?: RequestOptions
 ): Promise<ApiResponse<T>> {
     return request<T>(endpoint, {
@@ -140,9 +143,9 @@ export async function put<T = any>(
 /**
  * PATCH 请求
  */
-export async function patch<T = any>(
+export async function patch<T = unknown>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     options?: RequestOptions
 ): Promise<ApiResponse<T>> {
     return request<T>(endpoint, {
@@ -155,7 +158,7 @@ export async function patch<T = any>(
 /**
  * DELETE 请求
  */
-export async function del<T = any>(
+export async function del<T = unknown>(
     endpoint: string,
     options?: RequestOptions
 ): Promise<ApiResponse<T>> {
@@ -165,11 +168,11 @@ export async function del<T = any>(
 /**
  * 上传文件
  */
-export async function uploadFile<T = any>(
+export async function uploadFile<T = unknown>(
     endpoint: string,
     file: File,
     fieldName = 'file',
-    extraData?: Record<string, any>
+    extraData?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
     const formData = new FormData();
     formData.append(fieldName, file);

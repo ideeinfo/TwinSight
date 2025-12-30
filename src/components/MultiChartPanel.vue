@@ -4,82 +4,82 @@
       <button class="close" @click="$emit('close')">×</button>
     </ChartHeader>
     <div class="multi-grid">
-    <div v-for="(s, idx) in seriesList" :key="(s.room)" class="grid-item">
-      <div class="item-header">
-        <span class="title">{{ s.name || s.room }}</span>
-      </div>
-
-      <div class="chart-body" :ref="el => chartRefs[idx] = el">
-        <!-- 网格线 -->
-        <div class="grid-line" style="bottom: 25%"></div>
-        <div class="grid-line" style="bottom: 50%"></div>
-        <div class="grid-line" style="bottom: 75%"></div>
-
-        <!-- 阈值线 -->
-        <div class="threshold-line" :style="{ bottom: thresholdBottom + '%' }">
-          <span class="threshold-label">30°C {{ t('chartPanel.alert') }}</span>
+      <div v-for="(s, idx) in seriesList" :key="(s.room)" class="grid-item">
+        <div class="item-header">
+          <span class="title">{{ s.name || s.room }}</span>
         </div>
 
-        <!-- 曲线 -->
-        <svg class="svg-chart" viewBox="0 0 1000 100" preserveAspectRatio="none">
-          <defs>
-            <linearGradient :id="'areaGrad-' + idx" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.3" />
-              <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
-            </linearGradient>
-            <linearGradient :id="'strokeGrad-' + idx" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
-              <stop :offset="thresholdRatio - 0.01" stop-color="#ff4d4d" />
-              <stop :offset="thresholdRatio + 0.01" stop-color="#00b0ff" />
-            </linearGradient>
-          </defs>
-          <path :d="areaPath(s.points)" :fill="'url(#' + 'areaGrad-' + idx + ')'" stroke="none" />
-          <path :d="linePath(s.points)" fill="none" :stroke="'url(#' + 'strokeGrad-' + idx + ')'" stroke-width="2" vector-effect="non-scaling-stroke" />
+        <div :ref="el => chartRefs[idx] = el" class="chart-body">
+          <!-- 网格线 -->
+          <div class="grid-line" style="bottom: 25%"></div>
+          <div class="grid-line" style="bottom: 50%"></div>
+          <div class="grid-line" style="bottom: 75%"></div>
 
-          <g class="threshold-markers">
-            <circle
-              v-for="i in getOverSegments(s.points)"
-              :key="'m'+idx+'-'+i"
-              :cx="(i / (s.points.length - 1)) * 1000"
-              :cy="100 - (((s.points[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
-              r="3"
-              fill="#ff4d4d"
-              stroke="#fff"
-              stroke-width="1.5"
-              vector-effect="non-scaling-stroke"
-            />
-          </g>
-
-          <!-- 悬浮交互 -->
-          <g v-if="hoverX[idx] > 0">
-            <line :x1="hoverX[idx]" y1="0" :x2="hoverX[idx]" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
-            <circle :cx="hoverX[idx]" :cy="hoverY[idx]" r="4" :fill="parseFloat(hoverValue[idx]) >= 30 ? '#ff4d4d' : '#00b0ff'" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
-          </g>
-        </svg>
-
-        <!-- Tooltip -->
-        <div v-if="hoverX[idx] > 0" class="tooltip-box" :style="{ left: tooltipLeft(idx), top: tooltipTop(idx) }">
-          <div class="val" :class="{ 'alert-val': parseFloat(hoverValue[idx]) >= 30 }">
-            {{ hoverValue[idx] }} °C
-            <span v-if="parseFloat(hoverValue[idx]) >= 30" class="alert-badge">!</span>
+          <!-- 阈值线 -->
+          <div class="threshold-line" :style="{ bottom: thresholdBottom + '%' }">
+            <span class="threshold-label">30°C {{ t('chartPanel.alert') }}</span>
           </div>
-          <div class="time">{{ hoverTime[idx] }}</div>
+
+          <!-- 曲线 -->
+          <svg class="svg-chart" viewBox="0 0 1000 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient :id="'areaGrad-' + idx" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#00b0ff;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#00b0ff;stop-opacity:0.0" />
+              </linearGradient>
+              <linearGradient :id="'strokeGrad-' + idx" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+                <stop :offset="thresholdRatio - 0.01" stop-color="#ff4d4d" />
+                <stop :offset="thresholdRatio + 0.01" stop-color="#00b0ff" />
+              </linearGradient>
+            </defs>
+            <path :d="areaPath(s.points)" :fill="'url(#' + 'areaGrad-' + idx + ')'" stroke="none" />
+            <path :d="linePath(s.points)" fill="none" :stroke="'url(#' + 'strokeGrad-' + idx + ')'" stroke-width="2" vector-effect="non-scaling-stroke" />
+
+            <g class="threshold-markers">
+              <circle
+                v-for="i in getOverSegments(s.points)"
+                :key="'m'+idx+'-'+i"
+                :cx="(i / (s.points.length - 1)) * 1000"
+                :cy="100 - (((s.points[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
+                r="3"
+                fill="#ff4d4d"
+                stroke="#fff"
+                stroke-width="1.5"
+                vector-effect="non-scaling-stroke"
+              />
+            </g>
+
+            <!-- 悬浮交互 -->
+            <g v-if="hoverX[idx] > 0">
+              <line :x1="hoverX[idx]" y1="0" :x2="hoverX[idx]" y2="100" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity="0.8" vector-effect="non-scaling-stroke" />
+              <circle :cx="hoverX[idx]" :cy="hoverY[idx]" r="4" :fill="parseFloat(hoverValue[idx]) >= 30 ? '#ff4d4d' : '#00b0ff'" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" />
+            </g>
+          </svg>
+
+          <!-- Tooltip -->
+          <div v-if="hoverX[idx] > 0" class="tooltip-box" :style="{ left: tooltipLeft(idx), top: tooltipTop(idx) }">
+            <div class="val" :class="{ 'alert-val': parseFloat(hoverValue[idx]) >= 30 }">
+              {{ hoverValue[idx] }} °C
+              <span v-if="parseFloat(hoverValue[idx]) >= 30" class="alert-badge">!</span>
+            </div>
+            <div class="time">{{ hoverTime[idx] }}</div>
+          </div>
+
+          <div class="interaction-layer" @mousemove="e => onMouseMove(idx, e)" @mouseleave="() => onMouseLeave(idx)"></div>
         </div>
 
-        <div class="interaction-layer" @mousemove="e => onMouseMove(idx, e)" @mouseleave="() => onMouseLeave(idx)"></div>
-      </div>
-
-      <!-- 底部标签 -->
-      <div class="chart-footer">
-        <div class="axis-labels">
-          <span v-for="(label, i) in xLabels(s.points)" :key="i">{{ label }}</span>
-        </div>
-        <div class="legend">
-          <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ getOverSegments(s.points).length }})</span>
-          <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
+        <!-- 底部标签 -->
+        <div class="chart-footer">
+          <div class="axis-labels">
+            <span v-for="(label, i) in xLabels(s.points)" :key="i">{{ label }}</span>
+          </div>
+          <div class="legend">
+            <span class="warn red">⚠️ {{ t('chartPanel.alertAbove30') }} ({{ getOverSegments(s.points).length }})</span>
+            <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
   </div>
 </template>
 

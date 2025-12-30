@@ -15,7 +15,7 @@ export interface Space {
     fileId?: number;
     classificationCode?: string;
     // 动态属性预留
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }
 
 export interface SpacesState {

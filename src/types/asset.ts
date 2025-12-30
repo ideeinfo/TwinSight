@@ -13,7 +13,7 @@ export interface Asset {
     fileId?: number;
 
     // 动态属性（预留）
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 
     createdAt?: string;
     updatedAt?: string;
@@ -30,7 +30,7 @@ export interface AssetSpec {
     phone?: string;
 
     // 动态属性（预留）
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 
     // 关联的属性模板（预留）
     propertyTemplateId?: number;
@@ -52,7 +52,7 @@ export interface AssetCreateRequest {
     room?: string;
     dbId?: number;
     fileId?: number;
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }
 
 export interface AssetUpdateRequest {
@@ -60,5 +60,5 @@ export interface AssetUpdateRequest {
     floor?: string;
     room?: string;
     specCode?: string;
-    properties?: Record<string, any>;
+    properties?: Record<string, unknown>;
 }

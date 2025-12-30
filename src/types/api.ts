@@ -5,7 +5,7 @@
 /**
  * 通用 API 响应格式
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
