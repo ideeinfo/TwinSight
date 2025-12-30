@@ -2,7 +2,7 @@
   <div class="top-bar">
     <div class="left-section">
       <!-- Logo 区域 -->
-      <div class="logo-container">
+      <div class="logo-container" @click="goToHome" style="cursor: pointer;">
         <!-- 注意：这里使用了相对路径 ../assets/logo.png -->
         <img src="../assets/logo.png" alt="Logo" class="logo" />
       </div>
@@ -112,6 +112,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { useThemeStore } from '../stores/theme';
 
 // 定义 props
@@ -129,6 +130,7 @@ const searchPlaceholder = computed(() => `Search ${displayName.value}`);
 defineEmits(['open-data-export', 'toggle-views']);
 
 const { locale } = useI18n();
+const router = useRouter();
 const themeStore = useThemeStore();
 const currentLocale = computed(() => locale.value);
 const isDarkTheme = computed(() => themeStore.isDark);
@@ -151,6 +153,11 @@ const switchLanguage = (lang) => {
   locale.value = lang;
   localStorage.setItem('language', lang);
   isLangDropdownOpen.value = false;
+};
+
+// 返回首页
+const goToHome = () => {
+  router.push('/');
 };
 
 // 点击外部关闭下拉菜单

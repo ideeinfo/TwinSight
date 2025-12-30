@@ -644,7 +644,7 @@ const handlePanoCompare = () => {
   const file = contextMenu.value.file;
   hideContextMenu();
   // 在新标签页打开全景比对视图
-  const url = `/?mode=pano-compare&fileId=${file.id}`;
+  const url = `/viewer?mode=pano-compare&fileId=${file.id}`;
   window.open(url, '_blank');
 };
 
