@@ -735,7 +735,7 @@ const vAnimate = {
    ============================================ */
 
 .preview-section {
-  padding: 80px 40px;
+  padding: 60px 40px;
   background: var(--color-bg-secondary);
 }
 
