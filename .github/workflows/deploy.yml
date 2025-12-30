@@ -4,9 +4,22 @@ on:
   push:
     branches: [main, db]
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: '部署目标'
+        required: true
+        default: 'railway'
+        type: choice
+        options:
+          - railway
+          - vercel
+          - ssh
+          - docker
 
 env:
   NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # ============================================
@@ -48,12 +61,64 @@ jobs:
           retention-days: 1
 
   # ============================================
+  # 构建 Docker 镜像并推送到 GitHub Container Registry
+  # ============================================
+  build-docker:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================
   # 部署到 Railway（推荐方案）
   # ============================================
   deploy-railway:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/db'
+    if: |
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/db') &&
+      (github.event_name == 'push' || github.event.inputs.deploy_target == 'railway')
     
     steps:
       - name: Checkout code
@@ -73,13 +138,23 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Railway 部署完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 分支: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 提交: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 时间: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "数据库将在容器启动时自动初始化。" >> $GITHUB_STEP_SUMMARY
+
   # ============================================
   # 部署前端到 Vercel（可选方案）
   # ============================================
   deploy-vercel:
     needs: build
     runs-on: ubuntu-latest
-    if: false  # 设为 true 启用 Vercel 部署
+    if: github.event.inputs.deploy_target == 'vercel'
     
     steps:
       - name: Checkout code
@@ -101,23 +176,14 @@ jobs:
           working-directory: ./
 
   # ============================================
-  # 部署到自托管服务器（SSH 方式）
+  # 部署到自托管服务器（SSH + Docker Compose）
   # ============================================
   deploy-ssh:
-    needs: build
+    needs: build-docker
     runs-on: ubuntu-latest
-    if: false  # 设为 true 启用 SSH 部署
+    if: github.event.inputs.deploy_target == 'ssh'
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -125,10 +191,68 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e
+            echo "🚀 开始部署 Tandem Demo..."
+            
             cd /opt/tandem-demo
+            
+            # 拉取最新代码
             git pull origin ${{ github.ref_name }}
-            npm ci
-            npm run build
-            docker-compose up -d --build
-            docker exec tandem-api node scripts/init-db.js
-            echo "✅ 部署完成"
+            
+            # 登录 GitHub Container Registry
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 拉取最新镜像
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            
+            # 使用生产环境配置启动服务
+            cd docker
+            docker-compose -f docker-compose.prod.yml pull
+            docker-compose -f docker-compose.prod.yml up -d
+            
+            # 等待服务启动并检查健康状态
+            echo "⏳ 等待服务启动..."
+            sleep 30
+            
+            # 健康检查
+            if curl -f http://localhost/api/health; then
+              echo "✅ 部署完成，服务运行正常"
+            else
+              echo "⚠️ 部署完成，但健康检查失败，请检查日志"
+              docker-compose -f docker-compose.prod.yml logs --tail=50
+            fi
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 SSH 部署完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 服务器: ${{ secrets.SSH_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 分支: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 镜像: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # 仅构建 Docker 镜像（用于测试）
+  # ============================================
+  deploy-docker:
+    needs: build-docker
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'docker'
+    
+    steps:
+      - name: Docker Image Ready
+        run: |
+          echo "## 🐳 Docker 镜像构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "镜像已推送到 GitHub Container Registry:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 使用方法" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -p 3001:3001 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

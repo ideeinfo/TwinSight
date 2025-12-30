@@ -36,6 +36,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# 安装必要的工具（用于健康检查和脚本执行）
+RUN apk add --no-cache wget
+
 # 从后端构建阶段复制依赖
 COPY --from=backend-builder /app/node_modules ./node_modules
 
@@ -48,6 +51,10 @@ COPY --from=frontend-builder /app/dist ./dist
 # 复制 public 目录中的静态资源（模型文件等）
 COPY public ./public
 
+# 复制启动脚本
+COPY docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 # 设置环境变量
 ENV NODE_ENV=production
 ENV SERVER_PORT=3001
@@ -56,8 +63,9 @@ ENV SERVER_PORT=3001
 EXPOSE 3001
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
-# 启动命令
-CMD ["node", "index.js"]
+# 使用 entrypoint 脚本启动（支持自动数据库初始化）
+ENTRYPOINT ["./entrypoint.sh"]
+

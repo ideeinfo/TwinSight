@@ -1,0 +1,275 @@
+# Tandem Demo 生产环境 Docker Compose 配置
+# 包含完整服务栈：核心应用 + AI 服务 + IoT 服务 + 监控
+
+name: tandem-prod
+
+services:
+  # ==================== 核心服务 ====================
+
+  # PostgreSQL 数据库 (带 PGVector 扩展)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tandem-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
+      POSTGRES_DB: ${DB_NAME:-tandem}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tandem-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-tandem}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端 API 服务
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: tandem-api
+    restart: always
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 3001
+      # 数据库配置
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-tandem}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
+      # InfluxDB 配置
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG:-demo}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-tandem}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      # AI 服务配置
+      OPENWEBUI_URL: http://open-webui:8080
+      N8N_WEBHOOK_URL: http://n8n:5678
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tandem-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: tandem-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro # SSL 证书目录
+    depends_on:
+      - api
+      - open-webui
+      - n8n
+    networks:
+      - tandem-network
+
+  # ==================== 数据库服务 ====================
+
+  # InfluxDB 2.x - 时序数据库
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: tandem-influxdb
+    restart: always
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:-adminpassword}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-demo}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-tandem}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - tandem-network
+    # 仅内部访问，不暴露端口
+
+    # pgAdmin 4 - 可选，仅在需要时启用
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tandem-pgadmin
+    restart: unless-stopped
+    profiles: [ "admin" ] # 使用 --profile admin 启动
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@tandem.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - tandem-network
+
+  # ==================== AI 服务 ====================
+
+  # n8n 工作流自动化平台
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tandem-n8n
+    restart: unless-stopped
+    environment:
+      # 基础配置
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-https}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-https://your-domain.com/n8n/}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      # 路径前缀（用于反向代理）
+      N8N_PATH: /n8n/
+      # 时区
+      GENERIC_TIMEZONE: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-Asia/Shanghai}
+      # 安全配置
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_AUTH_PASSWORD:?n8n密码必须设置}
+      # Gemini API
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # 允许访问环境变量
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES: "true"
+      # 内部服务地址
+      API_BASE_URL: http://api:3001
+      OPENWEBUI_URL: http://open-webui:8080
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - tandem-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Open WebUI - AI 对话界面
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: tandem-open-webui
+    restart: unless-stopped
+    environment:
+      # 基础配置
+      WEBUI_NAME: ${WEBUI_NAME:-Tandem AI}
+      DEFAULT_LOCALE: zh-CN
+      # 安全配置
+      ENABLE_API_KEYS: "true"
+      # Gemini API (通过 OpenAI 兼容接口)
+      OPENAI_API_BASE_URLS: https://generativelanguage.googleapis.com/v1beta/openai
+      OPENAI_API_KEYS: ${GEMINI_API_KEY}
+      # 注册控制
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
+      # RAG 配置
+      ENABLE_RAG_WEB_SEARCH: "true"
+      HF_ENDPOINT: https://hf-mirror.com
+      RAG_EMBEDDING_ENGINE: ""
+      RAG_EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - tandem-network
+
+  # ==================== IoT 服务 ====================
+
+  # Node-RED - IoT 数据流处理
+  nodered:
+    image: nodered/node-red:latest
+    container_name: tandem-nodered
+    restart: always
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      NODE_RED_ENABLE_PROJECTS: "false"
+    volumes:
+      - nodered_data:/data
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - tandem-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - 数据可视化
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: tandem-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://your-domain.com/grafana/}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - tandem-network
+
+# ==================== 卷定义 ====================
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  influxdb_data:
+  influxdb_config:
+  n8n_data:
+  open_webui_data:
+  nodered_data:
+  grafana_data:
+
+    # ==================== 网络定义 ====================
+
+networks:
+  tandem-network:
+    driver: bridge
+
+# ============================================
+# 使用说明:
+# ============================================
+#
+# 1. 复制 .env.production.example 为 .env 并填写配置
+#
+# 2. 启动核心服务:
+#    docker-compose -f docker-compose.prod.yml up -d
+#
+# 3. 启动包含管理工具:
+#    docker-compose -f docker-compose.prod.yml --profile admin up -d
+#
+# 4. 查看日志:
+#    docker-compose -f docker-compose.prod.yml logs -f
+#
+# 5. 停止服务:
+#    docker-compose -f docker-compose.prod.yml down
+#
+# ============================================
+# 端口映射 (通过 Nginx 反向代理):
+# ============================================
+#
+# /          → 前端静态文件
+# /api/*     → 后端 API (:3001)
+# /n8n/*     → n8n 工作流 (:5678)
+# /ai/*      → Open WebUI (:8080)
+# /nodered/* → Node-RED (:1880)
+# /grafana/* → Grafana (:3000)
+#
+# ============================================
