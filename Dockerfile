@@ -64,6 +64,9 @@ ENV SERVER_PORT=3001
 # HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 #     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
+# 创建持久化目录（用于 Volume 挂载）
+RUN mkdir -p /app/public/models /app/public/docs /app/public/files /app/public/data
+
 # 使用 CMD 而非 ENTRYPOINT，以便 Railway 的 startCommand 能正确覆盖
 CMD ["node", "index.js"]
 
