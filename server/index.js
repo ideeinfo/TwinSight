@@ -130,7 +130,16 @@ if (process.env.NODE_ENV === 'production') {
         if (req.path.startsWith('/api')) {
             return next();
         }
-        res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+
+        const indexPath = path.join(__dirname, 'dist', 'index.html');
+        // DEBUG: 检查 index.html 是否存在
+        import('fs').then(fs => {
+            if (!fs.existsSync(indexPath)) {
+                console.error(`❌ CRITICAL: index.html not found at ${indexPath}`);
+                return res.status(500).send(`Server Error: Frontend build missing. Path: ${indexPath}`);
+            }
+            res.sendFile(indexPath);
+        });
     });
 }
 
