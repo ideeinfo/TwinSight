@@ -143,7 +143,7 @@ app.use((err, req, res, next) => {
 import { runDeployInit } from './scripts/post-deploy.js';
 
 // 启动服务器
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔════════════════════════════════════════════════╗
 ║     Tandem Demo API Server                     ║
