@@ -143,13 +143,17 @@ app.use((err, req, res, next) => {
 import { runDeployInit } from './scripts/post-deploy.js';
 
 // 启动服务器
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
+    const addr = server.address();
+    const bindHost = typeof addr === 'string' ? addr : addr.address;
+    const bindPort = typeof addr === 'string' ? '' : addr.port;
+
     console.log(`
 ╔════════════════════════════════════════════════╗
 ║     Tandem Demo API Server                     ║
 ╠════════════════════════════════════════════════╣
 ║  🚀 服务已启动                                 ║
-║  📍 地址: http://localhost:${PORT}                ║
+║  📍 绑定地址: ${bindHost}:${bindPort}             ║
 ║  📦 数据库: PostgreSQL                         ║
 ╚════════════════════════════════════════════════╝
   `);
