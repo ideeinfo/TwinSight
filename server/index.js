@@ -67,9 +67,16 @@ app.use('/docs', express.static(path.join(__dirname, '../public/docs')));
 
 // 请求日志（已禁用减少输出）
 // 请求日志
+// 请求日志
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
     next();
+});
+
+// ========== DEBUG: 最简测试路由 ==========
+// 如果这都不响应，说明请求根本没进来
+app.get('/test-ping', (req, res) => {
+    res.send('PONG - Server is reachable!');
 });
 
 // ========================================
