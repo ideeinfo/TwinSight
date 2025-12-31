@@ -863,12 +863,30 @@ onMounted(async () => {
   
   await nextTick();
   
-  // 设置容器宽高比一致（简单实现：等宽等高，假设父容器已布局好）
-  // .split-container flex:1, .pane flex:1 -> 自动等宽
-  // 高度由父容器决定
+  // 等待 DOM 完全渲染，确保容器存在
+  const waitForContainer = (retries = 10) => {
+    return new Promise((resolve, reject) => {
+      const check = (attempt) => {
+        if (forgeContainer.value && forgeContainer.value.offsetWidth > 0) {
+          console.log('✅ [PanoView] 容器已就绪，开始初始化');
+          resolve();
+        } else if (attempt < retries) {
+          console.log(`⏳ [PanoView] 等待容器就绪... (${attempt + 1}/${retries})`);
+          setTimeout(() => check(attempt + 1), 100);
+        } else {
+          reject(new Error('容器初始化超时'));
+        }
+      };
+      check(0);
+    });
+  };
   
-  // 初始化
-  initForgeViewer();
+  try {
+    await waitForContainer();
+    initForgeViewer();
+  } catch (e) {
+    console.error('❌ [PanoView] 容器初始化失败:', e);
+  }
 });
 
 onUnmounted(() => {
