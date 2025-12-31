@@ -109,6 +109,15 @@ app.get('/', (req, res) => {
     });
 });
 
+// 健康检查端点（用于云服务）- 移到最前优先匹配
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        env: process.env.NODE_ENV || 'development'
+    });
+});
+
 // 生产环境：服务前端静态文件
 if (process.env.NODE_ENV === 'production') {
     // 静态文件目录
@@ -117,21 +126,13 @@ if (process.env.NODE_ENV === 'production') {
     app.use('/files', express.static(path.join(__dirname, 'public/files')));
 
     // 所有非 API 路由返回 index.html (SPA 支持)
-    app.get('*', (req, res) => {
-        if (!req.path.startsWith('/api')) {
-            res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) {
+            return next();
         }
+        res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
 }
-
-// 健康检查端点（用于云服务）
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        env: process.env.NODE_ENV || 'development'
-    });
-});
 
 // 错误处理
 app.use((err, req, res, next) => {
