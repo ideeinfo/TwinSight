@@ -92,22 +92,7 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 根路径
-app.get('/', (req, res) => {
-    res.json({
-        name: 'Tandem Demo API',
-        version: '1.0.0',
-        endpoints: {
-            health: 'GET /health',
-            classifications: 'GET /api/classifications',
-            assetSpecs: 'GET /api/asset-specs',
-            assets: 'GET /api/assets',
-            spaces: 'GET /api/spaces',
-            files: 'GET /api/files',
-            importModelData: 'POST /api/import/model-data'
-        }
-    });
-});
+// 根路径路由已移除，以便在生产环境由静态文件中间件处理（返回前端页面）
 
 // 健康检查端点（用于云服务）- 移到最前优先匹配
 app.get('/api/health', (req, res) => {
