@@ -140,6 +140,8 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, error: '服务器内部错误' });
 });
 
+import { runDeployInit } from './scripts/post-deploy.js';
+
 // 启动服务器
 app.listen(PORT, () => {
     console.log(`
@@ -151,6 +153,11 @@ app.listen(PORT, () => {
 ║  📦 数据库: PostgreSQL                         ║
 ╚════════════════════════════════════════════════╝
   `);
+
+    // 异步执行数据库初始化（不阻塞服务器启动）
+    runDeployInit().catch(err => {
+        console.error('⚠️ 数据库初始化警告:', err.message);
+    });
 
     // 启动文档同步后台服务（每 5 分钟检查一次）
     startSyncService(5 * 60 * 1000);

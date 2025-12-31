@@ -159,4 +159,12 @@ async function main() {
     }
 }
 
-main();
+// 导出初始化函数
+export async function runDeployInit() {
+    await main();
+}
+
+// 只有直接运行时才执行
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    main();
+}
