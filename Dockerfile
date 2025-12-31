@@ -64,6 +64,6 @@ ENV SERVER_PORT=3001
 # HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 #     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
-# 使用 entrypoint 脚本启动（支持自动数据库初始化）
-ENTRYPOINT ["./entrypoint.sh"]
+# 使用 CMD 而非 ENTRYPOINT，以便 Railway 的 startCommand 能正确覆盖
+CMD ["node", "index.js"]
 
