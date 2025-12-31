@@ -99,25 +99,11 @@ services:
       - tandem-network
     # 仅内部访问，不暴露端口
 
-    # pgAdmin 4 - 可选，仅在需要时启用
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: tandem-pgadmin
-    restart: unless-stopped
-    profiles: [ "admin" ] # 使用 --profile admin 启动
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@tandem.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    networks:
-      - tandem-network
 
-  # ==================== AI 服务 ====================
 
-  # n8n 工作流自动化平台
+    # ==================== AI 服务 ====================
+
+    # n8n 工作流自动化平台
   n8n:
     image: n8nio/n8n:latest
     container_name: tandem-n8n
@@ -229,7 +215,7 @@ services:
 
 volumes:
   postgres_data:
-  pgadmin_data:
+
   influxdb_data:
   influxdb_config:
   n8n_data:

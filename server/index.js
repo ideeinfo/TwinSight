@@ -35,7 +35,7 @@ const __dirname = path.dirname(__filename);
 config();
 
 const app = express();
-const PORT = process.env.SERVER_PORT || 3001;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
 
 // 中间件
 const allowedOrigins = [

@@ -22,23 +22,6 @@ services:
     networks:
       - tandem-network
 
-  # pgAdmin 4 - PostgreSQL 数据库管理界面
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: tandem-pgadmin
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tandem.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-    ports:
-      - "5050:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    networks:
-      - tandem-network
-
   # InfluxDB 2.x - 时序数据库 (使用现有容器配置，保留历史数据)
   influxdb:
     image: influxdb:2.7-alpine
@@ -183,7 +166,7 @@ services:
 volumes:
 
   postgres_data:
-  pgadmin_data:
+
   grafana_data:
   n8n_data:
   open_webui_data:
@@ -202,10 +185,7 @@ networks:
 #   - 密码: password
 #   - 数据库: tandem
 #
-# pgAdmin: http://localhost:5050
-#   - 邮箱: admin@tandem.com
-#   - 密码: admin123
-#   - 连接数据库时 Host 填: postgres (容器名)
+
 #
 # InfluxDB: http://localhost:8086
 #   - 用户: admin
