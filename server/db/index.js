@@ -16,17 +16,17 @@ let poolConfig;
 
 if (process.env.DATABASE_URL) {
     // 使用 DATABASE_URL 连接字符串
+    const isInternalNetwork = process.env.DATABASE_URL.includes('.railway.internal');
+
     poolConfig = {
         connectionString: process.env.DATABASE_URL,
         max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-        // Railway PostgreSQL 需要 SSL
-        ssl: {
-            rejectUnauthorized: false
-        }
+        connectionTimeoutMillis: 10000,
+        // Railway 内部网络不需要 SSL，外部连接需要
+        ssl: isInternalNetwork ? false : { rejectUnauthorized: false }
     };
-    console.log('📦 使用 DATABASE_URL 连接 PostgreSQL');
+    console.log(`📦 使用 DATABASE_URL 连接 PostgreSQL (内部网络: ${isInternalNetwork})`);
 } else {
     // 使用独立环境变量（本地开发）
     poolConfig = {
