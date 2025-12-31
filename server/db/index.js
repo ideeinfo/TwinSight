@@ -10,17 +10,39 @@ config();
 
 const { Pool } = pg;
 
-// 创建连接池
-const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
-    database: process.env.DB_NAME || 'tandem',
-    max: 20,  // 最大连接数
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-});
+// 创建连接池配置
+// 优先使用 DATABASE_URL（Railway 等云服务提供）
+let poolConfig;
+
+if (process.env.DATABASE_URL) {
+    // 使用 DATABASE_URL 连接字符串
+    poolConfig = {
+        connectionString: process.env.DATABASE_URL,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+        // Railway PostgreSQL 需要 SSL
+        ssl: {
+            rejectUnauthorized: false
+        }
+    };
+    console.log('📦 使用 DATABASE_URL 连接 PostgreSQL');
+} else {
+    // 使用独立环境变量（本地开发）
+    poolConfig = {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432'),
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'password',
+        database: process.env.DB_NAME || 'tandem',
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    };
+    console.log('📦 使用独立环境变量连接 PostgreSQL');
+}
+
+const pool = new Pool(poolConfig);
 
 // 连接事件（禁用日志）
 pool.on('connect', () => {
