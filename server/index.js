@@ -66,11 +66,11 @@ app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use('/docs', express.static(path.join(__dirname, '../public/docs')));
 
 // 请求日志（已禁用减少输出）
-// app.use((req, res, next) => {
-//     console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-//     next();
-// });
-app.use((req, res, next) => next());
+// 请求日志
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    next();
+});
 
 // ========================================
 // 新版 API v1 路由（推荐使用）
