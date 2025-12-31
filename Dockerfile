@@ -59,12 +59,10 @@ RUN chmod +x ./entrypoint.sh
 ENV NODE_ENV=production
 ENV SERVER_PORT=3001
 
-# 暴露端口
-EXPOSE 3001
-
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+# EXPOSE 3001
+# HEALTHCHECK 被注释掉，交由 Railway 平台处理
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+#     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
 # 使用 entrypoint 脚本启动（支持自动数据库初始化）
 ENTRYPOINT ["./entrypoint.sh"]
