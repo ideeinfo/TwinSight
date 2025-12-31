@@ -18,19 +18,30 @@ const __dirname = dirname(__filename);
 
 // 数据库连接配置
 const getDbConfig = () => {
+    let config = {};
+
     // 优先使用 DATABASE_URL（Railway 等云服务自动注入）
     if (process.env.DATABASE_URL) {
-        return { connectionString: process.env.DATABASE_URL };
+        config = { connectionString: process.env.DATABASE_URL };
+    } else {
+        // 否则使用独立配置
+        config = {
+            host: process.env.DB_HOST || 'localhost',
+            port: parseInt(process.env.DB_PORT || '5432'),
+            database: process.env.DB_NAME || 'tandem',
+            user: process.env.DB_USER || 'postgres',
+            password: process.env.DB_PASSWORD || 'password'
+        };
     }
 
-    // 否则使用独立配置
-    return {
-        host: process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.DB_PORT || '5432'),
-        database: process.env.DB_NAME || 'tandem',
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'password'
-    };
+    // 生产环境或云服务通常需要 SSL
+    if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) {
+        config.ssl = {
+            rejectUnauthorized: false // 允许自签名证书（Railway 内部连接通常需要）
+        };
+    }
+
+    return config;
 };
 
 // 等待数据库就绪
