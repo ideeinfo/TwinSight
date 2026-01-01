@@ -311,40 +311,76 @@ const initPanoViewer = () => {
 
 // 初始化 Forge Viewer
 const initForgeViewer = () => {
-  if (!window.Autodesk) return;
+  console.log('🔧 [PanoView] initForgeViewer 开始');
+  
+  if (!window.Autodesk) {
+    console.error('❌ [PanoView] window.Autodesk 不存在');
+    return;
+  }
   
   const options = { env: 'Local', document: null, language: 'zh-cn' };
   
   // 确保 Forge Viewer 容器清空
-  if (forgeContainer.value) forgeContainer.value.innerHTML = '';
+  if (forgeContainer.value) {
+    forgeContainer.value.innerHTML = '';
+    
+    // 强制设置容器尺寸以防 CSS 计算问题
+    const rect = forgeContainer.value.getBoundingClientRect();
+    console.log(`📐 [PanoView] 容器尺寸: ${rect.width}x${rect.height}`);
+    
+    if (rect.width === 0 || rect.height === 0) {
+      console.warn('⚠️ [PanoView] 容器尺寸为 0，尝试强制设置');
+      forgeContainer.value.style.width = '100%';
+      forgeContainer.value.style.height = '100%';
+      forgeContainer.value.style.minHeight = '400px';
+    }
+  }
 
   window.Autodesk.Viewing.Initializer(options, () => {
+    console.log('🔧 [PanoView] Autodesk.Viewing.Initializer 回调执行');
+    
     // 再次检查容器是否存在，防止初始化时组件已卸载
     if (!forgeContainer.value) {
-      console.warn('Forge Viewer container not found during initialization.');
+      console.error('❌ [PanoView] 容器在初始化回调中为 null');
       return;
     }
     
-    // 检查容器尺寸，如果为0可能导致Viewer崩溃
-    const rect = forgeContainer.value.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      console.warn('Forge Viewer container has 0 width or height.');
+    // 再次检查容器尺寸
+    const rect2 = forgeContainer.value.getBoundingClientRect();
+    console.log(`📐 [PanoView] 初始化时容器尺寸: ${rect2.width}x${rect2.height}`);
+    
+    if (rect2.width === 0 || rect2.height === 0) {
+      console.error('❌ [PanoView] 容器尺寸仍为 0，跳过 Viewer 创建');
+      return;
     }
 
-    viewer = new window.Autodesk.Viewing.GuiViewer3D(forgeContainer.value);
-    
-    // 禁用扩展加载，只保留核心
-    const config3d = {
-      extensions: [] 
-    };
-    
-    if (viewer.start(undefined, undefined, undefined, undefined, config3d) > 0) return;
-    
-    viewer.setTheme('light-theme'); // 与比对界面风格一致
-    
-    // 加载模型
-    if (props.modelPath) {
-      loadModel(props.modelPath);
+    try {
+      console.log('🔧 [PanoView] 创建 GuiViewer3D 实例...');
+      viewer = new window.Autodesk.Viewing.GuiViewer3D(forgeContainer.value);
+      
+      // 禁用扩展加载，只保留核心
+      const config3d = {
+        extensions: [] 
+      };
+      
+      console.log('🔧 [PanoView] 调用 viewer.start()...');
+      const startResult = viewer.start(undefined, undefined, undefined, undefined, config3d);
+      console.log(`🔧 [PanoView] viewer.start() 返回: ${startResult}`);
+      
+      if (startResult > 0) {
+        console.error('❌ [PanoView] viewer.start() 失败');
+        return;
+      }
+      
+      console.log('✅ [PanoView] Viewer 启动成功');
+      viewer.setTheme('light-theme'); // 与比对界面风格一致
+      
+      // 加载模型
+      if (props.modelPath) {
+        loadModel(props.modelPath);
+      }
+    } catch (e) {
+      console.error('❌ [PanoView] Viewer 初始化异常:', e);
     }
   });
 };
@@ -993,6 +1029,7 @@ onUnmounted(() => {
   position: relative;
   background: #eee;
   border-right: 1px solid #ddd;
+  min-height: 400px; /* 确保最小高度 */
 }
 
 .pane:last-child {
