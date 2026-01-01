@@ -101,17 +101,18 @@
           </label>
         </div>
 
-        <!-- 连接测试结果 -->
-        <div v-if="testResult" class="test-result" :class="testResult.success ? 'success' : 'error'">
-          <span class="test-icon">{{ testResult.success ? '✓' : '✗' }}</span>
-          {{ testResult.message }}
-        </div>
+        <!-- 连接测试结果 (移到底部显示) -->
       </div>
       
       <div class="modal-footer">
-        <button class="btn btn-outline" :disabled="isTesting" @click="testConnection">
-          {{ isTesting ? t('influxConfig.testing') : t('influxConfig.testConnection') }}
-        </button>
+        <div class="footer-left">
+          <button class="btn btn-outline" :disabled="isTesting" @click="testConnection">
+            {{ isTesting ? t('influxConfig.testing') : t('influxConfig.testConnection') }}
+          </button>
+          <span v-if="testResult" class="test-result-inline" :class="testResult.success ? 'success' : 'error'">
+            {{ testResult.success ? '✓' : '✗' }} {{ testResult.message }}
+          </span>
+        </div>
         <div class="footer-right">
           <button class="btn btn-secondary" @click="$emit('close')">
             {{ t('common.cancel') }}
@@ -204,6 +205,8 @@ const testConnection = async () => {
   isTesting.value = true;
   testResult.value = null;
   
+  console.log('🔧 测试连接请求:', { ...form.value, fileId: props.fileId });
+  
   try {
     const response = await fetch(`${API_BASE}/api/influx-config/test/connection`, {
       method: 'POST',
@@ -215,8 +218,25 @@ const testConnection = async () => {
     });
     
     const data = await response.json();
-    testResult.value = data.data;
+    console.log('🔧 测试连接响应:', data);
+    
+    // 处理不同的响应格式
+    if (data.data) {
+      testResult.value = data.data;
+    } else if (data.error) {
+      testResult.value = {
+        success: false,
+        message: data.error
+      };
+    } else {
+      testResult.value = {
+        success: data.success || false,
+        message: data.message || '未知响应'
+      };
+    }
+    console.log('📊 testResult 已设置为:', testResult.value);
   } catch (error) {
+    console.error('❌ 测试连接异常:', error);
     testResult.value = {
       success: false,
       message: '测试请求失败: ' + error.message
@@ -448,6 +468,29 @@ onMounted(() => {
   justify-content: space-between;
   padding: 16px 20px;
   border-top: 1px solid #333;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.test-result-inline {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.test-result-inline.success {
+  color: #4caf50;
+  background: rgba(76, 175, 80, 0.15);
+}
+
+.test-result-inline.error {
+  color: #f44336;
+  background: rgba(244, 67, 54, 0.15);
 }
 
 .footer-right {
