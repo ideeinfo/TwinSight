@@ -157,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
 
@@ -933,6 +933,16 @@ onUnmounted(() => {
     viewer = null;
   }
 });
+
+// 监听 modelPath 变化，处理延迟传入的情况
+watch(() => props.modelPath, (newPath, oldPath) => {
+  console.log(`👀 [PanoView] modelPath 变化: "${oldPath}" -> "${newPath}"`);
+  if (newPath && viewer && !oldPath) {
+    // 只在 viewer 已初始化且 modelPath 从空变为有值时加载
+    console.log('📦 [PanoView] 检测到延迟传入的 modelPath，开始加载模型...');
+    loadModel(newPath);
+  }
+}, { immediate: false });
 </script>
 
 <style scoped>
