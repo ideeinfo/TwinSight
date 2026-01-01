@@ -110,8 +110,22 @@ export async function testInfluxConnection(config) {
         useBasicAuth = false
     } = config;
 
-    const baseUrl = influxUrl.includes('://') ? influxUrl : `http://${influxUrl}`;
-    const fullUrl = `${baseUrl}:${influxPort}`;
+    // 处理 URL：如果已包含协议和可能的端口，智能处理
+    let fullUrl = influxUrl;
+
+    if (!influxUrl.includes('://')) {
+        // 没有协议，添加 http 和端口
+        fullUrl = `http://${influxUrl}:${influxPort}`;
+    } else if (influxUrl.startsWith('https://') && influxPort === 8086) {
+        // HTTPS URL，且端口是默认的 8086，不添加端口（使用 443）
+        fullUrl = influxUrl;
+    } else if (influxUrl.startsWith('http://') && !influxUrl.match(/:\d+$/)) {
+        // HTTP URL 没有端口，添加端口
+        fullUrl = `${influxUrl}:${influxPort}`;
+    }
+    // 其他情况保持原样
+
+    console.log(`🔧 测试 InfluxDB 连接: ${fullUrl}`);
 
     try {
         const headers = {};
@@ -124,7 +138,9 @@ export async function testInfluxConnection(config) {
         // 测试健康检查端点
         const response = await fetch(`${fullUrl}/health`, {
             method: 'GET',
-            headers
+            headers,
+            // 添加超时
+            signal: AbortSignal.timeout(10000)
         });
 
         if (response.ok) {
@@ -132,20 +148,23 @@ export async function testInfluxConnection(config) {
             return {
                 success: true,
                 status: data.status || 'pass',
-                message: '连接成功'
+                message: `连接成功 (${fullUrl})`
             };
         } else {
+            const text = await response.text();
+            console.error(`❌ InfluxDB 连接失败: HTTP ${response.status}`, text);
             return {
                 success: false,
                 status: 'fail',
-                message: `连接失败: HTTP ${response.status}`
+                message: `连接失败: HTTP ${response.status} - ${text.slice(0, 100)}`
             };
         }
     } catch (error) {
+        console.error(`❌ InfluxDB 连接错误:`, error);
         return {
             success: false,
             status: 'error',
-            message: `连接错误: ${error.message}`
+            message: `连接错误: ${error.message} (URL: ${fullUrl})`
         };
     }
 }
