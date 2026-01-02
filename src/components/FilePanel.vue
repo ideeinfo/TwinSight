@@ -275,6 +275,7 @@ const isLoading = ref(true);
 const searchText = ref('');
 const isUploadDialogOpen = ref(false);
 const isUploading = ref(false);
+const currentXHR = ref(null); // 保存当前上传请求的引用，用于取消
 const uploadProgress = ref(0);
 const isDragging = ref(false);
 const isExtracting = ref(false);
@@ -395,6 +396,13 @@ const openUploadDialog = () => {
 };
 
 const closeUploadDialog = () => {
+  // 如果正在上传，先取消请求
+  if (currentXHR.value) {
+    currentXHR.value.abort();
+    currentXHR.value = null;
+    isUploading.value = false;
+    uploadProgress.value = 0;
+  }
   isUploadDialogOpen.value = false;
 };
 
@@ -457,15 +465,18 @@ const uploadFile = async () => {
       } else {
         await showAlert(t('filePanel.uploadFailed'));
       }
+      currentXHR.value = null;
       isUploading.value = false;
     };
 
     xhr.onerror = async () => {
       await showAlert(t('filePanel.uploadFailed'));
+      currentXHR.value = null;
       isUploading.value = false;
     };
 
     xhr.open('POST', `${API_BASE}/api/files/upload`);
+    currentXHR.value = xhr; // 保存引用以便取消
     xhr.send(formData);
 
   } catch (error) {
