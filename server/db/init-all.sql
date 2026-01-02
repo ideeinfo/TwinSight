@@ -33,15 +33,17 @@ CREATE INDEX IF NOT EXISTS idx_model_files_active ON model_files(is_active);
 -- 2. 分类编码表
 CREATE TABLE IF NOT EXISTS classifications (
     id SERIAL PRIMARY KEY,
+    file_id INTEGER REFERENCES model_files(id) ON DELETE CASCADE,
     classification_code VARCHAR(100) NOT NULL,
     classification_desc VARCHAR(500),
     classification_type VARCHAR(20) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(classification_code, classification_type)
+    UNIQUE(file_id, classification_code, classification_type)
 );
 CREATE INDEX IF NOT EXISTS idx_classifications_code ON classifications(classification_code);
 CREATE INDEX IF NOT EXISTS idx_classifications_type ON classifications(classification_type);
+CREATE INDEX IF NOT EXISTS idx_classifications_file_id ON classifications(file_id);
 
 -- 3. 资产规格表
 CREATE TABLE IF NOT EXISTS asset_specs (
