@@ -88,13 +88,11 @@ app.use('/data', express.static(appConfig.upload.dataDir, staticOptions));
 
 console.log(`📁 静态文件路径: ${appConfig.upload.dataPath}`);
 
-// 请求日志（已禁用减少输出）
-// 请求日志
-// 请求日志
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    next();
-});
+// 请求日志（已禁用减少输出，影响性能）
+// app.use((req, res, next) => {
+//     console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+//     next();
+// });
 
 // ========== DEBUG: 最简测试路由 ==========
 // 如果这都不响应，说明请求根本没进来
