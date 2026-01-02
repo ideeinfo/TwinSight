@@ -124,9 +124,12 @@ if (process.env.NODE_ENV === 'production') {
     // 静态文件已在上面统一配置，这里不再重复
     // 生产环境使用相同的 DATA_PATH 配置
 
-    // 所有非 API 路由返回 index.html (SPA 支持)
+    // 所有非 API 和非静态文件路由返回 index.html (SPA 支持)
+    // 静态文件路径（/models, /docs, /files, /data）需要返回真正的 404，而非 index.html
+    // 否则 Forge Viewer 会收到 HTML 内容导致加载失败
     app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/api')) {
+        const staticPaths = ['/api', '/models', '/docs', '/files', '/data'];
+        if (staticPaths.some(prefix => req.path.startsWith(prefix))) {
             return next();
         }
 
