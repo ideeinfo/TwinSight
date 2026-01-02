@@ -1,13 +1,4 @@
-import pkg from 'pg';
-const { Pool } = pkg;
-
-const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'tandem',
-    password: process.env.DB_PASSWORD || 'password',
-    port: process.env.DB_PORT || 5432,
-});
+import { query, getClient } from '../db/index.js';
 
 /**
  * 获取文件的映射配置
@@ -15,7 +6,7 @@ const pool = new Pool({
  * @returns {Promise<Object>} 包含 assetMapping, assetSpecMapping, spaceMapping
  */
 export async function getMappingConfig(fileId) {
-    const client = await pool.connect();
+    const client = await getClient();
     try {
         const result = await client.query(
             'SELECT config_type, field_name, category, property FROM mapping_configs WHERE file_id = $1',
@@ -54,7 +45,7 @@ export async function getMappingConfig(fileId) {
  * @returns {Promise<void>}
  */
 export async function saveMappingConfig(fileId, config) {
-    const client = await pool.connect();
+    const client = await getClient();
     try {
         await client.query('BEGIN');
 
