@@ -65,7 +65,8 @@ ENV SERVER_PORT=3001
 #     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
 
 # 创建持久化目录（用于 Volume 挂载）
-RUN mkdir -p /app/public/models /app/public/docs /app/public/files /app/public/data
+# 生产环境使用 /app/uploads，通过 DATA_PATH 环境变量配置
+RUN mkdir -p /app/uploads/models /app/uploads/docs /app/uploads/files /app/uploads/data
 
 # 使用 CMD 而非 ENTRYPOINT，以便 Railway 的 startCommand 能正确覆盖
 CMD ["node", "index.js"]
