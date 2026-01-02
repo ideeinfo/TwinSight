@@ -830,15 +830,16 @@ const loadNewModel = async (modelPath) => {
   modelFullyReady = false; // 重置模型就绪状态
   console.log('🔄 开始加载新模型:', modelPath);
   
-  // 构造候选路径
+  // 构造候选路径 - 使用完整 URL 确保 Web Worker 能正确解析（特别是 HTTPS 环境）
+  const baseUrl = window.location.origin;
   let candidates = [];
   if (modelPath.endsWith('.svf')) {
-    candidates.push(modelPath);
+    candidates.push(`${baseUrl}${modelPath}`);
   } else {
     // 优先尝试 /output/3d.svf (标准结构)
-    candidates.push(`${modelPath}/output/3d.svf`);
+    candidates.push(`${baseUrl}${modelPath}/output/3d.svf`);
     // 备用尝试 /3d.svf (扁平结构)
-    candidates.push(`${modelPath}/3d.svf`);
+    candidates.push(`${baseUrl}${modelPath}/3d.svf`);
   }
   
   let finalPath = candidates[0];
