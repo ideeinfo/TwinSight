@@ -66,7 +66,8 @@ ENV SERVER_PORT=3001
 
 # 创建持久化目录（用于 Volume 挂载）
 # 生产环境使用 /app/uploads，通过 DATA_PATH 环境变量配置
-RUN mkdir -p /app/uploads/models /app/uploads/docs /app/uploads/files /app/uploads/data
+# temp 目录必须在同一文件系统避免 EXDEV 错误
+RUN mkdir -p /app/uploads/models /app/uploads/docs /app/uploads/files /app/uploads/data /app/uploads/temp
 
 # 使用 CMD 而非 ENTRYPOINT，以便 Railway 的 startCommand 能正确覆盖
 CMD ["node", "index.js"]

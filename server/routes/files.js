@@ -90,7 +90,8 @@ import appConfig from '../config/index.js';
 
 const UPLOAD_DIR = appConfig.upload.uploadDir;
 const MODELS_DIR = appConfig.upload.modelsDir;
-const TEMP_DIR = path.join(__dirname, '../../temp');
+// 临时目录必须和上传目录在同一文件系统，否则 fs.renameSync 会失败 (EXDEV 错误)
+const TEMP_DIR = path.join(appConfig.upload.dataPath, 'temp');
 
 // 确保目录存在
 [UPLOAD_DIR, MODELS_DIR, TEMP_DIR].forEach(dir => {
