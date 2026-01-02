@@ -65,10 +65,18 @@ app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
 // 静态文件服务 - 使用配置路径（本地开发用 public/，生产环境用 /app/uploads）
-app.use('/docs', express.static(appConfig.upload.docsDir));
-app.use('/models', express.static(appConfig.upload.modelsDir));
-app.use('/files', express.static(appConfig.upload.uploadDir));
-app.use('/data', express.static(appConfig.upload.dataDir));
+// 添加显式 CORS 头确保 Forge Viewer Web Worker 可以正确加载文件
+const staticOptions = {
+    setHeaders: (res) => {
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+    }
+};
+app.use('/docs', express.static(appConfig.upload.docsDir, staticOptions));
+app.use('/models', express.static(appConfig.upload.modelsDir, staticOptions));
+app.use('/files', express.static(appConfig.upload.uploadDir, staticOptions));
+app.use('/data', express.static(appConfig.upload.dataDir, staticOptions));
 
 console.log(`📁 静态文件路径: ${appConfig.upload.dataPath}`);
 
