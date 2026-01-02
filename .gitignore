@@ -28,3 +28,13 @@ server/public/files
 server/public/models
 server/temp
 .agent
+
+# 用户上传的数据（不提交到 Git）
+public/models/*
+public/docs/*
+public/files/*
+public/data/*
+!public/models/.gitkeep
+!public/docs/.gitkeep
+!public/files/.gitkeep
+!public/data/.gitkeep

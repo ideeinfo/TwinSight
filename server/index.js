@@ -28,6 +28,9 @@ import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 // 后台服务
 import { startSyncService } from './services/document-sync-service.js';
 
+// 配置
+import appConfig from './config/index.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -61,9 +64,13 @@ app.use(cors({
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 
-// 静态文件服务 - 用于访问上传的文档
-// 使用绝对路径：server/../public/docs = project_root/public/docs
-app.use('/docs', express.static(path.join(__dirname, '../public/docs')));
+// 静态文件服务 - 使用配置路径（本地开发用 public/，生产环境用 /app/uploads）
+app.use('/docs', express.static(appConfig.upload.docsDir));
+app.use('/models', express.static(appConfig.upload.modelsDir));
+app.use('/files', express.static(appConfig.upload.uploadDir));
+app.use('/data', express.static(appConfig.upload.dataDir));
+
+console.log(`📁 静态文件路径: ${appConfig.upload.dataPath}`);
 
 // 请求日志（已禁用减少输出）
 // 请求日志
@@ -114,8 +121,8 @@ app.get('/api/health', (req, res) => {
 if (process.env.NODE_ENV === 'production') {
     // 静态文件目录
     app.use(express.static(path.join(__dirname, 'dist')));
-    app.use('/models', express.static(path.join(__dirname, 'public/models')));
-    app.use('/files', express.static(path.join(__dirname, 'public/files')));
+    // 静态文件已在上面统一配置，这里不再重复
+    // 生产环境使用相同的 DATA_PATH 配置
 
     // 所有非 API 路由返回 index.html (SPA 支持)
     app.get('*', (req, res, next) => {

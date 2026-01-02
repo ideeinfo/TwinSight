@@ -7,6 +7,7 @@ import ExifParser from 'exif-parser';
 import documentModel from '../models/document.js';
 import documentExifModel from '../models/document-exif.js';
 import openwebuiService from '../services/openwebui-service.js';
+import appConfig from '../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +17,7 @@ const router = express.Router();
 // 配置文件上传
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../public/docs');
+        const uploadDir = appConfig.upload.docsDir;
         try {
             await fs.mkdir(uploadDir, { recursive: true });
             cb(null, uploadDir);
@@ -342,7 +343,7 @@ router.delete('/:id', async (req, res) => {
         const result = await documentModel.deleteDocument(id);
 
         // 删除物理文件
-        const filePath = path.join(__dirname, '../../public', document.file_path);
+        const filePath = path.join(appConfig.upload.dataPath, document.file_path);
         try {
             await fs.unlink(filePath);
         } catch (unlinkError) {
@@ -370,7 +371,7 @@ router.get('/:id/download', async (req, res) => {
             return res.status(404).json({ success: false, error: '文档不存在' });
         }
 
-        const filePath = path.join(__dirname, '../../public', document.file_path);
+        const filePath = path.join(appConfig.upload.dataPath, document.file_path);
 
         // 检查文件是否存在
         try {
@@ -400,7 +401,7 @@ router.get('/:id/preview', async (req, res) => {
             return res.status(404).send('文档不存在');
         }
 
-        const filePath = path.join(__dirname, '../../public', document.file_path);
+        const filePath = path.join(appConfig.upload.dataPath, document.file_path);
 
         // 检查文件是否存在
         try {

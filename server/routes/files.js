@@ -85,9 +85,11 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 文件存储目录
-const UPLOAD_DIR = path.join(__dirname, '../../public/files');
-const MODELS_DIR = path.join(__dirname, '../../public/models');
+// 文件存储目录 - 使用配置路径
+import appConfig from '../config/index.js';
+
+const UPLOAD_DIR = appConfig.upload.uploadDir;
+const MODELS_DIR = appConfig.upload.modelsDir;
 const TEMP_DIR = path.join(__dirname, '../../temp');
 
 // 确保目录存在

@@ -45,11 +45,14 @@ const config = {
     },
 
     // 文件上传配置
+    // DATA_PATH 环境变量用于区分本地开发(./public)和生产环境(/app/uploads)
     upload: {
         maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '524288000', 10), // 默认 500MB
-        uploadDir: process.env.UPLOAD_DIR || './uploads',
-        modelsDir: process.env.MODELS_DIR || './public/models',
-        documentsDir: process.env.DOCUMENTS_DIR || './public/documents',
+        dataPath: process.env.DATA_PATH || path.join(__dirname, '../../public'),
+        get uploadDir() { return path.join(this.dataPath, 'files'); },
+        get modelsDir() { return path.join(this.dataPath, 'models'); },
+        get docsDir() { return path.join(this.dataPath, 'docs'); },
+        get dataDir() { return path.join(this.dataPath, 'data'); },
     },
 
     // 跨域配置
