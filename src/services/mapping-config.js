@@ -3,7 +3,9 @@
  * 用于获取和保存文件的字段映射配置
  */
 
-const API_BASE = 'http://localhost:3001/api';
+// 生产环境使用同源 API（空字符串），开发环境使用 localhost
+const API_HOST = import.meta.env.VITE_API_URL || '';
+const API_BASE = `${API_HOST}/api`;
 
 /**
  * 获取文件的映射配置
