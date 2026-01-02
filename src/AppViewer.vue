@@ -599,12 +599,16 @@ const onViewerReady = async () => {
       console.warn('⚠️ 无法获取激活文件，加载默认模型', e);
     }
     
-    // 如果没有激活文件，加载默认模型
+    // 如果没有激活文件，不加载任何模型
     if (mainViewRef.value && mainViewRef.value.loadNewModel) {
-      console.log('📦 加载默认模型');
-      const defaultPath = '/models/my-building';
-      currentLoadedModelPath.value = defaultPath;
-      mainViewRef.value.loadNewModel(defaultPath);
+      const defaultPath = null; // 已禁用：之前是 '/models/my-building'
+      if (defaultPath) {
+        console.log('📦 加载默认模型');
+        currentLoadedModelPath.value = defaultPath;
+        mainViewRef.value.loadNewModel(defaultPath);
+      } else {
+        console.log('📝 没有激活的模型文件，请先上传并激活模型');
+      }
     }
   }
 };
