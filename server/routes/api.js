@@ -3,13 +3,71 @@
  * 提供 RESTful API 接口
  */
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
 import classificationModel from '../models/classification.js';
 import assetSpecModel from '../models/asset-spec.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
 import { getMappingConfig, saveMappingConfig } from '../models/mapping-config.js';
+import appConfig from '../config/index.js';
 
 const router = Router();
+
+// ========================================
+// 调试 API（临时，用于检查文件结构）
+// ========================================
+
+/**
+ * 检查服务器文件结构
+ * GET /api/debug/files?path=/models
+ */
+router.get('/debug/files', async (req, res) => {
+    try {
+        const relativePath = req.query.path || '';
+        const basePath = appConfig.upload.dataPath;
+        const targetPath = path.join(basePath, relativePath);
+
+        // 安全检查：确保路径在 dataPath 内
+        const realPath = path.resolve(targetPath);
+        if (!realPath.startsWith(path.resolve(basePath))) {
+            return res.status(403).json({ success: false, error: '路径不允许' });
+        }
+
+        const result = {
+            basePath,
+            targetPath,
+            exists: fs.existsSync(targetPath),
+            files: [],
+            env: {
+                DATA_PATH: process.env.DATA_PATH,
+                NODE_ENV: process.env.NODE_ENV
+            }
+        };
+
+        if (result.exists) {
+            const stat = fs.statSync(targetPath);
+            if (stat.isDirectory()) {
+                result.files = fs.readdirSync(targetPath).map(name => {
+                    const filePath = path.join(targetPath, name);
+                    const fileStat = fs.statSync(filePath);
+                    return {
+                        name,
+                        isDir: fileStat.isDirectory(),
+                        size: fileStat.size
+                    };
+                });
+            } else {
+                result.isFile = true;
+                result.size = stat.size;
+            }
+        }
+
+        res.json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // ========================================
 // 检查现有数据 API
