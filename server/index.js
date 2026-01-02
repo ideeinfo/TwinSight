@@ -73,6 +73,12 @@ const staticOptions = {
         res.set('Access-Control-Allow-Headers', 'Content-Type');
         // 添加 Cross-Origin-Resource-Policy 以允许跨域加载（重要！）
         res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        // 防止 CDN 修改内容（Railway Edge 可能会压缩或修改文件）
+        res.set('Cache-Control', 'public, max-age=86400, no-transform');
+        // 为模型文件设置正确的 MIME 类型（防止被当作其他格式处理）
+        if (filePath.endsWith('.svf') || filePath.endsWith('.pf') || filePath.endsWith('.bin') || filePath.endsWith('.pack')) {
+            res.set('Content-Type', 'application/octet-stream');
+        }
     }
 };
 app.use('/docs', express.static(appConfig.upload.docsDir, staticOptions));
