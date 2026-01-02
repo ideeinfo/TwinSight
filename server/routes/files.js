@@ -484,8 +484,8 @@ router.post('/:id/extract', async (req, res) => {
             const zip = new AdmZip(zipPath);
             zip.extractAllTo(extractDir, true);
 
-            // 更新状态为就绪
-            const extractedPath = `/models/my-building/${file.file_code}`;
+            // 更新状态为就绪（路径必须与实际解压目录一致）
+            const extractedPath = `/models/${file.file_code}`;
             await modelFileModel.updateModelFileStatus(file.id, 'ready', extractedPath);
 
             res.json({
