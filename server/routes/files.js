@@ -470,8 +470,9 @@ router.post('/:id/extract', async (req, res) => {
         // 更新状态为解压中
         await modelFileModel.updateModelFileStatus(file.id, 'extracting');
 
-        const zipPath = path.join(__dirname, '../../public', file.file_path);
-        const extractDir = path.join(MODELS_DIR, 'my-building', file.file_code);
+        // 使用配置路径而非硬编码（生产环境用 /app/uploads，本地用 ./public）
+        const zipPath = path.join(appConfig.upload.dataPath, file.file_path);
+        const extractDir = path.join(MODELS_DIR, file.file_code);
 
         // 确保解压目录存在
         if (!fs.existsSync(extractDir)) {
