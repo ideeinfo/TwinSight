@@ -433,15 +433,15 @@ router.delete('/:id', async (req, res) => {
             }
         }
 
-        // 删除物理文件
-        const filePath = path.join(__dirname, '../../public', file.file_path);
+        // 删除物理文件（使用配置路径）
+        const filePath = path.join(appConfig.upload.dataPath, file.file_path);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
 
         // 删除解压目录
         if (file.extracted_path) {
-            const extractedDir = path.join(__dirname, '../../public', file.extracted_path);
+            const extractedDir = path.join(appConfig.upload.dataPath, file.extracted_path);
             if (fs.existsSync(extractedDir)) {
                 fs.rmSync(extractedDir, { recursive: true });
             }

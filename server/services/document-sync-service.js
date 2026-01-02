@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import appConfig from '../config/index.js';
+
 // 同步状态
 let isSyncing = false;
 
@@ -96,7 +98,8 @@ async function findKnowledgeBaseId(doc) {
  */
 async function syncDocument(doc, kbId) {
     try {
-        const filePath = path.join(__dirname, '../../public', doc.file_path);
+        // 使用配置路径（生产环境用 /app/uploads，本地用 ./public）
+        const filePath = path.join(appConfig.upload.dataPath, doc.file_path);
 
         // 检查文件格式是否支持
         if (!openwebuiService.isSupportedFormat(filePath)) {
