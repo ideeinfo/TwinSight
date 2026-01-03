@@ -1,5 +1,5 @@
 # 显式指定使用 alpine 版本，这样才有 apk 命令
-FROM n8nio/n8n:latest-alpine
+FROM n8nio/n8n:alpine
 
 USER root
 
