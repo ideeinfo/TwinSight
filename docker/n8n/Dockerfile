@@ -1,22 +1,21 @@
-# n8n Custom Dockerfile for Railway
-# 解决 Railway Volume 权限问题 - 简化版本，以 root 运行
-
 FROM n8nio/n8n:latest
 
-# 保持 root 用户运行（Railway Volume 需要 root 权限）
+# 切换到 root 用户以修改权限
 USER root
 
-# 设置 n8n 数据目录环境变量
-ENV N8N_USER_FOLDER=/home/node/.n8n
+# 安装必要的工具
+RUN apk add --no-cache su-exec
 
-# 创建数据目录
-RUN mkdir -p /home/node/.n8n && chmod 777 /home/node/.n8n
+# 编写启动脚本直接处理权限
+RUN echo '#!/bin/sh\n\
+    # 检查挂载目录的所有权，如果不是 node 用户则修改它\n\
+    chown -R node:node /home/node/.n8n\n\
+    # 使用 su-exec 以 node 用户身份启动 n8n\n\
+    exec su-exec node n8n' > /docker-entrypoint.sh
 
-# 设置工作目录
-WORKDIR /home/node
+RUN chmod +x /docker-entrypoint.sh
 
 # 暴露端口
 EXPOSE 5678
 
-# 直接启动 n8n（以 root 运行）
-CMD ["n8n", "start"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
