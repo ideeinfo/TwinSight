@@ -20,13 +20,24 @@ const config = {
         env: process.env.NODE_ENV || 'development',
     },
 
-    // 数据库配置
-    database: {
-        host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
-        port: parseInt(process.env.PGPORT || process.env.DB_PORT || '5432', 10),
-        database: process.env.PGDATABASE || process.env.DB_NAME || 'tandem',
-        user: process.env.PGUSER || process.env.DB_USER || 'postgres',
-        password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+    // 数据库配置 - 使用 getter 确保运行时动态读取环境变量
+    // 这解决了 ES Modules 静态导入时环境变量可能尚未加载的问题
+    get database() {
+        // 优先使用 DATABASE_URL（Railway 推荐的方式）
+        if (process.env.DATABASE_URL) {
+            return {
+                connectionString: process.env.DATABASE_URL,
+                ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+            };
+        }
+        // 回退到单独的环境变量
+        return {
+            host: process.env.PGHOST || process.env.DB_HOST || 'localhost',
+            port: parseInt(process.env.PGPORT || process.env.DB_PORT || '5432', 10),
+            database: process.env.PGDATABASE || process.env.DB_NAME || 'tandem',
+            user: process.env.PGUSER || process.env.DB_USER || 'postgres',
+            password: process.env.PGPASSWORD || process.env.DB_PASSWORD || 'postgres',
+        };
     },
 
     // InfluxDB 配置

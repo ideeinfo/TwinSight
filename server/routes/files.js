@@ -18,7 +18,17 @@ import config from '../config/index.js';
 
 
 const { Pool } = pg;
-const dbPool = new Pool(config.database);
+// 懒加载数据库连接池，确保在首次使用时才读取配置（此时环境变量已加载）
+let _dbPool = null;
+function getDbPool() {
+    if (!_dbPool) {
+        console.log('📦 初始化知识库数据库连接池...');
+        console.log(`   DATABASE_URL: ${process.env.DATABASE_URL ? '已配置' : '未配置'}`);
+        console.log(`   PGHOST: ${process.env.PGHOST || '未配置'}`);
+        _dbPool = new Pool(config.database);
+    }
+    return _dbPool;
+}
 
 /**
  * 为模型文件自动创建 Open WebUI 知识库
@@ -64,7 +74,7 @@ async function createKnowledgeBaseForModel(modelFile) {
         console.log(`✅ 知识库创建成功: ${kb.id}`);
 
         // 保存映射关系到数据库
-        await dbPool.query(`
+        await getDbPool().query(`
             INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
             VALUES ($1, $2, $3)
             ON CONFLICT (file_id) DO UPDATE SET
@@ -413,7 +423,7 @@ router.delete('/:id', async (req, res) => {
 
             try {
                 // 查询关联的知识库
-                const kbResult = await dbPool.query(
+                const kbResult = await getDbPool().query(
                     'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
                     [req.params.id]
                 );
