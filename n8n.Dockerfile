@@ -2,10 +2,8 @@ FROM n8nio/n8n:latest
 
 USER root
 
-# n8n 镜像基于 Alpine，使用 apk 和 su-exec
-RUN apk add --no-cache su-exec
-
 ENV N8N_USER_FOLDER=/home/node/.n8n
 
-# 权限修复 + 降权启动
-ENTRYPOINT ["sh", "-c", "chown -R node:node /home/node/.n8n && exec su-exec node n8n"]
+# 直接以 root 运行，不需要切换用户
+# Railway 容器环境是隔离的，以 root 运行是安全的
+ENTRYPOINT ["sh", "-c", "mkdir -p /home/node/.n8n && chmod -R 777 /home/node/.n8n && n8n"]
