@@ -20,7 +20,7 @@ export async function getInfluxConfig(fileId) {
 export async function saveInfluxConfig(fileId, config) {
     const {
         influxUrl,
-        influxPort = 8086,
+        influxPort: rawInfluxPort = 8086,
         influxOrg,
         influxBucket,
         influxToken,
@@ -29,6 +29,12 @@ export async function saveInfluxConfig(fileId, config) {
         useBasicAuth = false,
         isEnabled = true
     } = config;
+
+    // 处理端口：空字符串使用默认值，否则转换为整数
+    const influxPort = rawInfluxPort === '' || rawInfluxPort === null || rawInfluxPort === undefined
+        ? 8086
+        : parseInt(rawInfluxPort, 10) || 8086;
+
 
     // 检查是否已存在配置
     const existing = await getInfluxConfig(fileId);
