@@ -4,9 +4,14 @@
  */
 
 export default {
-    // 基础配置
-    baseUrl: process.env.OPENWEBUI_URL || 'http://localhost:3080',
-    apiKey: process.env.OPENWEBUI_API_KEY || '',
+    // 基础配置 - 使用 getter 确保运行时动态读取环境变量
+    // 这解决了 ES Modules 静态导入时环境变量可能尚未加载的问题
+    get baseUrl() {
+        return process.env.OPENWEBUI_URL || 'http://localhost:3080';
+    },
+    get apiKey() {
+        return process.env.OPENWEBUI_API_KEY || '';
+    },
 
     // API 端点
     endpoints: {

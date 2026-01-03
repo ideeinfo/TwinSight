@@ -8,12 +8,27 @@ import fs from 'fs';
 import path from 'path';
 // 不再使用 form-data 包，使用 Node.js 原生 FormData
 
-const { baseUrl, apiKey, endpoints, supportedFormats } = openwebuiConfig;
+// 动态读取配置（避免 ES Modules 静态导入时环境变量未加载的问题）
+// 每次调用时都从 openwebuiConfig 读取最新值，而不是在模块加载时固定
+const getBaseUrl = () => openwebuiConfig.baseUrl;
+const getApiKey = () => openwebuiConfig.apiKey;
+const { endpoints, supportedFormats } = openwebuiConfig;
 
 /**
  * 通用请求方法
  */
 async function request(endpoint, options = {}) {
+    const baseUrl = getBaseUrl();
+    const apiKey = getApiKey();
+
+    // 调试日志：检查配置状态
+    console.log(`🔧 Open WebUI 配置: URL=${baseUrl}, API Key=${apiKey ? `已配置(${apiKey.substring(0, 10)}...)` : '未配置'}`);
+
+    if (!apiKey) {
+        console.error('❌ OPENWEBUI_API_KEY 未配置，无法调用 Open WebUI API');
+        throw new Error('OPENWEBUI_API_KEY 未配置');
+    }
+
     const url = `${baseUrl}${endpoint}`;
     const headers = {
         'Authorization': `Bearer ${apiKey}`,
@@ -50,6 +65,7 @@ async function request(endpoint, options = {}) {
  */
 export async function checkHealth() {
     try {
+        const baseUrl = getBaseUrl();
         const response = await fetch(`${baseUrl}${endpoints.health}`);
         return response.ok;
     } catch (error) {
@@ -144,6 +160,9 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     const formData = new FormData();
     formData.append('file', file);
 
+    const baseUrl = getBaseUrl();
+    const apiKey = getApiKey();
+
     const uploadUrl = `${baseUrl}/api/v1/files/`;
     const uploadResponse = await fetch(uploadUrl, {
         method: 'POST',
@@ -171,10 +190,10 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // 等待 3 秒
 
         // 检查文件状态
-        const checkResponse = await fetch(`${baseUrl}/api/v1/files/${fileId}`, {
+        const checkResponse = await fetch(`${getBaseUrl()}/api/v1/files/${fileId}`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
+                'Authorization': `Bearer ${getApiKey()}`,
             },
         });
 
@@ -195,11 +214,11 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     }
 
     // Step 2: 将文件添加到知识库
-    const addToKbUrl = `${baseUrl}/api/v1/knowledge/${kbId}/file/add`;
+    const addToKbUrl = `${getBaseUrl()}/api/v1/knowledge/${kbId}/file/add`;
     const addResponse = await fetch(addToKbUrl, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ file_id: fileId }),

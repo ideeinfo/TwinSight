@@ -12,8 +12,10 @@ import modelFileModel from '../models/model-file.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
 import assetSpecModel from '../models/asset-spec.js';
+import { deleteKnowledgeBase } from '../services/openwebui-service.js';
 import pg from 'pg';
 import config from '../config/index.js';
+
 
 const { Pool } = pg;
 const dbPool = new Pool(config.database);
@@ -398,6 +400,17 @@ router.delete('/:id', async (req, res) => {
         // 如果需要删除知识库
         if (deleteKB === 'true') {
             console.log('✅ 需要删除知识库');
+
+            // 检查环境变量配置状态
+            const openwebuiUrl = process.env.OPENWEBUI_URL || 'http://localhost:3080';
+            const openwebuiApiKey = process.env.OPENWEBUI_API_KEY || '';
+            console.log(`🔧 环境变量检查: OPENWEBUI_URL=${openwebuiUrl}`);
+            console.log(`🔧 环境变量检查: OPENWEBUI_API_KEY=${openwebuiApiKey ? `已配置(${openwebuiApiKey.substring(0, 10)}...)` : '未配置'}`);
+
+            if (!openwebuiApiKey) {
+                console.warn('⚠️ OPENWEBUI_API_KEY 未配置，无法删除 Open WebUI 知识库');
+            }
+
             try {
                 // 查询关联的知识库
                 const kbResult = await dbPool.query(
@@ -405,33 +418,35 @@ router.delete('/:id', async (req, res) => {
                     [req.params.id]
                 );
 
+                console.log(`📊 查询到 ${kbResult.rows.length} 个知识库记录`);
+
                 if (kbResult.rows.length > 0) {
                     const kbId = kbResult.rows[0].openwebui_kb_id;
-                    const OPENWEBUI_URL = process.env.OPENWEBUI_URL || 'http://localhost:3080';
-                    const OPENWEBUI_API_KEY = process.env.OPENWEBUI_API_KEY || '';
+                    console.log(`📋 知识库 ID: ${kbId || '空'}`);
 
-                    if (OPENWEBUI_API_KEY && kbId) {
-                        console.log(`🗑️ 删除 Open WebUI 知识库: ${kbId}`);
-                        // 正确的删除端点是 /api/v1/knowledge/{id}/delete
-                        const response = await fetch(`${OPENWEBUI_URL}/api/v1/knowledge/${kbId}/delete`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Authorization': `Bearer ${OPENWEBUI_API_KEY}`,
-                            },
-                        });
-
-                        if (response.ok) {
-                            console.log(`✅ 知识库删除成功`);
-                        } else {
-                            console.error(`⚠️ 知识库删除失败: HTTP ${response.status}`);
+                    if (kbId) {
+                        console.log(`🗑️ 开始删除 Open WebUI 知识库: ${kbId}`);
+                        try {
+                            await deleteKnowledgeBase(kbId);
+                            console.log(`✅ 知识库删除成功: ${kbId}`);
+                        } catch (deleteError) {
+                            console.error(`❌ 知识库删除失败: ${kbId}`);
+                            console.error(`   错误详情: ${deleteError.message}`);
+                            console.error(`   完整错误:`, deleteError);
                         }
+                    } else {
+                        console.log('⚠️ 知识库 ID 为空，跳过删除');
                     }
+                } else {
+                    console.log('⚠️ 未找到关联的知识库记录');
                 }
             } catch (kbError) {
-                console.error('删除知识库时出错:', kbError.message);
+                console.error('❌ 查询/删除知识库时出错:', kbError.message);
+                console.error('   完整错误:', kbError);
                 // 继续删除文件，不阻塞
             }
         }
+
 
         // 删除物理文件（使用配置路径）
         const filePath = path.join(appConfig.upload.dataPath, file.file_path);
