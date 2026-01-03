@@ -2,10 +2,10 @@ FROM n8nio/n8n:latest
 
 USER root
 
-# Debian 使用 apt-get，安装 gosu 来代替 su-exec
-RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
+# n8n 镜像基于 Alpine，使用 apk 和 su-exec
+RUN apk add --no-cache su-exec
 
 ENV N8N_USER_FOLDER=/home/node/.n8n
 
-# gosu 的用法和 su-exec 一样
-ENTRYPOINT ["sh", "-c", "chown -R node:node /home/node/.n8n && exec gosu node n8n"]
+# 权限修复 + 降权启动
+ENTRYPOINT ["sh", "-c", "chown -R node:node /home/node/.n8n && exec su-exec node n8n"]
