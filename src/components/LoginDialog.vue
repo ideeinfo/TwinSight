@@ -278,10 +278,28 @@ watch(isLogin, () => {
 </script>
 
 <style scoped>
-/* 对话框样式 */
+/* 对话框样式 - 浅色模式 */
 .auth-dialog :deep(.el-dialog) {
   border-radius: 16px;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 浅色模式输入框透明 */
+.auth-dialog :deep(.el-input__wrapper) {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.auth-dialog :deep(.el-input__wrapper:hover) {
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.auth-dialog :deep(.el-input__wrapper.is-focus) {
+  border-color: #00bcd4;
 }
 
 .auth-dialog.is-dark :deep(.el-dialog) {
