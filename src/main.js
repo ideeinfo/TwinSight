@@ -21,19 +21,19 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 app.use(i18n)
-app.use(ElementPlus)
+app.use(ElementPlus);
 
 // 初始化 Auth Store（尝试从 localStorage 恢复登录状态）
-// 初始化 Auth Store（尝试从 localStorage 恢复登录状态）
-const authStore = useAuthStore()
-authStore.checkAuth();
-// 不再自动启用访客模式，要求用户登录
-// authStore.enableGuestMode()
+// 使用异步 IIFE 确保权限加载完成后再挂载应用
+(async () => {
+    const authStore = useAuthStore();
+    await authStore.checkAuth();
 
-// 初始化主题
-const themeStore = useThemeStore()
-themeStore.init()
+    // 初始化主题
+    const themeStore = useThemeStore();
+    themeStore.init();
 
-// 挂载应用
-app.mount('#app')
+    // 挂载应用
+    app.mount('#app');
+})();
 
