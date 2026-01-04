@@ -7,6 +7,7 @@
     :show-close="true"
     class="auth-dialog"
     :class="{ 'is-dark': isDarkMode }"
+    :style="dialogStyle"
     @close="handleClose"
   >
     <div class="auth-content">
@@ -34,6 +35,7 @@
             :placeholder="$t('auth.namePlaceholder')"
             prefix-icon="User"
             size="large"
+            class="auth-input"
           />
         </el-form-item>
 
@@ -45,6 +47,7 @@
             :placeholder="$t('auth.emailPlaceholder')"
             prefix-icon="Message"
             size="large"
+            class="auth-input"
           />
         </el-form-item>
 
@@ -57,6 +60,7 @@
             prefix-icon="Lock"
             size="large"
             show-password
+            class="auth-input"
           />
         </el-form-item>
 
@@ -69,6 +73,7 @@
             prefix-icon="Lock"
             size="large"
             show-password
+            class="auth-input"
           />
         </el-form-item>
 
@@ -488,59 +493,63 @@ watch(isLogin, () => {
 }
 </style>
 
-<!-- 全局样式覆盖 Element Plus 默认样式（dialog teleport 到 body） -->
+/* 全局样式覆盖 Element Plus 默认样式 */
+/* 全局样式覆盖 Element Plus 默认样式 */
 <style>
-/* 深色模式对话框 - 半透明毛玻璃 */
-.el-dialog.auth-dialog.is-dark {
-  background: rgba(26, 26, 36, 0.88) !important;
+/* 根级变量覆盖 - 基底设置 */
+.auth-dialog {
+  /* 调整透明度：更通透 (0.55/0.65) */
+  --el-dialog-bg-color: v-bind('isDarkMode ? "rgba(26, 26, 36, 0.55)" : "rgba(255, 255, 255, 0.65)"') !important;
+  --el-dialog-box-shadow: 0 12px 32px 4px rgba(0, 0, 0, 0.36) !important;
+  --el-input-bg-color: transparent !important;
+  --el-fill-color-blank: transparent !important;
+}
+
+/* 强制背景使用变量 */
+.auth-dialog .el-dialog {
+  background: var(--el-dialog-bg-color) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid v-bind('isDarkMode ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.1)"') !important;
 }
 
-.el-dialog.auth-dialog.is-dark .el-dialog__header {
+/* 移除内部干扰背景 */
+.auth-dialog .el-dialog__header,
+.auth-dialog .el-dialog__body {
   background: transparent !important;
 }
 
-.el-dialog.auth-dialog.is-dark .el-dialog__body {
-  background: transparent !important;
-}
-
-/* 深色模式输入框 - 透明无色差 */
-.el-dialog.auth-dialog.is-dark .el-input__wrapper {
-  background: transparent !important;
+/* 
+  输入框强制透明 - 混合策略 
+  兼容 Edge/Chrome 的终极方案：直接命中 CSS 属性，不依赖变量继承
+*/
+body .auth-input .el-input__wrapper,
+body .auth-input .el-input__inner {
   background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* 边框样式 - 需要区分深浅模式 */
+/* 深色模式 */
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__wrapper {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
 }
 
-.el-dialog.auth-dialog.is-dark .el-input__wrapper:hover {
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__wrapper:hover {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset !important;
 }
 
-.el-dialog.auth-dialog.is-dark .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px #00bcd4 inset !important;
-}
-
-/* 浅色模式对话框 - 半透明毛玻璃 */
-.el-dialog.auth-dialog:not(.is-dark) {
-  background: rgba(255, 255, 255, 0.88) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-}
-
-/* 浅色模式输入框 - 透明无色差 */
-.el-dialog.auth-dialog:not(.is-dark) .el-input__wrapper {
-  background: transparent !important;
-  background-color: transparent !important;
+/* 浅色模式 */
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__wrapper {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15) inset !important;
 }
 
-.el-dialog.auth-dialog:not(.is-dark) .el-input__wrapper:hover {
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__wrapper:hover {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25) inset !important;
 }
 
-.el-dialog.auth-dialog:not(.is-dark) .el-input__wrapper.is-focus {
+/* 聚焦状态 - 通用 */
+body .auth-input .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 1px #00bcd4 inset !important;
 }
 </style>
