@@ -13,10 +13,7 @@
       <!-- 欢迎语 -->
       <div class="auth-welcome">
         <div class="welcome-icon">
-          <svg viewBox="0 0 40 40" fill="none">
-            <path d="M20 4L36 36H4L20 4Z" stroke="currentColor" stroke-width="2" />
-            <circle cx="20" cy="24" r="6" fill="currentColor" />
-          </svg>
+          <img src="../assets/logo.png" alt="Logo" />
         </div>
         <p class="welcome-text">{{ isLogin ? $t('auth.welcomeBack') : $t('auth.welcomeNew') }}</p>
       </div>
@@ -288,12 +285,13 @@ watch(isLogin, () => {
 }
 
 .auth-dialog.is-dark :deep(.el-dialog) {
-  background: #1a1a24;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(26, 26, 36, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .auth-dialog.is-dark :deep(.el-dialog__header) {
-  background: #1a1a24;
+  background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -302,7 +300,7 @@ watch(isLogin, () => {
 }
 
 .auth-dialog.is-dark :deep(.el-dialog__body) {
-  background: #1a1a24;
+  background: transparent;
 }
 
 /* 欢迎区域 */
@@ -312,15 +310,15 @@ watch(isLogin, () => {
 }
 
 .welcome-icon {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   margin: 0 auto 12px;
-  color: #00bcd4;
 }
 
-.welcome-icon svg {
+.welcome-icon img {
   width: 100%;
   height: 100%;
+  object-fit: contain;
 }
 
 .welcome-text {
@@ -343,8 +341,17 @@ watch(isLogin, () => {
 }
 
 .is-dark .auth-content :deep(.el-input__wrapper) {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+}
+
+.is-dark .auth-content :deep(.el-input__wrapper:hover) {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.is-dark .auth-content :deep(.el-input__wrapper.is-focus) {
+  border-color: #00bcd4;
 }
 
 .is-dark .auth-content :deep(.el-input__inner) {
