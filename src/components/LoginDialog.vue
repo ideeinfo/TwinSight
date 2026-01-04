@@ -488,19 +488,61 @@ watch(isLogin, () => {
 }
 </style>
 
-<!-- 全局样式覆盖 Element Plus 默认输入框背景 -->
+<!-- 全局样式覆盖 Element Plus 默认样式（dialog teleport 到 body） -->
 <style>
-.auth-dialog .el-input__wrapper {
-  background-color: transparent !important;
+/* 深色模式对话框 - 半透明毛玻璃 */
+.el-overlay .auth-dialog.is-dark .el-dialog,
+.auth-dialog.is-dark .el-dialog {
+  background: rgba(26, 26, 36, 0.88) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.auth-dialog.is-dark .el-dialog__header {
   background: transparent !important;
+}
+
+.auth-dialog.is-dark .el-dialog__body {
+  background: transparent !important;
+}
+
+/* 深色模式输入框 - 透明无色差 */
+.auth-dialog.is-dark .el-input__wrapper {
+  background: transparent !important;
+  background-color: transparent !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
 }
 
-.auth-dialog .el-input__wrapper:hover {
+.auth-dialog.is-dark .el-input__wrapper:hover {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset !important;
 }
 
-.auth-dialog .el-input__wrapper.is-focus {
+.auth-dialog.is-dark .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px #00bcd4 inset !important;
+}
+
+/* 浅色模式对话框 - 半透明毛玻璃 */
+.el-overlay .auth-dialog:not(.is-dark) .el-dialog,
+.auth-dialog:not(.is-dark) .el-dialog {
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 浅色模式输入框 - 透明无色差 */
+.auth-dialog:not(.is-dark) .el-input__wrapper {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15) inset !important;
+}
+
+.auth-dialog:not(.is-dark) .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25) inset !important;
+}
+
+.auth-dialog:not(.is-dark) .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 1px #00bcd4 inset !important;
 }
 </style>
