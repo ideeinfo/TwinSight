@@ -6,7 +6,6 @@
         <img v-if="user?.avatarUrl" :src="user.avatarUrl" alt="avatar" />
         <span v-else>{{ initials }}</span>
       </div>
-      <span v-if="user" class="user-name-short">{{ user.username }}</span>
     </div>
 
     <!-- 下拉面板 -->

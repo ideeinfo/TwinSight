@@ -3,9 +3,10 @@
  * 登录、注册、OAuth、令牌刷新
  */
 import { Router } from 'express';
-import authService from '../services/auth-service.js';
-import { authenticate } from '../middleware/auth.js';
-import config from '../config/index.js';
+import authService from '../../services/auth-service.js';
+import * as userModel from '../../models/user.js';
+import { authenticate } from '../../middleware/auth.js';
+import config from '../../config/index.js';
 
 const router = Router();
 
@@ -157,6 +158,37 @@ router.get('/me', authenticate, async (req, res) => {
         });
     } catch (error) {
         console.error('获取用户信息失败:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * 更新当前用户信息
+ * PUT /api/v1/auth/me
+ */
+router.put('/me', authenticate, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const userId = req.user.sub;
+
+        if (!name) {
+            return res.status(400).json({
+                success: false,
+                error: '请提供姓名',
+            });
+        }
+
+        await userModel.updateUser(userId, { name });
+
+        res.json({
+            success: true,
+            message: '用户信息已更新',
+        });
+    } catch (error) {
+        console.error('更新用户信息失败:', error.message);
         res.status(500).json({
             success: false,
             error: error.message,
