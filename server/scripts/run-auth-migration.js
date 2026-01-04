@@ -1,7 +1,17 @@
-const fs = require('fs');
-const path = require('path');
-const { Pool } = require('pg');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import pg from 'pg';
+import dotenv from 'dotenv';
+
+const { Pool } = pg;
+
+// 获取 __dirname 的替代方案 (ES Module)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 加载环境变量
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 async function runMigration() {
     // 优先使用 DATABASE_URL (Railway 标准), 否则使用本地 .env 配置
