@@ -23,10 +23,21 @@ async function runMigration() {
     // Railway (及大多数云数据库) 需要 SSL 连接
     const sslConfig = isRemote ? { rejectUnauthorized: false } : false;
 
+    // 解析连接信息以用于调试 (不显示密码)
+    let dbHost = 'Unknown';
+    let dbPort = 'Unknown';
+    try {
+        const url = new URL(connectionString);
+        dbHost = url.hostname;
+        dbPort = url.port;
+    } catch (e) { /* ignore */ }
+
     console.log('----------------------------------------');
     console.log(`🔍 Connection Debug:`);
     console.log(`   Target: ${isRemote ? 'Remote (Railway)' : 'Local'}`);
-    console.log(`   SSL: ${sslConfig ? 'Enabled' : 'Disabled'}`);
+    console.log(`   Host:   ${dbHost}`);
+    console.log(`   Port:   ${dbPort}`);
+    console.log(`   SSL:    ${sslConfig ? 'Enabled (rejectUnauthorized: false)' : 'Disabled'}`);
     console.log('----------------------------------------');
 
     const client = new Client({
