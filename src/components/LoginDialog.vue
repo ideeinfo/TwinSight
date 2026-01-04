@@ -487,3 +487,20 @@ watch(isLogin, () => {
   color: #a0a0b0;
 }
 </style>
+
+<!-- 全局样式覆盖 Element Plus 默认输入框背景 -->
+<style>
+.auth-dialog .el-input__wrapper {
+  background-color: transparent !important;
+  background: transparent !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset !important;
+}
+
+.auth-dialog .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset !important;
+}
+
+.auth-dialog .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px #00bcd4 inset !important;
+}
+</style>
