@@ -359,17 +359,22 @@ watch(isLogin, () => {
 }
 
 .is-dark .auth-content :deep(.el-input__wrapper) {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: none;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: none !important;
 }
 
 .is-dark .auth-content :deep(.el-input__wrapper:hover) {
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .is-dark .auth-content :deep(.el-input__wrapper.is-focus) {
   border-color: #00bcd4;
+}
+
+.is-dark .auth-content :deep(.el-input) {
+  --el-input-bg-color: transparent;
 }
 
 .is-dark .auth-content :deep(.el-input__inner) {
