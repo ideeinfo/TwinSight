@@ -7,6 +7,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from 'dotenv';
+import cookieParser from 'cookie-parser';
 
 // 旧版路由（保留兼容）
 import apiRoutes from './routes/api.js';
@@ -63,6 +64,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
+app.use(cookieParser());
 
 // 静态文件服务 - 使用配置路径（本地开发用 public/，生产环境用 /app/uploads）
 // 添加显式 CORS 头确保 Forge Viewer Web Worker 可以正确加载文件
