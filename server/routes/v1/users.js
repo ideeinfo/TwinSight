@@ -2,9 +2,9 @@
  * 用户管理路由（管理员）
  */
 import { Router } from 'express';
-import * as userModel from '../models/user.js';
-import { authenticate, authorize } from '../middleware/auth.js';
-import { PERMISSIONS, ROLES } from '../config/auth.js';
+import * as userModel from '../../models/user.js'; // path fixed for deployment
+import { authenticate, authorize } from '../../middleware/auth.js';
+import { PERMISSIONS, ROLES } from '../../config/auth.js';
 
 const router = Router();
 
