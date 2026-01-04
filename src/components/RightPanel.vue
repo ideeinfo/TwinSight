@@ -144,6 +144,18 @@ const showAlert = async (message, title = '') => {
   });
 };
 
+// Helper to get auth headers
+const getHeaders = (contentType = null) => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+  return headers;
+};
+
 // 创建本地可编辑副本
 const localProperties = ref({});
 
@@ -258,9 +270,7 @@ const handleFieldChange = async (fieldName, newValue) => {
           
           const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
             method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: getHeaders('application/json'),
             body: JSON.stringify({
               [dbField]: newValue
             })
@@ -330,9 +340,7 @@ const handleFieldChange = async (fieldName, newValue) => {
           
           const response = await fetch(`${API_BASE}/api/spaces/${spaceCode}`, {
             method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: getHeaders('application/json'),
             body: JSON.stringify({
               [dbField]: newValue
             })

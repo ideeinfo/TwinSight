@@ -3,7 +3,22 @@
  * 调用后端 API 触发 n8n 工作流进行智能分析
  */
 
+import { useAuthStore } from '../stores/auth';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Helper to get auth headers
+const getHeaders = (contentType?: string) => {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = {};
+    if (authStore.token) {
+        headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+    return headers;
+};
 
 /**
  * 触发温度报警分析
@@ -35,9 +50,7 @@ export async function triggerTemperatureAlert(alertData: {
     try {
         const response = await fetch(`${API_BASE}/api/ai/temperature-alert`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getHeaders('application/json'),
             body: JSON.stringify({
                 roomCode: alertData.roomCode,
                 roomName: alertData.roomName,
@@ -105,9 +118,7 @@ export async function requestAnalysis(
     try {
         const response = await fetch(`${API_BASE}/api/ai/analyze`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getHeaders('application/json'),
             body: JSON.stringify({
                 type,
                 target,
@@ -152,7 +163,7 @@ export async function requestAnalysis(
  */
 export async function checkAIHealth(): Promise<boolean> {
     try {
-        const response = await fetch(`${API_BASE}/api/ai/health`);
+        const response = await fetch(`${API_BASE}/api/ai/health`, { headers: getHeaders() });
         const result = await response.json();
         return result.success && result.data?.n8n === 'connected';
     } catch {

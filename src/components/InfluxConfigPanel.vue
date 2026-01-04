@@ -180,7 +180,11 @@ const isValid = computed(() => {
 // 加载现有配置
 const loadConfig = async () => {
   try {
-    const response = await fetch(`${API_BASE}/api/influx-config/${props.fileId}`);
+    const response = await fetch(`${API_BASE}/api/influx-config/${props.fileId}`, {
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`
+      }
+    });
     const data = await response.json();
     
     if (data.success && data.data) {
@@ -214,7 +218,10 @@ const testConnection = async () => {
   try {
     const response = await fetch(`${API_BASE}/api/influx-config/test/connection`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify({
         ...form.value,
         fileId: props.fileId
@@ -259,7 +266,10 @@ const saveConfig = async () => {
   try {
     const response = await fetch(`${API_BASE}/api/influx-config/${props.fileId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify(form.value)
     });
     

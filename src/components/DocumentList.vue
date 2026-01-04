@@ -306,7 +306,11 @@ const loadDocuments = async () => {
     if (props.spaceCode) params.append('spaceCode', props.spaceCode);
     if (props.specCode) params.append('specCode', props.specCode);
 
-    const response = await fetch(`${API_BASE}/api/documents?${params}`);
+    const response = await fetch(`${API_BASE}/api/documents?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`
+      }
+    });
     const data = await response.json();
 
     if (data.success) {
@@ -467,6 +471,11 @@ const uploadFile = (uploadItem) => {
   });
 
   xhr.open('POST', `${API_BASE}/api/documents/upload`);
+  
+  if (authStore.token) {
+    xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);
+  }
+  
   xhr.send(formData);
 };
 
@@ -514,7 +523,10 @@ const saveTitle = async (id) => {
   try {
     const response = await fetch(`${API_BASE}/api/documents/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify({ title: editingTitle.value.trim() })
     });
 
@@ -550,7 +562,10 @@ const confirmDelete = async (doc) => {
 
   try {
     const response = await fetch(`${API_BASE}/api/documents/${doc.id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`
+      }
     });
 
     const data = await response.json();
@@ -565,8 +580,31 @@ const confirmDelete = async (doc) => {
 };
 
 // 下载文档
-const downloadDocument = (doc) => {
-  window.open(`${API_BASE}/api/documents/${doc.id}/download`, '_blank');
+const downloadDocument = async (doc) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/documents/${doc.id}/download`, {
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`
+      }
+    });
+    
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.title;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } else {
+      await showAlert(t('document.downloadFailed') || '下载失败');
+    }
+  } catch (error) {
+    console.error('Download error', error);
+    await showAlert(t('document.downloadFailed') || '下载失败');
+  }
 };
 
 // 格式化文件大小

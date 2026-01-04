@@ -62,8 +62,19 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAuthStore } from '../stores/auth';
 
 const { t } = useI18n();
+const authStore = useAuthStore();
+
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
 
 const props = defineProps({
   rooms: { type: Array, default: () => [] },
@@ -126,7 +137,7 @@ const selectItem = (index) => {
 const copyStreamUrl = async (spaceCode) => {
   try {
     // 从服务器获取完整的 Stream URL（包含 API Key）
-    const response = await fetch(`/api/v1/timeseries/stream-url/${encodeURIComponent(spaceCode)}`);
+    const response = await fetch(`/api/v1/timeseries/stream-url/${encodeURIComponent(spaceCode)}`, { headers: getHeaders() });
     const result = await response.json();
     
     if (result.success && result.data?.streamUrl) {

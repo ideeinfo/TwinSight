@@ -3,6 +3,7 @@
  * 统一处理请求拦截、错误处理、认证等
  */
 import type { ApiResponse } from '@/types/api';
+import { useAuthStore } from '../stores/auth';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -18,8 +19,13 @@ interface RequestOptions extends RequestInit {
  * 获取认证 Token（预留）
  */
 function getAuthToken(): string | null {
-    // 未来从 auth store 或 localStorage 获取
-    return localStorage.getItem('auth_token');
+    try {
+        const authStore = useAuthStore();
+        return authStore.token;
+    } catch (e) {
+        // Fallback for cases where Pinia might not be ready (unlikely in normal flow)
+        return localStorage.getItem('token');
+    }
 }
 
 /**

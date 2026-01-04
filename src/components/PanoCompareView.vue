@@ -160,6 +160,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
+import { useAuthStore } from '../stores/auth';
 
 const props = defineProps({
   fileId: { type: String, default: '' },
@@ -188,6 +189,16 @@ const panoOpacity = ref(0.5); // 全景图透明度 (0-1)
 const isFineTuneMode = ref(false); // 是否为微调模式
 const modelFov = ref(90); // 模型视场角 (FOV)，默认90
 const modelRoll = ref(0); // 模型滚转角度 (累计值)
+const authStore = useAuthStore();
+
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
 
 // Viewer 实例
 const panoContainer = ref(null);
@@ -254,6 +265,9 @@ const uploadPanoImage = async (file) => {
     // 这里假设有一个可以关联图片的接口，或者简单上传为 Document
     const res = await fetch(`${API_BASE}/api/documents/upload`, {
       method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: formData
     });
     const data = await res.json();
@@ -418,14 +432,14 @@ const loadModel = (path) => {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         // 获取默认视图元数据
         console.log('🔍 [PanoView] 尝试获取默认视图, fileId:', props.fileId);
-        const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${props.fileId}`);
+        const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${props.fileId}`, { headers: getHeaders() });
         const defaultViewData = await defaultViewRes.json();
         console.log('📄 [PanoView] 默认视图API响应:', defaultViewData);
         
         if (defaultViewData.success && defaultViewData.data) {
           // 获取完整视图状态
            console.log('📥 [PanoView] 获取完整视图详情:', defaultViewData.data.id);
-           const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
+           const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
            const fullViewData = await fullViewRes.json();
            if (fullViewData.success) {
                console.log('🔄 [PanoView] 正在恢复默认视图:', defaultViewData.data.name);
@@ -537,7 +551,7 @@ const applyDefaultView = () => {
 const loadPanoForView = async (viewId) => {
     try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-        const res = await fetch(`${API_BASE}/api/documents/view/${viewId}`);
+        const res = await fetch(`${API_BASE}/api/documents/view/${viewId}`, { headers: getHeaders() });
         const result = await res.json();
         
         if (result.success && result.data && result.data.length > 0) {
@@ -593,7 +607,8 @@ const saveDefaultView = async () => {
       const res = await fetch(`${API_BASE}/api/views/${currentViewId.value}`, {
           method: 'PUT',
           headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authStore.token}`
           },
           body: JSON.stringify({
               viewer_state: viewerState,

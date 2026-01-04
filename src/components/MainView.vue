@@ -93,9 +93,20 @@ import { useHeatmap } from '../composables/useHeatmap';
 import { useDataExport } from '../composables/useDataExport';
 import { useViewState } from '../composables/useViewState';
 import { useThemeStore } from '../stores/theme';
+import { useAuthStore } from '../stores/auth';
 
 const { t, locale } = useI18n();
 const themeStore = useThemeStore();
+const authStore = useAuthStore();
+
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
 
 // 定义 props
 const props = defineProps({
@@ -163,7 +174,7 @@ const handleOpenSource = async (source) => {
   // 从 API 获取完整的文档信息（包括正确的 file_path）
   try {
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`);
+    const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`, { headers: getHeaders() });
     const data = await response.json();
     
     if (data.success && data.data) {
@@ -848,7 +859,7 @@ const loadNewModel = async (modelPath) => {
   try {
     for (const p of candidates) {
       try {
-        const res = await fetch(p, { method: 'HEAD' });
+        const res = await fetch(p, { method: 'HEAD', headers: getHeaders() });
         if (res.ok) {
           const contentType = res.headers.get('content-type');
           // 防止 SPA 返回 index.html (text/html) 被误认为是 SVF

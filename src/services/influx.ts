@@ -3,7 +3,22 @@
  * 所有 InfluxDB 操作都通过后端 API 进行
  */
 
+import { useAuthStore } from '../stores/auth';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Helper to get auth headers
+const getHeaders = (contentType?: string) => {
+  const authStore = useAuthStore();
+  const headers: Record<string, string> = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  }
+  return headers;
+};
 
 export type Point = { timestamp: number; value: number };
 
@@ -16,7 +31,7 @@ export async function isInfluxConfigured(fileId?: number): Promise<boolean> {
       ? `${API_BASE}/api/v1/timeseries/status?fileId=${fileId}`
       : `${API_BASE}/api/v1/timeseries/status`;
 
-    const resp = await fetch(url);
+    const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) return false;
 
     const data = await resp.json();
@@ -57,7 +72,7 @@ export async function queryAverageSeries(
       params.append('fileId', fileId.toString());
     }
 
-    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/average?${params}`);
+    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/average?${params}`, { headers: getHeaders() });
     if (!resp.ok) return [];
 
     const data = await resp.json();
@@ -90,7 +105,7 @@ export async function queryRoomSeries(
       params.append('fileId', fileId.toString());
     }
 
-    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/room?${params}`);
+    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/room?${params}`, { headers: getHeaders() });
     if (!resp.ok) return [];
 
     const data = await resp.json();
@@ -114,7 +129,7 @@ export async function queryLatestByRooms(
   try {
     const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/latest`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders('application/json'),
       body: JSON.stringify({ roomCodes, lookbackMs, fileId })
     });
 
@@ -137,7 +152,7 @@ export async function getInfluxStatus(fileId?: number) {
       ? `${API_BASE}/api/v1/timeseries/status?fileId=${fileId}`
       : `${API_BASE}/api/v1/timeseries/status`;
 
-    const resp = await fetch(url);
+    const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) return null;
 
     const data = await resp.json();

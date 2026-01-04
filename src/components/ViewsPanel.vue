@@ -151,9 +151,20 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
+import { useAuthStore } from '../stores/auth';
 
+const authStore = useAuthStore();
 const { t } = useI18n();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -240,7 +251,7 @@ const loadViews = async () => {
       params.append('search', searchTerm.value);
     }
     
-    const response = await fetch(`${API_BASE}/api/views?${params}`);
+    const response = await fetch(`${API_BASE}/api/views?${params}`, { headers: getHeaders() });
     const data = await response.json();
     
     if (data.success) {
@@ -347,7 +358,10 @@ const createOrUpdateView = async (name) => {
     
     const response = await fetch(`${API_BASE}/api/views`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify(viewData)
     });
     
@@ -395,7 +409,10 @@ const updateViewById = async (id, viewData) => {
   try {
     const response = await fetch(`${API_BASE}/api/views/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify(viewData)
     });
     
@@ -412,7 +429,7 @@ const updateViewById = async (id, viewData) => {
 // Restore view
 const restoreView = async (view) => {
   try {
-    const response = await fetch(`${API_BASE}/api/views/${view.id}`);
+    const response = await fetch(`${API_BASE}/api/views/${view.id}`, { headers: getHeaders() });
     const data = await response.json();
     
     if (data.success) {
@@ -495,7 +512,8 @@ const deleteView = async () => {
   
   try {
     const response = await fetch(`${API_BASE}/api/views/${view.id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getHeaders() 
     });
     
     const data = await response.json();
@@ -523,7 +541,10 @@ const toggleDefaultView = async () => {
   try {
     const response = await fetch(`${API_BASE}/api/views/${view.id}/set-default`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
       body: JSON.stringify({ isDefault: !view.is_default })
     });
     

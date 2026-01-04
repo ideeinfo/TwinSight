@@ -9,12 +9,26 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // API v1 路径
 const API_V1 = `${API_BASE_URL}/api/v1`;
 
+import { useAuthStore } from '../stores/auth';
+
+const getHeaders = (contentType = null) => {
+    const authStore = useAuthStore();
+    const headers = {};
+    if (authStore.token) {
+        headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+    return headers;
+};
+
 /**
  * 检查 API 服务是否可用
  */
 export async function checkApiHealth() {
     try {
-        const response = await fetch(`${API_V1}/health`);
+        const response = await fetch(`${API_V1}/health`, { headers: getHeaders() });
         return response.ok;
     } catch {
         return false;
@@ -30,7 +44,7 @@ export async function getClassifications(type = null) {
         ? `${API_BASE_URL}/api/classifications?type=${type}`
         : `${API_BASE_URL}/api/classifications`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -44,7 +58,7 @@ export async function getClassifications(type = null) {
  * 获取所有资产规格
  */
 export async function getAssetSpecs() {
-    const response = await fetch(`${API_V1}/assets/specs`);
+    const response = await fetch(`${API_V1}/assets/specs`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -58,7 +72,7 @@ export async function getAssetSpecs() {
  * 获取所有资产
  */
 export async function getAssets() {
-    const response = await fetch(`${API_V1}/assets`);
+    const response = await fetch(`${API_V1}/assets`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -72,7 +86,7 @@ export async function getAssets() {
  * 根据楼层获取资产
  */
 export async function getAssetsByFloor(floor) {
-    const response = await fetch(`${API_BASE_URL}/api/assets/floor/${encodeURIComponent(floor)}`);
+    const response = await fetch(`${API_BASE_URL}/api/assets/floor/${encodeURIComponent(floor)}`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -86,7 +100,7 @@ export async function getAssetsByFloor(floor) {
  * 根据房间获取资产
  */
 export async function getAssetsByRoom(room) {
-    const response = await fetch(`${API_BASE_URL}/api/assets/room/${encodeURIComponent(room)}`);
+    const response = await fetch(`${API_BASE_URL}/api/assets/room/${encodeURIComponent(room)}`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -100,7 +114,7 @@ export async function getAssetsByRoom(room) {
  * 获取所有空间
  */
 export async function getSpaces() {
-    const response = await fetch(`${API_V1}/spaces`);
+    const response = await fetch(`${API_V1}/spaces`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -114,7 +128,7 @@ export async function getSpaces() {
  * 根据楼层获取空间
  */
 export async function getSpacesByFloor(floor) {
-    const response = await fetch(`${API_BASE_URL}/api/spaces/floor/${encodeURIComponent(floor)}`);
+    const response = await fetch(`${API_BASE_URL}/api/spaces/floor/${encodeURIComponent(floor)}`, { headers: getHeaders() });
     const data = await response.json();
 
     if (!data.success) {
@@ -131,9 +145,7 @@ export async function getSpacesByFloor(floor) {
 export async function importModelData(modelData) {
     const response = await fetch(`${API_BASE_URL}/api/import/model-data`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getHeaders('application/json'),
         body: JSON.stringify(modelData),
     });
 
@@ -153,7 +165,7 @@ export async function importModelData(modelData) {
  */
 export async function checkExistingData(fileId) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/check-existing-data/${fileId}`);
+        const response = await fetch(`${API_BASE_URL}/api/check-existing-data/${fileId}`, { headers: getHeaders() });
         const data = await response.json();
         return data.success && data.hasData;
     } catch {
@@ -167,9 +179,7 @@ export async function checkExistingData(fileId) {
 export async function importClassifications(classifications) {
     const response = await fetch(`${API_BASE_URL}/api/classifications/batch`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getHeaders('application/json'),
         body: JSON.stringify({ classifications }),
     });
 
@@ -188,9 +198,7 @@ export async function importClassifications(classifications) {
 export async function importAssetSpecs(specs) {
     const response = await fetch(`${API_BASE_URL}/api/asset-specs/batch`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getHeaders('application/json'),
         body: JSON.stringify({ specs }),
     });
 
@@ -209,9 +217,7 @@ export async function importAssetSpecs(specs) {
 export async function importAssets(assets) {
     const response = await fetch(`${API_V1}/assets/batch`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getHeaders('application/json'),
         body: JSON.stringify({ assets }),
     });
 
@@ -230,9 +236,7 @@ export async function importAssets(assets) {
 export async function importSpaces(spaces) {
     const response = await fetch(`${API_V1}/spaces/batch`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: getHeaders('application/json'),
         body: JSON.stringify({ spaces }),
     });
 

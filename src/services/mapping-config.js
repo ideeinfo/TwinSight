@@ -7,6 +7,20 @@
 const API_HOST = import.meta.env.VITE_API_URL || '';
 const API_BASE = `${API_HOST}/api`;
 
+import { useAuthStore } from '../stores/auth';
+
+const getHeaders = (contentType = null) => {
+    const authStore = useAuthStore();
+    const headers = {};
+    if (authStore.token) {
+        headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+    return headers;
+};
+
 /**
  * 获取文件的映射配置
  * @param {number} fileId - 文件ID
@@ -14,7 +28,7 @@ const API_BASE = `${API_HOST}/api`;
  */
 export async function getMappingConfig(fileId) {
     try {
-        const response = await fetch(`${API_BASE}/mapping-config/${fileId}`);
+        const response = await fetch(`${API_BASE}/mapping-config/${fileId}`, { headers: getHeaders() });
         const data = await response.json();
 
         if (data.success) {
@@ -46,9 +60,7 @@ export async function saveMappingConfig(fileId, config) {
     try {
         const response = await fetch(`${API_BASE}/mapping-config/${fileId}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getHeaders('application/json'),
             body: JSON.stringify(config)
         });
 

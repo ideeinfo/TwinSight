@@ -271,6 +271,15 @@ import { useAuthStore } from '../stores/auth';
 const authStore = useAuthStore();
 const { t } = useI18n();
 
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
+
 const emit = defineEmits(['file-activated', 'open-data-export']);
 
 // 状态
@@ -380,7 +389,9 @@ const getStatusText = (status) => {
 const loadFiles = async () => {
   isLoading.value = true;
   try {
-    const response = await fetch(`${API_BASE}/api/files`);
+    const response = await fetch(`${API_BASE}/api/files`, {
+      headers: getHeaders()
+    });
     const data = await response.json();
     if (data.success) {
       files.value = data.data;
@@ -480,6 +491,12 @@ const uploadFile = async () => {
     };
 
     xhr.open('POST', `${API_BASE}/api/files/upload`);
+    
+    // Add auth header
+    if (authStore.token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);
+    }
+    
     currentXHR.value = xhr; // 保存引用以便取消
     xhr.send(formData);
 
@@ -515,7 +532,10 @@ const handleActivate = async () => {
   }
 
   try {
-    const response = await fetch(`${API_BASE}/api/files/${file.id}/activate`, { method: 'POST' });
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/activate`, { 
+      method: 'POST',
+      headers: getHeaders()
+    });
     const data = await response.json();
     if (data.success) {
       await loadFiles();
@@ -550,7 +570,10 @@ const saveEdit = async () => {
   try {
     const response = await fetch(`${API_BASE}/api/files/${editForm.value.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...getHeaders()
+      },
       body: JSON.stringify({ title: editForm.value.title })
     });
     const data = await response.json();
@@ -582,7 +605,10 @@ const handleExtract = async () => {
   isExtracting.value = true;
 
   try {
-    const response = await fetch(`${API_BASE}/api/files/${file.id}/extract`, { method: 'POST' });
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/extract`, { 
+      method: 'POST',
+      headers: getHeaders()
+    });
     const data = await response.json();
     
     isExtracting.value = false;
@@ -622,7 +648,10 @@ const handleDelete = async () => {
   try {
     // 构建删除 URL，包含是否删除知识库的参数
     const url = `${API_BASE}/api/files/${file.id}?deleteKB=${deleteKnowledgeBase.value}`;
-    const response = await fetch(url, { method: 'DELETE' });
+    const response = await fetch(url, { 
+      method: 'DELETE',
+      headers: getHeaders()
+    });
     const data = await response.json();
     if (data.success) {
       await loadFiles();

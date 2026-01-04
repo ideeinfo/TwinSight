@@ -160,6 +160,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useAuthStore } from './stores/auth';
 import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
@@ -174,6 +175,16 @@ import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces } from './services/postgres.js';
+const authStore = useAuthStore();
+
+// Helper to get auth headers
+const getHeaders = () => {
+  const headers = {};
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`;
+  }
+  return headers;
+};
 
 // 全景比对模式状态
 const isPanoCompareMode = ref(false);
@@ -196,7 +207,7 @@ const initPanoCompareMode = async () => {
       try {
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
         console.log('🔍 [App] 获取文件列表...');
-        const response = await fetch(`${API_BASE}/api/files`);
+        const response = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
         const data = await response.json();
         
         if (data.success) {
@@ -478,7 +489,7 @@ const onViewerReady = async () => {
     // 没有 pending 文件，加载当前激活的文件或默认模型
     try {
       const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      const filesRes = await fetch(`${API_BASE}/api/files`);
+      const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
       const filesData = await filesRes.json();
       
       if (filesData.success && filesData.data.length > 0) {
@@ -495,7 +506,7 @@ const onViewerReady = async () => {
           // 🔑 关键修复：先从数据库加载该文件的资产和空间数据
           try {
             // 获取该文件的资产
-            const assetsRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/assets`);
+            const assetsRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/assets`, { headers: getHeaders() });
             const assetsData = await assetsRes.json();
             if (assetsData.success) {
               assetList.value = assetsData.data.map(asset => ({
@@ -521,7 +532,7 @@ const onViewerReady = async () => {
             }
 
             // 获取该文件的空间
-            const spacesRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/spaces`);
+            const spacesRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/spaces`, { headers: getHeaders() });
             const spacesData = await spacesRes.json();
             if (spacesData.success) {
               roomList.value = spacesData.data.map(space => ({
@@ -552,7 +563,7 @@ const onViewerReady = async () => {
             
             // 🏠 检查并恢复默认视图
             try {
-              const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`);
+              const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`, { headers: getHeaders() });
               const defaultViewData = await defaultViewRes.json();
               if (defaultViewData.success && defaultViewData.data) {
                 console.log('🏠 找到默认视图，正在恢复:', defaultViewData.data.name);
@@ -565,7 +576,7 @@ const onViewerReady = async () => {
                 activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
                 
                 // 获取完整视图数据
-                const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`);
+                const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
                 const fullViewData = await fullViewRes.json();
                 if (fullViewData.success && mainViewRef.value?.restoreViewState) {
                   // 使用事件驱动的方式恢复视图，确保模型完全就绪
@@ -694,7 +705,7 @@ const onFileActivated = async (file) => {
     console.log('📂 [App.vue] file.id:', file.id);
 
     // 获取该文件的资产
-    const assetsRes = await fetch(`${API_BASE}/api/files/${file.id}/assets`);
+    const assetsRes = await fetch(`${API_BASE}/api/files/${file.id}/assets`, { headers: getHeaders() });
     const assetsData = await assetsRes.json();
     if (assetsData.success) {
       assetList.value = assetsData.data.map(asset => ({
@@ -723,7 +734,7 @@ const onFileActivated = async (file) => {
     }
 
     // 获取该文件的空间
-    const spacesRes = await fetch(`${API_BASE}/api/files/${file.id}/spaces`);
+    const spacesRes = await fetch(`${API_BASE}/api/files/${file.id}/spaces`, { headers: getHeaders() });
     const spacesData = await spacesRes.json();
     if (spacesData.success) {
       roomList.value = spacesData.data.map(space => ({
@@ -1462,7 +1473,8 @@ onMounted(async () => {
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     
     // 获取所有文件列表，找到激活的文件
-    const filesRes = await fetch(`${API_BASE}/api/files`);
+    // 获取所有文件列表，找到激活的文件
+    const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
     const filesData = await filesRes.json();
     
     if (filesData.success && filesData.data.length > 0) {
