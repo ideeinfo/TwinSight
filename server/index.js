@@ -87,6 +87,7 @@ app.use('/docs', express.static(appConfig.upload.docsDir, staticOptions));
 app.use('/models', express.static(appConfig.upload.modelsDir, staticOptions));
 app.use('/files', express.static(appConfig.upload.uploadDir, staticOptions));
 app.use('/data', express.static(appConfig.upload.dataDir, staticOptions));
+app.use('/avatars', express.static(appConfig.upload.avatarsDir, staticOptions));
 
 console.log(`📁 静态文件路径: ${appConfig.upload.dataPath}`);
 

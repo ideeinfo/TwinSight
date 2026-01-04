@@ -64,6 +64,7 @@ const config = {
         get modelsDir() { return path.join(this.dataPath, 'models'); },
         get docsDir() { return path.join(this.dataPath, 'docs'); },
         get dataDir() { return path.join(this.dataPath, 'data'); },
+        get avatarsDir() { return path.join(this.dataPath, 'avatars'); },
     },
 
     // 跨域配置

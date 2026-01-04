@@ -7,6 +7,40 @@ import authService from '../../services/auth-service.js';
 import * as userModel from '../../models/user.js';
 import { authenticate } from '../../middleware/auth.js';
 import config from '../../config/index.js';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+
+
+// Multer 配置
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        // 使用 config.upload.avatarsDir
+        const dir = config.upload.avatarsDir;
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const userId = req.user ? req.user.sub : 'guest';
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `user_${userId}_${Date.now()}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('只允许上传图片文件'));
+        }
+        cb(null, true);
+    }
+});
 
 const router = Router();
 
@@ -223,6 +257,42 @@ router.post('/change-password', authenticate, async (req, res) => {
     } catch (error) {
         console.error('修改密码失败:', error.message);
         res.status(400).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * 上传头像
+ * POST /api/v1/auth/avatar
+ */
+router.post('/avatar', authenticate, upload.single('avatar'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: '未上传文件',
+            });
+        }
+
+        // 生成相对 URL
+        const avatarUrl = `/avatars/${req.file.filename}`;
+        const userId = req.user.sub;
+
+        // 更新数据库
+        await userModel.updateUser(userId, { avatarUrl });
+
+        res.json({
+            success: true,
+            data: {
+                avatarUrl,
+            },
+            message: '头像上传成功',
+        });
+    } catch (error) {
+        console.error('头像上传失败:', error.message);
+        res.status(500).json({
             success: false,
             error: error.message,
         });
