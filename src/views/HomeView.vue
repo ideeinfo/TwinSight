@@ -26,7 +26,7 @@
         </p>
 
         <div v-animate="{ delay: 300 }" class="hero-actions">
-          <button class="btn-primary" @click="router.push('/viewer')">
+          <button class="btn-primary" @click="handleLaunchViewer">
             <span>{{ $t('home.launchViewer') }}</span>
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -129,7 +129,7 @@
         <h2 class="cta-title">{{ $t('home.ctaTitle') }}</h2>
         <p class="cta-description">{{ $t('home.ctaDescription') }}</p>
         <div class="cta-actions">
-          <button class="btn-large btn-primary" @click="router.push('/viewer')">
+          <button class="btn-large btn-primary" @click="handleLaunchViewer">
             {{ $t('home.getStarted') }}
           </button>
           <button class="btn-large btn-outline" @click="showDocs = true">
@@ -162,6 +162,9 @@
         </div>
       </div>
     </footer>
+
+    <!-- 登录对话框 -->
+    <LoginDialog v-model="showLoginDialog" @success="onLoginSuccess" />
   </div>
 </template>
 
@@ -175,10 +178,28 @@ import IconIoT from '../components/icons/IconIoT.vue';
 import IconAI from '../components/icons/IconAI.vue';
 import IconDocs from '../components/icons/IconDocs.vue';
 import IconExport from '../components/icons/IconExport.vue';
+import LoginDialog from '../components/LoginDialog.vue';
+import { useAuthStore } from '../stores/auth';
 
 const router = useRouter();
 const { t } = useI18n();
+const authStore = useAuthStore();
 const showDocs = ref(false);
+const showLoginDialog = ref(false);
+
+// 处理启动查看器按钮点击
+const handleLaunchViewer = () => {
+  if (authStore.isAuthenticated) {
+    router.push('/viewer');
+  } else {
+    showLoginDialog.value = true;
+  }
+};
+
+// 登录成功回调
+const onLoginSuccess = () => {
+  router.push('/viewer');
+};
 
 // Quick Stats
 const quickStats = computed(() => [
