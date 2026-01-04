@@ -220,7 +220,14 @@ const handleClose = () => {
 const handleSubmit = async () => {
   try {
     await formRef.value?.validate();
-  } catch {
+  } catch (fields: any) {
+    // 验证失败，显示第一条错误信息
+    if (fields && typeof fields === 'object') {
+      const firstField = Object.keys(fields)[0];
+      if (firstField && fields[firstField]?.[0]?.message) {
+        ElMessage.warning(fields[firstField][0].message);
+      }
+    }
     return;
   }
 
