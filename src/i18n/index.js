@@ -393,6 +393,31 @@ const messages = {
       registerSuccess: '注册成功，请登录',
       registerFailed: '注册失败',
       unknownError: '发生未知错误'
+    },
+    account: {
+      settings: '账户设置',
+      guest: '访客',
+      theme: '主题',
+      themeLight: '浅色',
+      themeDark: '深色',
+      themeSystem: '跟随系统',
+      signOut: '注销',
+      signOutSuccess: '已注销',
+      name: '姓名',
+      namePlaceholder: '请输入姓名',
+      nameRequired: '请输入姓名',
+      email: '邮箱',
+      changePassword: '修改密码',
+      currentPassword: '当前密码',
+      currentPasswordPlaceholder: '请输入当前密码',
+      newPassword: '新密码',
+      newPasswordPlaceholder: '请输入新密码',
+      confirmNewPassword: '确认新密码',
+      confirmNewPasswordPlaceholder: '请再次输入新密码',
+      passwordChanged: '密码修改成功',
+      uploadAvatarHint: '点击上传头像',
+      avatarTooLarge: '头像图片不能超过2MB',
+      cropAvatar: '裁剪头像'
     }
   },
   en: {
@@ -787,6 +812,31 @@ const messages = {
       registerSuccess: 'Registration successful, please login',
       registerFailed: 'Registration failed',
       unknownError: 'An unknown error occurred'
+    },
+    account: {
+      settings: 'Account Settings',
+      guest: 'Guest',
+      theme: 'Theme',
+      themeLight: 'Light',
+      themeDark: 'Dark',
+      themeSystem: 'System',
+      signOut: 'Sign Out',
+      signOutSuccess: 'Signed out',
+      name: 'Name',
+      namePlaceholder: 'Enter your name',
+      nameRequired: 'Please enter your name',
+      email: 'Email',
+      changePassword: 'Change Password',
+      currentPassword: 'Current Password',
+      currentPasswordPlaceholder: 'Enter current password',
+      newPassword: 'New Password',
+      newPasswordPlaceholder: 'Enter new password',
+      confirmNewPassword: 'Confirm New Password',
+      confirmNewPasswordPlaceholder: 'Enter new password again',
+      passwordChanged: 'Password changed successfully',
+      uploadAvatarHint: 'Click to upload avatar',
+      avatarTooLarge: 'Avatar image must be less than 2MB',
+      cropAvatar: 'Crop Avatar'
     }
   }
 }

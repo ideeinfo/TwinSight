@@ -104,9 +104,6 @@ export async function logout(): Promise<{ success: boolean }> {
     }
 }
 
-/**
- * 获取当前用户信息
- */
 export async function getCurrentUser(token: string): Promise<LoginResponse> {
     try {
         const response = await axios.get(`${API_BASE}/api/v1/auth/me`, {
@@ -119,6 +116,74 @@ export async function getCurrentUser(token: string): Promise<LoginResponse> {
         return {
             success: false,
             error: error.response?.data?.error || '获取用户信息失败'
+        };
+    }
+}
+
+/**
+ * 更新用户信息
+ */
+export async function updateProfile(data: { name?: string }): Promise<{ success: boolean; error?: string }> {
+    const token = localStorage.getItem('accessToken');
+    try {
+        await axios.put(`${API_BASE}/api/v1/auth/me`, data, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+        return { success: true };
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.response?.data?.error || '更新失败'
+        };
+    }
+}
+
+/**
+ * 上传头像
+ */
+export async function uploadAvatar(blob: Blob): Promise<{ success: boolean; avatarUrl?: string; error?: string }> {
+    const token = localStorage.getItem('accessToken');
+    const formData = new FormData();
+    formData.append('avatar', blob, 'avatar.png');
+
+    try {
+        const response = await axios.post(`${API_BASE}/api/v1/auth/avatar`, formData, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return { success: true, avatarUrl: response.data.data?.avatarUrl };
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.response?.data?.error || '上传失败'
+        };
+    }
+}
+
+/**
+ * 修改密码
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    const token = localStorage.getItem('accessToken');
+    try {
+        await axios.post(`${API_BASE}/api/v1/auth/change-password`, {
+            currentPassword,
+            newPassword
+        }, {
+            headers: {
+                Authorization: `Bearer ${token}`
+            },
+            withCredentials: true
+        });
+        return { success: true };
+    } catch (error: any) {
+        return {
+            success: false,
+            error: error.response?.data?.error || '修改密码失败'
         };
     }
 }

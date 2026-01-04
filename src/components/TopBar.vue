@@ -103,7 +103,8 @@
         </svg>
       </div>
 
-      <div class="user-avatar">韦翟</div>
+      <!-- 用户头像下拉菜单 -->
+      <UserDropdown />
     </div>
   </div>
 </template>
@@ -113,6 +114,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useThemeStore } from '../stores/theme';
+import UserDropdown from './UserDropdown.vue';
 
 // 定义 props
 const props = defineProps({
