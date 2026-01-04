@@ -7,7 +7,6 @@
     :show-close="true"
     class="auth-dialog"
     :class="{ 'is-dark': isDarkMode }"
-    :style="dialogStyle"
     @close="handleClose"
   >
     <div class="auth-content">
@@ -499,8 +498,8 @@ watch(isLogin, () => {
 <style>
 /* 根级变量覆盖 - 基底设置 */
 .auth-dialog {
-  /* 调整透明度：极度通过通透 (0.30) */
-  --el-dialog-bg-color: v-bind('isDarkMode ? "rgba(26, 26, 36, 0.30)" : "rgba(255, 255, 255, 0.30)"') !important;
+  /* 调整透明度：用户要求 30% 透明度 = 70% 不透明度 (0.70) */
+  --el-dialog-bg-color: v-bind('isDarkMode ? "rgba(26, 26, 36, 0.9)" : "rgba(255, 255, 255, 0.9)"') !important;
   --el-dialog-box-shadow: 0 12px 32px 4px rgba(0, 0, 0, 0.36) !important;
   --el-input-bg-color: transparent !important;
   --el-fill-color-blank: transparent !important;
