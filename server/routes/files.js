@@ -15,6 +15,8 @@ import assetSpecModel from '../models/asset-spec.js';
 import { deleteKnowledgeBase } from '../services/openwebui-service.js';
 import pg from 'pg';
 import config from '../config/index.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/auth.js';
 
 
 const { Pool } = pg;
@@ -150,7 +152,7 @@ const upload = multer({
  * 上传模型文件
  * POST /api/files/upload
  */
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload.single('file'), async (req, res) => {
     try {
         const { title } = req.body;
         const file = req.file;
@@ -210,7 +212,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
  * 断点续传 - 检查已上传的分片
  * GET /api/files/upload/check/:fileCode
  */
-router.get('/upload/check/:identifier', async (req, res) => {
+router.get('/upload/check/:identifier', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
     try {
         const { identifier } = req.params;
         const chunkDir = path.join(TEMP_DIR, identifier);
@@ -230,7 +232,7 @@ router.get('/upload/check/:identifier', async (req, res) => {
  * 断点续传 - 上传分片
  * POST /api/files/upload/chunk
  */
-router.post('/upload/chunk', upload.single('chunk'), async (req, res) => {
+router.post('/upload/chunk', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload.single('chunk'), async (req, res) => {
     try {
         const { identifier, chunkIndex, totalChunks, fileName, title } = req.body;
         const chunk = req.file;
@@ -324,7 +326,7 @@ router.post('/upload/chunk', upload.single('chunk'), async (req, res) => {
  * 获取所有模型文件
  * GET /api/files
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
         const files = await modelFileModel.getAllModelFiles();
         res.json({ success: true, data: files });
@@ -337,7 +339,7 @@ router.get('/', async (req, res) => {
  * 获取当前激活的文件
  * GET /api/files/active
  */
-router.get('/active', async (req, res) => {
+router.get('/active', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
         const file = await modelFileModel.getActiveModelFile();
         res.json({ success: true, data: file });
@@ -350,7 +352,7 @@ router.get('/active', async (req, res) => {
  * 获取单个文件信息
  * GET /api/files/:id
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
         const file = await modelFileModel.getModelFileById(req.params.id);
         if (!file) {
@@ -366,7 +368,7 @@ router.get('/:id', async (req, res) => {
  * 更新文件标题
  * PUT /api/files/:id
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
     try {
         const { title } = req.body;
         if (!title) {
@@ -394,7 +396,7 @@ router.put('/:id', async (req, res) => {
  * 删除文件
  * DELETE /api/files/:id
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, authorize(PERMISSIONS.MODEL_DELETE), async (req, res) => {
     try {
         const { deleteKB } = req.query;  // 是否同时删除知识库
         console.log('\n========== 删除文件请求 ==========');
@@ -485,7 +487,7 @@ router.delete('/:id', async (req, res) => {
  * 解压文件
  * POST /api/files/:id/extract
  */
-router.post('/:id/extract', async (req, res) => {
+router.post('/:id/extract', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
     try {
         const file = await modelFileModel.getModelFileById(req.params.id);
         if (!file) {
@@ -533,7 +535,7 @@ router.post('/:id/extract', async (req, res) => {
  * 激活文件
  * POST /api/files/:id/activate
  */
-router.post('/:id/activate', async (req, res) => {
+router.post('/:id/activate', authenticate, authorize(PERMISSIONS.MODEL_ACTIVATE), async (req, res) => {
     try {
         const file = await modelFileModel.getModelFileById(req.params.id);
         if (!file) {
@@ -560,7 +562,7 @@ router.post('/:id/activate', async (req, res) => {
  * 获取文件关联的资产
  * GET /api/files/:id/assets
  */
-router.get('/:id/assets', async (req, res) => {
+router.get('/:id/assets', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
         const assets = await assetModel.getAssetsByFileId(req.params.id);
         res.json({ success: true, data: assets });
@@ -574,7 +576,7 @@ router.get('/:id/assets', async (req, res) => {
  * 获取文件关联的空间
  * GET /api/files/:id/spaces
  */
-router.get('/:id/spaces', async (req, res) => {
+router.get('/:id/spaces', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
         const spaces = await spaceModel.getSpacesByFileId(req.params.id);
         res.json({ success: true, data: spaces });

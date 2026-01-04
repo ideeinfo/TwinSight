@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, shallowRef, markRaw } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Icon3D from '../components/icons/Icon3D.vue';
@@ -209,11 +209,11 @@ const quickStats = computed(() => [
 ]);
 
 // Features
-const features = ref([
+const features = shallowRef([
   {
     title: 'home.feature3D',
     description: 'home.feature3DDesc',
-    icon: Icon3D,
+    icon: markRaw(Icon3D),
     colorScheme: 'cyan',
     metrics: ['SVF', 'RVT', 'IFC'],
     hovered: false
@@ -221,7 +221,7 @@ const features = ref([
   {
     title: 'home.featureAssets',
     description: 'home.featureAssetsDesc',
-    icon: IconAssets,
+    icon: markRaw(IconAssets),
     colorScheme: 'emerald',
     metrics: ['MC编码', '分类', '位置'],
     hovered: false
@@ -229,7 +229,7 @@ const features = ref([
   {
     title: 'home.featureIoT',
     description: 'home.featureIoTDesc',
-    icon: IconIoT,
+    icon: markRaw(IconIoT),
     colorScheme: 'amber',
     metrics: ['实时', '历史', '预警'],
     hovered: false
@@ -237,7 +237,7 @@ const features = ref([
   {
     title: 'home.featureAI',
     description: 'home.featureAIDesc',
-    icon: IconAI,
+    icon: markRaw(IconAI),
     colorScheme: 'violet',
     metrics: ['分析', '预测', '建议'],
     hovered: false
@@ -245,7 +245,7 @@ const features = ref([
   {
     title: 'home.featureDocs',
     description: 'home.featureDocsDesc',
-    icon: IconDocs,
+    icon: markRaw(IconDocs),
     colorScheme: 'rose',
     metrics: ['PDF', '图片', '关联'],
     hovered: false
@@ -253,7 +253,7 @@ const features = ref([
   {
     title: 'home.featureExport',
     description: 'home.featureExportDesc',
-    icon: IconExport,
+    icon: markRaw(IconExport),
     colorScheme: 'blue',
     metrics: ['Excel', 'CSV', '映射'],
     hovered: false

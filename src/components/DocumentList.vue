@@ -3,6 +3,7 @@
     <div class="section-header">
       <span class="section-title">{{ $t('document.title') }}</span>
       <button 
+        v-if="authStore.hasPermission('document:create')"
         class="btn-text" 
         :disabled="!relatedCode"
         :title="$t('document.upload')"
@@ -51,7 +52,7 @@
             class="doc-title clickable" 
             :title="$t('document.preview')"
             @click="openPreview(doc)"
-            @dblclick.stop="startEdit(doc)"
+            @dblclick.stop="authStore.hasPermission('document:update') ? startEdit(doc) : null"
           >
             {{ doc.title }}
           </div>
@@ -74,6 +75,7 @@
             </svg>
           </button>
           <button 
+            v-if="authStore.hasPermission('document:delete')"
             class="btn-icon btn-delete" 
             :title="$t('document.delete')"
             @click="confirmDelete(doc)"
@@ -162,7 +164,10 @@ import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import DocumentPreview from './DocumentPreview.vue';
 
+
+import { useAuthStore } from '../stores/auth';
 const { t } = useI18n();
+const authStore = useAuthStore();
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const props = defineProps({

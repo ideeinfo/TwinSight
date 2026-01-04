@@ -4,7 +4,7 @@
     <div class="list-panel">
       <div class="panel-header">
         <span class="title">{{ t('filePanel.files') }}</span>
-        <div class="actions" @click="openUploadDialog">
+        <div v-if="authStore.hasPermission('model:upload')" class="actions" @click="openUploadDialog">
           <span class="plus">+</span> {{ t('filePanel.uploadModel') }}
         </div>
       </div>
@@ -135,21 +135,21 @@
     <!-- 上下文菜单 -->
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
-        <div class="context-menu-item" @click="handleEdit">
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleEdit">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
           {{ t('filePanel.edit') }}
         </div>
-        <div class="context-menu-item" @click="handleActivate">
+        <div v-if="authStore.hasPermission('model:activate')" class="context-menu-item" @click="handleActivate">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           {{ t('filePanel.activate') }}
         </div>
-        <div class="context-menu-item" @click="handleExtract">
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleExtract">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
@@ -157,7 +157,7 @@
           </svg>
           {{ t('filePanel.extractData') }}
         </div>
-        <div class="context-menu-item" @click="handleInfluxConfig">
+        <div v-if="authStore.hasPermission('influx:read')" class="context-menu-item" @click="handleInfluxConfig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
@@ -172,8 +172,8 @@
           </svg>
           {{ t('filePanel.panoCompare') }}
         </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item danger" @click="handleDelete">
+        <div v-if="authStore.hasPermission('model:delete')" class="context-menu-divider"></div>
+        <div v-if="authStore.hasPermission('model:delete')" class="context-menu-item danger" @click="handleDelete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -265,6 +265,10 @@ import { useI18n } from 'vue-i18n';
 import InfluxConfigPanel from './InfluxConfigPanel.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 
+
+import { useAuthStore } from '../stores/auth';
+
+const authStore = useAuthStore();
 const { t } = useI18n();
 
 const emit = defineEmits(['file-activated', 'open-data-export']);

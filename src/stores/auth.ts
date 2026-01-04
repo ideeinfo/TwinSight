@@ -45,6 +45,39 @@ export const useAuthStore = defineStore('auth', {
 
     actions: {
         /**
+         * 检查认证状态（恢复会话）
+         */
+        async checkAuth() {
+            const token = localStorage.getItem('accessToken');
+            if (!token) {
+                this.clearAuth();
+                return;
+            }
+
+            // 导入服务 (避免循环依赖，动态导入或移到底部)
+            // 这里假设可以直接导入，因为 store 和 service 依赖关系简单
+            const { getCurrentUser } = await import('../services/auth');
+
+            const result = await getCurrentUser(token);
+            if (result.success && result.data) {
+                // GET /me 返回的数据结构与 Login 不同，直接返回用户信息
+                const userData = result.data as any;
+
+                const userObj: User = {
+                    id: userData.id,
+                    username: userData.name, // 映射 API 的 name 到 store 的 username
+                    email: userData.email,
+                    roles: userData.roles,
+                    avatarUrl: userData.avatarUrl
+                };
+
+                this.setAuth(userObj, token, userData.permissions);
+            } else {
+                this.clearAuth();
+            }
+        },
+
+        /**
          * 设置认证信息
          */
         setAuth(user: User, token: string, permissions: string[] = []) {
@@ -52,6 +85,9 @@ export const useAuthStore = defineStore('auth', {
             this.token = token;
             this.isAuthenticated = true;
             this.permissions = permissions;
+
+            // 持久化 Token
+            localStorage.setItem('accessToken', token);
         },
 
         /**
@@ -62,6 +98,9 @@ export const useAuthStore = defineStore('auth', {
             this.token = null;
             this.isAuthenticated = false;
             this.permissions = [];
+
+            // 清除 Token
+            localStorage.removeItem('accessToken');
         },
 
         /**

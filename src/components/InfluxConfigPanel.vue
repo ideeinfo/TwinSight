@@ -14,7 +14,8 @@
           <div class="form-group">
             <label>{{ t('influxConfig.url') }} <span class="required">*</span></label>
             <input 
-              v-model="form.influxUrl" 
+              v-model="form.influxUrl"
+              :disabled="!authStore.hasPermission('influx:manage')" 
               type="text" 
               placeholder="http://localhost 或 /influx"
             />
@@ -117,7 +118,7 @@
           <button class="btn btn-secondary" @click="$emit('close')">
             {{ t('common.cancel') }}
           </button>
-          <button class="btn btn-primary" :disabled="isSaving || !isValid" @click="saveConfig">
+          <button class="btn btn-primary" :disabled="isSaving || !isValid || !authStore.hasPermission('influx:manage')" @click="saveConfig">
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </button>
         </div>
@@ -130,6 +131,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
+import { useAuthStore } from '../stores/auth';
+
+const authStore = useAuthStore();
 
 const { t } = useI18n();
 

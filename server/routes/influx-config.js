@@ -8,6 +8,8 @@ import {
     deleteInfluxConfig,
     testInfluxConnection
 } from '../models/influx-config.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/auth.js';
 
 const router = express.Router();
 
@@ -15,7 +17,7 @@ const router = express.Router();
  * 获取模型的 InfluxDB 配置
  * GET /api/influx-config/:fileId
  */
-router.get('/:fileId', async (req, res) => {
+router.get('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { fileId } = req.params;
         const config = await getInfluxConfig(fileId);
@@ -51,7 +53,7 @@ router.get('/:fileId', async (req, res) => {
  * 保存模型的 InfluxDB 配置
  * POST /api/influx-config/:fileId
  */
-router.post('/:fileId', async (req, res) => {
+router.post('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), async (req, res) => {
     try {
         const { fileId } = req.params;
         const config = req.body;
@@ -108,7 +110,7 @@ router.post('/:fileId', async (req, res) => {
  * 删除模型的 InfluxDB 配置
  * DELETE /api/influx-config/:fileId
  */
-router.delete('/:fileId', async (req, res) => {
+router.delete('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), async (req, res) => {
     try {
         const { fileId } = req.params;
         const result = await deleteInfluxConfig(fileId);
@@ -130,7 +132,7 @@ router.delete('/:fileId', async (req, res) => {
  * 测试 InfluxDB 连接
  * POST /api/influx-config/test
  */
-router.post('/test/connection', async (req, res) => {
+router.post('/test/connection', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), async (req, res) => {
     try {
         const config = req.body;
 

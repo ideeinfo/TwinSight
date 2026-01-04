@@ -79,6 +79,11 @@ export async function login({ email, password }) {
     const permissions = getPermissionsFromRoles(roles);
 
     // 生成令牌
+    console.log(`[AuthDebug] User: ${user.email}, Roles: ${JSON.stringify(roles)}`);
+    // Check if MODEL_ACTIVATE is present
+    const hasActivate = permissions.includes('model:activate');
+    console.log(`[AuthDebug] Has model:activate: ${hasActivate}`);
+
     const tokens = await generateTokens(user, roles, permissions);
 
     return {

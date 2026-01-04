@@ -21,6 +21,7 @@ export const PERMISSIONS = {
     // 模型权限
     MODEL_READ: 'model:read',
     MODEL_UPLOAD: 'model:upload',
+    MODEL_ACTIVATE: 'model:activate',
     MODEL_DELETE: 'model:delete',
 
     // 设施权限（预留）
@@ -38,6 +39,16 @@ export const PERMISSIONS = {
 
     // 系统管理权限
     SYSTEM_ADMIN: 'system:admin',
+
+    // 文档权限
+    DOCUMENT_READ: 'document:read',
+    DOCUMENT_CREATE: 'document:create',
+    DOCUMENT_UPDATE: 'document:update',
+    DOCUMENT_DELETE: 'document:delete',
+
+    // InfluxDB 配置权限
+    INFLUX_READ: 'influx:read',
+    INFLUX_MANAGE: 'influx:manage',
 };
 
 // 角色定义
@@ -62,8 +73,15 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.SPACE_UPDATE,
         PERMISSIONS.MODEL_READ,
         PERMISSIONS.MODEL_UPLOAD,
+        PERMISSIONS.MODEL_ACTIVATE,
         PERMISSIONS.FACILITY_READ,
         PERMISSIONS.FACILITY_UPDATE,
+        PERMISSIONS.DOCUMENT_READ,
+        PERMISSIONS.DOCUMENT_CREATE,
+        PERMISSIONS.DOCUMENT_UPDATE,
+        PERMISSIONS.DOCUMENT_DELETE,
+        PERMISSIONS.INFLUX_READ,
+        PERMISSIONS.INFLUX_MANAGE,
     ],
 
     [ROLES.EDITOR]: [
@@ -72,14 +90,23 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.SPACE_READ,
         PERMISSIONS.SPACE_UPDATE,
         PERMISSIONS.MODEL_READ,
+        PERMISSIONS.MODEL_ACTIVATE,
         PERMISSIONS.FACILITY_READ,
+        PERMISSIONS.DOCUMENT_READ,
+        PERMISSIONS.DOCUMENT_CREATE,
+        PERMISSIONS.DOCUMENT_UPDATE,
+        PERMISSIONS.DOCUMENT_DELETE,
+        PERMISSIONS.INFLUX_READ,
     ],
 
     [ROLES.VIEWER]: [
         PERMISSIONS.ASSET_READ,
         PERMISSIONS.SPACE_READ,
         PERMISSIONS.MODEL_READ,
+        PERMISSIONS.MODEL_ACTIVATE,
         PERMISSIONS.FACILITY_READ,
+        PERMISSIONS.DOCUMENT_READ,
+        PERMISSIONS.INFLUX_READ,
     ],
 
     [ROLES.GUEST]: [

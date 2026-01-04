@@ -59,10 +59,7 @@ export const authenticate = async (req, res, next) => {
  */
 export const authorize = (permission) => {
     return (req, res, next) => {
-        // 开发模式跳过权限检查
-        if (config.server.env === 'development') {
-            return next();
-        }
+
 
         if (!req.user) {
             return res.status(401).json({

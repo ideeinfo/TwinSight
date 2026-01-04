@@ -7,6 +7,8 @@ import ExifParser from 'exif-parser';
 import documentModel from '../models/document.js';
 import documentExifModel from '../models/document-exif.js';
 import openwebuiService from '../services/openwebui-service.js';
+import { authenticate, authorize } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/auth.js';
 import appConfig from '../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -145,7 +147,7 @@ async function extractExif(filePath, fileType) {
  * POST /api/documents/upload
  * 表单数据: file, assetCode/spaceCode/specCode, title (可选)
  */
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', authenticate, authorize(PERMISSIONS.DOCUMENT_CREATE), upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: '没有上传文件' });
@@ -224,7 +226,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
  * 获取文档列表（包含 EXIF 信息）
  * GET /api/documents?assetCode=xxx 或 ?spaceCode=xxx 或 ?specCode=xxx
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { assetCode, spaceCode, specCode } = req.query;
 
@@ -246,7 +248,7 @@ router.get('/', async (req, res) => {
  * 获取文档详情
  * GET /api/documents/:id
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { id } = req.params;
         const document = await documentModel.getDocumentById(id);
@@ -266,7 +268,7 @@ router.get('/:id', async (req, res) => {
  * 获取文档 EXIF 信息
  * GET /api/documents/:id/exif
  */
-router.get('/:id/exif', async (req, res) => {
+router.get('/:id/exif', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -302,7 +304,7 @@ router.get('/:id/exif', async (req, res) => {
  * PUT /api/documents/:id
  * body: { title }
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, authorize(PERMISSIONS.DOCUMENT_UPDATE), async (req, res) => {
     try {
         const { id } = req.params;
         const { title } = req.body;
@@ -328,7 +330,7 @@ router.put('/:id', async (req, res) => {
  * 删除文档
  * DELETE /api/documents/:id
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, authorize(PERMISSIONS.DOCUMENT_DELETE), async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -362,7 +364,7 @@ router.delete('/:id', async (req, res) => {
  * 下载文档
  * GET /api/documents/:id/download
  */
-router.get('/:id/download', async (req, res) => {
+router.get('/:id/download', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { id } = req.params;
         const document = await documentModel.getDocumentById(id);
@@ -392,7 +394,7 @@ router.get('/:id/download', async (req, res) => {
  * 预览文档 (Inline)
  * GET /api/documents/:id/preview
  */
-router.get('/:id/preview', async (req, res) => {
+router.get('/:id/preview', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { id } = req.params;
         const document = await documentModel.getDocumentById(id);
@@ -433,7 +435,7 @@ router.get('/:id/preview', async (req, res) => {
  * 获取视图关联的文档
  * GET /api/documents/view/:viewId
  */
-router.get('/view/:viewId', async (req, res) => {
+router.get('/view/:viewId', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
         const { viewId } = req.params;
         // 直接使用 documentModel.getDocuments 传入 viewId

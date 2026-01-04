@@ -24,12 +24,9 @@ app.use(i18n)
 app.use(ElementPlus)
 
 // 初始化 Auth Store（尝试从 localStorage 恢复登录状态）
+// 初始化 Auth Store（尝试从 localStorage 恢复登录状态）
 const authStore = useAuthStore()
-const savedToken = localStorage.getItem('accessToken')
-if (savedToken) {
-    // TODO: 验证 token 有效性
-    // authStore.setAuth(...) 应该在调用 /me 接口验证后设置
-}
+authStore.checkAuth();
 // 不再自动启用访客模式，要求用户登录
 // authStore.enableGuestMode()
 

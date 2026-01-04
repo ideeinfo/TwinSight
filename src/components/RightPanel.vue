@@ -8,9 +8,9 @@
     </div>
     <div class="breadcrumb-row"><span class="breadcrumb-text">{{ breadcrumbText }}</span><svg class="link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg></div>
     <div class="tabs">
-      <div class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">{{ t('rightPanel.element') }}</div>
-      <div class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">{{ t('rightPanel.type') }}</div>
-      <div class="add-action">+ {{ t('common.add') }} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg></div>
+      <div v-if="activeTab === 'ELEMENT'" class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">{{ t('rightPanel.element') }}</div>
+      <div v-if="activeTab === 'TYPE' || activeTab === 'ELEMENT'" class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">{{ t('rightPanel.type') }}</div>
+      <div v-if="activeTab !== 'ELEMENT' && activeTab !== 'TYPE'" class="add-action">+ {{ t('common.add') }} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg></div>
     </div>
     <div class="scroll-content">
       <div v-if="activeTab === 'ELEMENT'">
@@ -110,6 +110,9 @@ import { ElMessageBox } from 'element-plus';
 import EditableField from './EditableField.vue';
 import DocumentList from './DocumentList.vue';
 import QRCodeDisplay from './QRCodeDisplay.vue';
+import { useAuthStore } from '../stores/auth';
+
+const authStore = useAuthStore();
 
 const { t } = useI18n();
 
@@ -385,6 +388,14 @@ const isVaries = (value) => String(value) === '__VARIES__';
 const isFieldEditable = (fieldName) => {
   // 允许多选状态下编辑（批量编辑）
   const fieldTypes = isAssetMode.value ? assetFieldTypes : spaceFieldTypes;
+  
+  // 检查权限
+  if (isAssetMode.value) {
+    if (!authStore.hasPermission('asset:update')) return false;
+  } else {
+    if (!authStore.hasPermission('space:update')) return false;
+  }
+
   return fieldTypes[fieldName] !== 'readonly';
 };
 

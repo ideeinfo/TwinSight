@@ -60,7 +60,7 @@
 
           <button 
             class="btn btn-primary" 
-            :disabled="isExporting || apiStatus !== 'connected'" 
+            :disabled="isExporting || apiStatus !== 'connected' || !authStore.hasPermission('model:upload')" 
             @click="extractAndExport"
           >
             <span v-if="isExporting" class="spinner"></span>
@@ -94,8 +94,12 @@ import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import { checkApiHealth, importModelData, checkExistingData } from '../services/postgres.js';
+
 import { getMappingConfig, saveMappingConfig, getDefaultMapping } from '../services/mapping-config.js';
 import MappingConfigPanel from './MappingConfigPanel.vue';
+import { useAuthStore } from '../stores/auth';
+
+const authStore = useAuthStore();
 
 const { t } = useI18n();
 
