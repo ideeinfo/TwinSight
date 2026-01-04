@@ -76,16 +76,23 @@ async function createKnowledgeBaseForModel(modelFile) {
         console.log(`✅ 知识库创建成功: ${kb.id}`);
 
         // 保存映射关系到数据库
-        await getDbPool().query(`
-            INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (file_id) DO UPDATE SET
-                openwebui_kb_id = EXCLUDED.openwebui_kb_id,
-                kb_name = EXCLUDED.kb_name,
-                updated_at = CURRENT_TIMESTAMP
-        `, [modelFile.id, kb.id, kbName]);
+        try {
+            console.log(`📝 准备写入 knowledge_bases 表: file_id=${modelFile.id}, kb_id=${kb.id}`);
+            const insertResult = await getDbPool().query(`
+                INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (file_id) DO UPDATE SET
+                    openwebui_kb_id = EXCLUDED.openwebui_kb_id,
+                    kb_name = EXCLUDED.kb_name,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING *
+            `, [modelFile.id, kb.id, kbName]);
+            console.log(`💾 知识库映射已保存: ${modelFile.id} -> ${kb.id}, rowCount: ${insertResult.rowCount}`);
+        } catch (dbError) {
+            console.error(`❌ 数据库写入失败: ${dbError.message}`);
+            console.error(`   SQL 参数: file_id=${modelFile.id}, kb_id=${kb.id}, kb_name=${kbName}`);
+        }
 
-        console.log(`💾 知识库映射已保存: ${modelFile.id} -> ${kb.id}`);
         return kb;
     } catch (error) {
         console.error(`❌ 创建知识库异常: ${error.message}`);

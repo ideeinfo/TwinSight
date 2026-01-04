@@ -9,7 +9,7 @@ COPY nodered/package.json .
 RUN npm install --unsafe-perm --no-update-notifier --no-fund --only=production
 
 # 复制 flows.json 和 settings.js (如果有)
-# COPY nodered/flows.json /data/flows.json
+COPY nodered/flows.json /data/flows.json
 # COPY nodered/settings.js /data/settings.js
 
 # 直接以 root 运行，在启动时修复权限

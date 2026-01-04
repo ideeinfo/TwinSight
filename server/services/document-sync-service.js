@@ -121,10 +121,10 @@ async function syncDocument(doc, kbId) {
         // 记录同步成功状态（openwebui_kb_id = 知识库 ID, openwebui_file_id = 文档文件 ID）
         await dbQuery(
             `INSERT INTO kb_documents (kb_id, document_id, openwebui_kb_id, openwebui_file_id, sync_status, synced_at)
-             SELECT kb.id, $2, $1, $3, 'synced', NOW()
-             FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1
+             SELECT kb.id, $2::integer, $1::text, $3::text, 'synced', NOW()
+             FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1::text
              ON CONFLICT (kb_id, document_id) DO UPDATE SET
-             openwebui_kb_id = $1, openwebui_file_id = $3, sync_status = 'synced', synced_at = NOW()`,
+             openwebui_kb_id = EXCLUDED.openwebui_kb_id, openwebui_file_id = EXCLUDED.openwebui_file_id, sync_status = 'synced', synced_at = NOW()`,
             [kbId, doc.id, openwebuiFileId]
         );
 
@@ -136,10 +136,10 @@ async function syncDocument(doc, kbId) {
         try {
             await dbQuery(
                 `INSERT INTO kb_documents (kb_id, document_id, sync_status, sync_error)
-                 SELECT kb.id, $2, 'failed', $3
-                 FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1
+                 SELECT kb.id, $2::integer, 'failed', $3::text
+                 FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1::text
                  ON CONFLICT (kb_id, document_id) DO UPDATE SET
-                 sync_status = 'failed', sync_error = $3`,
+                 sync_status = 'failed', sync_error = EXCLUDED.sync_error`,
                 [kbId, doc.id, error.message.substring(0, 500)]
             );
         } catch (dbError) {

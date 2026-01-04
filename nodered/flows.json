@@ -1,94 +1,159 @@
 [
     {
-        "id": "tandem-demo-flow",
+        "id": "737ed55a7a1ed37e",
         "type": "tab",
-        "label": "Tandem 温度模拟",
+        "label": "流程 1",
         "disabled": false,
-        "info": "模拟温度数据并写入 InfluxDB"
+        "info": "",
+        "env": []
     },
     {
-        "id": "inject-timer",
-        "type": "inject",
-        "z": "tandem-demo-flow",
-        "name": "每5秒触发",
-        "props": [],
-        "repeat": "5",
-        "crontab": "",
-        "once": true,
-        "onceDelay": "1",
-        "topic": "",
-        "x": 130,
-        "y": 100,
+        "id": "b13c0570e2785998",
+        "type": "tab",
+        "label": "流程 2",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "c7619c9e87f7f9d3",
+        "type": "tab",
+        "label": "流程 3",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "27147780e714cfa2",
+        "type": "mqtt-broker",
+        "name": "EMQX",
+        "broker": "broker.emqx.io",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "09b7c85d2e8078ab",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": false,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": ": ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "default",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": false
+    },
+    {
+        "id": "3b139925bb116cf7",
+        "type": "mqtt in",
+        "z": "737ed55a7a1ed37e",
+        "name": "",
+        "topic": "ideeinfo/tandem",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "27147780e714cfa2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 280,
         "wires": [
             [
-                "generate-rooms"
+                "9e48fac029d29468"
             ]
         ]
     },
     {
-        "id": "generate-rooms",
+        "id": "f04308120fcbc1ad",
+        "type": "http request",
+        "z": "737ed55a7a1ed37e",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 600,
+        "y": 280,
+        "wires": [
+            [
+                "70dc9aaa7c18e13f"
+            ]
+        ]
+    },
+    {
+        "id": "9e48fac029d29468",
         "type": "function",
-        "z": "tandem-demo-flow",
-        "name": "生成房间数据",
-        "func": "// 模拟房间列表\nconst rooms = [\n    { code: 'Room-101', name: '会议室A' },\n    { code: 'Room-102', name: '办公区B' },\n    { code: 'Room-103', name: '休息室C' },\n    { code: 'Room-201', name: '实验室D' }\n];\n\n// 为每个房间生成消息\nconst messages = rooms.map(room => {\n    // 生成 20-35 范围内的随机温度\n    const baseTemp = 25 + Math.sin(Date.now() / 60000) * 5;\n    const temp = baseTemp + (Math.random() - 0.5) * 4;\n    \n    return {\n        payload: {\n            code: room.code,\n            name: room.name,\n            value: Math.round(temp * 10) / 10,\n            timestamp: Date.now()\n        }\n    };\n});\n\nreturn [messages];",
+        "z": "737ed55a7a1ed37e",
+        "name": "function 1",
+        "func": "// 0. 安全检查\nif (!msg.payload.device) return null; // 如果没有设备ID，直接丢弃\n\nnode.warn(\"收到原始数据：\" + JSON.stringify(msg.payload));\n\n// 1. 提取数据\nlet deviceId = msg.payload.device;\nlet temp = msg.payload.temperature;\nlet humi = msg.payload.humidity;\n\n// ★★★ 关键修改：从 MQTT 数据中提取 Secret ★★★\n// 兼容性处理：尝试读取 'secret' 或 'StreamSecret' 字段\nlet secret = msg.payload.secret || msg.payload.StreamSecret;\n\n// 如果数据里没带密码，打印错误并停止，防止发错误的请求\nif (!secret) {\n    node.error(\"错误：MQTT 数据中缺少 Secret 字段，无法拼接 URL！\");\n    return null;\n}\n\n// 2. 定义模型 ID (这是 URL 中唯一固定的部分)\n// 根据您之前的代码，Model URN 是这个：\nlet modelUrn = \"urn:adsk.dtm:7ajFeutSSASaKGMaV4Pd-g\";\n\n// 3. 动态拼接完整 URL\n// 标准格式: https://:[Secret]@tandem.autodesk.com/.../[ModelURN]/streams/[DeviceID]\nmsg.url = \"https://:\" + secret + \"@tandem.autodesk.com/api/v1/timeseries/models/\" + modelUrn + \"/streams/\" + deviceId;\n\n// 4. 重构 Payload 数据格式 (Tandem 只需要温湿度)\nmsg.payload = {\n    \"temp\": temp,\n    \"humi\": humi\n};\n\n// 调试日志\nnode.warn(\"生成的动态 URL: \" + msg.url);\nnode.warn(\"准备发送的数据: \" + JSON.stringify(msg.payload));\n\n// 5. 传递给 HTTP Request 节点\nreturn msg;",
         "outputs": 1,
-        "timeout": "",
+        "timeout": 0,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 320,
-        "y": 100,
+        "x": 400,
+        "y": 380,
         "wires": [
             [
-                "format-influx"
+                "f04308120fcbc1ad"
             ]
         ]
     },
     {
-        "id": "format-influx",
-        "type": "function",
-        "z": "tandem-demo-flow",
-        "name": "格式化 InfluxDB",
-        "func": "// 转换为 InfluxDB 格式\nmsg.payload = {\n    measurement: 'room_temp',\n    tags: {\n        code: msg.payload.code,\n        name: msg.payload.name\n    },\n    fields: {\n        value: msg.payload.value\n    },\n    timestamp: msg.payload.timestamp * 1000000  // 纳秒\n};\n\nreturn msg;",
-        "outputs": 1,
-        "timeout": "",
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 520,
-        "y": 100,
-        "wires": [
-            [
-                "influx-out",
-                "debug"
-            ]
-        ]
-    },
-    {
-        "id": "influx-out",
-        "type": "influxdb out",
-        "z": "tandem-demo-flow",
-        "influxdb": "influx-config",
-        "name": "写入 InfluxDB",
-        "measurement": "",
-        "precision": "",
-        "retentionPolicy": "",
-        "database": "",
-        "precisionV18FluxV20": "ms",
-        "retentionPolicyV18Flux": "",
-        "org": "demo",
-        "bucket": "tandem",
-        "x": 740,
-        "y": 100,
-        "wires": []
-    },
-    {
-        "id": "debug",
+        "id": "70dc9aaa7c18e13f",
         "type": "debug",
-        "z": "tandem-demo-flow",
-        "name": "调试输出",
+        "z": "737ed55a7a1ed37e",
+        "name": "debug 1",
         "active": true,
         "tosidebar": true,
         "console": false,
@@ -97,33 +162,347 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 730,
-        "y": 160,
+        "x": 820,
+        "y": 280,
         "wires": []
     },
     {
-        "id": "influx-config",
-        "type": "influxdb",
-        "hostname": "influxdb",
-        "port": "8086",
-        "protocol": "http",
-        "database": "",
-        "name": "Tandem InfluxDB",
-        "usetls": false,
+        "id": "c4fbbf8a3defce36",
+        "type": "catch",
+        "z": "737ed55a7a1ed37e",
+        "name": "",
+        "scope": null,
+        "uncaught": false,
+        "x": 640,
+        "y": 420,
+        "wires": [
+            [
+                "70dc9aaa7c18e13f"
+            ]
+        ]
+    },
+    {
+        "id": "81860d9e843a98dc",
+        "type": "debug",
+        "z": "b13c0570e2785998",
+        "name": "debug ",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1330,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "258ecc0d77e53528",
+        "type": "inject",
+        "z": "b13c0570e2785998",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 200,
+        "wires": [
+            [
+                "3802426346018f8f"
+            ]
+        ]
+    },
+    {
+        "id": "3802426346018f8f",
+        "type": "api-current-state",
+        "z": "b13c0570e2785998",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.rf01_temperature",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_temp",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 450,
+        "y": 200,
+        "wires": [
+            [
+                "84ba6396e8d0d643"
+            ]
+        ]
+    },
+    {
+        "id": "84ba6396e8d0d643",
+        "type": "api-current-state",
+        "z": "b13c0570e2785998",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.rf01_humidity",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_humi",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 820,
+        "y": 200,
+        "wires": [
+            [
+                "a6521dad9ed1f10f"
+            ]
+        ]
+    },
+    {
+        "id": "a6521dad9ed1f10f",
+        "type": "http request",
+        "z": "b13c0570e2785998",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://twinsight.up.railway.app/api/v1/timeseries/streams/BF02US01?key=kj7wSskuQaUkozfCWWfZ2y",
         "tls": "",
-        "influxdbVersion": "2.0",
-        "url": "http://influxdb:8086",
-        "timeout": "",
-        "rejectUnauthorized": true
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1140,
+        "y": 360,
+        "wires": [
+            [
+                "81860d9e843a98dc"
+            ]
+        ]
     },
     {
-        "id": "comment-1",
-        "type": "comment",
-        "z": "tandem-demo-flow",
-        "name": "📝 使用说明",
-        "info": "## Tandem 温度数据模拟流程\n\n### 功能\n- 每5秒生成模拟温度数据\n- 模拟4个房间的温度传感器\n- 温度范围：20-35°C\n- 数据写入 InfluxDB\n\n### 配置 InfluxDB 连接\n1. 双击 \"写入 InfluxDB\" 节点\n2. 点击 Server 旁边的编辑按钮\n3. 配置以下信息：\n   - URL: http://influxdb:8086\n   - Token: tandem-influx-token-2024\n   - Organization: demo\n   - Bucket: tandem\n\n### 验证数据\n1. 访问 http://localhost:8086\n2. 使用 admin/adminpassword 登录\n3. 进入 Data Explorer 查看数据",
-        "x": 110,
-        "y": 40,
+        "id": "a882bf06060d81a2",
+        "type": "debug",
+        "z": "c7619c9e87f7f9d3",
+        "name": "debug ",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1350,
+        "y": 240,
         "wires": []
+    },
+    {
+        "id": "27833cda2f4c7b13",
+        "type": "inject",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 240,
+        "wires": [
+            [
+                "eca8e4452b6fc868"
+            ]
+        ]
+    },
+    {
+        "id": "eca8e4452b6fc868",
+        "type": "api-current-state",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.10_temperature",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_temp",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 470,
+        "y": 240,
+        "wires": [
+            [
+                "d51c3a1c54cac03a"
+            ]
+        ]
+    },
+    {
+        "id": "d51c3a1c54cac03a",
+        "type": "api-current-state",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.10_humidity",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_humi",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 840,
+        "y": 240,
+        "wires": [
+            [
+                "46871b7c6a2136ad"
+            ]
+        ]
+    },
+    {
+        "id": "46871b7c6a2136ad",
+        "type": "http request",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://twinsight.up.railway.app/api/v1/timeseries/streams/BF01US02?key=QgDuahTzblMqjG7WxIuLUr",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 400,
+        "wires": [
+            [
+                "a882bf06060d81a2"
+            ]
+        ]
+    },
+    {
+        "id": "78f55e2c4da0685d",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
     }
 ]
