@@ -26,6 +26,7 @@
         :rules="formRules"
         label-position="top"
         hide-required-asterisk
+        :show-message="false"
         @submit.prevent="handleSubmit"
       >
         <!-- 姓名（仅注册时显示） -->
@@ -498,8 +499,8 @@ watch(isLogin, () => {
 <style>
 /* 根级变量覆盖 - 基底设置 */
 .auth-dialog {
-  /* 调整透明度：更通透 (0.55/0.65) */
-  --el-dialog-bg-color: v-bind('isDarkMode ? "rgba(26, 26, 36, 0.55)" : "rgba(255, 255, 255, 0.65)"') !important;
+  /* 调整透明度：极度通过通透 (0.30) */
+  --el-dialog-bg-color: v-bind('isDarkMode ? "rgba(26, 26, 36, 0.30)" : "rgba(255, 255, 255, 0.30)"') !important;
   --el-dialog-box-shadow: 0 12px 32px 4px rgba(0, 0, 0, 0.36) !important;
   --el-input-bg-color: transparent !important;
   --el-fill-color-blank: transparent !important;
