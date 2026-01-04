@@ -37,7 +37,7 @@
 
         <!-- 邮箱（只读） -->
         <el-form-item :label="$t('account.email')">
-          <el-input v-model="user.email" disabled />
+          <el-input :model-value="user?.email || ''" disabled />
         </el-form-item>
 
         <!-- 修改密码区域 -->

@@ -167,14 +167,15 @@ const openAccountSettings = () => {
 const handleSignOut = async () => {
   try {
     await authService.logout();
-    authStore.clearAuth();
-    localStorage.removeItem('accessToken');
-    ElMessage.success(t('account.signOutSuccess'));
-    closeDropdown();
-    router.push('/');
   } catch (error) {
-    console.error('Sign out failed:', error);
+    console.error('Sign out API failed:', error);
   }
+  // 无论 API 是否成功，都清理本地状态并跳转
+  authStore.clearAuth();
+  localStorage.removeItem('accessToken');
+  ElMessage.success(t('account.signOutSuccess'));
+  closeDropdown();
+  router.push('/');
 };
 
 // 点击外部关闭
