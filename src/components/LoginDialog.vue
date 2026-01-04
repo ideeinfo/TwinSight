@@ -552,4 +552,27 @@ body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__wrapper:hover {
 body .auth-input .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 1px #00bcd4 inset !important;
 }
+
+/* 
+  自动填充样式覆盖 (Autofill Hack)
+  利用 transition 延迟背景色变化，实现"透明"背景
+*/
+body .auth-input .el-input__inner:-webkit-autofill,
+body .auth-input .el-input__inner:-webkit-autofill:hover,
+body .auth-input .el-input__inner:-webkit-autofill:focus,
+body .auth-input .el-input__inner:-webkit-autofill:active {
+  -webkit-transition: color 99999s ease-out, background-color 99999s ease-out;
+  transition: color 99999s ease-out, background-color 99999s ease-out;
+  -webkit-transition-delay: 99999s;
+  transition-delay: 99999s;
+}
+
+/* 确保自动填充的文字颜色正确 */
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill {
+  -webkit-text-fill-color: #f0f0f5 !important;
+}
+
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill {
+  -webkit-text-fill-color: #606266 !important;
+}
 </style>
