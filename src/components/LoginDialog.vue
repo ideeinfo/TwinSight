@@ -213,6 +213,7 @@ const toggleMode = () => {
 // 关闭对话框
 const handleClose = () => {
   errorMessage.value = '';
+  isLogin.value = true;
   formRef.value?.resetFields();
 };
 
