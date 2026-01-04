@@ -116,12 +116,8 @@ const user = computed(() => authStore.user);
 const initials = computed(() => {
   const name = user.value?.username || '';
   if (!name) return '?';
-  // 中文：取前两个字
-  if (/[\u4e00-\u9fa5]/.test(name)) {
-    return name.substring(0, 2);
-  }
-  // 英文：取首字母
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  // 只取第一个字符
+  return name.charAt(0).toUpperCase();
 });
 
 // 头像背景色（根据用户 ID 生成固定颜色）
