@@ -93,6 +93,7 @@ export async function login({ email, password }) {
             name: user.name,
             avatarUrl: user.avatar_url,
             roles,
+            permissions, // 添加权限到用户对象
         },
         ...tokens,
     };

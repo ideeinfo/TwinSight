@@ -249,7 +249,7 @@ const handleSubmit = async () => {
             roles: result.data.user.roles
           },
           result.data.accessToken,
-          [] // 权限稍后从 token 解析
+          result.data.user.permissions || [] // 使用服务器返回的权限
         );
         
         // 保存 token 到 localStorage

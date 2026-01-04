@@ -14,6 +14,7 @@ export interface LoginResponse {
             name: string;
             avatarUrl?: string;
             roles: string[];
+            permissions?: string[];
         };
         accessToken: string;
         expiresIn: string;
