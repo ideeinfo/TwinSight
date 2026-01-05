@@ -75,7 +75,7 @@
 
     <!-- 上传对话框 -->
     <Teleport to="body">
-      <div v-if="isUploadDialogOpen" class="modal-overlay" @click="closeUploadDialog">
+      <div v-if="isUploadDialogOpen" class="modal-overlay">
         <div class="modal-container upload-dialog" @click.stop>
           <div class="modal-header">
             <h3>{{ t('filePanel.uploadModel') }}</h3>
@@ -185,7 +185,7 @@
 
     <!-- 编辑对话框 -->
     <Teleport to="body">
-      <div v-if="isEditDialogOpen" class="modal-overlay" @click="closeEditDialog">
+      <div v-if="isEditDialogOpen" class="modal-overlay">
         <div class="modal-container" @click.stop>
           <div class="modal-header">
             <h3>{{ t('filePanel.editTitle') }}</h3>

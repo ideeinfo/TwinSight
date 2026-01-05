@@ -1,5 +1,5 @@
 <template>
-  <div class="influx-config-modal" @click.self="$emit('close')">
+  <div class="influx-config-modal">
     <div class="modal-content">
       <div class="modal-header">
         <h3>⚡ {{ t('influxConfig.title') }}</h3>

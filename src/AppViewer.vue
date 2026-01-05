@@ -122,7 +122,7 @@
 
       <!-- 数据导出面板弹窗 -->
       <Teleport to="body">
-        <div v-if="isDataExportOpen" class="modal-overlay" @click.self="closeDataExportPanel">
+        <div v-if="isDataExportOpen" class="modal-overlay">
           <div class="modal-container">
             <DataExportPanel
               :file-id="currentExportFileId"
