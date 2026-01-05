@@ -7,7 +7,7 @@
       :style="{ top: tag.y + 'px', left: tag.x + 'px' }"
     >
       <div class="tag-pin selected">
-        <div class="pin-val">
+        <div class="pin-val" :class="{ 'no-data': !hasValidData(tag.currentTemp) }">
           {{ formatTemperature(tag.currentTemp) }}
         </div>
       </div>
@@ -44,10 +44,22 @@ const visibleTags = computed(() => {
 });
 
 /**
+ * 检查是否有有效的温度数据
+ */
+const hasValidData = (temp) => {
+  if (temp === null || temp === undefined) return false;
+  // 检查是否是默认值（25）且没有实际数据
+  const numTemp = parseFloat(temp);
+  return !isNaN(numTemp);
+};
+
+/**
  * 格式化温度显示
  */
 const formatTemperature = (temp) => {
-  if (temp === null || temp === undefined) return '--';
+  if (temp === null || temp === undefined) return 'N/A';
+  const numTemp = parseFloat(temp);
+  if (isNaN(numTemp)) return 'N/A';
   return `${temp} °C`;
 };
 </script>
@@ -97,5 +109,12 @@ const formatTemperature = (temp) => {
 .pin-val:hover {
   background: rgba(128, 128, 128, 0.4);
   transform: scale(1.05);
+}
+
+/* 无数据时显示浅红色 */
+.pin-val.no-data {
+  color: #ff9999;
+  background: rgba(255, 100, 100, 0.2);
+  border-color: rgba(255, 150, 150, 0.6);
 }
 </style>

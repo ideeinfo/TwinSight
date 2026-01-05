@@ -236,7 +236,11 @@ const handleSave = async () => {
     // 上传头像
     if (avatarPreview.value) {
       const blob = await fetch(avatarPreview.value).then(r => r.blob());
-      await authService.uploadAvatar(blob);
+      const result = await authService.uploadAvatar(blob);
+      // 更新本地头像状态
+      if (result.success && result.avatarUrl && authStore.user) {
+        authStore.user.avatarUrl = result.avatarUrl;
+      }
     }
 
     // 修改密码

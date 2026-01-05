@@ -29,37 +29,6 @@
                 <span class="alert-temp">{{ temperature }}°C</span>
               </div>
               <div class="ai-analysis-text" @click="handleTextClick" v-html="formattedAnalysis"></div>
-              
-              <!-- 参考文档列表 -->
-              <div v-if="sources && sources.length > 0" class="ai-sources">
-                <div class="sources-header">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                  </svg>
-                  <span>参考文档 ({{ sources.length }})</span>
-                </div>
-                <ul class="sources-list">
-                  <li v-for="(source, idx) in sources" :key="idx" class="source-item">
-                    <a 
-                      v-if="source.documentId" 
-                      class="source-link internal" 
-                      href="#" 
-                      @click.prevent="emit('openSource', source)"
-                    >
-                      <span class="source-icon">📄</span>
-                      <span>[{{ idx + 1 }}] {{ source.name || source.fileName }}</span>
-                    </a>
-                    <span v-else class="source-text">
-                      <span class="source-icon">📝</span>
-                      <span>[{{ idx + 1 }}] {{ source.name || source.fileName || '未知来源' }}</span>
-                    </span>
-                  </li>
-                </ul>
-              </div>
             </div>
           </div>
           

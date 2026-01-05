@@ -322,11 +322,10 @@ defineExpose({
 
 .node-label {
   font-size: 12px;
-  color: var(--el-text-color-primary);
+  color: var(--el-text-color-regular);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* 默认 allow shrinking but not growing too much if not needed */
 }
 
 /* 非资产节点（分类/规格）：Label 占据剩余空间，将 Count 推到最右侧 */
@@ -344,7 +343,7 @@ defineExpose({
   font-size: 10px;
   color: var(--el-text-color-secondary);
   background: var(--el-fill-color);
-  padding: 1px 5px;
+  padding: 2px 6px;
   border-radius: 10px;
   flex-shrink: 0;
 }
@@ -352,8 +351,8 @@ defineExpose({
 .node-code {
   font-size: 10px;
   color: var(--el-text-color-secondary);
-  background: var(--el-fill-color-light);
-  padding: 0 4px;
+  background: var(--el-fill-color);
+  padding: 2px 6px;
   border-radius: 2px;
   flex-shrink: 0;
 }

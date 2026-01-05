@@ -1151,7 +1151,7 @@ const processRooms = (dbIds) => {
         worldPos: center,
         x: 0, y: 0, visible: true,  // 默认显示温度标签
         offset: (Math.random() - 0.5) * 2,
-        currentTemp: 25
+        currentTemp: null  // 默认无数据，显示 N/A
       });
     }
 
