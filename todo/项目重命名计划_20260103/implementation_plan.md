@@ -23,44 +23,44 @@
 ## 阶段 1：代码和配置文件修改（低风险）
 
 ### 1.1 package.json
-- [ ] `package.json` → `"name": "twinsight"`
-- [ ] `server/package.json` → `"name": "twinsight-server"`
+- [x] `package.json` → `"name": "twinsight"`
+- [x] `server/package.json` → `"name": "twinsight-server"`
 
 ### 1.2 docker-compose.yml
-- [ ] `name: tandem-demo` → `name: twinsight`
-- [ ] `container_name: tandem-postgres` → `container_name: twinsight-postgres`
-- [ ] `container_name: tandem-n8n` → `container_name: twinsight-n8n`
-- [ ] `container_name: tandem-open-webui` → `container_name: twinsight-open-webui`
-- [ ] `tandem-network` → `twinsight-network`
-- [ ] `POSTGRES_DB: tandem` → `POSTGRES_DB: twinsight`
-- [ ] `DOCKER_INFLUXDB_INIT_BUCKET: tandem` → `DOCKER_INFLUXDB_INIT_BUCKET: twinsight`
-- [ ] `WEBUI_NAME=Tandem AI` → `WEBUI_NAME=Twinsight AI`
+- [x] `name: tandem-demo` → `name: twinsight`
+- [x] `container_name: tandem-postgres` → `container_name: twinsight-postgres`
+- [x] `container_name: tandem-n8n` → `container_name: twinsight-n8n`
+- [x] `container_name: tandem-open-webui` → `container_name: twinsight-open-webui`
+- [x] `tandem-network` → `twinsight-network`
+- [x] `POSTGRES_DB: tandem` → `POSTGRES_DB: twinsight`
+- [x] `DOCKER_INFLUXDB_INIT_BUCKET: tandem` → `DOCKER_INFLUXDB_INIT_BUCKET: twinsight`
+- [x] `WEBUI_NAME=Tandem AI` → `WEBUI_NAME=Twinsight AI`
 
 ### 1.3 环境变量文件
-- [ ] `.env.local` → `DB_NAME=twinsight`
-- [ ] `server/.env` → `DB_NAME=twinsight`
-- [ ] `docker/.env.example` → 更新相关引用
-- [ ] `docker/.env.production.example` → 更新所有 tandem 引用
+- [x] `.env.local` → `DB_NAME=twinsight`
+- [x] `server/.env` → `DB_NAME=twinsight`
+- [x] `docker/.env.example` → 更新相关引用
+- [x] `docker/.env.production.example` → 更新所有 tandem 引用
 
 ---
 
 ## 阶段 2：代码引用修改（低风险）
 
 ### 2.1 n8n 服务配置
-- [ ] `server/services/n8n-service.js` → 更新 metadata.source
+- [x] `server/services/n8n-service.js` → 更新 metadata.source
 
 ### 2.2 其他代码文件
-- [ ] 搜索并替换所有 `tandem-demo` → `twinsight`
-- [ ] 搜索并替换所有 `tandem` (数据库名/bucket名) → `twinsight`
+- [x] 搜索并替换所有 `tandem-demo` → `twinsight`
+- [x] 搜索并替换所有 `Tandem` (知识库名/注释) → `Twinsight`
 
 ---
 
 ## 阶段 3：文档更新（低风险）
 
-- [ ] `CLOUD_DEPLOYMENT_GUIDE.md` → 更新所有引用
-- [ ] `DATABASE_MIGRATION.md` → 更新数据库名
-- [ ] `README.md` → 更新项目名
-- [ ] 其他 .md 文件
+- [x] `server/README.md` → 更新项目名和数据库名
+- [x] `docker/README.md` → 更新所有引用
+- [x] `CLOUD_DEPLOYMENT_GUIDE.md` → 更新所有引用
+- [ ] 其他 .md 文件 (归档文档不需要修改)
 
 ---
 
@@ -68,9 +68,9 @@
 
 > ⚠️ 需要在 Railway 控制台手动操作
 
-- [ ] 更新 tandem-demo 服务的环境变量
-- [ ] 确认 DATABASE_URL 中的数据库名
-- [ ] 确认 INFLUX_BUCKET 环境变量
+- [x] 更新 tandem-demo 服务的环境变量
+- [x] 确认 DATABASE_URL 中的数据库名
+- [x] 确认 INFLUX_BUCKET 环境变量
 
 ---
 
@@ -79,9 +79,9 @@
 > ⚠️ 影响生产数据，需要先备份
 
 ### 5.1 PostgreSQL
-- [ ] 创建新数据库 `twinsight`
-- [ ] 迁移数据从 `tandem` 到 `twinsight`
-- [ ] 更新连接字符串
+- [x] 创建新数据库 `twinsight`（通过重命名 `tandem`）
+- [x] 迁移数据从 `tandem` 到 `twinsight`
+- [x] 更新连接字符串
 
 ### 5.2 InfluxDB
 - [ ] 创建新 Bucket `twinsight`

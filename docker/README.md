@@ -43,7 +43,7 @@ docker-compose -f docker-compose.ai.yml logs -f
 
 - **n8n 控制台**: http://localhost:5678
   - 用户名: `admin` (或 .env 中配置的值)
-  - 密码: `tandem123` (或 .env 中配置的值)
+  - 密码: `twinsight123` (或 .env 中配置的值)
   
 - **Qdrant API**: http://localhost:6333
   - Dashboard: http://localhost:6333/dashboard
@@ -71,7 +71,7 @@ docker-compose -f docker-compose.ai.yml down
 
 创建工作流时可以使用以下节点：
 
-1. **Webhook** - 接收来自 Tandem Demo 的报警事件
+1. **Webhook** - 接收来自 Twinsight 的报警事件
 2. **HTTP Request** - 调用后端 API 获取资产/房间信息
 3. **Google Gemini Chat Model** - 调用 Gemini Pro 进行分析
 4. **Send Email** - 发送邮件通知
@@ -83,7 +83,7 @@ docker-compose -f docker-compose.ai.yml down
 
 ```bash
 # 查看详细日志
-docker logs tandem-n8n
+docker logs twinsight-n8n
 
 # 检查端口占用
 netstat -an | findstr 5678
@@ -93,7 +93,7 @@ netstat -an | findstr 5678
 
 ```bash
 # 查看详细日志
-docker logs tandem-qdrant
+docker logs twinsight-qdrant
 
 # 检查端口占用
 netstat -an | findstr 6333

@@ -1,4 +1,4 @@
-# Tandem Demo - PostgreSQL 数据库集成
+# Twinsight - PostgreSQL 数据库集成
 
 本项目集成了 PostgreSQL 数据库，用于存储从模型中提取的资产和空间数据。
 
@@ -192,7 +192,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=password
-DB_NAME=tandem
+DB_NAME=twinsight
 SERVER_PORT=3001
 ```
 

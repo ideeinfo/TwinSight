@@ -1,7 +1,7 @@
 {
-    "name": "tandem-server",
+    "name": "twinsight-server",
     "version": "1.0.0",
-    "description": "Tandem Demo Backend Server - PostgreSQL Integration",
+    "description": "Twinsight Backend Server - PostgreSQL Integration",
     "type": "module",
     "main": "index.js",
     "scripts": {

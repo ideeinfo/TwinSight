@@ -1,5 +1,5 @@
 /**
- * Tandem Demo 后端服务
+ * Twinsight 后端服务
  * Express + PostgreSQL
  */
 import express from 'express';
@@ -178,7 +178,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
     console.log(`
 ╔════════════════════════════════════════════════╗
-║     Tandem Demo API Server                     ║
+║     Twinsight API Server                       ║
 ╠════════════════════════════════════════════════╣
 ║  🚀 服务已启动                                 ║
 ║  📍 绑定地址: ${bindHost}:${bindPort}             ║

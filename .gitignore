@@ -38,3 +38,7 @@ public/data/*
 !public/docs/.gitkeep
 !public/files/.gitkeep
 !public/data/.gitkeep
+
+# Docker Volume 备份文件（太大，不提交到 Git）
+backup/*.tar
+backup/*.gz

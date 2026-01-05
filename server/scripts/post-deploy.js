@@ -147,7 +147,7 @@ async function createBaseData(pool) {
 async function main() {
     console.log(`
 ╔════════════════════════════════════════════════╗
-║     Tandem Demo - 部署后初始化                 ║
+║     Twinsight - 部署后初始化                    ║
 ╚════════════════════════════════════════════════╝
     `);
 

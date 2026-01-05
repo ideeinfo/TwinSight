@@ -1,0 +1,36 @@
+# ================= 数据库服务 =================
+
+# 1. 备份 Postgres
+echo "Backing up Postgres..."
+docker run --rm -v tandem-demo_postgres_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/postgres_data.tar /volume
+
+# 2. 备份 InfluxDB 数据 (Data)
+echo "Backing up InfluxDB Data..."
+docker run --rm -v tandem-demo_influxdb_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/influxdb_data.tar /volume
+
+# 3. 备份 InfluxDB 配置 (Config)
+echo "Backing up InfluxDB Config..."
+docker run --rm -v tandem-demo_influxdb_config:/volume -v ${PWD}:/backup alpine tar -cvf /backup/influxdb_config.tar /volume
+
+# ================= IoT 服务 =================
+
+# 4. 备份 Node-RED
+echo "Backing up Node-RED..."
+docker run --rm -v tandem-demo_nodered_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/nodered_data.tar /volume
+
+# 5. 备份 Grafana
+echo "Backing up Grafana..."
+docker run --rm -v tandem-demo_grafana_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/grafana_data.tar /volume
+
+
+# ================= AI 服务 =================
+
+# 6. 备份 n8n
+echo "Backing up n8n..."
+docker run --rm -v tandem-demo_n8n_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/n8n_data.tar /volume
+
+# 7. 备份 Open WebUI
+echo "Backing up Open WebUI..."
+docker run --rm -v tandem-demo_open_webui_data:/volume -v ${PWD}:/backup alpine tar -cvf /backup/open_webui_data.tar /volume
+
+echo "备份完成！请检查当前目录下是否有 7个 .tar 文件。"

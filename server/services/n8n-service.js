@@ -50,7 +50,7 @@ export async function triggerTemperatureAlert(alertData) {
                 severity: calculateSeverity(alertData),
             },
             metadata: {
-                source: 'tandem-demo',
+                source: 'twinsight',
                 version: '1.0',
             }
         };
@@ -107,7 +107,7 @@ export async function triggerManualAnalysis(analysisRequest) {
                     timestamp: new Date().toISOString(),
                 },
                 metadata: {
-                    source: 'tandem-demo',
+                    source: 'twinsight',
                     version: '1.0',
                 }
             }),

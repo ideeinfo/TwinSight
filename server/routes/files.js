@@ -52,7 +52,7 @@ async function createKnowledgeBaseForModel(modelFile) {
     }
 
     try {
-        const kbName = `Tandem-${modelFile.title}`;
+        const kbName = `Twinsight-${modelFile.title}`;
         const kbDescription = `知识库关联模型文件: ${modelFile.title} (${modelFile.original_name})`;
 
         console.log(`📚 为模型 ${modelFile.title} 创建知识库...`);
