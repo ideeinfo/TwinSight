@@ -1,5 +1,9 @@
-# Vue 3 + Vite
+TwinSight 是一个基于 BIM（建筑信息模型）的数字孪生可视化平台，用于建筑空间和资产的三维展示、数据管理和智能分析。
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+核心功能
+3D模型查看：支持上传和浏览 Autodesk Forge 格式的建筑模型
+空间管理：查看和编辑建筑空间（房间）的属性信息
+资产管理：管理建筑内的各类设备和资产
+时序数据：查看温度等环境数据的历史变化
+智能分析：集成 AI 进行异常检测和分析
+全景比对：支持多个模型版本的对比查看
