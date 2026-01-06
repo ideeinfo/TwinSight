@@ -418,6 +418,10 @@ const messages = {
       uploadAvatarHint: '点击上传头像',
       avatarTooLarge: '头像图片不能超过2MB',
       cropAvatar: '裁剪头像'
+    },
+    userManual: {
+      title: '操作手册',
+      tableOfContents: '目录'
     }
   },
   en: {
@@ -837,6 +841,10 @@ const messages = {
       uploadAvatarHint: 'Click to upload avatar',
       avatarTooLarge: 'Avatar image must be less than 2MB',
       cropAvatar: 'Crop Avatar'
+    },
+    userManual: {
+      title: 'User Manual',
+      tableOfContents: 'Table of Contents'
     }
   }
 }

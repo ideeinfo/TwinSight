@@ -75,7 +75,7 @@
         </svg>
       </div>
 
-      <div class="icon-btn">
+      <div class="icon-btn" :title="$t('userManual.title')" @click="showManual = true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10" />
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
@@ -86,6 +86,9 @@
       <!-- 用户头像下拉菜单 -->
       <UserDropdown />
     </div>
+
+    <!-- 操作手册面板 -->
+    <UserManualPanel :visible="showManual" @close="showManual = false" />
   </div>
 </template>
 
@@ -95,6 +98,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useThemeStore } from '../stores/theme';
 import UserDropdown from './UserDropdown.vue';
+import UserManualPanel from './UserManualPanel.vue';
 
 // 定义 props
 const props = defineProps({
@@ -117,6 +121,7 @@ const currentLocale = computed(() => locale.value);
 const isDarkTheme = computed(() => themeStore.isDark);
 const isLangDropdownOpen = ref(false);
 const langDropdownRef = ref(null);
+const showManual = ref(false);
 
 const currentLangLabel = computed(() => {
   return currentLocale.value === 'zh' ? '中文' : 'English';

@@ -2702,3 +2702,98 @@ html.light .el-message-box .el-button--primary:hover,
 html.light .el-message-box .el-button--primary:focus {
   color: #ffffff !important;
 }
+/* ============================================
+   操作手册 UserManualPanel 浅色主题适配
+   ============================================ */
+html.light .manual-container {
+  background: var(--md-sys-color-surface) !important;
+}
+html.light .manual-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+html.light .manual-header h2 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .close-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+html.light .close-btn:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .manual-sidebar {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-right-color: var(--md-sys-color-outline-variant) !important;
+}
+html.light .sidebar-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+html.light .sidebar-header h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .nav-item {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+html.light .nav-item:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+html.light .nav-item.active {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+html.light .nav-subitem {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+html.light .nav-subitem:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .nav-subitem.active {
+  color: var(--md-sys-color-primary) !important;
+}
+html.light .manual-content {
+  color: var(--md-sys-color-on-surface) !important;
+  background: var(--md-sys-color-surface) !important;
+}
+html.light .content-section h2 {
+  color: var(--md-sys-color-on-surface) !important;
+  border-bottom-color: var(--md-sys-color-primary) !important;
+}
+html.light .content-section h3 {
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .content-section p,
+html.light .content-section li {
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .content-section code {
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-primary) !important;
+}
+html.light .faq-item {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border-left-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .operation-table th,
+html.light .operation-table td {
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+html.light .operation-table th {
+  background: var(--md-sys-color-surface-container-low) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .operation-table td {
+  color: var(--md-sys-color-on-surface) !important;
+}
+html.light .operation-table tr:hover {
+  background: var(--md-sys-color-surface-container-high) !important;
+}
+html.light .manual-nav::-webkit-scrollbar-thumb,
+html.light .manual-content::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+html.light .manual-nav::-webkit-scrollbar-thumb:hover,
+html.light .manual-content::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline) !important;
+}
