@@ -163,9 +163,16 @@ const panoramaRoll = ref(0); // 全景图滚转角度
 // 获取文件 URL
 const fileUrl = computed(() => {
   if (!props.document) return '';
-  let url = `${API_BASE}${props.document.file_path}`;
+  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
+  const filePath = props.document.file_path || props.document.filePath;
+  if (!filePath) {
+    console.error('文档对象缺少file_path/filePath字段:', props.document);
+    return '';
+  }
+  let url = `${API_BASE}${filePath}`;
   // 对于 PDF，添加参数隐藏浏览器 PDF 查看器的侧边栏
-  if (props.document?.file_type?.toLowerCase() === 'pdf') {
+  const docFileType = (props.document.file_type || props.document.fileType || '').toLowerCase();
+  if (docFileType === 'pdf') {
     url += '#toolbar=1&navpanes=0&scrollbar=1';
   }
   return url;
@@ -173,7 +180,8 @@ const fileUrl = computed(() => {
 
 // 文件类型判断
 const fileType = computed(() => {
-  return props.document?.file_type?.toLowerCase() || '';
+  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
+  return (props.document?.file_type || props.document?.fileType || '').toLowerCase();
 });
 
 const isPdf = computed(() => fileType.value === 'pdf');
@@ -183,8 +191,9 @@ const isVideo = computed(() => ['mp4', 'webm', 'ogg'].includes(fileType.value));
 // 判断是否是全景图（长宽比接近 2:1）
 const isPanorama = computed(() => {
   if (!['jpg', 'jpeg', 'png'].includes(fileType.value)) return false;
-  const width = props.document?.image_width;
-  const height = props.document?.image_height;
+  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
+  const width = props.document?.image_width || props.document?.imageWidth;
+  const height = props.document?.image_height || props.document?.imageHeight;
   if (!width || !height || height === 0) return false;
   const ratio = width / height;
   return ratio >= 1.9 && ratio <= 2.1;
