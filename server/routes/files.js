@@ -633,8 +633,31 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
             // force=true，删除已有知识库
             console.log(`🗑️ 强制删除已有知识库: ${kbId}`);
             try {
-                await deleteKnowledgeBase(kbId);
-                console.log(`✅ 知识库删除成功: ${kbId}`);
+                // 先检查Open WebUI中是否存在该知识库
+                const { getKnowledgeBase, deleteKnowledgeBase } = await import('../services/openwebui-service.js');
+                let kbExists = true;
+
+                try {
+                    await getKnowledgeBase(kbId);
+                    console.log(`✅ 在Open WebUI中找到知识库: ${kbId}`);
+                } catch (checkError) {
+                    // 404错误表示知识库不存在（可能被用户手动删除）
+                    if (checkError.message && checkError.message.includes('404')) {
+                        console.log(`⚠️ 知识库在Open WebUI中不存在，可能已被手动删除: ${kbId}`);
+                        kbExists = false;
+                    } else {
+                        // 其他错误（网络问题等）抛出
+                        throw checkError;
+                    }
+                }
+
+                // 只有当知识库存在时才尝试删除
+                if (kbExists) {
+                    await deleteKnowledgeBase(kbId);
+                    console.log(`✅ 知识库删除成功: ${kbId}`);
+                } else {
+                    console.log(`⏭️ 跳过删除不存在的知识库，直接清理数据库记录`);
+                }
 
                 // 删除数据库映射记录（knowledge_bases表）
                 await getDbPool().query(
