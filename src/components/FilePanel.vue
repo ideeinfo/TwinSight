@@ -164,6 +164,14 @@
           </svg>
           {{ t('filePanel.createKB') }}
         </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleSyncDocs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          {{ t('filePanel.syncKB') }}
+        </div>
         <div v-if="authStore.hasPermission('influx:read')" class="context-menu-item" @click="handleInfluxConfig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -761,6 +769,34 @@ const recreateKnowledgeBase = async (file) => {
   } catch (error) {
     console.error('重建知识库错误:', error);
     await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
+  }
+};
+
+// 同步文档到知识库
+const handleSyncDocs = async () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/sync-docs`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      await showAlert(data.error || t('filePanel.syncKBFailed'));
+      return;
+    }
+
+    if (data.success) {
+      await showAlert(data.message);
+      await loadFiles();
+    }
+  } catch (error) {
+    console.error('同步文档错误:', error);
+    await showAlert(t('filePanel.syncKBFailed') + ': ' + error.message);
   }
 };
 

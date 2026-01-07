@@ -681,4 +681,79 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
     }
 });
 
+/**
+ * 手动同步文档到知识库
+ * POST /api/files/:id/sync-docs
+ */
+router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
+    try {
+        const file = await modelFileModel.getModelFileById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        // 检查是否已有知识库
+        const kbResult = await getDbPool().query(
+            'SELECT id, openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
+            [file.id]
+        );
+
+        if (kbResult.rows.length === 0 || !kbResult.rows[0].openwebui_kb_id) {
+            return res.status(400).json({
+                success: false,
+                error: '该模型尚未创建知识库，请先创建知识库'
+            });
+        }
+
+        const kb = kbResult.rows[0];
+        console.log(`📝 开始同步模型 ${file.id} 的文档到知识库 ${kb.openwebui_kb_id}...`);
+
+        // 查询未同步的文档
+        const docsResult = await getDbPool().query(`
+            SELECT DISTINCT d.id, d.title, d.file_path as path, d.file_type
+            FROM documents d
+            LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $1
+            LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $1
+            LEFT JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $1
+            LEFT JOIN kb_documents kd ON kd.document_id = d.id AND kd.kb_id = $2
+            WHERE (a.file_id = $1 OR s.file_id = $1 OR sp.file_id = $1)
+              AND d.file_path IS NOT NULL
+              AND (kd.id IS NULL OR kd.sync_status != 'synced')
+            ORDER BY d.created_at DESC
+        `, [file.id, kb.id]);
+
+        const documents = docsResult.rows;
+        console.log(`📄 找到 ${documents.length} 个待同步文档`);
+
+        if (documents.length === 0) {
+            return res.json({
+                success: true,
+                data: { total: 0, synced: 0, failed: 0, skipped: 0 },
+                message: '没有需要同步的文档'
+            });
+        }
+
+        // 调用同步函数
+        const { syncDocumentsToKB } = await import('../services/openwebui-service.js');
+        const syncResult = await syncDocumentsToKB(kb.id, documents);
+
+        console.log(`✅ 同步完成: 成功 ${syncResult.success}, 失败 ${syncResult.failed}`);
+
+        res.json({
+            success: true,
+            data: {
+                total: documents.length,
+                synced: syncResult.success,
+                failed: syncResult.failed,
+                skipped: 0
+            },
+            message: `成功同步 ${syncResult.success} 个文档${syncResult.failed > 0 ? `，${syncResult.failed} 个失败` : ''}`
+        });
+
+    } catch (error) {
+        console.error('同步文档失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;

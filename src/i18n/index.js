@@ -306,7 +306,9 @@ const messages = {
       confirmRecreateKB: '确认删除并重建',
       kbCreateSuccess: '知识库创建成功',
       kbRecreateSuccess: '知识库已重建',
-      kbCreateFailed: '知识库创建失败'
+      kbCreateFailed: '知识库创建失败',
+      syncKB: '同步知识库',
+      syncKBFailed: '同步失败'
     },
     influxConfig: {
       title: '时序数据库配置',
@@ -734,7 +736,9 @@ const messages = {
       confirmRecreateKB: 'Confirm Delete & Recreate',
       kbCreateSuccess: 'Knowledge base created successfully',
       kbRecreateSuccess: 'Knowledge base recreated successfully',
-      kbCreateFailed: 'Failed to create knowledge base'
+      kbCreateFailed: 'Failed to create knowledge base',
+      syncKB: 'Sync Knowledge Base',
+      syncKBFailed: 'Sync failed'
     },
     influxConfig: {
       title: 'Time Series Database Configuration',
