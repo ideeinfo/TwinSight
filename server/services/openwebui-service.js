@@ -355,15 +355,22 @@ export async function syncDocumentsToKB(kbId, documents) {
     let failed = 0;
     const results = [];
 
+    // 导入配置以获取数据路径
+    const config = await import('../config/index.js');
+    const dataPath = config.default.upload.dataPath;
+
     for (const doc of documents) {
         try {
-            if (!isSupportedFormat(doc.path)) {
-                console.log(`⏭️ 跳过不支持的格式: ${path.basename(doc.path)}`);
+            // 拼接完整文件路径
+            const fullPath = path.join(dataPath, doc.path);
+
+            if (!isSupportedFormat(fullPath)) {
+                console.log(`⏭️ 跳过不支持的格式: ${path.basename(fullPath)}`);
                 results.push({ id: doc.id, status: 'skipped', reason: 'unsupported_format' });
                 continue;
             }
 
-            const result = await uploadDocument(kbId, doc.path);
+            const result = await uploadDocument(kbId, fullPath);
             results.push({ id: doc.id, status: 'synced', openwebui_doc_id: result.id });
             success++;
         } catch (error) {
