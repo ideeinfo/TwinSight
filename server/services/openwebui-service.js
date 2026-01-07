@@ -8,6 +8,21 @@ import fs from 'fs';
 import path from 'path';
 // 不再使用 form-data 包，使用 Node.js 原生 FormData
 
+// MIME 类型映射表
+const MIME_TYPES = {
+    '.pdf': 'application/pdf',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.doc': 'application/msword',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xls': 'application/vnd.ms-excel',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.csv': 'text/csv',
+    '.json': 'application/json'
+};
+
 // 动态读取配置（避免 ES Modules 静态导入时环境变量未加载的问题）
 // 每次调用时都从 openwebuiConfig 读取最新值，而不是在模块加载时固定
 const getBaseUrl = () => openwebuiConfig.baseUrl;
@@ -155,7 +170,13 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     // Step 1: 上传文件到 Open WebUI 文件管理系统
     // 使用 Node.js 原生 File API (Node 20+)
     const fileBuffer = fs.readFileSync(filePath);
-    const file = new File([fileBuffer], fileName, { type: 'application/pdf' });
+
+    // 根据文件扩展名获取正确的MIME类型
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+    console.log(`📋 文件MIME类型: ${mimeType}`);
+
+    const file = new File([fileBuffer], fileName, { type: mimeType });
 
     const formData = new FormData();
     formData.append('file', file);
@@ -175,7 +196,11 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
         console.error(`❌ 文件上传失败 [${uploadResponse.status}]:`, errorText);
-        throw new Error(`文件上传失败: HTTP ${uploadResponse.status}`);
+        console.error(`   文件名: ${fileName}`);
+        console.error(`   文件路径: ${filePath}`);
+        console.error(`   MIME类型: ${mimeType}`);
+        console.error(`   文件大小: ${fileBuffer.length} bytes`);
+        throw new Error(`文件上传失败: HTTP ${uploadResponse.status}: ${errorText}`);
     }
 
     const uploadResult = await uploadResponse.json();

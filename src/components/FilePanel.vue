@@ -157,6 +157,13 @@
           </svg>
           {{ t('filePanel.extractData') }}
         </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleCreateKB">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          {{ t('filePanel.createKB') }}
+        </div>
         <div v-if="authStore.hasPermission('influx:read')" class="context-menu-item" @click="handleInfluxConfig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -692,6 +699,69 @@ const handlePanoCompare = () => {
   // 在新标签页打开全景比对视图
   const url = `/viewer?mode=pano-compare&fileId=${file.id}`;
   window.open(url, '_blank');
+};
+
+// 创建知识库
+const handleCreateKB = async () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+
+  try {
+    // 第一次调用，不带force参数
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    // 检查是否返回409冲突（已有知识库）
+    if (response.status === 409 && data.code === 'KB_EXISTS') {
+      // 显示确认对话框
+      const confirmed = await showDialog({
+        type: 'confirm',
+        title: t('filePanel.createKB'),
+        message: `该模型已关联知识库 "${data.data.kbName}"。\n\n删除现有知识库将丢失所有已上传的文件，是否继续？`,
+        danger: true,
+        confirmText: t('filePanel.confirmRecreateKB')
+      });
+
+      if (confirmed) {
+        // 用户确认，带force=true重新调用
+        await recreateKnowledgeBase(file);
+      }
+    } else if (data.success) {
+      await showAlert(t('filePanel.kbCreateSuccess'));
+      await loadFiles();
+    } else {
+      await showAlert(data.error || t('filePanel.kbCreateFailed'));
+    }
+  } catch (error) {
+    console.error('创建知识库错误:', error);
+    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
+  }
+};
+
+// 重建知识库（force=true）
+const recreateKnowledgeBase = async (file) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb?force=true`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await showAlert(t('filePanel.kbRecreateSuccess'));
+      await loadFiles();
+    } else {
+      await showAlert(data.error || t('filePanel.kbCreateFailed'));
+    }
+  } catch (error) {
+    console.error('重建知识库错误:', error);
+    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
+  }
 };
 
 onMounted(() => {

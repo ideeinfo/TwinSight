@@ -52,7 +52,7 @@ async function createKnowledgeBaseForModel(modelFile) {
     }
 
     try {
-        const kbName = `Twinsight-${modelFile.title}`;
+        const kbName = `TwinSight-${modelFile.title}`;
         const kbDescription = `知识库关联模型文件: ${modelFile.title} (${modelFile.original_name})`;
 
         console.log(`📚 为模型 ${modelFile.title} 创建知识库...`);
@@ -589,6 +589,94 @@ router.get('/:id/spaces', authenticate, authorize(PERMISSIONS.MODEL_READ), async
         res.json({ success: true, data: spaces });
     } catch (error) {
         console.error('获取空间失败:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 手动创建知识库
+ * POST /api/files/:id/create-kb?force=true
+ */
+router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
+    try {
+        const { force } = req.query;  // 是否强制删除并重建
+
+        const file = await modelFileModel.getModelFileById(req.params.id);
+        if (!file) {
+            return res.status(404).json({ success: false, error: '文件不存在' });
+        }
+
+        // 检查是否已有知识库
+        const existingKb = await getDbPool().query(
+            'SELECT openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
+            [file.id]
+        );
+
+        if (existingKb.rows.length > 0 && existingKb.rows[0].openwebui_kb_id) {
+            const kbId = existingKb.rows[0].openwebui_kb_id;
+            const kbName = existingKb.rows[0].kb_name;
+
+            // 如果已有知识库但未设置force参数，返回提示需要确认
+            if (force !== 'true') {
+                return res.status(409).json({  // 409 Conflict
+                    success: false,
+                    code: 'KB_EXISTS',
+                    error: '该模型已关联知识库',
+                    data: {
+                        kbId: kbId,
+                        kbName: kbName,
+                        message: '删除现有知识库将丢失所有已上传的文件，是否继续？'
+                    }
+                });
+            }
+
+            // force=true，删除已有知识库
+            console.log(`🗑️ 强制删除已有知识库: ${kbId}`);
+            try {
+                await deleteKnowledgeBase(kbId);
+                console.log(`✅ 知识库删除成功: ${kbId}`);
+
+                // 删除数据库映射记录（knowledge_bases表）
+                await getDbPool().query(
+                    'DELETE FROM knowledge_bases WHERE file_id = $1',
+                    [file.id]
+                );
+                console.log(`💾 knowledge_bases表记录已删除`);
+
+                // 级联删除文档同步记录（kb_documents表）
+                const deleteDocsResult = await getDbPool().query(
+                    'DELETE FROM kb_documents WHERE kb_id IN (SELECT id FROM knowledge_bases WHERE openwebui_kb_id = $1)',
+                    [kbId]
+                );
+                console.log(`💾 级联删除 ${deleteDocsResult.rowCount} 条kb_documents记录`);
+
+            } catch (deleteError) {
+                console.error(`❌ 删除知识库失败:`, deleteError);
+                return res.status(500).json({
+                    success: false,
+                    error: `删除现有知识库失败: ${deleteError.message}`
+                });
+            }
+        }
+
+        // 创建新知识库
+        const kb = await createKnowledgeBaseForModel(file);
+
+        if (!kb) {
+            return res.status(500).json({
+                success: false,
+                error: '知识库创建失败，请检查Open WebUI配置'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: kb,
+            message: force === 'true' ? '知识库已重建' : '知识库创建成功'
+        });
+
+    } catch (error) {
+        console.error('手动创建知识库失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -301,7 +301,12 @@ const messages = {
       deleteFailed: '删除失败',
       panoCompare: '全景比对',
       deleteKnowledgeBase: '同时删除 Open WebUI 知识库',
-      deleteKnowledgeBaseHint: '勾选后将同时删除与该模型关联的 AI 知识库'
+      deleteKnowledgeBaseHint: '勾选后将同时删除与该模型关联的 AI 知识库',
+      createKB: '创建知识库',
+      confirmRecreateKB: '确认删除并重建',
+      kbCreateSuccess: '知识库创建成功',
+      kbRecreateSuccess: '知识库已重建',
+      kbCreateFailed: '知识库创建失败'
     },
     influxConfig: {
       title: '时序数据库配置',
@@ -724,7 +729,12 @@ const messages = {
       deleteFailed: 'Delete failed',
       panoCompare: 'Pano Compare',
       deleteKnowledgeBase: 'Also delete Open WebUI knowledge base',
-      deleteKnowledgeBaseHint: 'When checked, the AI knowledge base associated with this model will also be deleted'
+      deleteKnowledgeBaseHint: 'When checked, the AI knowledge base associated with this model will also be deleted',
+      createKB: 'Create Knowledge Base',
+      confirmRecreateKB: 'Confirm Delete & Recreate',
+      kbCreateSuccess: 'Knowledge base created successfully',
+      kbRecreateSuccess: 'Knowledge base recreated successfully',
+      kbCreateFailed: 'Failed to create knowledge base'
     },
     influxConfig: {
       title: 'Time Series Database Configuration',
