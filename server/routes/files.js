@@ -740,7 +740,7 @@ router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
 
         // 查询未同步的文档
         const docsResult = await getDbPool().query(`
-            SELECT DISTINCT d.id, d.title, d.file_path as path, d.file_type
+            SELECT DISTINCT d.id, d.title, d.file_path as path, d.file_type, d.created_at
             FROM documents d
             LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $1
             LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $1
