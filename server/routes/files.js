@@ -641,9 +641,16 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
                     await getKnowledgeBase(kbId);
                     console.log(`✅ 在Open WebUI中找到知识库: ${kbId}`);
                 } catch (checkError) {
-                    // 404错误表示知识库不存在（可能被用户手动删除）
-                    if (checkError.message && checkError.message.includes('404')) {
+                    // 检查是否为知识库不存在的错误
+                    // Open WebUI可能返回404或401，但错误消息包含"could not find"
+                    const errorMsg = checkError.message || '';
+                    const isNotFound = errorMsg.includes('404') ||
+                        errorMsg.toLowerCase().includes('could not find') ||
+                        errorMsg.toLowerCase().includes('not found');
+
+                    if (isNotFound) {
                         console.log(`⚠️ 知识库在Open WebUI中不存在，可能已被手动删除: ${kbId}`);
+                        console.log(`   错误详情: ${errorMsg}`);
                         kbExists = false;
                     } else {
                         // 其他错误（网络问题等）抛出
