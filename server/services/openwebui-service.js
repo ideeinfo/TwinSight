@@ -232,8 +232,16 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
 
     const addResult = await addResponse.json();
     console.log(`✅ 文档已添加到知识库`);
+    console.log(`🔍 addResult:`, JSON.stringify(addResult).substring(0, 200));  // 调试日志
 
-    return { id: fileId, ...addResult };
+    // 🔧 修复：确保返回的id是文件ID，而不是知识库ID
+    // addResult可能包含知识库的id，会覆盖fileId
+    return {
+        id: fileId,           // 文件ID (重要！)
+        fileId: fileId,       // 明确的文件ID
+        ...addResult,         // 其他信息
+        id: fileId            // 再次确保id是文件ID，覆盖addResult中可能的id
+    };
 }
 
 /**
