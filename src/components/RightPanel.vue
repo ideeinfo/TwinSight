@@ -228,22 +228,23 @@ const handleFieldChange = async (fieldName, newValue) => {
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     
     if (isAssetMode.value) {
-      // 更新资产数据
-      const assetCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.mcCode];
+      // 定义资产表字段(存储在assets表)
+      const assetFields = ['name', 'level', 'room', 'typeComments'];
+      // 定义规格表字段(存储在asset_specs表)
+      const specFields = ['specName', 'omniClass21Number', 'omniClass21Description', 
+                          'category', 'family', 'type', 'manufacturer', 'address', 'phone'];
       
-      if (!assetCodes || assetCodes.length === 0 || !assetCodes[0]) {
-        console.error('无法获取资产编码');
-        return;
-      }
-      
-      // 根据字段名映射到数据库字段
-      const fieldMapping = {
-        mcCode: 'asset_code',
-        typeComments: 'spec_code',
-        specName: 'spec_name',
+      // 资产表字段映射
+      const assetFieldMapping = {
         name: 'name',
         level: 'floor',
         room: 'room',
+        typeComments: 'spec_code'
+      };
+      
+      // 规格表字段映射
+      const specFieldMapping = {
+        specName: 'spec_name',
         omniClass21Number: 'classification_code',
         omniClass21Description: 'classification_desc',
         category: 'category',
@@ -254,21 +255,72 @@ const handleFieldChange = async (fieldName, newValue) => {
         phone: 'phone'
       };
       
-      const dbField = fieldMapping[fieldName];
-      if (!dbField) {
-        console.error('未知的字段名:', fieldName);
-        return;
-      }
-      
-      // 批量更新所有选中的资产
       let successCount = 0;
       let failCount = 0;
       
-      for (const assetCode of assetCodes) {
+      if (assetFields.includes(fieldName)) {
+        // 更新资产表字段
+        const assetCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.mcCode];
+        
+        if (!assetCodes || assetCodes.length === 0 || !assetCodes[0]) {
+          console.error('无法获取资产编码');
+          return;
+        }
+        
+        const dbField = assetFieldMapping[fieldName];
+        if (!dbField) {
+          console.error('未知的资产字段名:', fieldName);
+          return;
+        }
+        
+        for (const assetCode of assetCodes) {
+          try {
+            console.log(`🔄 正在更新资产: ${assetCode}`);
+            
+            const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
+              method: 'PATCH',
+              headers: getHeaders('application/json'),
+              body: JSON.stringify({
+                [dbField]: newValue
+              })
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: response.statusText }));
+              console.error(`❌ 更新资产 ${assetCode} 失败:`, errorData);
+              failCount++;
+              continue;
+            }
+            
+            await response.json();
+            console.log(`✅ 资产 ${assetCode} 更新成功`);
+            successCount++;
+          } catch (err) {
+            console.error(`❌ 更新资产 ${assetCode} 异常:`, err);
+            failCount++;
+          }
+        }
+      } else if (specFields.includes(fieldName)) {
+        // 更新规格表字段
+        // 获取规格编码 - 使用 typeComments 或 specCode
+        const specCode = localProperties.value.typeComments || localProperties.value.specCode;
+        
+        if (!specCode) {
+          console.error('无法获取规格编码');
+          await showAlert('无法更新: 该资产没有关联的规格编码');
+          return;
+        }
+        
+        const dbField = specFieldMapping[fieldName];
+        if (!dbField) {
+          console.error('未知的规格字段名:', fieldName);
+          return;
+        }
+        
         try {
-          console.log(`🔄 正在更新资产: ${assetCode}`);
+          console.log(`🔄 正在更新规格: ${specCode}, 字段: ${dbField}`);
           
-          const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
+          const response = await fetch(`${API_BASE}/api/assets/specs/${specCode}`, {
             method: 'PATCH',
             headers: getHeaders('application/json'),
             body: JSON.stringify({
@@ -278,18 +330,20 @@ const handleFieldChange = async (fieldName, newValue) => {
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: response.statusText }));
-            console.error(`❌ 更新资产 ${assetCode} 失败:`, errorData);
-            failCount++;
-            continue;
+            console.error(`❌ 更新规格 ${specCode} 失败:`, errorData);
+            failCount = 1;
+          } else {
+            await response.json();
+            console.log(`✅ 规格 ${specCode} 更新成功`);
+            successCount = 1;
           }
-          
-          await response.json();
-          console.log(`✅ 资产 ${assetCode} 更新成功`);
-          successCount++;
         } catch (err) {
-          console.error(`❌ 更新资产 ${assetCode} 异常:`, err);
-          failCount++;
+          console.error(`❌ 更新规格 ${specCode} 异常:`, err);
+          failCount = 1;
         }
+      } else {
+        console.error('未知的字段名:', fieldName);
+        return;
       }
       
       // 更新本地副本

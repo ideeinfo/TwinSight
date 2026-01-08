@@ -182,6 +182,66 @@ router.post('/asset-specs/batch', async (req, res) => {
     }
 });
 
+/**
+ * 更新资产规格
+ * PATCH /api/asset-specs/:code
+ */
+router.patch('/asset-specs/:code', async (req, res) => {
+    try {
+        const code = req.params.code;
+        const updates = req.body;
+
+        // 验证更新字段
+        const allowedFields = [
+            'spec_name', 'classification_code', 'classification_desc',
+            'category', 'family', 'type', 'manufacturer', 'address', 'phone'
+        ];
+
+        const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
+        if (updateFields.length === 0) {
+            return res.status(400).json({ success: false, error: '没有有效的更新字段' });
+        }
+
+        const spec = await assetSpecModel.updateAssetSpec(code, updates);
+        if (!spec) {
+            return res.status(404).json({ success: false, error: '规格不存在' });
+        }
+        res.json({ success: true, message: '规格更新成功', data: spec });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 更新资产规格(兼容路由 - 支持前端 /api/assets/specs/:code 调用)
+ * PATCH /api/assets/specs/:code
+ */
+router.patch('/assets/specs/:code', async (req, res) => {
+    try {
+        const code = req.params.code;
+        const updates = req.body;
+
+        // 验证更新字段
+        const allowedFields = [
+            'spec_name', 'classification_code', 'classification_desc',
+            'category', 'family', 'type', 'manufacturer', 'address', 'phone'
+        ];
+
+        const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
+        if (updateFields.length === 0) {
+            return res.status(400).json({ success: false, error: '没有有效的更新字段' });
+        }
+
+        const spec = await assetSpecModel.updateAssetSpec(code, updates);
+        if (!spec) {
+            return res.status(404).json({ success: false, error: '规格不存在' });
+        }
+        res.json({ success: true, message: '规格更新成功', data: spec });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ========================================
 // 资产 API
 // ========================================

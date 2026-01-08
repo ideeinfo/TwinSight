@@ -141,6 +141,31 @@ router.put('/:code',
 /**
  * @swagger
  * /api/v1/assets/{code}:
+ *   patch:
+ *     summary: 部分更新资产(更新指定字段)
+ *     tags: [Assets]
+ */
+router.patch('/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const asset = await assetModel.updateAsset(req.params.code, req.body);
+            if (!asset) {
+                throw ApiError.notFound('资产不存在');
+            }
+            res.json({ success: true, data: asset });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
+ * /api/v1/assets/{code}:
  *   delete:
  *     summary: 删除资产
  *     tags: [Assets]
@@ -250,4 +275,60 @@ router.get('/specs/:code',
     }
 );
 
+/**
+ * @swagger
+ * /api/v1/assets/specs/{code}:
+ *   patch:
+ *     summary: 部分更新资产规格(更新指定字段)
+ *     tags: [AssetSpecs]
+ */
+router.patch('/specs/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const spec = await assetSpecModel.updateAssetSpec(req.params.code, req.body);
+            if (!spec) {
+                throw ApiError.notFound('资产规格不存在');
+            }
+            res.json({ success: true, data: spec });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
+ * /api/v1/assets/specs/{fileId}/{code}:
+ *   patch:
+ *     summary: 根据文件ID和规格编码更新资产规格
+ *     tags: [AssetSpecs]
+ */
+router.patch('/specs/:fileId/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('fileId').isInt().toInt(),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const spec = await assetSpecModel.updateAssetSpecByFileId(
+                req.params.fileId,
+                req.params.code,
+                req.body
+            );
+            if (!spec) {
+                throw ApiError.notFound('资产规格不存在');
+            }
+            res.json({ success: true, data: spec });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 export default router;
+
