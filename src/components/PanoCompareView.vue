@@ -29,8 +29,15 @@
 
         <!-- 透明度滑块 (仅重叠模式显示) -->
         <div v-if="isOverlayMode" class="opacity-slider">
-          <span>透明度</span>
-          <input v-model.number="panoOpacity" type="range" min="0" max="1" step="0.1" />
+          <span style="flex-shrink: 0;">透明度</span>
+          <el-slider 
+            v-model="panoOpacity" 
+            :min="0" 
+            :max="1" 
+            :step="0.1" 
+            :show-tooltip="false"
+            style="width: 100px; margin-left: 10px;"
+          />
         </div>
 
         <div class="divider"></div>

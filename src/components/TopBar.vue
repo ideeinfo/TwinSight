@@ -13,14 +13,9 @@
     </div>
 
     <div class="center-section">
-      <div class="search-box">
-        <!-- Search Icon -->
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input type="text" :placeholder="searchPlaceholder" />
-      </div>
+    <div class="center-section">
+      <!-- Search bar removed -->
+    </div>
     </div>
 
     <div class="right-section">
@@ -28,60 +23,37 @@
       <span v-if="currentViewName" class="current-view-label">{{ currentViewName }}</span>
 
       <!-- 视图按钮 -->
-      <div class="icon-btn views-btn" :class="{ active: isViewsPanelOpen }" :title="$t('views.title')" @click="$emit('toggle-views')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7" />
-          <rect x="14" y="3" width="7" height="7" />
-          <rect x="14" y="14" width="7" height="7" />
-          <rect x="3" y="14" width="7" height="7" />
-        </svg>
-      </div>
+      <el-button text class="icon-btn-el" :class="{ active: isViewsPanelOpen }" :title="$t('views.title')" @click="$emit('toggle-views')">
+        <el-icon :size="18">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </el-icon>
+      </el-button>
 
-      <!-- 语言切换下拉列表 -->
-      <div ref="langDropdownRef" class="language-dropdown">
-        <div class="lang-trigger" @click="toggleLangDropdown">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+
+      <el-button text class="icon-btn-el">
+        <el-icon :size="18">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        </el-icon>
+      </el-button>
+
+      <el-button text class="icon-btn-el" :title="$t('userManual.title')" @click="showManual = true">
+        <el-icon :size="18">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span>{{ currentLangLabel }}</span>
-          <svg class="arrow" :class="{ rotated: isLangDropdownOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
-        <transition name="fade">
-          <div v-if="isLangDropdownOpen" class="lang-menu">
-            <div class="lang-menu-item" :class="{ active: currentLocale === 'zh' }" @click="switchLanguage('zh')">
-              中文
-              <svg v-if="currentLocale === 'zh'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <div class="lang-menu-item" :class="{ active: currentLocale === 'en' }" @click="switchLanguage('en')">
-              English
-              <svg v-if="currentLocale === 'en'" class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-          </div>
-        </transition>
-      </div>
-
-      <div class="icon-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-      </div>
-
-      <div class="icon-btn" :title="$t('userManual.title')" @click="showManual = true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      </div>
+        </el-icon>
+      </el-button>
 
       <!-- 用户头像下拉菜单 -->
       <UserDropdown />
@@ -97,6 +69,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useThemeStore } from '../stores/theme';
+
 import UserDropdown from './UserDropdown.vue';
 import UserManualPanel from './UserManualPanel.vue';
 
@@ -109,69 +82,35 @@ const props = defineProps({
 
 // 计算属性：显示名称（优先使用激活文件名，否则使用默认名称）
 const displayName = computed(() => props.activeFileName || '乐龄汇');
-const searchPlaceholder = computed(() => `Search ${displayName.value}`);
 
 // 定义事件
 defineEmits(['open-data-export', 'toggle-views']);
 
-const { locale } = useI18n();
 const router = useRouter();
 const themeStore = useThemeStore();
-const currentLocale = computed(() => locale.value);
 const isDarkTheme = computed(() => themeStore.isDark);
-const isLangDropdownOpen = ref(false);
-const langDropdownRef = ref(null);
 const showManual = ref(false);
-
-const currentLangLabel = computed(() => {
-  return currentLocale.value === 'zh' ? '中文' : 'English';
-});
-
-const toggleLangDropdown = () => {
-  isLangDropdownOpen.value = !isLangDropdownOpen.value;
-};
 
 const toggleTheme = () => {
   themeStore.toggleTheme();
-};
-
-const switchLanguage = (lang) => {
-  locale.value = lang;
-  localStorage.setItem('language', lang);
-  isLangDropdownOpen.value = false;
 };
 
 // 返回首页
 const goToHome = () => {
   router.push('/');
 };
-
-// 点击外部关闭下拉菜单
-const handleClickOutside = (event) => {
-  if (langDropdownRef.value && !langDropdownRef.value.contains(event.target)) {
-    isLangDropdownOpen.value = false;
-  }
-};
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
-});
 </script>
 
 <style scoped>
 .top-bar {
   height: 48px;
-  background-color: #2b2b2b;
+  background-color: var(--md-sys-color-surface-container);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  border-bottom: 1px solid #111;
-  color: #ccc;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
   flex-shrink: 0;
   user-select: none;
 }
@@ -199,86 +138,42 @@ onUnmounted(() => {
 .divider {
   width: 1px;
   height: 16px;
-  background: #555;
+  background: var(--md-sys-color-outline-variant);
   margin: 0 12px;
 }
 
 .app-name {
   font-size: 14px;
-  color: #ddd;
+  color: var(--md-sys-color-on-surface);
   font-weight: 500;
 }
 
-.search-box {
-  background: #1f1f1f;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  width: 400px;
-  padding: 0 8px;
+
+
+/* Custom styles for Element Plus components */
+.icon-btn-el {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
-.search-box:hover {
-  border-color: #666;
+.icon-btn-el:hover {
+  color: var(--md-sys-color-primary);
+  background-color: var(--md-sys-color-surface-container-high);
 }
 
-.search-icon {
-  color: #888;
-  margin-right: 8px;
-  flex-shrink: 0;
-}
-
-.search-box input {
-  background: transparent;
-  border: none;
-  color: #fff;
-  width: 100%;
-  outline: none;
-  font-size: 12px;
-}
-
-.nav-text {
-  font-size: 12px;
-  margin-right: 16px;
-  cursor: pointer;
-}
-
-.nav-text:hover {
-  color: #fff;
-}
-
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #ccc;
-}
-
-.icon-btn:hover {
-  background: #3e3e42;
-  border-radius: 2px;
+.icon-btn-el.active {
+  color: var(--md-sys-color-primary);
+  background-color: var(--md-sys-color-primary-container);
 }
 
 
-
-.views-btn.active {
-  background: #38ABDF;
-  color: #fff;
-  border-radius: 4px;
-}
-
-.views-btn.active:hover {
-  background: #2D9ACC;
-}
 
 .current-view-label {
   font-size: 12px;
-  color: #38ABDF;
+  color: var(--md-sys-color-primary);
   margin-right: 8px;
   max-width: 150px;
   overflow: hidden;
@@ -287,8 +182,8 @@ onUnmounted(() => {
 }
 
 .user-avatar {
-  background: #99c7fb;
-  color: #000;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -303,85 +198,5 @@ onUnmounted(() => {
 
 
 
-/* 语言切换下拉列表样式 */
-.language-dropdown {
-  position: relative;
-  /* gap 已在 right-section 中定义 */
-}
 
-.lang-trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #1f1f1f;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 4px 10px;
-  height: 28px;
-  font-size: 12px;
-  color: #ccc;
-  cursor: pointer;
-  transition: all 0.2s;
-  user-select: none;
-}
-
-.lang-trigger:hover {
-  background: #3e3e42;
-  border-color: #666;
-  color: #fff;
-}
-
-.lang-trigger .arrow {
-  transition: transform 0.2s;
-}
-
-.lang-trigger .arrow.rotated {
-  transform: rotate(180deg);
-}
-
-.lang-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 120px;
-  background: #2b2b2b;
-  border: 1px solid #444;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-  padding: 4px 0;
-  z-index: 1000;
-}
-
-.lang-menu-item {
-  padding: 6px 12px;
-  font-size: 12px;
-  color: #ccc;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: all 0.2s;
-}
-
-.lang-menu-item:hover {
-  background: #3e3e42;
-  color: #fff;
-}
-
-.lang-menu-item.active {
-  color: #0078d4;
-  font-weight: 500;
-}
-
-.lang-menu-item .check-icon {
-  color: #0078d4;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
 </style>

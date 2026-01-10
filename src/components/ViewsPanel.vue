@@ -6,66 +6,78 @@
         <span class="current-view-name">{{ currentViewName || $t('views.noViewSelected') }}</span>
       </div>
       <div class="header-actions">
-        <button class="btn-save" :title="currentViewName ? $t('views.saveCurrentView') : $t('views.save')" @click="saveView">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-            <polyline points="17 21 17 13 7 13 7 21" />
-            <polyline points="7 3 7 8 15 8" />
-          </svg>
+        <el-button @click="saveView" :title="currentViewName ? $t('views.saveCurrentView') : $t('views.save')">
+          <template #icon>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+          </template>
           {{ $t('views.save') }}
-        </button>
-        <button class="btn-save-as" @click="showSaveAsDialog">
-          + {{ $t('views.saveAs') }}
-        </button>
+        </el-button>
+        <el-button @click="showSaveAsDialog">
+          <template #icon>
+            <el-icon><Plus /></el-icon>
+          </template>
+          {{ $t('views.saveAs') }}
+        </el-button>
       </div>
-      <button class="btn-close" @click="$emit('close')">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      <el-button link @click="$emit('close')">
+        <el-icon size="18"><Close /></el-icon>
+      </el-button>
     </div>
 
     <!-- Tab bar -->
     <div class="tab-bar">
-      <button class="tab-btn" :class="{ active: displayMode === 'list' }" :title="$t('views.listMode')" @click="displayMode = 'list'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6" />
-          <line x1="8" y1="12" x2="21" y2="12" />
-          <line x1="8" y1="18" x2="21" y2="18" />
-          <line x1="3" y1="6" x2="3.01" y2="6" />
-          <line x1="3" y1="12" x2="3.01" y2="12" />
-          <line x1="3" y1="18" x2="3.01" y2="18" />
-        </svg>
-      </button>
-      <button class="tab-btn" :class="{ active: displayMode === 'gallery' }" :title="$t('views.galleryMode')" @click="displayMode = 'gallery'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7" />
-          <rect x="14" y="3" width="7" height="7" />
-          <rect x="14" y="14" width="7" height="7" />
-          <rect x="3" y="14" width="7" height="7" />
-        </svg>
-      </button>
+      <el-button-group>
+        <el-button :type="displayMode === 'list' ? 'primary' : ''" size="small" :title="$t('views.listMode')" @click="displayMode = 'list'">
+          <template #icon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="8" y1="6" x2="21" y2="6" />
+              <line x1="8" y1="12" x2="21" y2="12" />
+              <line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" />
+              <line x1="3" y1="12" x2="3.01" y2="12" />
+              <line x1="3" y1="18" x2="3.01" y2="18" />
+            </svg>
+          </template>
+        </el-button>
+        <el-button :type="displayMode === 'gallery' ? 'primary' : ''" size="small" :title="$t('views.galleryMode')" @click="displayMode = 'gallery'">
+          <template #icon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+          </template>
+        </el-button>
+      </el-button-group>
     </div>
 
     <!-- Search and sort -->
     <div class="search-bar">
-      <div class="search-input-wrapper">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
-        </svg>
-        <input v-model="searchTerm" type="text" :placeholder="$t('views.searchPlaceholder')" @input="debouncedSearch" />
-      </div>
-      <button class="btn-sort" :title="$t('views.sort')" @click="toggleSort">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m3 16 4 4 4-4" />
-          <path d="M7 20V4" />
-          <path d="m21 8-4-4-4 4" />
-          <path d="M17 4v16" />
-        </svg>
+      <el-input
+        v-model="searchTerm"
+        :placeholder="$t('views.searchPlaceholder')"
+        :prefix-icon="Search"
+        size="small"
+        clearable
+        @input="debouncedSearch"
+        style="flex: 1"
+      />
+      <el-button class="btn-sort" size="small" :title="$t('views.sort')" @click="toggleSort">
+        <template #icon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m3 16 4 4 4-4" />
+            <path d="M7 20V4" />
+            <path d="m21 8-4-4-4 4" />
+            <path d="M17 4v16" />
+          </svg>
+        </template>
         {{ sortOrder === 'asc' ? 'A-Z' : 'Z-A' }}
-      </button>
+      </el-button>
     </div>
 
     <!-- Views content -->
@@ -102,13 +114,9 @@
           </div>
           <div class="card-info">
             <span class="card-name">{{ view.name }}</span>
-            <button class="btn-menu" @click.stop="showViewMenu(view, $event)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="12" cy="5" r="1" />
-                <circle cx="12" cy="19" r="1" />
-              </svg>
-            </button>
+            <el-button class="btn-menu" link @click.stop="showViewMenu(view, $event)">
+              <el-icon><MoreFilled /></el-icon>
+            </el-button>
           </div>
         </div>
       </div>
@@ -122,13 +130,9 @@
             </svg>
             <span class="item-name">{{ view.name }}</span>
           </div>
-          <button class="btn-menu" @click.stop="showViewMenu(view, $event)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="12" cy="5" r="1" />
-              <circle cx="12" cy="19" r="1" />
-            </svg>
-          </button>
+          <el-button class="btn-menu" link @click.stop="showViewMenu(view, $event)">
+            <el-icon><MoreFilled /></el-icon>
+          </el-button>
         </div>
       </div>
     </div>
@@ -151,6 +155,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
+import { Close, Plus, Search, MoreFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
@@ -587,19 +592,20 @@ onUnmounted(() => {
   right: 0;
   width: 419px;
   max-height: calc(100vh - 48px);
-  background: #1e1e1e;
-  border-left: 1px solid #444;
+  background: var(--md-sys-color-surface-container);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
   display: flex;
   flex-direction: column;
   z-index: 150;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.6), -2px 0 8px rgba(0, 0, 0, 0.4);
+  color: var(--md-sys-color-on-surface);
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   gap: 12px;
 }
 
@@ -613,13 +619,13 @@ onUnmounted(() => {
 .panel-header h3 {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--md-sys-color-on-surface);
   margin: 0;
 }
 
 .current-view-name {
   font-size: 11px;
-  color: #38ABDF;
+  color: var(--md-sys-color-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -632,137 +638,22 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.btn-save, .btn-save-as {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: 11px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-save {
-  background: #38ABDF;
-  border: none;
-  color: #fff;
-  font-weight: 500;
-}
-
-.btn-save:hover {
-  background: #2D9ACC;
-}
-
-.btn-save-as {
-  background: transparent;
-  border: 1px solid #38ABDF;
-  color: #38ABDF;
-}
-
-.btn-save-as:hover {
-  background: rgba(77, 208, 225, 0.1);
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.btn-close:hover {
-  color: #fff;
-}
-
 .tab-bar {
   display: flex;
   gap: 4px;
   padding: 8px 16px;
-  border-bottom: 1px solid #333;
-}
-
-.tab-btn {
-  background: transparent;
-  border: none;
-  color: #888;
-  padding: 6px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.tab-btn:hover {
-  background: #3e3e42;
-  color: #fff;
-}
-
-.tab-btn.active {
-  background: #38ABDF;
-  color: #fff;
-}
-
-.tab-btn.active:hover {
-  background: #2D9ACC;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .search-bar {
   display: flex;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid #333;
-}
-
-.search-input-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #2d2d2d;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 0 8px;
-}
-
-.search-input-wrapper svg {
-  color: #888;
-  flex-shrink: 0;
-}
-
-.search-input-wrapper input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 12px;
-  padding: 6px 0;
-  outline: none;
-}
-
-.search-input-wrapper input::placeholder {
-  color: #666;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .btn-sort {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: 1px solid #3e3e42;
-  color: #888;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.btn-sort:hover {
-  border-color: #555;
-  color: #fff;
+  /* Utility class for sort button layout if needed, colors handled by el-button */
 }
 
 .views-content {
@@ -798,8 +689,8 @@ onUnmounted(() => {
   width: 125px;
   min-width: 125px;
   max-width: 125px;
-  background: #252526;
-  border: 1px solid #3e3e42;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
@@ -807,20 +698,21 @@ onUnmounted(() => {
 }
 
 .view-card:hover {
-  border-color: #555;
+  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .view-card.active {
-  border-color: #38ABDF;
-  box-shadow: 0 0 0 1px #38ABDF;
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
 }
 
 .card-thumbnail {
   aspect-ratio: 4/3;
-  background: #1a1a1a;
+  background: var(--md-sys-color-surface-container-high);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 }
 
 .card-thumbnail img {
@@ -830,12 +722,7 @@ onUnmounted(() => {
 }
 
 .no-thumbnail {
-  color: #444;
-}
-
-/* Default view badge - Home icon overlay */
-.card-thumbnail {
-  position: relative;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .default-view-badge {
@@ -844,7 +731,7 @@ onUnmounted(() => {
   right: 6px;
   width: 28px;
   height: 28px;
-  background: rgba(56, 171, 223, 0.85);
+  background: rgba(56, 171, 223, 0.85); /* Consider tokenizing or keep brand color */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -858,7 +745,6 @@ onUnmounted(() => {
   height: 16px;
 }
 
-/* List mode default icon */
 .item-name-wrapper {
   display: flex;
   align-items: center;
@@ -868,7 +754,7 @@ onUnmounted(() => {
 }
 
 .default-icon {
-  color: #38ABDF;
+  color: var(--md-sys-color-primary);
   flex-shrink: 0;
 }
 
@@ -877,12 +763,12 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 6px 8px;
-  background: #252526;
+  background: var(--md-sys-color-surface-container-low);
 }
 
 .card-name {
   font-size: 11px;
-  color: #ccc;
+  color: var(--md-sys-color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -890,22 +776,7 @@ onUnmounted(() => {
 }
 
 .btn-menu {
-  background: none;
-  border: none;
-  color: #888;
-  padding: 2px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.view-card:hover .btn-menu,
-.view-item:hover .btn-menu {
-  opacity: 1;
-}
-
-.btn-menu:hover {
-  color: #fff;
+  /* No styles needed for el-button link */
 }
 
 /* List mode */
@@ -920,7 +791,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #252526;
+  background: var(--md-sys-color-surface-container-low);
   border: 1px solid transparent;
   border-radius: 4px;
   cursor: pointer;
@@ -928,23 +799,24 @@ onUnmounted(() => {
 }
 
 .view-item:hover {
-  background: #2d2d2d;
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .view-item.active {
-  border-color: #38ABDF;
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .item-name {
   font-size: 12px;
-  color: #ccc;
+  color: var(--md-sys-color-on-surface);
 }
 
-/* Context menu */
+/* Context menu - Consider replacing with el-dropdown or keep using theme tokens */
 .context-menu {
   position: fixed;
-  background: #2d2d2d;
-  border: 1px solid #3e3e42;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 4px;
   padding: 4px 0;
   min-width: 120px;
@@ -955,151 +827,23 @@ onUnmounted(() => {
 .menu-item {
   padding: 8px 12px;
   font-size: 12px;
-  color: #ccc;
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
 }
 
 .menu-item:hover {
-  background: #3e3e42;
-  color: #fff;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
 }
 
 .menu-item.danger {
-  color: #f44336;
+  color: var(--md-sys-color-error);
 }
 
 .menu-item.danger:hover {
-  background: #f44336;
-  color: #fff;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
 }
 
-/* Dialog */
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 300;
-}
-
-.dialog {
-  background: #2d2d2d;
-  border: 1px solid #3e3e42;
-  border-radius: 6px;
-  width: 300px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #3e3e42;
-}
-
-.dialog-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: #fff;
-}
-
-.btn-close-dialog {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.btn-close-dialog:hover {
-  color: #fff;
-}
-
-.dialog-body {
-  padding: 16px;
-}
-
-.dialog-body input {
-  width: 100%;
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #fff;
-  outline: none;
-}
-
-.dialog-body input:focus {
-  border-color: #38ABDF;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid #3e3e42;
-}
-
-.btn-cancel, .btn-confirm {
-  padding: 6px 16px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn-cancel {
-  background: transparent;
-  border: 1px solid #3e3e42;
-  color: #ccc;
-}
-
-.btn-cancel:hover {
-  border-color: #555;
-  color: #fff;
-}
-
-.btn-confirm {
-  background: #38ABDF;
-  border: none;
-  color: #fff;
-  font-weight: 500;
-}
-
-.btn-confirm:hover {
-  background: #26C6DA;
-}
-
-.btn-confirm:disabled {
-  background: #3e3e42;
-  color: #666;
-  cursor: not-allowed;
-}
-
-.btn-confirm.btn-danger {
-  background: #dc3545;
-}
-
-.btn-confirm.btn-danger:hover {
-  background: #c82333;
-}
-
-.delete-message {
-  color: #ccc;
-  font-size: 13px;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.delete-dialog {
-  min-width: 280px;
-}
+/* Old Dialog Styles Removed */
 </style>

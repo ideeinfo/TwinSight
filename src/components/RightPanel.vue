@@ -492,23 +492,23 @@ const breadcrumbText = computed(() => {
 </script>
 
 <style scoped>
-.right-panel { width: 100%; height: 100%; background: #252526; border-left: 1px solid #1e1e1e; display: flex; flex-direction: column; font-size: 11px; color: #ccc; user-select: none; }
-.header-row { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-weight: 600; flex-shrink: 0; color: #eee; }
-.header-icons { display: flex; gap: 12px; } .icon-btn { cursor: pointer; color: #ccc; } .icon-btn:hover { color: #fff; } .close-icon:hover { color: #ff6b6b; }
-.breadcrumb-row { padding: 4px 12px 10px 12px; font-size: 11px; color: #fff; display: flex; align-items: center; border-bottom: 1px solid #333; }
-.breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; }
-.tabs { display: flex; border-bottom: 1px solid #333; height: 32px; flex-shrink: 0; background: #252526; }
-.tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: #888; font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
-.tab:hover { color: #ccc; } .tab.active { color: #38ABDF; border-bottom-color: #38ABDF; }
-.add-action { margin-left: auto; padding-right: 12px; color: #38ABDF; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.right-panel { width: 100%; height: 100%; background: var(--md-sys-color-surface); border-left: 1px solid var(--md-sys-color-outline-variant); display: flex; flex-direction: column; font-size: 11px; color: var(--md-sys-color-on-surface); user-select: none; }
+.header-row { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-weight: 600; flex-shrink: 0; color: var(--md-sys-color-on-surface); }
+.header-icons { display: flex; gap: 12px; } .icon-btn { cursor: pointer; color: var(--icon-btn-color); } .icon-btn:hover { color: var(--icon-btn-hover-color); } .close-icon:hover { color: var(--color-error, #ff6b6b); }
+.breadcrumb-row { padding: 4px 12px 10px 12px; font-size: 11px; color: var(--md-sys-color-on-surface); display: flex; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; stroke: var(--md-sys-color-secondary); }
+.tabs { display: flex; border-bottom: 1px solid var(--md-sys-color-outline-variant); height: 32px; flex-shrink: 0; background: var(--md-sys-color-surface-container-low); }
+.tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: var(--md-sys-color-on-surface-variant); font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
+.tab:hover { color: var(--md-sys-color-on-surface); } .tab.active { color: var(--md-sys-color-primary); border-bottom-color: var(--md-sys-color-primary); }
+.add-action { margin-left: auto; padding-right: 12px; color: var(--md-sys-color-primary); display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .scroll-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
-.group-header { background: #2d2d2d; padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; border-top: 1px solid #333; margin-top: -1px; cursor: pointer; color: #fff; }
-.group-header:hover { background: #333; }
+.group-header { background: var(--md-sys-color-surface-container); padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); border-top: 1px solid var(--md-sys-color-outline-variant); margin-top: -1px; cursor: pointer; color: var(--md-sys-color-on-surface); }
+.group-header:hover { background: var(--md-sys-color-surface-container-high); }
 .arrow-icon { transition: transform 0.2s; } .arrow-icon.rotated { transform: rotate(180deg); }
-.group-body { padding-bottom: 8px; } .form-group { padding: 8px 12px; } .sub-label { color: #fff; font-weight: 600; margin-bottom: 8px; }
-.row { display: flex; align-items: center; margin-bottom: 6px; height: 26px; } .row label { flex: 0 0 70px; color: #999; display: flex; align-items: center; }
-.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid #38ABDF; color: #38ABDF; border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
-.val-box { flex: 1; background: #1e1e1e; border: 1px solid #3e3e42; min-height: 24px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
-.val-box:hover { border-color: #555; } .val-box.placeholder { color: #777; font-style: normal; } .val-box.dropdown { justify-content: space-between; cursor: pointer; } .val-box.multiline { white-space: normal; line-height: 1.2; padding: 4px 8px; height: auto; }
-.link-text { color: #38ABDF; text-decoration: underline; cursor: pointer; }
+.group-body { padding-bottom: 8px; } .form-group { padding: 8px 12px; } .sub-label { color: var(--md-sys-color-on-surface); font-weight: 600; margin-bottom: 8px; }
+.row { display: flex; align-items: center; margin-bottom: 6px; height: 26px; } .row label { flex: 0 0 70px; color: var(--md-sys-color-on-surface-variant); display: flex; align-items: center; }
+.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid var(--md-sys-color-primary); color: var(--md-sys-color-primary); border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
+.val-box { flex: 1; background: var(--input-bg); border: 1px solid var(--input-border); min-height: 24px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; color: var(--input-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
+.val-box:hover { border-color: var(--md-sys-color-outline); } .val-box.placeholder { color: var(--input-placeholder); font-style: normal; } .val-box.dropdown { justify-content: space-between; cursor: pointer; } .val-box.multiline { white-space: normal; line-height: 1.2; padding: 4px 8px; height: auto; }
+.link-text { color: var(--md-sys-color-primary); text-decoration: underline; cursor: pointer; }
 </style>

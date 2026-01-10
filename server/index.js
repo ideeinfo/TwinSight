@@ -23,6 +23,9 @@ import configRoutes from './routes/config.js';
 // 新版 v1 路由
 import v1Router from './routes/v1/index.js';
 
+// 新版 v2 路由 (文档管理模块)
+import v2Router from './routes/v2/index.js';
+
 // 中间件
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
@@ -107,6 +110,11 @@ app.get('/test-ping', (req, res) => {
 // 新版 API v1 路由（推荐使用）
 // ========================================
 app.use('/api/v1', v1Router);
+
+// ========================================
+// 新版 API v2 路由（文档管理模块）
+// ========================================
+app.use('/api/v2', v2Router);
 
 // ========================================
 // 旧版 API 路由（保留兼容，逐步废弃）
