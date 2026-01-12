@@ -306,8 +306,11 @@ const messages = {
       fileSize: '大小',
       createdAt: '创建时间',
       open: '打开',
-      confirmDeleteFolder: '确定要删除文件夹 "{name}" 吗?此操作不可恢复。',
-      createFolder: '新建文件夹'
+      confirmDeleteFolder: '确定要删除文件夹 "{name}" 及其包含的所有文件和子文件夹吗?此操作不可恢复。',
+      createFolder: '新建文件夹',
+      rename: '重命名',
+      name: '名称',
+      renamePlaceholder: '请输入新名称'
     },
     filePanel: {
       files: '文件',
@@ -783,7 +786,10 @@ const messages = {
       createdAt: 'Created',
       open: 'Open',
       confirmDeleteFolder: 'Delete folder "{name}"? This cannot be undone.',
-      createFolder: 'New Folder'
+      createFolder: 'New Folder',
+      rename: 'Rename',
+      name: 'Name',
+      renamePlaceholder: 'Enter new name'
     },
     filePanel: {
       files: 'Files',

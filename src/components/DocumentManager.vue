@@ -125,6 +125,7 @@
                   <el-dropdown-menu>
                     <template v-if="row._isFolder">
                       <el-dropdown-item command="enterFolder"><el-icon><FolderOpened /></el-icon>{{ t('documents.open') }}</el-dropdown-item>
+                      <el-dropdown-item command="rename"><el-icon><Edit /></el-icon>{{ t('documents.rename') }}</el-dropdown-item>
                       <el-dropdown-item command="move"><el-icon><FolderOpened /></el-icon>{{ t('documents.moveTo') }}</el-dropdown-item>
                       <el-dropdown-item divided command="deleteFolder" style="color: var(--el-color-danger)">
                         <el-icon><Delete /></el-icon>{{ t('documents.delete') }}
@@ -133,6 +134,7 @@
                     <template v-else>
                       <el-dropdown-item command="preview"><el-icon><View /></el-icon>{{ t('documents.preview') }}</el-dropdown-item>
                       <el-dropdown-item command="download"><el-icon><Download /></el-icon>{{ t('documents.download') }}</el-dropdown-item>
+                      <el-dropdown-item command="rename"><el-icon><Edit /></el-icon>{{ t('documents.rename') }}</el-dropdown-item>
                       <el-dropdown-item command="move"><el-icon><FolderOpened /></el-icon>{{ t('documents.moveTo') }}</el-dropdown-item>
                       <el-dropdown-item divided command="delete" style="color: var(--el-color-danger)">
                         <el-icon><Delete /></el-icon>{{ t('documents.delete') }}
@@ -165,6 +167,7 @@
                   <el-dropdown-menu>
                     <el-dropdown-item command="preview"><el-icon><View /></el-icon>{{ t('documents.preview') }}</el-dropdown-item>
                     <el-dropdown-item command="download"><el-icon><Download /></el-icon>{{ t('documents.download') }}</el-dropdown-item>
+                    <el-dropdown-item command="rename"><el-icon><Edit /></el-icon>{{ t('documents.rename') }}</el-dropdown-item>
                     <el-dropdown-item command="move"><el-icon><FolderOpened /></el-icon>{{ t('documents.moveTo') }}</el-dropdown-item>
                     <el-dropdown-item divided command="delete" style="color: var(--el-color-danger)">
                       <el-icon><Delete /></el-icon>{{ t('documents.delete') }}
@@ -271,6 +274,23 @@
       </template>
     </el-dialog>
 
+    <!-- 重命名对话框 -->
+    <el-dialog v-model="isRenameDialogOpen" :title="t('documents.rename')" width="400px">
+      <el-form @submit.prevent="confirmRename">
+        <el-form-item :label="t('documents.name')">
+          <el-input 
+            v-model="renameForm.name" 
+            :placeholder="t('documents.renamePlaceholder')" 
+            ref="renameInputRef"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="isRenameDialogOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!renameForm.name" @click="confirmRename">{{ t('common.confirm') }}</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 文档预览 -->
     <DocumentPreview
       :visible="isPreviewOpen"
@@ -288,7 +308,7 @@ import { useThemeStore } from '../stores/theme';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Plus, Folder, FolderOpened, Search, List, Grid, Upload, Download,
-  Delete, View, MoreFilled, Loading, Document, Picture, VideoPlay, Headset
+  Delete, View, MoreFilled, Loading, Document, Picture, VideoPlay, Headset, Edit
 } from '@element-plus/icons-vue';
 import DocumentPreview from './DocumentPreview.vue';
 
@@ -357,6 +377,11 @@ const tableRef = ref(null);
 const moveTargetFolderId = ref(undefined);
 const moveTreeRef = ref(null);
 const itemsToMove = ref([]);
+
+// 重命名
+const isRenameDialogOpen = ref(false);
+const renameForm = ref({ id: null, name: '', type: 'file' });
+const renameInputRef = ref(null);
 
 // ========================================
 // 计算属性
@@ -550,6 +575,7 @@ const handleCommand = (cmd, item) => {
     case 'delete': handleDelete(item); break;
     case 'enterFolder': enterFolder(item); break;
     case 'deleteFolder': handleDeleteFolder(item); break;
+    case 'rename': openRenameDialog(item); break;
   }
 };
 
@@ -570,7 +596,15 @@ const handleDownload = (doc) => {
 
 const handleDelete = async (doc) => {
   try {
-    await ElMessageBox.confirm(t('documents.confirmDelete', { title: doc.title || doc.file_name }), t('common.confirm'));
+    await ElMessageBox.confirm(
+      t('documents.confirmDelete', { title: doc.title || doc.file_name }), 
+      t('common.confirm'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    );
     const res = await fetch(`${API_BASE}/api/v2/documents/${doc.id}`, { method: 'DELETE', headers: getHeaders() });
     const data = await res.json();
     if (data.success) {
@@ -584,7 +618,15 @@ const handleDelete = async (doc) => {
 
 const handleBatchDelete = async () => {
   try {
-    await ElMessageBox.confirm(t('documents.confirmBatchDelete', { count: selectedIds.value.length }), t('common.confirm'));
+    await ElMessageBox.confirm(
+      t('documents.confirmBatchDelete', { count: selectedIds.value.length }), 
+      t('common.confirm'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    );
     for (const id of selectedIds.value) {
       await fetch(`${API_BASE}/api/v2/documents/${id}`, { method: 'DELETE', headers: getHeaders() });
     }
@@ -599,7 +641,15 @@ const handleBatchDelete = async () => {
 // 删除文件夹
 const handleDeleteFolder = async (folder) => {
   try {
-    await ElMessageBox.confirm(t('documents.confirmDeleteFolder', { name: folder.name }), t('common.confirm'));
+    await ElMessageBox.confirm(
+      t('documents.confirmDeleteFolder', { name: folder.name }), 
+      t('common.confirm'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    );
     const res = await fetch(`${API_BASE}/api/v2/documents/folders/${folder.id}`, { method: 'DELETE', headers: getHeaders() });
     const data = await res.json();
     if (data.success) {
@@ -728,6 +778,49 @@ const confirmCreateFolder = async () => {
       ElMessage.success(t('common.success'));
       isFolderDialogOpen.value = false;
       loadFolders();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// 重命名
+const openRenameDialog = (item) => {
+  renameForm.value = {
+    id: item.id,
+    name: item._isFolder ? item.name : (item.title || item.file_name),
+    type: item._isFolder ? 'folder' : 'file'
+  };
+  isRenameDialogOpen.value = true;
+  // 聚焦输入框
+  setTimeout(() => {
+    renameInputRef.value?.focus();
+  }, 100);
+};
+
+const confirmRename = async () => {
+  if (!renameForm.value.name) return;
+  
+  try {
+    const { id, name, type } = renameForm.value;
+    const url = type === 'folder' 
+      ? `${API_BASE}/api/v2/documents/folders/${id}`
+      : `${API_BASE}/api/v2/documents/${id}`;
+      
+    const body = type === 'folder' ? { name } : { title: name };
+
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(t('common.success'));
+      isRenameDialogOpen.value = false;
+      loadDocuments();
+      if (type === 'folder') loadFolders();
     }
   } catch (e) {
     console.error(e);

@@ -146,8 +146,11 @@ const formattedAnalysis = computed(() => {
 
 /* 自定义类 ai-analysis-dialog 的样式需要全局或通过 deep 覆盖 */
 :global(.ai-analysis-dialog) {
-  background: transparent !important;
-  box-shadow: none !important;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
   --el-dialog-bg-color: transparent;
 }
 
@@ -160,27 +163,6 @@ const formattedAnalysis = computed(() => {
 
 :global(.ai-analysis-dialog .el-dialog__headerbtn) {
   display: none !important; /* Hide default close button */
-}
-
-/* 保持原有内部容器样式，但去掉 margin/width限制交由 dialog 控制 */
-.ai-analysis-modal {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  /* width: 100%; max-width already handled by dialog width */
-}
-
-.ai-analysis-modal {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .ai-modal-header {
