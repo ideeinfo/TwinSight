@@ -1,0 +1,61 @@
+<svg width="600" height="650" xmlns="http://www.w3.org/2000/svg">
+  <!-- 样式定义 -->
+  <style>
+    .normal-box { fill: #ffffff; stroke: #333; stroke-width: 2px; rx: 5; ry: 5; }
+    .target-box { fill: #fff0f0; stroke: #d32f2f; stroke-width: 5px; rx: 5; ry: 5; filter: drop-shadow(0px 0px 8px rgba(211, 47, 47, 0.5)); }
+    .load-box { fill: #e3f2fd; stroke: #1565c0; stroke-width: 2px; rx: 15; ry: 15; }
+    
+    .line { stroke: #333; stroke-width: 2px; fill: none; }
+    .dashed-line { stroke: #999; stroke-width: 1.5px; stroke-dasharray: 5,5; }
+    
+    .title { font-size: 20px; font-weight: bold; font-family: "Microsoft YaHei", sans-serif; text-anchor: middle; fill: #333; }
+    .label { font-size: 14px; font-family: "Microsoft YaHei", sans-serif; text-anchor: middle; fill: #333; }
+    .code { font-size: 11px; font-family: "Consolas", monospace; text-anchor: middle; fill: #666; }
+    .warning { font-size: 16px; font-weight: bold; font-family: "Microsoft YaHei", sans-serif; text-anchor: middle; fill: #d32f2f; }
+    
+    /* 开关符号 */
+    .switch-line { stroke: #333; stroke-width: 2px; }
+    .switch-circle { fill: #fff; stroke: #333; stroke-width: 2px; }
+  </style>
+
+  <!-- 标题 -->
+  <text x="300" y="40" class="title">雨水泵 GK1 停电检修操作逻辑图</text>
+
+  <!-- 连接线 -->
+  <line x1="300" y1="120" x2="300" y2="150" class="line" /> <!-- 变压器到主进线 -->
+  <line x1="300" y1="210" x2="300" y2="260" class="line" /> <!-- 主进线到母线 -->
+  
+  <!-- 开关符号 (示意) -->
+  <circle cx="300" cy="280" r="4" class="switch-circle" />
+  <line x1="300" y1="280" x2="320" y2="260" class="switch-line" /> <!-- 断开状态示意 -->
+  <line x1="300" y1="280" x2="300" y2="350" class="line" /> <!-- 下连线 -->
+
+  <line x1="300" y1="430" x2="300" y2="530" class="line" /> <!-- 柜子到负载 -->
+
+  <!-- 节点1: 上级电源 (变压器) -->
+  <rect x="220" y="60" width="160" height="60" class="normal-box" />
+  <text x="300" y="85" class="label">1# 变压器 (ZB1)</text>
+  <text x="300" y="105" class="code">===DY1.AH1.H01.ZB1</text>
+
+  <!-- 节点2: 0.4KV主进线 -->
+  <rect x="200" y="150" width="200" height="60" class="normal-box" />
+  <text x="300" y="175" class="label">0.4KV I段母线 (C1DP1)</text>
+  <text x="300" y="195" class="code">===DY1...ZB1.C1DP1.3</text>
+
+  <!-- 节点3: 操作目标 (红色高亮) -->
+  <rect x="180" y="350" width="240" height="80" class="target-box" />
+  <text x="300" y="380" class="label" style="font-size:18px; font-weight:bold;">水泵软启柜 RQ1</text>
+  <text x="300" y="400" class="label">DP4-1 回路</text>
+  <text x="300" y="420" class="code">===DY1...DP4O.1</text>
+  
+  <!-- 警告标识 -->
+  <text x="480" y="380" class="warning">← 在此操作!</text>
+  <text x="480" y="400" class="label" style="fill:#d32f2f; font-size:12px;">拉闸 / 锁定 / 挂牌</text>
+  <path d="M 430 390 L 410 390 L 415 385 M 410 390 L 415 395" stroke="#d32f2f" stroke-width="2" fill="none"/>
+
+  <!-- 节点4: 负载设备 -->
+  <rect x="220" y="530" width="160" height="60" class="load-box" />
+  <text x="300" y="555" class="label">雨水泵_GK1-1</text>
+  <text x="300" y="575" class="code">...DP4O.1.1.1</text>
+
+</svg>

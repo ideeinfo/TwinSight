@@ -1540,7 +1540,7 @@ const showAllRooms = () => {
 
   // 更新所有标签位置
   updateAllTagPositions();
-  animateToDefaultView();
+  // 注意：移除了 animateToDefaultView() 调用，以保持用户的相机视角
 };
 
 // 9. 切换热力图
@@ -1770,7 +1770,7 @@ const showAllAssets = () => {
   viewer.clearSelection();
 
   viewer.impl.invalidate(true, true, true);
-  animateToDefaultView();
+  // 注意：移除了 animateToDefaultView() 调用，以保持用户的相机视角
 };
 
 const getAssetProperties = (dbId) => {

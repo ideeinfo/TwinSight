@@ -22,6 +22,7 @@
 - [GitHub Actions 自动部署](#-github-actions-自动部署)
 - [成本估算](#-成本估算)
 - [部署检查清单](#-部署检查清单)
+- [🇨🇳 阿里云 ECS 专项部署方案](ALIBABA_ECS_DEPLOYMENT.md)
 
 ---
 
@@ -29,16 +30,16 @@
 
 ### 服务组件
 
-| 组件 | 技术栈 | 端口 | 必需 | 说明 |
-|------|--------|------|------|------|
-| **前端 (Frontend)** | Vue 3 + Vite | 80/443 | ✅ | 静态文件，需要 CDN |
-| **后端 API (Server)** | Node.js + Express | 3001 | ✅ | RESTful API |
-| **PostgreSQL** | PostgreSQL 16 + pgvector | 5432 | ✅ | 主数据库 |
-| **InfluxDB** | InfluxDB 2.x | 8086 | ⚠️ | 时序数据库（如需时序数据） |
-| **n8n** | n8n | 5678 | ⚠️ | AI 工作流自动化 |
-| **Open WebUI** | Open WebUI | 3080 | ⚠️ | AI 对话界面 |
-| **Node-RED** | Node-RED | 1880 | ⚠️ | IoT 数据流处理 |
-| **Grafana** | Grafana | 3000 | ⚠️ | 数据可视化 |
+| 组件                  | 技术栈             | 端口    | 必需 | 说明                       |
+| --------------------- | ------------------ | ------- | ---- | -------------------------- |
+| **前端 (Frontend)**   | Vue 3 + Vite       | 80/443  | ✅   | 静态文件，需要 CDN         |
+| **后端 API (Server)** | Node.js + Express  | 3001    | ✅   | RESTful API                |
+| **PostgreSQL**        | PostgreSQL 16 + pg | 5432    | ✅   | 主数据库                   |
+| **InfluxDB**          | InfluxDB 2.x       | 8086    | ⚠️   | 时序数据库（如需时序数据） |
+| **n8n**               | n8n                | 5678    | ⚠️   | AI 工作流自动化            |
+| **Open WebUI**        | Open WebUI         | 3080    | ⚠️   | AI 对话界面                |
+| **Node-RED**          | Node-RED           | 1880    | ⚠️   | IoT 数据流处理             |
+| **Grafana**           | Grafana            | 3000    | ⚠️   | 数据可视化                 |
 
 
 ### 服务架构图
@@ -265,25 +266,25 @@ echo "部署完成！访问 http://localhost 即可使用。"
 
 ### 推荐方案对比
 
-| 服务商 | 复杂度 | 月费估算 | Docker 支持 | 全服务栈 | 推荐场景 |
-|--------|--------|----------|------------|----------|----------|
-| **Railway** ⭐ | 🟢 简单 | $5-20 | ✅ 完整 | ✅ 是 | 快速原型/小团队 |
-| **Render** | 🟢 简单 | $0-25 | ✅ 完整 | ✅ 是 | 个人项目/演示 |
-| **Fly.io** | 🟡 中等 | $5-30 | ✅ 完整 | ✅ 是 | 全球边缘部署 |
-| **Vercel + Railway** | 🟡 中等 | $0-20 | 🔶 部分 | 🔶 拆分 | 前端优先项目 |
-| **Google Cloud Run** | 🟢 简单 | 按用量 | ✅ 完整 | 🔶 部分 | 无服务器/按需扩展 |
-| **AWS ECS + RDS** | 🔴 复杂 | $50-200+ | ✅ 完整 | ✅ 是 | 企业生产环境 |
-| **自托管 VPS** | 🔴 复杂 | $10-50 | ✅ 完整 | ✅ 是 | 完全控制/全服务 |
+| 服务商               | 复杂度  | 月费估算 | Docker 支持 | 全服务栈 | 推荐场景          |
+| -------------------- | ------- | -------- | ----------- | -------- | ----------------- |
+| **Railway** ⭐       | 🟢 简单 | $5-20    | ✅ 完整     | ✅ 是    | 快速原型/小团队   |
+| **Render**           | 🟢 简单 | $0-25    | ✅ 完整     | ✅ 是    | 个人项目/演示     |
+| **Fly.io**           | 🟡 中等 | $5-30    | ✅ 完整     | ✅ 是    | 全球边缘部署      |
+| **Vercel + Railway** | 🟡 中等 | $0-20    | 🔶 部分     | 🔶 拆分  | 前端优先项目      |
+| **Google Cloud Run** | 🟢 简单 | 按用量   | ✅ 完整     | 🔶 部分  | 无服务器/按需扩展 |
+| **AWS ECS + RDS**    | 🔴 复杂 | $50-200+ | ✅ 完整     | ✅ 是    | 企业生产环境      |
+| **自托管 VPS**       | 🔴 复杂 | $10-50   | ✅ 完整     | ✅ 是    | 完全控制/全服务   |
 
 ### 分层部署策略建议
 
 由于项目包含多个服务，建议采用**分层部署**：
 
-| 层级 | 服务 | 推荐平台 | 理由 |
-|------|------|----------|------|
-| **核心应用层** | 前端 + 后端 + PostgreSQL | Railway / Cloud Run | 自动 CI/CD，托管数据库 |
-| **AI 服务层** | n8n + Open WebUI | Railway 或 独立 VPS | 可选部署，资源灵活 |
-| **IoT/监控层** | InfluxDB + Node-RED + Grafana | 独立 VPS 或云托管 | 持久化数据，高可用 |
+| 层级           | 服务                          | 推荐平台            | 理由                   |
+| -------------- | ----------------------------- | ------------------- | ---------------------- |
+| **核心应用层** | 前端 + 后端 + PostgreSQL      | Railway / Cloud Run | 自动 CI/CD，托管数据库 |
+| **AI 服务层**  | n8n + Open WebUI              | Railway 或 独立 VPS | 可选部署，资源灵活     |
+| **IoT/监控层** | InfluxDB + Node-RED + Grafana | 独立 VPS 或云托管   | 持久化数据，高可用     |
 
 ---
 
@@ -633,31 +634,31 @@ async function main() {
 
 `.github/workflows/deploy.yml` 支持多种部署方式：
 
-| 部署目标 | 触发条件 | 说明 |
-|----------|----------|------|
-| **Railway** | 推送到 main/db 分支 | 自动部署 |
-| **Vercel** | 手动触发 | 前端部署 |
-| **SSH** | 手动触发 | 自托管服务器 |
-| **Docker** | 手动触发 | 仅构建镜像 |
+| 部署目标    | 触发条件            | 说明         |
+| ----------- | ------------------- | ------------ |
+| **Railway** | 推送到 main/db 分支 | 自动部署     |
+| **Vercel**  | 手动触发            | 前端部署     |
+| **SSH**     | 手动触发            | 自托管服务器 |
+| **Docker**  | 手动触发            | 仅构建镜像   |
 
 ### 配置 GitHub Secrets
 
 在仓库 **Settings** → **Secrets and variables** → **Actions** 中添加：
 
-| Secret 名称 | 说明 | 必需 |
-|------------|------|------|
-| `RAILWAY_TOKEN` | Railway API Token | ✅ |
-| `VITE_API_URL` | 后端 API 地址 | ✅ |
-| `VITE_INFLUX_URL` | InfluxDB 地址 | ⚠️ |
-| `VITE_INFLUX_ORG` | InfluxDB 组织 | ⚠️ |
-| `VITE_INFLUX_BUCKET` | InfluxDB Bucket | ⚠️ |
-| `VITE_INFLUX_TOKEN` | InfluxDB Token | ⚠️ |
-| `SSH_HOST` | SSH 服务器地址 | ⚠️ |
-| `SSH_USERNAME` | SSH 用户名 | ⚠️ |
-| `SSH_PRIVATE_KEY` | SSH 私钥 | ⚠️ |
-| `VERCEL_TOKEN` | Vercel Token | ⚠️ |
-| `VERCEL_ORG_ID` | Vercel 组织 ID | ⚠️ |
-| `VERCEL_PROJECT_ID` | Vercel 项目 ID | ⚠️ |
+| Secret 名称          | 说明            | 必需 |
+| -------------------- | --------------- | ---- |
+| `RAILWAY_TOKEN`      | Railway API Token | ✅  |
+| `VITE_API_URL`       | 后端 API 地址   | ✅   |
+| `VITE_INFLUX_URL`    | InfluxDB 地址   | ⚠️   |
+| `VITE_INFLUX_ORG`    | InfluxDB 组织   | ⚠️   |
+| `VITE_INFLUX_BUCKET` | InfluxDB Bucket | ⚠️   |
+| `VITE_INFLUX_TOKEN`  | InfluxDB Token  | ⚠️   |
+| `SSH_HOST`           | SSH 服务器地址  | ⚠️   |
+| `SSH_USERNAME`       | SSH 用户名      | ⚠️   |
+| `SSH_PRIVATE_KEY`    | SSH 私钥        | ⚠️   |
+| `VERCEL_TOKEN`       | Vercel Token    | ⚠️   |
+| `VERCEL_ORG_ID`      | Vercel 组织 ID  | ⚠️   |
+| `VERCEL_PROJECT_ID`  | Vercel 项目 ID  | ⚠️   |
 
 ### 手动触发部署
 
@@ -672,30 +673,30 @@ async function main() {
 ## 💰 成本估算
 
 ### 小型项目（< 1000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| Railway (API + PostgreSQL) | $5-10 |
-| Vercel (前端) | 免费 |
-| InfluxDB Cloud | 免费层 |
-| **总计** | **$5-10/月** |
+| 服务                       | 月费         |
+| -------------------------- | ------------ |
+| Railway (API + PostgreSQL) | $5-10        |
+| Vercel (前端)              | 免费         |
+| InfluxDB Cloud             | 免费层       |
+| **总计**                   | **$5-10/月** |
 
 ### 中型项目（1000-10000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| Railway Pro | $20 |
-| PostgreSQL (更大存储) | +$10 |
-| InfluxDB Cloud 付费 | $25 |
-| n8n (Railway) | +$5 |
-| Open WebUI (Railway) | +$5 |
-| **总计** | **$65/月** |
+| 服务                  | 月费       |
+| --------------------- | ---------- |
+| Railway Pro           | $20        |
+| PostgreSQL (更大存储) | +$10       |
+| InfluxDB Cloud 付费   | $25        |
+| n8n (Railway)         | +$5        |
+| Open WebUI (Railway)  | +$5        |
+| **总计**              | **$65/月** |
 
 ### 企业级（> 10000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| 自托管 VPS (4核8G) | $50-100 |
-| RDS PostgreSQL | $50-100 |
-| InfluxDB Cloud 企业版 | $100+ |
-| **总计** | **$200+/月** |
+| 服务                  | 月费         |
+| --------------------- | ------------ |
+| 自托管 VPS (4核8G)    | $50-100      |
+| RDS PostgreSQL        | $50-100      |
+| InfluxDB Cloud 企业版 | $100+        |
+| **总计**              | **$200+/月** |
 
 ---
 

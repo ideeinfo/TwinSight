@@ -341,7 +341,7 @@ const isLoading = ref(true);
 const isLoadingMore = ref(false);
 const searchText = ref('');
 const viewMode = ref('list');
-const currentFolderId = ref(null);
+const currentFolderId = ref('root');
 const selectedIds = ref([]);
 
 // 分页
@@ -388,7 +388,7 @@ const renameInputRef = ref(null);
 // ========================================
 const folderTreeData = computed(() => {
   return [
-    { id: null, name: t('documents.allDocuments'), children: buildFolderTree(folders.value) }
+    { id: 'root', name: t('documents.rootDirectory'), children: buildFolderTree(folders.value) }
   ];
 });
 
@@ -449,7 +449,14 @@ const loadDocuments = async (append = false) => {
     
     if (data.success) {
       const newDocs = data.data || [];
-      documents.value = append ? [...documents.value, ...newDocs] : newDocs;
+      if (append) {
+        // 去重：只添加不存在的文档
+        const existingIds = new Set(documents.value.map(d => d.id));
+        const uniqueNewDocs = newDocs.filter(d => !existingIds.has(d.id));
+        documents.value = [...documents.value, ...uniqueNewDocs];
+      } else {
+        documents.value = newDocs;
+      }
       // 保存子文件夹
       if (!append) {
         subfolders.value = data.subfolders || [];
@@ -664,15 +671,37 @@ const handleDeleteFolder = async (folder) => {
 
 // 移动
 const openMoveDialog = () => {
-  // 批量移动只支持文档
-  itemsToMove.value = selectedIds.value.map(id => ({ id, _isFolder: false }));
+  // 从 combinedItems 中查找选中项的完整信息（包括 _isFolder）
+  const selectedItems = selectedIds.value.map(id => {
+    const item = combinedItems.value.find(i => i.id === id);
+    if (item) {
+      // 使用多重检测判断是否为文件夹
+      const isFolder = item._isFolder === true || 
+                       item.file_type === 'folder' || 
+                       (item.name !== undefined && item.file_path === undefined);
+      return { id, _isFolder: isFolder };
+    }
+    // 如果找不到，默认当作文档处理
+    return { id, _isFolder: false };
+  });
+  console.log('[openMoveDialog] selectedItems:', selectedItems);
+  itemsToMove.value = selectedItems;
   moveTargetFolderId.value = undefined;
   isMoveDialogOpen.value = true;
 };
 
 const openMoveDialogForDoc = (item) => {
-  // 保存完整项信息(包含_isFolder)
-  itemsToMove.value = [{ id: item.id, _isFolder: item._isFolder }];
+  // 多重判断是否为文件夹:
+  // 1. _isFolder 属性为 true
+  // 2. file_type 为 'folder'
+  // 3. 有 name 属性但没有 file_path 属性 (文件夹结构特征)
+  const isFolder = item._isFolder === true || 
+                   item.file_type === 'folder' || 
+                   (item.name !== undefined && item.file_path === undefined);
+  console.log('[openMoveDialogForDoc] Full item:', JSON.stringify(item));
+  console.log('[openMoveDialogForDoc] Detection - _isFolder:', item._isFolder, 'file_type:', item.file_type, 'name:', item.name, 'file_path:', item.file_path);
+  console.log('[openMoveDialogForDoc] Detected as folder:', isFolder);
+  itemsToMove.value = [{ id: item.id, _isFolder: isFolder }];
   moveTargetFolderId.value = undefined;
   isMoveDialogOpen.value = true;
 };
@@ -683,21 +712,34 @@ const handleMoveTargetSelect = (data) => {
 
 const confirmMove = async () => {
   try {
+    // 将 'root' 转换为 null，后端期望整数或 null
+    const targetFolderId = moveTargetFolderId.value === 'root' ? null : moveTargetFolderId.value;
+    
+    console.log('[confirmMove] itemsToMove:', itemsToMove.value);
+    console.log('[confirmMove] targetFolderId:', targetFolderId);
+    
     for (const item of itemsToMove.value) {
+      console.log('[confirmMove] Processing item:', item, 'isFolder:', item._isFolder);
+      let res;
       if (item._isFolder) {
         // 移动文件夹
-        await fetch(`${API_BASE}/api/v2/documents/folders/${item.id}`, {
+        res = await fetch(`${API_BASE}/api/v2/documents/folders/${item.id}`, {
           method: 'PATCH',
           headers: getHeaders(),
-          body: JSON.stringify({ parentId: moveTargetFolderId.value })
+          body: JSON.stringify({ parentId: targetFolderId })
         });
       } else {
         // 移动文档
-        await fetch(`${API_BASE}/api/v2/documents/${item.id}`, {
+        res = await fetch(`${API_BASE}/api/v2/documents/${item.id}`, {
           method: 'PATCH',
           headers: getHeaders(),
-          body: JSON.stringify({ folder_id: moveTargetFolderId.value })
+          body: JSON.stringify({ folderId: targetFolderId })
         });
+      }
+      
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `移动失败: ${res.status}`);
       }
     }
     ElMessage.success(t('common.success'));
@@ -706,7 +748,8 @@ const confirmMove = async () => {
     loadDocuments();
     loadFolders(); // 刷新左侧文件夹树
   } catch (e) {
-    console.error(e);
+    console.error('Move error:', e);
+    ElMessage.error(e.message || t('common.error'));
   }
 };
 
@@ -768,10 +811,12 @@ const openFolderDialog = () => {
 const confirmCreateFolder = async () => {
   if (!newFolderName.value) return;
   try {
+    // 将 'root' 转换为 null，后端期望 parentId 是整数或 null
+    const parentId = currentFolderId.value === 'root' ? null : currentFolderId.value;
     const res = await fetch(`${API_BASE}/api/v2/documents/folders`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ name: newFolderName.value, parentId: currentFolderId.value })
+      body: JSON.stringify({ name: newFolderName.value, parentId })
     });
     const data = await res.json();
     if (data.success) {

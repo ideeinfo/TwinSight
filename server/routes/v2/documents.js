@@ -327,6 +327,13 @@ router.patch('/:id',
     authorize(PERMISSIONS.DOCUMENT_UPDATE),
     async (req, res, next) => {
         try {
+            const docId = req.params.id;
+            console.log('[PATCH /documents/:id] Updating document id:', docId, 'body:', req.body);
+
+            // 先检查文档是否存在
+            const checkResult = await query('SELECT id, title, folder_id FROM documents WHERE id = $1', [docId]);
+            console.log('[PATCH /documents/:id] Document check result:', checkResult.rows);
+
             const { title, folderId, businessType } = req.body;
 
             const updates = [];
