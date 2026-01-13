@@ -341,14 +341,20 @@ watch(isLogin, () => {
 }
 
 .welcome-icon {
-  width: 64px;
+  width: 100%;
+  max-width: 280px;
   height: 64px;
   margin: 0 auto 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .welcome-icon img {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
