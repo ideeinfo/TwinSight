@@ -428,8 +428,13 @@ const buildFolderTree = (list, parentId = null) => {
 };
 
 const loadDocuments = async (append = false) => {
+  console.log('[loadDocuments] Called with append:', append, 'currentFolderId:', currentFolderId.value);
+  
   if (append) {
-    if (!hasMore.value || isLoadingMore.value) return;
+    if (!hasMore.value || isLoadingMore.value) {
+      console.log('[loadDocuments] Skipping append - hasMore:', hasMore.value, 'isLoadingMore:', isLoadingMore.value);
+      return;
+    }
     isLoadingMore.value = true;
   } else {
     isLoading.value = true;
@@ -444,8 +449,10 @@ const loadDocuments = async (append = false) => {
     params.set('page', currentPage.value.toString());
     params.set('pageSize', pageSize.toString());
     
+    console.log('[loadDocuments] Fetching with params:', params.toString());
     const res = await fetch(`${API_BASE}/api/v2/documents?${params}`, { headers: getHeaders() });
     const data = await res.json();
+    console.log('[loadDocuments] Response:', { success: data.success, docsCount: data.data?.length, subfoldersCount: data.subfolders?.length });
     
     if (data.success) {
       const newDocs = data.data || [];
@@ -464,6 +471,7 @@ const loadDocuments = async (append = false) => {
       totalCount.value = data.pagination?.total || 0;
       hasMore.value = newDocs.length >= pageSize;
       currentPage.value++;
+      console.log('[loadDocuments] Updated - documents:', documents.value.length, 'subfolders:', subfolders.value.length);
     }
   } catch (e) {
     console.error('加载文档失败:', e);

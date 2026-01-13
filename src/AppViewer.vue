@@ -238,7 +238,7 @@ onMounted(() => {
   initPanoCompareMode();
 });
 
-const leftWidth = ref(400);
+const leftWidth = ref(368);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const isChartPanelOpen = ref(false);
