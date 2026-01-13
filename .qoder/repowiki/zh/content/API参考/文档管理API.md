@@ -2,7 +2,7 @@
 
 <cite>
 **本文档引用的文件**  
-- [documents.js](file://server/routes/documents.js)
+- [documents.js](file://server/routes/v2/documents.js)
 - [document.js](file://server/models/document.js)
 - [document-exif.js](file://server/models/document-exif.js)
 - [document-sync-service.js](file://server/services/document-sync-service.js)
@@ -11,7 +11,17 @@
 - [create_document_exif_table.sql](file://server/db/create_document_exif_table.sql)
 - [auth.js](file://server/middleware/auth.js)
 - [auth.js](file://server/config/auth.js)
+- [schema-v2.sql](file://server/db/schema-v2.sql)
 </cite>
+
+## 更新摘要
+**变更内容**  
+- 新增v2 API端点的详细说明，包括文档、文件夹和关联管理
+- 添加文件夹管理功能的描述，包括创建、更新、删除和树形结构查询
+- 扩展多对多关联机制，支持动态对象关联
+- 更新文档元数据存储结构，引入JSONB字段支持
+- 修订架构图以反映v2 API的分层设计
+- 更新权限控制策略以匹配新的v2端点
 
 ## 目录
 1. [简介](#简介)
@@ -45,12 +55,12 @@ services --> routes
 ```
 
 **图表来源**  
-- [documents.js](file://server/routes/documents.js#L1-L451)
+- [documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [document.js](file://server/models/document.js#L1-L167)
 - [document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 
 **章节来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L1-L451)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [server/models/document.js](file://server/models/document.js#L1-L167)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 
@@ -58,7 +68,7 @@ services --> routes
 文档管理API的核心组件包括文档上传路由、文档模型、EXIF信息提取、文档同步服务和权限控制。上传功能支持PDF、JPG、PNG、SVG、MP4等格式，最大200MB。上传后自动提取JPG/JPEG文件的EXIF信息并存储。文档会通过后台服务同步到Open WebUI知识库。所有操作都受JWT认证和基于角色的权限控制保护。
 
 **章节来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L1-L451)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [server/models/document.js](file://server/models/document.js#L1-L167)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 
@@ -78,7 +88,7 @@ OpenWebUI --> KB[(知识库)]
 ```
 
 **图表来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L1-L451)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [server/middleware/auth.js](file://server/middleware/auth.js#L1-L120)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 
@@ -95,7 +105,7 @@ participant Model as "文档模型"
 participant DB as "数据库"
 participant EXIF as "EXIF服务"
 participant Sync as "同步服务"
-Client->>Router : POST /api/documents/upload
+Client->>Router : POST /api/v2/documents/upload
 Router->>Router : 认证 & 授权
 Router->>Router : 文件上传处理
 Router->>Model : 创建文档记录
@@ -110,12 +120,12 @@ Router-->>Client : 返回上传结果
 ```
 
 **图表来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L145-L223)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L203-L254)
 - [server/models/document.js](file://server/models/document.js#L58-L82)
 - [server/models/document-exif.js](file://server/models/document-exif.js#L12-L69)
 
 **章节来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L145-L223)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L203-L254)
 - [server/models/document.js](file://server/models/document.js#L58-L82)
 
 ### 文档同步分析
@@ -206,12 +216,12 @@ OpenWebUI --> AI[(AI模型)]
 ```
 
 **图表来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L1-L451)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 - [server/services/openwebui-service.js](file://server/services/openwebui-service.js#L1-L359)
 
 **章节来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L1-L451)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L1-L684)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L1-L250)
 
 ## 性能考虑
@@ -221,7 +231,7 @@ OpenWebUI --> AI[(AI模型)]
 常见问题包括文件上传失败、EXIF提取失败、文档同步失败。上传失败可能是文件类型不支持或大小超限。EXIF提取失败通常是文件损坏或格式不正确。同步失败可能是Open WebUI服务不可用或API密钥错误。所有错误都会记录在日志中，便于排查。
 
 **章节来源**  
-- [server/routes/documents.js](file://server/routes/documents.js#L211-L222)
+- [server/routes/v2/documents.js](file://server/routes/v2/documents.js#L211-L222)
 - [server/services/document-sync-service.js](file://server/services/document-sync-service.js#L132-L149)
 - [server/services/openwebui-service.js](file://server/services/openwebui-service.js#L57-L61)
 
