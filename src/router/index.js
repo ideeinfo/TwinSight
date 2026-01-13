@@ -15,6 +15,11 @@ const routes = [
     path: '/assets',
     name: 'Assets',
     component: () => import('../AppViewer.vue')
+  },
+  {
+    path: '/theme-debug',
+    name: 'ThemeDebug',
+    component: () => import('../views/ThemeDebugPage.vue')
   }
 ]
 

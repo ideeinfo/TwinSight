@@ -29,6 +29,28 @@
           </button>
         </div>
 
+        <!-- 语言选择 -->
+        <div class="theme-section">
+          <span class="section-label">{{ $t('common.language') || 'Language' }}</span>
+          <el-select
+            v-model="currentLang"
+            size="small"
+            class="theme-select"
+            @change="handleLangChange"
+          >
+            <el-option value="zh" label="中文">
+              <div class="theme-option">
+                 <span>🇨🇳 中文</span>
+              </div>
+            </el-option>
+            <el-option value="en" label="English">
+              <div class="theme-option">
+                 <span>🇺🇸 English</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+
         <!-- 主题选择 -->
         <div class="theme-section">
           <span class="section-label">{{ $t('account.theme') }}</span>
@@ -145,6 +167,16 @@ const toggleDropdown = () => {
 
 const closeDropdown = () => {
   isOpen.value = false;
+};
+
+// 语言切换
+const { locale } = useI18n();
+const currentLang = ref(locale.value);
+
+const handleLangChange = (val: string) => {
+  locale.value = val;
+  localStorage.setItem('language', val);
+  currentLang.value = val;
 };
 
 // 主题切换

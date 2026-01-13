@@ -98,6 +98,60 @@
 }
 
 /* ============================================
+   Component Semantic Tokens
+   基于 M3 变量的组件级语义化 Token
+   ============================================ */
+
+:root {
+  /* List / Tree Tokens */
+  --list-bg: var(--md-sys-color-surface);
+  --list-item-bg: transparent;
+  --list-item-bg-hover: var(--md-sys-color-surface-container-highest);
+  /* --list-item-bg-selected: 由 dark.css / light.css 单独定义 */
+  --list-item-text: var(--md-sys-color-on-surface);
+  --list-item-text-secondary: var(--md-sys-color-on-surface-variant);
+  --list-item-text-selected: var(--md-sys-color-on-secondary-container);
+  --list-border: var(--md-sys-color-outline-variant);
+
+  /* Input Tokens */
+  --input-bg: var(--md-sys-color-surface-container-highest);
+  --input-border: transparent;
+  --input-text: var(--md-sys-color-on-surface);
+  --input-placeholder: var(--md-sys-color-on-surface-variant);
+  --input-focus-border: var(--md-sys-color-primary);
+  --input-radius: 4px;
+
+  /* Dialog / Modal Tokens */
+  --dialog-bg: var(--md-sys-color-surface-container-high);
+  --dialog-title: var(--md-sys-color-on-surface);
+  --dialog-text: var(--md-sys-color-on-surface-variant);
+  --dialog-border: var(--md-sys-color-outline-variant);
+  --dialog-shadow: var(--md-sys-color-shadow);
+  --dialog-overlay: var(--md-sys-color-scrim);
+  --dialog-radius: 8px;
+
+
+  /* Icon Button Tokens */
+  --icon-btn-color: var(--md-sys-color-on-surface-variant);
+  --icon-btn-hover-bg: var(--md-sys-color-surface-container-highest);
+  --icon-btn-hover-color: var(--md-sys-color-on-surface);
+
+  /* Typography Tokens */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+}
+
+/* Apply Base Font */
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+}
+
+/* ============================================
    全局主题应用
    使主题切换立即生效
    ============================================ */
@@ -105,6 +159,101 @@
 /* 深色主题全局样式 */
 html.dark {
   color-scheme: dark;
+
+  /* ============================================
+     Element Plus 深色模式覆盖
+     确保 Element Plus 组件在深色模式下显示正常
+     ============================================ */
+  --el-color-primary: #38ABDF;
+
+  /* Text */
+  --el-text-color-primary: var(--md-sys-color-on-surface);
+  --el-text-color-regular: var(--md-sys-color-on-surface);
+  --el-text-color-secondary: var(--md-sys-color-on-surface-variant);
+  --el-text-color-placeholder: var(--md-sys-color-on-surface-variant);
+  --el-text-color-disabled: var(--md-sys-color-on-surface-variant);
+
+  /* Background */
+  --el-bg-color: var(--md-sys-color-surface);
+  --el-bg-color-overlay: var(--md-sys-color-surface-container);
+  --el-bg-color-page: var(--md-sys-color-background);
+  --el-fill-color-blank: var(--md-sys-color-surface);
+  --el-fill-color: var(--md-sys-color-surface-container-low);
+  --el-fill-color-light: var(--md-sys-color-surface-container);
+  --el-fill-color-lighter: var(--md-sys-color-surface-container-high);
+
+  /* Border */
+  --el-border-color: var(--md-sys-color-outline);
+  --el-border-color-light: var(--md-sys-color-outline-variant);
+  --el-border-color-lighter: var(--md-sys-color-outline-variant);
+  --el-border-color-extra-light: var(--md-sys-color-outline-variant);
+  --el-border-color-dark: var(--md-sys-color-outline);
+  --el-border-color-darker: var(--md-sys-color-outline);
+
+  /* Table */
+  --el-table-bg-color: var(--list-bg);
+  --el-table-tr-bg-color: var(--list-bg);
+  --el-table-header-bg-color: var(--md-sys-color-surface-container-low);
+  --el-table-row-hover-bg-color: var(--list-item-bg-hover);
+  --el-table-text-color: var(--list-item-text);
+  --el-table-header-text-color: var(--list-item-text-secondary);
+  --el-table-border-color: var(--list-border);
+  --el-table-current-row-bg-color: var(--list-item-bg-selected);
+  --el-table-font-size: var(--font-size-sm);
+
+  /* Tree */
+  --el-tree-node-hover-bg-color: var(--list-item-bg-hover);
+  --el-tree-text-color: var(--list-item-text);
+  --el-tree-expand-icon-color: var(--list-item-text-secondary);
+  --el-tree-node-content-height: 28px;
+  --el-font-size-base: var(--font-size-sm);
+
+  /* Button */
+  --el-button-bg-color: var(--md-sys-color-surface-container-low);
+  --el-button-text-color: var(--md-sys-color-on-surface);
+  --el-button-border-color: var(--md-sys-color-outline);
+  --el-button-hover-bg-color: var(--md-sys-color-surface-container-high);
+
+  /* Input (Semantic Mapping) */
+  --el-input-bg-color: var(--input-bg);
+  --el-input-text-color: var(--input-text);
+  --el-input-border-color: var(--input-border);
+  --el-input-hover-border-color: var(--input-border);
+  --el-input-focus-border-color: var(--input-focus-border);
+  --el-input-placeholder-color: var(--input-placeholder);
+
+  --el-select-input-color: var(--input-text);
+  --el-select-input-focus-border-color: var(--input-focus-border);
+  --el-button-hover-bg-color: var(--md-sys-color-primary);
+  --el-button-hover-text-color: var(--md-sys-color-on-primary);
+  --el-button-hover-border-color: var(--md-sys-color-primary);
+  --el-button-active-bg-color: var(--md-sys-color-primary-container);
+  --el-button-disabled-bg-color: var(--md-sys-color-surface-container-low);
+  --el-button-disabled-text-color: var(--md-sys-color-outline);
+  --el-button-disabled-border-color: var(--md-sys-color-outline-variant);
+
+  /* Input */
+  --el-input-bg-color: var(--input-bg);
+  --el-input-border-color: var(--input-border);
+  --el-input-hover-border-color: var(--md-sys-color-on-surface-variant);
+  --el-input-focus-border-color: var(--input-focus-border);
+  --el-input-text-color: var(--input-text);
+  --el-input-placeholder-color: var(--input-placeholder);
+  --el-input-border-radius: var(--input-radius);
+
+
+  /* Message Box / Dialog */
+  --el-dialog-bg-color: var(--md-sys-color-surface-container-high);
+  --el-dialog-box-shadow: 0px 12px 32px 4px rgba(0, 0, 0, .36), 0px 8px 20px rgba(0, 0, 0, .72);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.5);
+
+  /* Pagination */
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: var(--md-sys-color-on-surface);
+  --el-pagination-button-bg-color: transparent;
+  --el-pagination-button-color: var(--md-sys-color-on-surface);
+  --el-pagination-hover-color: var(--md-sys-color-primary);
+
 }
 
 html.dark body {
@@ -112,9 +261,43 @@ html.dark body {
   color: var(--md-sys-color-on-background) !important;
 }
 
+/* Custom AI Analysis Dialog Override (Global for both Light/Dark to maintain transparency) */
+.ai-analysis-dialog {
+  background: transparent !important;
+  box-shadow: none !important;
+  --el-dialog-bg-color: transparent;
+  --el-dialog-box-shadow: none;
+}
+
+.ai-analysis-dialog .el-dialog__header,
+.ai-analysis-dialog .el-dialog__body,
+.ai-analysis-dialog .el-dialog__footer {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.ai-analysis-dialog .el-dialog__headerbtn {
+  display: none !important;
+}
+
 /* 浅色主题全局样式 */
 html.light {
   color-scheme: light;
+
+  /* Table */
+  --el-table-bg-color: var(--list-bg);
+  --el-table-tr-bg-color: var(--list-bg);
+  --el-table-header-bg-color: var(--md-sys-color-surface-container-low);
+  --el-table-row-hover-bg-color: var(--list-item-bg-hover);
+  --el-table-text-color: var(--list-item-text);
+  --el-table-header-text-color: var(--list-item-text-secondary);
+  --el-table-border-color: var(--list-border);
+  --el-table-current-row-bg-color: var(--list-item-bg-selected);
+
+  /* Tree */
+  --el-tree-node-hover-bg-color: var(--list-item-bg-hover);
+  --el-tree-text-color: var(--list-item-text);
+  --el-tree-expand-icon-color: var(--list-item-text-secondary);
 }
 
 html.light body {
@@ -441,6 +624,19 @@ html.light .checkbox {
 html.light .checkbox.checked {
   background-color: var(--md-sys-color-primary) !important;
   border-color: var(--md-sys-color-primary) !important;
+}
+
+/* Global Checkbox Consistency */
+:root {
+  --el-checkbox-checked-bg-color: #38ABDF;
+  --el-checkbox-checked-input-border-color: #38ABDF;
+  --el-checkbox-input-border-color-hover: #38ABDF;
+  --el-color-primary: #38ABDF;
+  /* Ensure primary color matches */
+}
+
+input[type="checkbox"] {
+  accent-color: #38ABDF;
 }
 
 /* 视图面板 */
@@ -2702,98 +2898,512 @@ html.light .el-message-box .el-button--primary:hover,
 html.light .el-message-box .el-button--primary:focus {
   color: #ffffff !important;
 }
+
 /* ============================================
    操作手册 UserManualPanel 浅色主题适配
    ============================================ */
 html.light .manual-container {
   background: var(--md-sys-color-surface) !important;
 }
+
 html.light .manual-header {
   border-bottom-color: var(--md-sys-color-outline-variant) !important;
 }
+
 html.light .manual-header h2 {
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .close-btn {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
+
 html.light .close-btn:hover {
   background: var(--md-sys-color-surface-container-high) !important;
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .manual-sidebar {
   background: var(--md-sys-color-surface-container-low) !important;
   border-right-color: var(--md-sys-color-outline-variant) !important;
 }
+
 html.light .sidebar-header {
   border-bottom-color: var(--md-sys-color-outline-variant) !important;
 }
+
 html.light .sidebar-header h3 {
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .nav-item {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
+
 html.light .nav-item:hover {
   background: var(--md-sys-color-surface-container-high) !important;
 }
+
 html.light .nav-item.active {
   background: var(--md-sys-color-primary-container) !important;
   color: var(--md-sys-color-on-primary-container) !important;
 }
+
 html.light .nav-subitem {
   color: var(--md-sys-color-on-surface-variant) !important;
 }
+
 html.light .nav-subitem:hover {
   background: var(--md-sys-color-surface-container-high) !important;
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .nav-subitem.active {
   color: var(--md-sys-color-primary) !important;
 }
+
 html.light .manual-content {
   color: var(--md-sys-color-on-surface) !important;
   background: var(--md-sys-color-surface) !important;
 }
+
 html.light .content-section h2 {
   color: var(--md-sys-color-on-surface) !important;
   border-bottom-color: var(--md-sys-color-primary) !important;
 }
+
 html.light .content-section h3 {
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .content-section p,
 html.light .content-section li {
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .content-section code {
   background: var(--md-sys-color-surface-container) !important;
   color: var(--md-sys-color-primary) !important;
 }
+
 html.light .faq-item {
   background: var(--md-sys-color-surface-container-low) !important;
   border-left-color: var(--md-sys-color-primary) !important;
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .operation-table th,
 html.light .operation-table td {
   border-color: var(--md-sys-color-outline-variant) !important;
 }
+
 html.light .operation-table th {
   background: var(--md-sys-color-surface-container-low) !important;
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .operation-table td {
   color: var(--md-sys-color-on-surface) !important;
 }
+
 html.light .operation-table tr:hover {
   background: var(--md-sys-color-surface-container-high) !important;
 }
+
 html.light .manual-nav::-webkit-scrollbar-thumb,
 html.light .manual-content::-webkit-scrollbar-thumb {
   background: var(--md-sys-color-outline-variant) !important;
 }
+
 html.light .manual-nav::-webkit-scrollbar-thumb:hover,
 html.light .manual-content::-webkit-scrollbar-thumb:hover {
   background: var(--md-sys-color-outline) !important;
+}
+
+/* ============================================
+   DocumentManager 文档管理 浅色主题适配
+   ============================================ */
+html.light .document-manager {
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .folder-sidebar {
+  background-color: var(--md-sys-color-surface) !important;
+  border-right-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .sidebar-header {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .sidebar-header .title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-list-area {
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .toolbar {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .toolbar .title {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* Element Plus Tree Override for Light Theme */
+html.light .document-manager .el-tree {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-manager .el-tree-node__content:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .document-manager .el-tree-node.is-current>.el-tree-node__content {
+  background-color: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+/* Element Plus Table Override for Light Theme */
+html.light .document-manager .el-table {
+  --el-table-bg-color: var(--md-sys-color-surface) !important;
+  --el-table-tr-bg-color: var(--md-sys-color-surface) !important;
+  --el-table-header-bg-color: var(--md-sys-color-surface-container-low) !important;
+  --el-table-border-color: var(--md-sys-color-outline-variant) !important;
+  --el-table-text-color: var(--md-sys-color-on-surface) !important;
+  --el-table-header-text-color: var(--md-sys-color-on-surface) !important;
+  --el-table-row-hover-bg-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .document-manager .el-table th.el-table__cell {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-manager .el-table td.el-table__cell {
+  border-bottom-color: var(--md-sys-color-outline-variant) !important;
+  background-color: var(--md-sys-color-surface) !important;
+}
+
+html.light .document-manager .el-table__inner-wrapper::before {
+  background-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* View Toggle Buttons */
+html.light .document-manager .view-toggle {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .document-manager .view-btn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+html.light .document-manager .view-btn:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .document-manager .view-btn.active {
+  background-color: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+html.light .document-manager .view-btn.active:hover {
+  background-color: var(--md-sys-color-primary) !important;
+}
+
+/* Grid View Card */
+html.light .grid-card {
+  background-color: var(--md-sys-color-surface) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light .grid-card:hover {
+  border-color: var(--md-sys-color-primary) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+html.light .grid-card.selected {
+  background-color: var(--md-sys-color-primary-container) !important;
+  border-color: var(--md-sys-color-primary) !important;
+}
+
+html.light .card-thumbnail {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+}
+
+html.light .file-info {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+html.light .file-meta {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* ============================================
+   Element Plus 按钮主题覆盖
+   确保 el-button 正确适配深色和浅色主题
+   ============================================ */
+
+/* 深色主题 - Primary 按钮 */
+html.dark .el-button--primary {
+  --el-button-bg-color: var(--md-sys-color-primary);
+  --el-button-border-color: var(--md-sys-color-primary);
+  --el-button-text-color: var(--md-sys-color-on-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-primary) 85%, white);
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-sys-color-primary) 85%, white);
+  --el-button-hover-text-color: var(--md-sys-color-on-primary);
+  --el-button-active-bg-color: color-mix(in srgb, var(--md-sys-color-primary) 75%, white);
+  --el-button-active-border-color: color-mix(in srgb, var(--md-sys-color-primary) 75%, white);
+}
+
+/* 深色主题 - Default 按钮 */
+html.dark .el-button--default {
+  --el-button-bg-color: var(--md-sys-color-surface-container-high);
+  --el-button-border-color: var(--md-sys-color-outline);
+  --el-button-text-color: var(--md-sys-color-on-surface);
+  --el-button-hover-bg-color: var(--md-sys-color-surface-container-highest);
+  --el-button-hover-border-color: var(--md-sys-color-outline);
+  --el-button-hover-text-color: var(--md-sys-color-on-surface);
+}
+
+/* 深色主题 - Danger 按钮 */
+html.dark .el-button--danger {
+  --el-button-bg-color: var(--md-sys-color-error);
+  --el-button-border-color: var(--md-sys-color-error);
+  --el-button-text-color: var(--md-sys-color-on-error);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-error) 85%, white);
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-sys-color-error) 85%, white);
+}
+
+/* 浅色主题 - Primary 按钮 */
+html.light .el-button--primary {
+  --el-button-bg-color: var(--md-sys-color-primary);
+  --el-button-border-color: var(--md-sys-color-primary);
+  --el-button-text-color: var(--md-sys-color-on-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-primary) 85%, black);
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-sys-color-primary) 85%, black);
+  --el-button-hover-text-color: var(--md-sys-color-on-primary);
+}
+
+/* 浅色主题 - Default 按钮 */
+html.light .el-button--default {
+  --el-button-bg-color: var(--md-sys-color-surface);
+  --el-button-border-color: var(--md-sys-color-outline);
+  --el-button-text-color: var(--md-sys-color-on-surface);
+  --el-button-hover-bg-color: var(--md-sys-color-surface-container);
+  --el-button-hover-border-color: var(--md-sys-color-outline);
+  --el-button-hover-text-color: var(--md-sys-color-on-surface);
+}
+
+/* 浅色主题 - Danger 按钮 */
+html.light .el-button--danger {
+  --el-button-bg-color: var(--md-sys-color-error);
+  --el-button-border-color: var(--md-sys-color-error);
+  --el-button-text-color: var(--md-sys-color-on-error);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-error) 85%, black);
+  --el-button-hover-border-color: color-mix(in srgb, var(--md-sys-color-error) 85%, black);
+}
+
+/* 禁用状态 */
+html.dark .el-button.is-disabled,
+html.light .el-button.is-disabled {
+  opacity: 0.5;
+}
+
+/* Text 类型按钮 */
+html.dark .el-button--primary.is-text {
+  --el-button-text-color: var(--md-sys-color-primary);
+}
+
+html.light .el-button--primary.is-text {
+  --el-button-text-color: var(--md-sys-color-primary);
+}
+
+/* Plain 类型按钮 */
+html.dark .el-button--primary.is-plain {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--md-sys-color-primary);
+  --el-button-text-color: var(--md-sys-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-primary) 15%, transparent);
+  --el-button-hover-border-color: var(--md-sys-color-primary);
+  --el-button-hover-text-color: var(--md-sys-color-primary);
+}
+
+html.light .el-button--primary.is-plain {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: var(--md-sys-color-primary);
+  --el-button-text-color: var(--md-sys-color-primary);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+  --el-button-hover-border-color: var(--md-sys-color-primary);
+  --el-button-hover-text-color: var(--md-sys-color-primary);
+}
+
+/* Custom Standard Dialog Override (Ensure background is solid) */
+/* Custom Standard Dialog Override */
+.custom-dialog {
+  /* Use 'Surface Container' instead of 'High' for a slightly darker/neutral gray, less "washed out" */
+  --el-dialog-bg-color: var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+.custom-dialog .el-dialog__header,
+.custom-dialog .el-dialog__body,
+.custom-dialog .el-dialog__footer {
+  background: transparent !important;
+}
+
+/* Enforce Input Background inside custom dialogs to standard Surface Container Highest (lighter than dialog) */
+/* Removed custom-dialog local overrides to obey global token settings */
+
+/* Remove default el-input shadow/border to rely on our semantic styles if needed */
+
+/* ============================================
+   Phase 7: Global Scrollbar & Component Missing Gaps
+   ============================================ */
+
+/* Global Scrollbar (Webkit) - Dark/Default */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--md-sys-color-surface-container-low);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline);
+}
+
+/* Light Mode Scrollbar Override */
+html.light ::-webkit-scrollbar-track {
+  background: var(--md-sys-color-surface-container-low) !important;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant) !important;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline) !important;
+}
+
+/* Popover / Tooltip / Select Dropdown (el-popper) */
+.el-popper,
+.el-select-dropdown,
+.el-dropdown-menu,
+.el-tooltip__popper {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+.el-popper .el-popper__arrow::before,
+.el-tooltip__popper .el-popper__arrow::before {
+  background: var(--md-sys-color-surface-container) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+/* Dropdown Items */
+.el-select-dropdown__item,
+.el-dropdown-menu__item {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover,
+.el-dropdown-menu__item:hover {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+.el-select-dropdown__item.selected {
+  color: var(--md-sys-color-primary) !important;
+  font-weight: bold;
+}
+
+/* Notifications & Messages */
+.el-message,
+.el-notification {
+  background: var(--md-sys-color-surface-container-high) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+}
+
+.el-message__content,
+.el-notification__title,
+.el-notification__content {
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+.el-message .el-message__closeBtn,
+.el-notification .el-notification__closeBtn {
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+/* Loading Mask */
+.el-loading-mask {
+  background-color: rgba(var(--md-sys-color-surface-rgb, 0, 0, 0), 0.7) !important;
+  /* Fallback */
+  background-color: color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent) !important;
+}
+
+.el-loading-spinner .el-loading-text {
+  color: var(--md-sys-color-primary) !important;
+}
+
+/* Global Input Overrides */
+.el-input__wrapper,
+.el-textarea__inner {
+  background-color: var(--input-bg) !important;
+  box-shadow: 0 0 0 1px var(--input-border) inset !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--input-focus-border) inset !important;
+}
+
+html body .el-input .el-input__inner,
+html body .el-textarea .el-textarea__inner,
+html body .el-input .el-input__inner:focus,
+html body .el-textarea .el-textarea__inner:focus,
+html body .el-input .el-input__inner:hover,
+html body .el-textarea .el-textarea__inner:hover {
+  color: var(--input-text) !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Fix Chrome Autofill Background Color */
+html body .el-input .el-input__inner:-webkit-autofill,
+html body .el-textarea .el-textarea__inner:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  -webkit-text-fill-color: var(--input-text) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+
+
+.el-input__inner::placeholder,
+.el-textarea__inner::placeholder {
+  color: var(--input-placeholder) !important;
+}
+
+.el-input.is-disabled .el-input__wrapper,
+.el-textarea.is-disabled .el-textarea__inner {
+  background-color: var(--md-sys-color-surface-container-highest) !important;
+  /* Keep disabled look standard */
+  box-shadow: 0 0 0 1px var(--md-sys-color-outline-variant) inset !important;
 }

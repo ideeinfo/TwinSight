@@ -46,9 +46,11 @@ services:
 
   # ==================== IoT 服务 ====================
 
-  # Node-RED - 可视化流程编程工具 (使用现有容器配置，保留历史数据)
+  # Node-RED - 可视化流程编程工具 (使用自定义Dockerfile，包含预装依赖)
   nodered:
-    image: nodered/node-red:latest
+    build:
+      context: .
+      dockerfile: node-red.Dockerfile
     container_name: mynodered
     restart: always
     environment:

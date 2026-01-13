@@ -14,7 +14,7 @@
 
       <div ref="mainBody" class="main-body" @mousemove="onMouseMove">
         <!-- 左侧区域：IconBar + 内容面板 -->
-        <div class="left-section" :style="{ width: leftWidth + 'px' }">
+        <div class="left-section" :style="currentView === 'documents' ? { width: '56px' } : { width: leftWidth + 'px' }">
           <!-- 全局导航栏 -->
           <IconBar
             :current-view="currentView"
@@ -25,8 +25,8 @@
             @toggle-ai="toggleAIAnalysis"
           />
         
-          <!-- 内容面板 -->
-          <div class="panel-content">
+          <!-- 内容面板(文档视图时隐藏) -->
+          <div v-if="currentView !== 'documents'" class="panel-content">
             <LeftPanel
               v-if="currentView === 'connect'"
               :rooms="roomList"
@@ -43,17 +43,20 @@
               @assets-selected="onAssetsSelected"
             />
             <FilePanel
-              v-else-if="currentView === 'files'"
+              v-else-if="currentView === 'models'"
               @file-activated="onFileActivated"
               @open-data-export="openDataExportPanel"
             />
           </div>
         </div>
 
-        <div class="resizer" @mousedown="startResize($event, 'left')"></div>
+        <!-- 文档管理视图(独立全屏布局) -->
+        <DocumentManager v-if="currentView === 'documents'" class="document-manager-fullscreen" />
 
-        <!-- 中间主视图区域 -->
-        <div class="main-content">
+        <div v-if="currentView !== 'documents'" class="resizer" @mousedown="startResize($event, 'left')"></div>
+
+        <!-- 中间主视图区域(文档视图时隐藏) -->
+        <div v-if="currentView !== 'documents'" class="main-content">
           <!-- 3D 视图 -->
           <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
             <MainView
@@ -97,16 +100,16 @@
           </div>
         </div>
 
-        <!-- 右侧拖拽条 -->
+        <!-- 右侧拖拽条(文档视图时隐藏) -->
         <div
-          v-if="isRightPanelOpen"
+          v-if="isRightPanelOpen && currentView !== 'documents'"
           class="resizer"
           @mousedown="startResize($event, 'right')"
         ></div>
 
-        <!-- 右侧面板 -->
+        <!-- 右侧面板(文档视图时隐藏) -->
         <div
-          v-if="isRightPanelOpen"
+          v-if="isRightPanelOpen && currentView !== 'documents'"
           class="panel-wrapper"
           :style="{ width: rightWidth + 'px' }"
         >
@@ -166,6 +169,7 @@ import IconBar from './components/IconBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import FilePanel from './components/FilePanel.vue';
+import DocumentManager from './components/DocumentManager.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
@@ -234,7 +238,7 @@ onMounted(() => {
   initPanoCompareMode();
 });
 
-const leftWidth = ref(400);
+const leftWidth = ref(368);
 const rightWidth = ref(320);
 const isRightPanelOpen = ref(true);
 const isChartPanelOpen = ref(false);
@@ -681,6 +685,14 @@ const switchView = (view) => {
   currentView.value = view;
   // 切换视图时清除选择
   selectedRoomProperties.value = null;
+
+  // 缺陷修复：当切换到文档管理界面时，MainView 会被卸载
+  // 我们需要重置 currentLoadedModelPath，以便当用户返回 模型视图 时
+  // MainView 重新挂载后能触发模型的重新加载
+  if (view === 'documents') {
+    console.log('🔄 切换到文档管理，重置模型加载状态');
+    currentLoadedModelPath.value = null;
+  }
 
   // 注意：不在这里立即调用 showAllAssets/showAllRooms
   // 因为可能模型还没加载完成，让 onAssetsLoaded/onRoomsLoaded 处理
@@ -1527,6 +1539,7 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .left-section { display: flex; flex-shrink: 0; height: 100%; overflow: hidden; position: relative; z-index: 20; transition: width 0.05s ease-out; }
 .panel-content { flex: 1; height: 100%; overflow: hidden; display: flex; flex-direction: column; background: #252526; }
 .main-content { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; display: flex; flex-direction: column; }
+.document-manager-fullscreen { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
 .viewer-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; }
 .bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }
 .resizer { width: 5px; background: #111; cursor: col-resize; flex-shrink: 0; z-index: 50; transition: background 0.2s; }
@@ -1542,6 +1555,27 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 }
 .horizontal-resizer:hover, .horizontal-resizer:active { 
   background: #0078d4; 
+}
+
+/* 文档管理占位样式 */
+.documents-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: var(--md-sys-color-surface, #252526);
+  color: var(--md-sys-color-on-surface-variant, #888);
+}
+.documents-placeholder .placeholder-content {
+  text-align: center;
+}
+.documents-placeholder svg {
+  margin-bottom: 16px;
+  stroke: var(--md-sys-color-on-surface-variant, #666);
+}
+.documents-placeholder p {
+  font-size: 14px;
+  margin: 0;
 }
 
 /* 数据导出弹窗样式 */

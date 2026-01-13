@@ -254,8 +254,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 默认使用主题表面色（浅色模式适配） */
-  background: var(--md-sys-color-surface);
+  /* Use list background token */
+  background: var(--list-bg);
 }
 
 .panel-header {
@@ -265,13 +265,13 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--md-sys-color-on-surface);
   text-transform: uppercase;
 }
 
@@ -280,12 +280,12 @@ defineExpose({
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  color: var(--md-sys-color-secondary);
   cursor: pointer;
 }
 
 .actions:hover {
-  color: var(--el-color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .plus {
@@ -295,7 +295,7 @@ defineExpose({
 
 .search-row {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   flex-shrink: 0;
 }
 
@@ -322,7 +322,7 @@ defineExpose({
 
 .node-label {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--list-item-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -341,8 +341,8 @@ defineExpose({
 
 .node-count {
   font-size: 10px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color);
+  color: var(--list-item-text-secondary);
+  background: var(--md-sys-color-surface-container-high);
   padding: 2px 6px;
   border-radius: 10px;
   flex-shrink: 0;
@@ -350,8 +350,8 @@ defineExpose({
 
 .node-code {
   font-size: 10px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color);
+  color: var(--list-item-text-secondary);
+  background: var(--md-sys-color-surface-container-high);
   padding: 2px 6px;
   border-radius: 2px;
   flex-shrink: 0;
@@ -369,14 +369,14 @@ defineExpose({
 /* 覆盖 el-tree-v2 样式以匹配原有设计 */
 :deep(.el-tree-v2) {
   background: transparent;
-  color: var(--el-text-color-regular);
+  color: var(--list-item-text);
 }
 
 /* 修正选择器：从 .el-tree-v2__content 改为 .el-tree-node__content */
 :deep(.el-tree-node__content) {
   position: relative;
   /* 使用内阴影绘制分割线，稳健且层级较高 */
-  box-shadow: inset 0 -1px 0 var(--el-border-color);
+  box-shadow: inset 0 -1px 0 var(--md-sys-color-outline-variant);
   background-color: transparent; /* 默认透明（适配浅色模式） */
 }
 
@@ -391,29 +391,23 @@ defineExpose({
 /* 二级节点（规格）样式 - 已统一在 .el-tree-node__content 中设置背景色 */
 
 :deep(.el-tree-node__content:hover) {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--list-item-bg-hover);
 }
 
 :deep(.el-checkbox__inner) {
   background-color: transparent;
-  border-color: var(--el-text-color-secondary);
+  border-color: var(--md-sys-color-outline);
 }
 
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner),
 :deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
-  background-color: var(--el-color-primary);
-  border-color: var(--el-color-primary);
+  background-color: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 </style>
 
 <!-- 非 scoped 样式，确保能够覆盖 Element Plus 的内部样式 -->
 <style>
-html.dark .asset-panel .el-tree-node__content {
-  background-color: #1e1e1e !important;
-}
-
-/* 强制覆盖 AssetPanel 背景色，避免被 Scoped 样式中的变量优先级覆盖 */
-html.dark .asset-panel {
-  background-color: #252526 !important;
-}
+/* Remove hardcoded dark mode overrides - rely on tokens */
+/* If overrides are still needed for specificity, use html.dark selector */
 </style>

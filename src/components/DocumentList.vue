@@ -39,9 +39,9 @@
         
         <div class="doc-info">
           <div v-if="editingId === doc.id" class="doc-edit">
-            <input 
+            <el-input 
               v-model="editingTitle"
-              class="edit-input"
+              size="small"
               @keydown.enter="saveTitle(doc.id)"
               @keydown.esc="cancelEdit"
               @blur="saveTitle(doc.id)"
@@ -635,9 +635,9 @@ const formatDate = (dateString) => {
 .document-section {
   margin-top: 16px;
   padding: 12px;
-  background: #252526;
+  background: var(--md-sys-color-surface);
   border-radius: 4px;
-  border: 1px solid #3e3e42;
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .section-header {
@@ -650,7 +650,7 @@ const formatDate = (dateString) => {
 .section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #ccc;
+  color: var(--md-sys-color-on-surface);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -662,7 +662,7 @@ const formatDate = (dateString) => {
   gap: 4px;
   padding: 0;
   background: transparent;
-  color: #00b0ff;
+  color: var(--md-sys-color-primary);
   border: none;
   font-size: 11px;
   cursor: pointer;
@@ -689,15 +689,15 @@ const formatDate = (dateString) => {
   align-items: center;
   gap: 10px;
   padding: 8px;
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 3px;
   transition: all 0.2s;
 }
 
 .document-item:hover {
-  background: #2a2a2a;
-  border-color: #555;
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .doc-icon {
@@ -711,7 +711,7 @@ const formatDate = (dateString) => {
 
 .doc-title {
   font-size: 11px;
-  color: #eee;
+  color: var(--md-sys-color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -719,12 +719,12 @@ const formatDate = (dateString) => {
 
 .doc-title.clickable {
   cursor: pointer;
-  color: #00b0ff;
+  color: var(--md-sys-color-primary);
   transition: color 0.2s;
 }
 
 .doc-title.clickable:hover {
-  color: #4fc3f7;
+  color: var(--md-sys-color-primary);
   text-decoration: underline;
 }
 
@@ -741,10 +741,10 @@ const formatDate = (dateString) => {
 .edit-input {
   width: 100%;
   padding: 2px 6px;
-  background: #1e1e1e;
-  border: 1px solid #0078d4;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-primary);
   border-radius: 2px;
-  color: #eee;
+  color: var(--md-sys-color-on-surface);
   font-size: 11px;
   outline: none;
 }
@@ -757,9 +757,9 @@ const formatDate = (dateString) => {
 .btn-icon {
   padding: 4px;
   background: transparent;
-  border: 1px solid #444;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 3px;
-  color: #aaa;
+  color: var(--md-sys-color-secondary);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
@@ -768,15 +768,15 @@ const formatDate = (dateString) => {
 }
 
 .btn-icon:hover {
-  background: #333;
-  border-color: #666;
-  color: #fff;
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn-delete:hover {
-  background: #4442;
-  border-color: #e74c3c;
-  color: #e74c3c;
+  background: var(--md-sys-color-error-container);
+  border-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-error);
 }
 
 .empty-state {

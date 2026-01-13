@@ -1,75 +1,69 @@
 <template>
-  <Teleport to="body">
-    <div v-if="visible" class="date-picker-overlay" @click.self="close">
-      <div class="date-picker-modal">
-        <!-- Header -->
-        <div class="picker-header">
-          <span class="picker-title">{{ t('timeline.selectDateRange') }}</span>
-          <button class="close-btn" @click="close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+  <el-dialog
+    :model-value="visible"
+    :title="t('timeline.selectDateRange')"
+    width="400px"
+    :close-on-click-modal="false"
+    destroy-on-close
+    class="custom-dialog date-range-dialog"
+    @update:model-value="$emit('update:visible', $event)"
+  >
+    <div class="calendar-widget">
+      <div class="cal-header">
+        <el-button size="small" circle @click="changeMonth(-1)"><el-icon><ArrowLeft /></el-icon></el-button>
+        <span class="cal-title">{{ calendarTitle }}</span>
+        <el-button size="small" circle @click="changeMonth(1)"><el-icon><ArrowRight /></el-icon></el-button>
+      </div>
+      <div class="cal-grid">
+        <div v-for="(d, idx) in calendarDayNames" :key="idx" class="cal-day-name">{{ d }}</div>
+        <div
+          v-for="(day, idx) in calendarDays"
+          :key="idx"
+          class="cal-day"
+          :class="{
+            'empty': !day.inMonth,
+            'selected': isDaySelected(day.date),
+            'in-range': isDayInRange(day.date)
+          }"
+          @click="handleDayClick(day)"
+        >
+          {{ day.date ? day.date.getDate() : '' }}
         </div>
+      </div>
 
-        <!-- Calendar -->
-        <div class="calendar-widget">
-          <div class="cal-header">
-            <button @click="changeMonth(-1)">&#9664;</button>
-            <span>{{ calendarTitle }}</span>
-            <button @click="changeMonth(1)">&#9654;</button>
-          </div>
-          <div class="cal-grid">
-            <div v-for="(d, idx) in calendarDayNames" :key="idx" class="cal-day-name">{{ d }}</div>
-            <div
-              v-for="(day, idx) in calendarDays"
-              :key="idx"
-              class="cal-day"
-              :class="{
-                'empty': !day.inMonth,
-                'selected': isDaySelected(day.date),
-                'in-range': isDayInRange(day.date)
-              }"
-              @click="handleDayClick(day)"
-            >
-              {{ day.date ? day.date.getDate() : '' }}
-            </div>
-          </div>
-
-          <!-- Range Preview -->
-          <div class="range-preview">
-            <div class="preview-box">
-              <label>{{ t('timeline.startDate') }}</label>
-              <span :class="{ placeholder: !tempStart }">
-                {{ formatDate(tempStart) || t('common.select') }}
-              </span>
-            </div>
-            <div class="arrow">→</div>
-            <div class="preview-box">
-              <label>{{ t('timeline.endDate') }}</label>
-              <span :class="{ placeholder: !tempEnd }">
-                {{ formatDate(tempEnd) || t('common.select') }}
-              </span>
-            </div>
-          </div>
+      <!-- Range Preview -->
+      <div class="range-preview">
+        <div class="preview-box">
+          <label>{{ t('timeline.startDate') }}</label>
+          <span :class="{ placeholder: !tempStart }">
+            {{ formatDate(tempStart) || t('common.select') }}
+          </span>
         </div>
-
-        <!-- Footer -->
-        <div class="picker-footer">
-          <button class="btn-cancel" @click="close">{{ t('common.cancel') }}</button>
-          <button class="btn-apply" :disabled="!tempStart || !tempEnd" @click="apply">
-            {{ t('common.apply') }}
-          </button>
+        <div class="arrow">→</div>
+        <div class="preview-box">
+          <label>{{ t('timeline.endDate') }}</label>
+          <span :class="{ placeholder: !tempEnd }">
+            {{ formatDate(tempEnd) || t('common.select') }}
+          </span>
         </div>
       </div>
     </div>
-  </Teleport>
+
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="close">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!tempStart || !tempEnd" @click="apply">
+          {{ t('common.apply') }}
+        </el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Close, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
 
 const props = defineProps({
   visible: {
@@ -201,52 +195,9 @@ const apply = () => {
 </script>
 
 <style scoped>
-.date-picker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10000;
-}
-
-.date-picker-modal {
-  background: #2d2d2d;
-  border-radius: 8px;
-  min-width: 300px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  border: 1px solid #444;
-}
-
-.picker-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #3e3e3e;
-  background: #252526;
-  border-radius: 8px 8px 0 0;
-}
-
-.picker-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: #fff;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* 模态框样式移除，使用 el-dialog */
+.calendar-widget {
+  padding: 10px;
 }
 
 .close-btn svg {
@@ -370,49 +321,7 @@ const apply = () => {
   font-size: 14px;
 }
 
-.picker-footer {
-  padding: 12px 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  border-top: 1px solid #3e3e3e;
-  background: #252526;
-  border-radius: 0 0 8px 8px;
-}
 
-.btn-cancel {
-  background: transparent;
-  border: 1px solid #555;
-  color: #ccc;
-  padding: 6px 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
 
-.btn-cancel:hover {
-  border-color: #777;
-  color: #fff;
-}
 
-.btn-apply {
-  background: #0078d4;
-  border: none;
-  color: #fff;
-  padding: 6px 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.btn-apply:hover {
-  background: #106ebe;
-}
-
-.btn-apply:disabled {
-  background: #333;
-  color: #777;
-  cursor: not-allowed;
-}
 </style>

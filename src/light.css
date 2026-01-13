@@ -48,4 +48,7 @@ html.light {
   --md-sys-color-surface-container: rgb(234 239 241);
   --md-sys-color-surface-container-high: rgb(228 233 236);
   --md-sys-color-surface-container-highest: rgb(222 227 230);
+
+  /* 列表选中背景 - 使用硬编码浅蓝色 */
+  --list-item-bg-selected: rgba(4, 103, 126, 0.2);
 }

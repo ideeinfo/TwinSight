@@ -131,14 +131,14 @@ const handleBlur = () => {
 }
 
 .val-box {
-  background: var(--el-fill-color-blank, #1e1e1e);
-  border: 1px solid var(--el-border-color, #3e3e42);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   min-height: 24px;
   display: flex;
   align-items: center;
   padding: 0 8px;
-  border-radius: var(--el-border-radius-small, 2px);
-  color: var(--el-text-color-primary, #eee);
+  border-radius: var(--input-radius);
+  color: var(--input-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,25 +148,25 @@ const handleBlur = () => {
 }
 
 .val-box:hover {
-  border-color: var(--el-border-color-hover, #555);
-  background: var(--el-fill-color-light, #252526);
+  border-color: var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container);
 }
 
 .val-box.placeholder {
-  color: var(--el-text-color-placeholder, #777);
+  color: var(--input-placeholder);
   font-style: normal;
 }
 
 .val-box.varies {
-  color: var(--el-color-primary, #9cdcfe);
+  color: var(--md-sys-color-primary);
   font-style: italic;
-  border-color: var(--el-border-color, #4a4a4a);
+  border-color: var(--md-sys-color-outline-variant);
 }
 
 .val-box.varies:hover {
-  border-color: var(--el-color-primary, #0078d4);
-  background: var(--el-fill-color-blank, #1e1e1e);
-  color: var(--el-color-primary-light-3, #6cb6ff);
+  border-color: var(--md-sys-color-primary);
+  background: var(--input-bg);
+  color: var(--md-sys-color-primary);
 }
 
 /* el-input 尺寸适配 - 紧凑风格 */

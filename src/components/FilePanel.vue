@@ -10,15 +10,16 @@
       </div>
       
       <div class="search-row">
-        <div class="search-input-wrapper">
-          <svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input v-model="searchText" type="text" :placeholder="t('common.search')" />
-        </div>
+        <el-input
+          v-model="searchText"
+          :placeholder="t('common.search')"
+          :prefix-icon="Search"
+          size="small"
+          clearable
+          style="flex: 1"
+        />
         <div class="filter-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
         </div>
@@ -74,63 +75,58 @@
     </div>
 
     <!-- 上传对话框 -->
-    <Teleport to="body">
-      <div v-if="isUploadDialogOpen" class="modal-overlay">
-        <div class="modal-container upload-dialog" @click.stop>
-          <div class="modal-header">
-            <h3>{{ t('filePanel.uploadModel') }}</h3>
-            <button class="modal-close-btn" @click="closeUploadDialog">×</button>
+    <el-dialog
+      v-model="isUploadDialogOpen"
+      :title="t('filePanel.uploadModel')"
+      width="500px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      class="custom-dialog"
+    >
+      <div class="form-group">
+        <label style="display: block; margin-bottom: 8px;">{{ t('filePanel.fileTitle') }} *</label>
+        <el-input 
+          v-model="uploadForm.title" 
+          type="text" 
+          :placeholder="t('filePanel.fileTitlePlaceholder')" 
+        />
+      </div>
+      <div class="form-group" style="margin-top: 16px;">
+        <label style="display: block; margin-bottom: 8px;">{{ t('filePanel.selectFile') }}</label>
+        <div
+          class="file-drop-zone" 
+          :class="{ dragging: isDragging }"
+          @click="triggerFileInput"
+          @dragover.prevent="onDragOver"
+          @dragleave="onDragLeave"
+          @drop.prevent="onFileDrop"
+        >
+          <input ref="fileInput" type="file" accept=".zip,.svfzip" hidden @change="onFileSelect" />
+          <div v-if="!uploadForm.file" class="drop-hint">
+            <el-icon :size="48" color="#666"><UploadFilled /></el-icon>
+            <p>{{ t('filePanel.dropHint') }}</p>
           </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label>{{ t('filePanel.fileTitle') }} *</label>
-              <input v-model="uploadForm.title" type="text" :placeholder="t('filePanel.fileTitlePlaceholder')" />
-            </div>
-            <div class="form-group">
-              <label>{{ t('filePanel.selectFile') }}</label>
-              <div
-                class="file-drop-zone" 
-                :class="{ dragging: isDragging }"
-                @click="triggerFileInput"
-                @dragover.prevent="onDragOver"
-                @dragleave="onDragLeave"
-                @drop.prevent="onFileDrop"
-              >
-                <input ref="fileInput" type="file" accept=".zip,.svfzip" hidden @change="onFileSelect" />
-                <div v-if="!uploadForm.file" class="drop-hint">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="1.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  <p>{{ t('filePanel.dropHint') }}</p>
-                </div>
-                <div v-else class="selected-file">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38ABDF" stroke-width="1.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                  <span>{{ uploadForm.file.name }}</span>
-                  <button class="remove-file" @click.stop="uploadForm.file = null">×</button>
-                </div>
-              </div>
-            </div>
-            <div v-if="uploadProgress > 0" class="upload-progress">
-              <div class="progress-bar">
-                <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
-              </div>
-              <span class="progress-text">{{ uploadProgress }}%</span>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeUploadDialog">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" :disabled="!uploadForm.title || !uploadForm.file || isUploading" @click="uploadFile">
-              {{ isUploading ? t('filePanel.uploading') : t('filePanel.upload') }}
-            </button>
+          <div v-else class="selected-file">
+            <el-icon :size="24" color="#38ABDF"><Document /></el-icon>
+            <span>{{ uploadForm.file.name }}</span>
+            <el-button link type="danger" @click.stop="uploadForm.file = null">
+              <el-icon><Close /></el-icon>
+            </el-button>
           </div>
         </div>
       </div>
-    </Teleport>
+      <div v-if="uploadProgress > 0" class="upload-progress">
+        <el-progress :percentage="uploadProgress" :status="uploadProgress === 100 ? 'success' : ''" />
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeUploadDialog">{{ t('common.cancel') }}</el-button>
+          <el-button type="primary" :disabled="!uploadForm.title || !uploadForm.file || isUploading" :loading="isUploading" @click="uploadFile">
+            {{ isUploading ? t('filePanel.uploading') : t('filePanel.upload') }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 上下文菜单 -->
     <Teleport to="body">
@@ -156,6 +152,21 @@
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           {{ t('filePanel.extractData') }}
+        </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleCreateKB">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          {{ t('filePanel.createKB') }}
+        </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleSyncDocs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          {{ t('filePanel.syncKB') }}
         </div>
         <div v-if="authStore.hasPermission('influx:read')" class="context-menu-item" @click="handleInfluxConfig">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -184,45 +195,41 @@
     </Teleport>
 
     <!-- 编辑对话框 -->
-    <Teleport to="body">
-      <div v-if="isEditDialogOpen" class="modal-overlay">
-        <div class="modal-container" @click.stop>
-          <div class="modal-header">
-            <h3>{{ t('filePanel.editTitle') }}</h3>
-            <button class="modal-close-btn" @click="closeEditDialog">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label>{{ t('filePanel.fileTitle') }} *</label>
-              <input v-model="editForm.title" type="text" :placeholder="t('filePanel.fileTitlePlaceholder')" />
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" @click="closeEditDialog">{{ t('common.cancel') }}</button>
-            <button class="btn btn-primary" :disabled="!editForm.title || isSaving" @click="saveEdit">
-              {{ isSaving ? t('common.saving') : t('common.apply') }}
-            </button>
-          </div>
-        </div>
+    <el-dialog
+      v-model="isEditDialogOpen"
+      :title="t('filePanel.editTitle')"
+      width="400px"
+      :close-on-click-modal="false"
+      class="custom-dialog"
+    >
+      <div class="form-group">
+        <label style="display: block; margin-bottom: 8px;">{{ t('filePanel.fileTitle') }} *</label>
+        <el-input v-model="editForm.title" :placeholder="t('filePanel.fileTitlePlaceholder')" />
       </div>
-    </Teleport>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="closeEditDialog">{{ t('common.cancel') }}</el-button>
+          <el-button type="primary" :disabled="!editForm.title || isSaving" :loading="isSaving" @click="saveEdit">
+            {{ isSaving ? t('common.saving') : t('common.apply') }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 解压进度对话框 -->
-    <Teleport to="body">
-      <div v-if="isExtracting" class="modal-overlay">
-        <div class="modal-container extract-dialog">
-          <div class="modal-header">
-            <h3>{{ t('filePanel.extracting') }}</h3>
-          </div>
-          <div class="modal-body">
-            <div class="extract-progress">
-              <div class="spinner"></div>
-              <p>{{ t('filePanel.extractingHint') }}</p>
-            </div>
-          </div>
-        </div>
+    <el-dialog
+      v-model="isExtracting"
+      :title="t('filePanel.extracting')"
+      width="300px"
+      :close-on-click-modal="false"
+      :show-close="false"
+      class="custom-dialog"
+    >
+      <div class="extract-progress" style="text-align: center; padding: 20px;">
+        <div class="spinner"></div>
+        <p style="margin-top: 10px;">{{ t('filePanel.extractingHint') }}</p>
       </div>
-    </Teleport>
+    </el-dialog>
 
     <!-- InfluxDB 配置弹窗 -->
     <Teleport to="body">
@@ -694,6 +701,97 @@ const handlePanoCompare = () => {
   window.open(url, '_blank');
 };
 
+// 创建知识库
+const handleCreateKB = async () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+
+  try {
+    // 第一次调用，不带force参数
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    // 检查是否返回409冲突（已有知识库）
+    if (response.status === 409 && data.code === 'KB_EXISTS') {
+      // 显示确认对话框
+      const confirmed = await showDialog({
+        type: 'confirm',
+        title: t('filePanel.createKB'),
+        message: `该模型已关联知识库 "${data.data.kbName}"。\n\n删除现有知识库将丢失所有已上传的文件，是否继续？`,
+        danger: true,
+        confirmText: t('filePanel.confirmRecreateKB')
+      });
+
+      if (confirmed) {
+        // 用户确认，带force=true重新调用
+        await recreateKnowledgeBase(file);
+      }
+    } else if (data.success) {
+      await showAlert(t('filePanel.kbCreateSuccess'));
+      await loadFiles();
+    } else {
+      await showAlert(data.error || t('filePanel.kbCreateFailed'));
+    }
+  } catch (error) {
+    console.error('创建知识库错误:', error);
+    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
+  }
+};
+
+// 重建知识库（force=true）
+const recreateKnowledgeBase = async (file) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb?force=true`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await showAlert(t('filePanel.kbRecreateSuccess'));
+      await loadFiles();
+    } else {
+      await showAlert(data.error || t('filePanel.kbCreateFailed'));
+    }
+  } catch (error) {
+    console.error('重建知识库错误:', error);
+    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
+  }
+};
+
+// 同步文档到知识库
+const handleSyncDocs = async () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/files/${file.id}/sync-docs`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      await showAlert(data.error || t('filePanel.syncKBFailed'));
+      return;
+    }
+
+    if (data.success) {
+      await showAlert(data.message);
+      await loadFiles();
+    }
+  } catch (error) {
+    console.error('同步文档错误:', error);
+    await showAlert(t('filePanel.syncKBFailed') + ': ' + error.message);
+  }
+};
+
 onMounted(() => {
   loadFiles();
   document.addEventListener('click', onGlobalClick);
@@ -705,76 +803,68 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.left-container { display: flex; height: 100%; width: 100%; background: #252526; border-right: 1px solid #1e1e1e; }
-.icon-bar { width: 48px; flex-shrink: 0; background: #2b2b2b; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+.left-container { display: flex; height: 100%; width: 100%; background: var(--md-sys-color-surface); border-right: 1px solid var(--md-sys-color-outline-variant); }
+.icon-bar { width: 48px; flex-shrink: 0; background: var(--md-sys-color-surface-container-low); border-right: 1px solid var(--md-sys-color-outline-variant); display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
 .nav-group-top { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
 .nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 .nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
 .nav-item:hover { background: #333; }
-.nav-item.active-blue { border-left: 2px solid #38ABDF; background: #2a2d2e; color: #38ABDF; }
-.nav-item.active-blue svg { stroke: #38ABDF; }
+.nav-item.active-blue { border-left: 2px solid var(--md-sys-color-primary); background: var(--md-sys-color-surface-container); color: var(--md-sys-color-primary); }
+.nav-item.active-blue svg { stroke: var(--md-sys-color-primary); }
 .nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 .nav-item svg { margin-bottom: 4px; }
 .nav-item .label { font-size: 10px; text-align: center; }
-.list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; }
-.panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
-.title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; }
-.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; }
-.actions:hover { color: #38ABDF; }
+.list-panel { flex: 1; display: flex; flex-direction: column; background: var(--list-bg); }
+.panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.title { font-size: 11px; font-weight: 600; color: var(--md-sys-color-on-surface); text-transform: uppercase; }
+.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--md-sys-color-secondary); cursor: pointer; }
+.actions:hover { color: var(--md-sys-color-primary); }
 .plus { font-size: 14px; font-weight: bold; }
-.search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; }
-.search-input-wrapper { flex: 1; position: relative; }
-.search-input-wrapper input { width: 100%; background: #1e1e1e; border: 1px solid #333; border-radius: 3px; padding: 4px 8px 4px 24px; color: #ccc; font-size: 11px; }
-.search-input-wrapper input:focus { outline: none; border-color: #38ABDF; }
-.search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
-.filter-icon { cursor: pointer; padding: 4px; }
-.filter-icon:hover svg { stroke: #38ABDF; }
+.search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+/* .search-input-wrapper removed in template refactor */
+/* .search-icon-sm removed */
+.filter-icon { cursor: pointer; padding: 4px; color: var(--md-sys-color-secondary); }
+.filter-icon:hover { color: var(--md-sys-color-primary); }
+.filter-icon svg { stroke: currentColor; }
 /* Status Row Removed */
 
 .list-content { flex: 1; overflow-y: auto; }
 .empty-state { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
 
 /* 文件列表项 */
-.list-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #1e1e1e; }
-.list-item:hover { background: #2a2a2a; }
-.list-item.active { background: #2a2d2e; border-left: 2px solid #38ABDF; }
-.file-icon { flex-shrink: 0; color: #888; }
+.list-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--list-border); transition: background-color 0.2s; }
+.list-item:hover { background: var(--list-item-bg-hover); }
+.list-item.active { background: var(--list-item-bg-selected); border-left: 2px solid var(--md-sys-color-primary); }
+.file-icon { flex-shrink: 0; color: var(--md-sys-color-secondary); }
 .item-content { flex: 1; min-width: 0; }
-.item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-name { font-size: 12px; color: var(--list-item-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.file-code { font-size: 10px; color: #666; }
-.active-badge { font-size: 9px; background: #38ABDF; color: #fff; padding: 1px 4px; border-radius: 2px; }
+.file-code { font-size: 10px; color: var(--list-item-text-secondary); }
+.active-badge { font-size: 9px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); padding: 1px 4px; border-radius: 2px; }
 .status-badge { font-size: 9px; padding: 1px 4px; border-radius: 2px; }
-.status-badge.uploaded { background: #555; color: #ccc; }
-.status-badge.extracting { background: #ffc107; color: #000; }
-.status-badge.ready { background: #4caf50; color: #fff; }
-.status-badge.error { background: #f44336; color: #fff; }
+.status-badge.uploaded { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+.status-badge.extracting { background: var(--color-warning, #ffc107); color: #000; }
+.status-badge.ready { background: var(--color-success, #4caf50); color: #fff; }
+.status-badge.error { background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
 .item-actions { flex-shrink: 0; }
-.more-btn { background: none; border: none; color: #888; cursor: pointer; padding: 4px; border-radius: 4px; }
-.more-btn:hover { background: #333; color: #fff; }
+.more-btn { background: none; border: none; color: var(--md-sys-color-on-surface-variant); cursor: pointer; padding: 4px; border-radius: 4px; }
+.more-btn:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
 
-/* 模态框 */
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-.modal-container { background: #252526; border-radius: 8px; max-width: 480px; width: 90%; max-height: 80vh; overflow: hidden; }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #333; }
-.modal-header h3 { margin: 0; font-size: 16px; color: #fff; }
-.modal-close-btn { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; line-height: 1; }
-.modal-close-btn:hover { color: #fff; }
-.modal-body { padding: 16px; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px; border-top: 1px solid #333; }
+/* 模态框样式 */
+/* 模态框样式已移除，使用 el-dialog */
 .form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 6px; }
-.form-group input[type="text"] { width: 100%; background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px 12px; color: #fff; font-size: 13px; }
-.form-group input:focus { outline: none; border-color: #38ABDF; }
+.form-group label { display: block; font-size: 12px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 6px; }
+/* Removed legacy input styles */
 
 /* 文件拖放区域 */
-.file-drop-zone { border: 2px dashed #444; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
-.file-drop-zone:hover, .file-drop-zone.dragging { border-color: #38ABDF; background: rgba(0, 176, 255, 0.05); }
-.drop-hint { color: #666; }
+/* 文件拖放区域 */
+.file-drop-zone { border: 2px dashed var(--md-sys-color-outline); border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--md-sys-color-surface-container-low); }
+.file-drop-zone:hover, .file-drop-zone.dragging { border-color: var(--md-sys-color-primary); background: var(--md-sys-color-surface-container); }
+.drop-hint { color: var(--md-sys-color-on-surface-variant); }
 .drop-hint p { margin: 8px 0 0 0; font-size: 12px; }
-.selected-file { display: flex; align-items: center; gap: 8px; color: #ccc; }
+.selected-file { display: flex; align-items: center; gap: 8px; color: var(--md-sys-color-on-surface); }
 .selected-file span { flex: 1; text-align: left; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.remove-file { background: none; border: none; color: #f44336; font-size: 18px; cursor: pointer; }
+.remove-file { background: none; border: none; color: var(--md-sys-color-error); font-size: 18px; cursor: pointer; }
 
 /* 上传进度 */
 .upload-progress { margin-top: 16px; }
@@ -791,12 +881,13 @@ onUnmounted(() => {
 .btn-secondary:hover:not(:disabled) { background: #555; }
 
 /* 上下文菜单 */
-.context-menu { position: fixed; background: #2d2d2d; border: 1px solid #444; border-radius: 6px; min-width: 160px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10000; overflow: hidden; }
-.context-menu-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; color: #ccc; cursor: pointer; }
-.context-menu-item:hover { background: #3e3e3e; }
-.context-menu-item.danger { color: #f44336; }
-.context-menu-item.danger:hover { background: rgba(244, 67, 54, 0.15); }
-.context-menu-divider { height: 1px; background: #444; margin: 4px 0; }
+/* 上下文菜单 */
+.context-menu { position: fixed; background: var(--md-sys-color-surface-container-high); border: 1px solid var(--md-sys-color-outline-variant); border-radius: 6px; min-width: 160px; box-shadow: var(--md-sys-color-shadow); z-index: 10000; overflow: hidden; }
+.context-menu-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; color: var(--md-sys-color-on-surface); cursor: pointer; }
+.context-menu-item:hover { background: var(--md-sys-color-surface-container-highest); }
+.context-menu-item.danger { color: var(--md-sys-color-error); }
+.context-menu-item.danger:hover { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.context-menu-divider { height: 1px; background: var(--md-sys-color-outline-variant); margin: 4px 0; }
 
 /* 解压进度 */
 .extract-progress { text-align: center; padding: 20px; }
