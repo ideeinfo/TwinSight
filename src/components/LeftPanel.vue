@@ -51,7 +51,7 @@
             stroke="#888" 
             stroke-width="2"
             :title="t('leftPanel.copyStreamUrl')"
-            @click.stop="copyStreamUrl(item.code)"
+            @click.stop="copyStreamUrl(item.fileId, item.code)"
           >
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -105,7 +105,8 @@ const items = computed(() => {
     return props.rooms.map(room => ({
       name: room.name,
       code: room.code,
-      dbId: room.dbId
+      dbId: room.dbId,
+      fileId: room.fileId  // 包含 fileId 用于生成唯一的 Stream URL
     }));
   }
   return [];
@@ -145,11 +146,15 @@ const selectItem = (index) => {
   if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
 
-// 复制 Stream URL 到剪贴板
-const copyStreamUrl = async (spaceCode) => {
+// 复制 Stream URL 到剪贴板（需要 fileId 确保唯一性）
+const copyStreamUrl = async (fileId, spaceCode) => {
   try {
-    // 从服务器获取完整的 Stream URL（包含 API Key）
-    const response = await fetch(`/api/v1/timeseries/stream-url/${encodeURIComponent(spaceCode)}`, { headers: getHeaders() });
+    if (!fileId) {
+      console.error('无法复制 Stream URL: 缺少 fileId');
+      return;
+    }
+    // 从服务器获取完整的 Stream URL（包含 API Key 和 fileId）
+    const response = await fetch(`/api/v1/timeseries/stream-url/${fileId}/${encodeURIComponent(spaceCode)}`, { headers: getHeaders() });
     const result = await response.json();
     
     if (result.success && result.data?.streamUrl) {

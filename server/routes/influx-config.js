@@ -28,8 +28,9 @@ router.get('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (
                 success: true,
                 data: {
                     ...config,
-                    influx_password: config.influx_password ? '******' : null,
-                    influx_token: config.influx_token ? '******' : null,
+                    // 前端需要查看 Token，因此不再掩盖 (依靠 INFLUX_READ 权限控制)
+                    // influx_password: config.influx_password ? '******' : null,
+                    // influx_token: config.influx_token ? '******' : null,
                     has_password: !!config.influx_password,
                     has_token: !!config.influx_token
                 }

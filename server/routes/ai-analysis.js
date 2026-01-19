@@ -66,6 +66,96 @@ router.get('/health', async (req, res) => {
  *   fileId: number
  * }
  */
+
+
+// Helper: 获取上下文资产和文档 (复用逻辑)
+async function getContextData(pool, roomCode, roomName, fileId) {
+    // 1. 查询资产
+    let assetsQueryKey = `
+        SELECT asset_code, name, spec_code, floor, room
+        FROM assets WHERE (room ILIKE $1 OR room ILIKE $2)
+    `;
+    const assetParams = [`%${roomCode}%`, `%${roomName || ''}%`];
+    if (fileId) {
+        assetsQueryKey += ` AND file_id = $3`;
+        assetParams.push(fileId);
+    }
+    const assetsResult = await pool.query(assetsQueryKey, assetParams);
+    const assets = assetsResult.rows;
+
+    const searchPatterns = [`%${roomCode}%`, `%${roomName || ''}%`];
+    if (assets.length > 0) {
+        const assetPatterns = assets
+            .flatMap(a => [a.name])
+            .filter(val => val && val.length > 2)
+            .map(val => `%${val}%`);
+        searchPatterns.push(...assetPatterns);
+    }
+    const assetCodes = assets.map(a => a.asset_code).filter(c => c);
+    const specCodes = assets.map(a => a.spec_code).filter(c => c);
+
+    // 2. 查询文档
+    const docsParams = [`%${roomCode}%`, `%${roomName || ''}%`, searchPatterns];
+    let docsQuery = '';
+
+    if (fileId) {
+        docsParams.push(fileId);
+        if (assetCodes.length > 0) docsParams.push(assetCodes);
+        if (specCodes.length > 0) docsParams.push(specCodes);
+
+        docsQuery = `
+            SELECT DISTINCT d.id, d.title, d.file_name, d.file_type, d.space_code, d.asset_code, d.spec_code
+            FROM documents d
+            LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $4
+            LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $4
+            LEFT JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $4
+            WHERE (
+                (d.space_code ILIKE $1 OR d.space_code ILIKE $2)
+                OR
+                (d.file_name ILIKE ANY($3) OR d.title ILIKE ANY($3))
+            )
+            AND (
+                (d.space_code IS NOT NULL AND s.file_id IS NOT NULL) OR
+                (d.asset_code IS NOT NULL AND a.file_id IS NOT NULL) OR
+                (d.spec_code IS NOT NULL AND sp.file_id IS NOT NULL)
+            )
+            ${assetCodes.length > 0 ? 'OR d.asset_code = ANY($5)' : ''}
+            ${specCodes.length > 0 ? 'OR d.spec_code = ANY($6)' : ''}
+            AND d.file_name NOT ILIKE '%.jpg' 
+            AND d.file_name NOT ILIKE '%.png'
+            AND d.file_name NOT ILIKE '%.jpeg'
+            AND d.file_name NOT ILIKE '%.gif'
+            AND d.file_name NOT ILIKE '%.webp'
+            LIMIT 20
+        `;
+    } else {
+        if (assetCodes.length > 0) docsParams.push(assetCodes);
+        if (specCodes.length > 0) docsParams.push(specCodes);
+
+        docsQuery = `
+            SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
+            FROM documents
+            WHERE (
+                space_code ILIKE $1 
+                OR space_code ILIKE $2
+                ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
+                ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
+                OR file_name ILIKE ANY($3)
+                OR title ILIKE ANY($3)
+            )
+              AND file_name NOT ILIKE '%.jpg' 
+              AND file_name NOT ILIKE '%.png'
+              AND file_name NOT ILIKE '%.jpeg'
+              AND file_name NOT ILIKE '%.gif'
+              AND file_name NOT ILIKE '%.webp'
+            LIMIT 20
+        `;
+    }
+
+    const docsResult = await pool.query(docsQuery, docsParams);
+    return { assets, documents: docsResult.rows, searchPatterns };
+}
+
 router.post('/temperature-alert', async (req, res) => {
     try {
         const { roomCode, roomName, temperature, threshold, alertType, fileId } = req.body;
@@ -87,6 +177,8 @@ router.post('/temperature-alert', async (req, res) => {
         // ============================================
         // 分支：使用 n8n 工作流还是直接调用 Open WebUI
         // ============================================
+
+
         if (USE_N8N_WORKFLOW) {
             console.log(`📡 收到温度报警请求 (n8n 工作流):`, {
                 roomName, roomCode, temperature, threshold: finalThreshold, alertType: finalAlertType
@@ -116,11 +208,15 @@ router.post('/temperature-alert', async (req, res) => {
 
                 // 在后端处理来源格式化（n8n 只负责 AI 调用编排）
                 let analysisText = n8nResult.analysis || '';
-                const rawSources = n8nResult.rawSources || [];
+                const rawSources = n8nResult.rawSources || []; // Keep for potential debug, not used directly in formatting
                 const sourceIndexMap = n8nResult.sourceIndexMap || {};
                 let formattedSources = [];
 
                 try {
+                    // pre-process: Replace ][ with , to handle adjacent citations like [1][2] -> [1, 2]
+                    analysisText = analysisText.replace(/\]\s*\[/g, ', ');
+
+                    // 1. 处理 Open WebUI 返回的 Sources
                     // 从 sourceIndexMap 中提取 Open WebUI 文件 ID
                     const openwebuiFileIds = [];
                     for (const [idx, info] of Object.entries(sourceIndexMap)) {
@@ -129,8 +225,7 @@ router.post('/temperature-alert', async (req, res) => {
                         }
                     }
 
-                    // 查询本地文档信息
-                    const docMap = new Map();
+                    // 查询本地文档信息 (通过 openwebui_file_id 匹配)
                     if (openwebuiFileIds.length > 0) {
                         const docsResult = await pool.query(`
                             SELECT d.id, d.title, d.file_name, d.file_type, kbd.openwebui_file_id
@@ -146,14 +241,28 @@ router.post('/temperature-alert', async (req, res) => {
                                     sourceIndexMap[idx].fileName = doc.file_name;
                                 }
                             }
-                            docMap.set(String(doc.id), {
-                                id: doc.id,
-                                file_name: doc.file_name,
-                                title: doc.title
-                            });
                         }
-                        console.log(`📚 映射了 ${docsResult.rows.length} 个文档 ID`);
                     }
+
+                    // 2. [CRITICAL FIX] 获取上下文文档列表作为 Fallback
+                    // 因为 LLM 可能会引用 Prompt 中列出的文档 (Indices 1..N) 而非 RAG Sources
+                    const { documents: contextDocs } = await getContextData(pool, roomCode, roomName, fileId);
+
+                    // 补充 sourceIndexMap
+                    // 遍历 1 到 contextDocs.length，如果 sourceIndexMap 中没有或者无效，则填入上下文文档
+                    contextDocs.forEach((doc, index) => {
+                        const idx = index + 1; // 1-based index
+                        if (!sourceIndexMap[idx] || !sourceIndexMap[idx].docId) {
+                            sourceIndexMap[idx] = {
+                                index: idx,
+                                docId: doc.id,
+                                fileName: doc.file_name,
+                                name: doc.title,
+                                isContextFallback: true
+                            };
+                            console.log(`   🔄 引用回退到 Prompt 上下文: [${idx}] ${doc.file_name}`);
+                        }
+                    });
 
                     // 格式化引用 - 处理 [source X], [id: X], [X] 格式
                     analysisText = analysisText.replace(/\[source\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
@@ -171,10 +280,6 @@ router.post('/temperature-alert', async (req, res) => {
                     analysisText = analysisText.replace(/\[id:?\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
                         const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
                         const linkedNums = indices.map(num => {
-                            if (docMap.has(String(num))) {
-                                const doc = docMap.get(String(num));
-                                return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
-                            }
                             const info = sourceIndexMap[String(num)];
                             if (info && info.docId) {
                                 return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
@@ -190,10 +295,6 @@ router.post('/temperature-alert', async (req, res) => {
                             const info = sourceIndexMap[String(num)];
                             if (info && info.docId) {
                                 return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
-                            }
-                            if (docMap.has(String(num))) {
-                                const doc = docMap.get(String(num));
-                                return `<span class="ai-doc-link" data-id="${num}" data-name="${doc.file_name}">${num}</span>`;
                             }
                             return String(num);
                         });
@@ -244,7 +345,7 @@ router.post('/temperature-alert', async (req, res) => {
 
                     console.log(`📝 n8n 结果格式化完成，引用了 ${formattedSources.length} 个文档`);
                 } catch (formatError) {
-                    console.warn('⚠️ n8n 来源格式化失败，使用原始数据:', formatError.message);
+                    console.warn('⚠️ n8n 来源格式化失败，使用原始数据:', formatError.message, formatError.stack);
                 }
 
                 return res.json({
@@ -275,12 +376,20 @@ router.post('/temperature-alert', async (req, res) => {
         let context = { assets: [], documents: [] };
         try {
             // 查询房间内的设备（使用正确的列名 asset_code）
-            const assetsResult = await pool.query(`
+            let assetsQueryKey = `
                 SELECT asset_code, name, spec_code, floor, room
-                FROM assets WHERE room ILIKE $1 OR room ILIKE $2
-            `, [`%${roomCode}%`, `%${roomName}%`]);
+                FROM assets WHERE (room ILIKE $1 OR room ILIKE $2)
+            `;
+            const assetParams = [`%${roomCode}%`, `%${roomName}%`];
+
+            if (fileId) {
+                assetsQueryKey += ` AND file_id = $3`;
+                assetParams.push(fileId);
+            }
+
+            const assetsResult = await pool.query(assetsQueryKey, assetParams);
             context.assets = assetsResult.rows;
-            console.log(`📦 查询到 ${context.assets.length} 个设备`);
+            console.log(`📦 查询到 ${context.assets.length} 个设备 (fileId: ${fileId || 'any'})`);
 
             // 1.1 收集搜索关键词
             const searchPatterns = [`%${roomCode}%`, `%${roomName}%`];
@@ -297,33 +406,68 @@ router.post('/temperature-alert', async (req, res) => {
             const specCodes = context.assets.map(a => a.spec_code).filter(c => c);
 
             // 查询相关文档（包括房间相关、设备相关、规范相关）
-            const docsQuery = `
-                SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
-                FROM documents
-                WHERE (
-                    space_code ILIKE $1 
-                    OR space_code ILIKE $2 
-                    ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
-                    ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
-                    OR file_name ILIKE ANY($3)
-                    OR title ILIKE ANY($3)
-                )
-                  AND file_name NOT ILIKE '%.jpg' 
-                  AND file_name NOT ILIKE '%.png'
-                  AND file_name NOT ILIKE '%.jpeg'
-                  AND file_name NOT ILIKE '%.gif'
-                  AND file_name NOT ILIKE '%.webp'
-                LIMIT 20
-            `;
+            // 优化：如果有 fileId，增加 JOIN 过滤确保文档属于当前模型
+            let docsQuery = '';
+            let docsParams = [];
 
-            const docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns];
-            if (assetCodes.length > 0) docsParams.push(assetCodes);
-            if (specCodes.length > 0) docsParams.push(specCodes);
+            if (fileId) {
+                docsQuery = `
+                    SELECT DISTINCT d.id, d.title, d.file_name, d.file_type, d.space_code, d.asset_code, d.spec_code
+                    FROM documents d
+                    LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $4
+                    LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $4
+                    LEFT JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $4
+                    WHERE (
+                        (d.space_code ILIKE $1 OR d.space_code ILIKE $2)
+                        OR
+                        (d.file_name ILIKE ANY($3) OR d.title ILIKE ANY($3))
+                    )
+                    AND (
+                        (d.space_code IS NOT NULL AND s.file_id IS NOT NULL) OR
+                        (d.asset_code IS NOT NULL AND a.file_id IS NOT NULL) OR
+                        (d.spec_code IS NOT NULL AND sp.file_id IS NOT NULL)
+                    )
+                    ${assetCodes.length > 0 ? 'OR d.asset_code = ANY($5)' : ''}
+                    ${specCodes.length > 0 ? 'OR d.spec_code = ANY($6)' : ''}
+                    AND d.file_name NOT ILIKE '%.jpg' 
+                    AND d.file_name NOT ILIKE '%.png'
+                    AND d.file_name NOT ILIKE '%.jpeg'
+                    AND d.file_name NOT ILIKE '%.gif'
+                    AND d.file_name NOT ILIKE '%.webp'
+                    LIMIT 20
+                `;
+                docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns, fileId];
+                if (assetCodes.length > 0) docsParams.push(assetCodes);
+                if (specCodes.length > 0) docsParams.push(specCodes);
+            } else {
+                // 原有的无 fileId 逻辑 (Fallback)
+                docsQuery = `
+                    SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
+                    FROM documents
+                    WHERE (
+                        space_code ILIKE $1 
+                        OR space_code ILIKE $2 
+                        ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
+                        ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
+                        OR file_name ILIKE ANY($3)
+                        OR title ILIKE ANY($3)
+                    )
+                      AND file_name NOT ILIKE '%.jpg' 
+                      AND file_name NOT ILIKE '%.png'
+                      AND file_name NOT ILIKE '%.jpeg'
+                      AND file_name NOT ILIKE '%.gif'
+                      AND file_name NOT ILIKE '%.webp'
+                    LIMIT 20
+                `;
+                docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns];
+                if (assetCodes.length > 0) docsParams.push(assetCodes);
+                if (specCodes.length > 0) docsParams.push(specCodes);
+            }
 
             const docsResult = await pool.query(docsQuery, docsParams);
 
             context.documents = docsResult.rows;
-            console.log(`📄 查询到 ${context.documents.length} 个相关文档 (含设备文档)`);
+            console.log(`📄 查询到 ${context.documents.length} 个相关文档`);
         } catch (dbError) {
             console.warn('⚠️ 获取上下文数据失败:', dbError.message);
         }
@@ -958,57 +1102,14 @@ router.get('/context', async (req, res) => {
 
         console.log(`📡 n8n 请求上下文: roomCode=${roomCode}, roomName=${roomName}, fileId=${fileId}`);
 
-        // 查询房间内的设备
-        const assetsResult = await pool.query(`
-            SELECT asset_code, name, spec_code, floor, room
-            FROM assets WHERE room ILIKE $1 OR room ILIKE $2
-        `, [`%${roomCode}%`, `%${roomName || ''}%`]);
-        const assets = assetsResult.rows;
+        console.log(`📡 n8n 请求上下文: roomCode=${roomCode}, roomName=${roomName}, fileId=${fileId}`);
+
+        // 使用统一的 Helper 获取上下文
+        const { assets, documents, searchPatterns } = await getContextData(pool, roomCode, roomName, fileId);
+
         console.log(`📦 查询到 ${assets.length} 个设备`);
-
-        // 收集搜索关键词
-        const searchPatterns = [`%${roomCode}%`];
-        if (roomName) searchPatterns.push(`%${roomName}%`);
-        if (assets.length > 0) {
-            const assetPatterns = assets
-                .flatMap(a => [a.name])
-                .filter(val => val && val.length > 2)
-                .map(val => `%${val}%`);
-            searchPatterns.push(...assetPatterns);
-        }
-
-        const assetCodes = assets.map(a => a.asset_code).filter(c => c);
-        const specCodes = assets.map(a => a.spec_code).filter(c => c);
-
-        // 查询相关文档
-        const docsQuery = `
-            SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
-            FROM documents
-            WHERE (
-                space_code ILIKE $1 
-                ${roomName ? 'OR space_code ILIKE $2' : ''}
-                ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
-                ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
-                OR file_name ILIKE ANY($3)
-                OR title ILIKE ANY($3)
-            )
-              AND file_name NOT ILIKE '%.jpg' 
-              AND file_name NOT ILIKE '%.png'
-              AND file_name NOT ILIKE '%.jpeg'
-              AND file_name NOT ILIKE '%.gif'
-              AND file_name NOT ILIKE '%.webp'
-            LIMIT 20
-        `;
-
-        const docsParams = [`%${roomCode}%`];
-        if (roomName) docsParams.push(`%${roomName}%`);
-        docsParams.push(searchPatterns);
-        if (assetCodes.length > 0) docsParams.push(assetCodes);
-        if (specCodes.length > 0) docsParams.push(specCodes);
-
-        const docsResult = await pool.query(docsQuery, docsParams);
-        const documents = docsResult.rows;
         console.log(`📄 查询到 ${documents.length} 个相关文档`);
+
 
         // 获取知识库 ID 和文件 IDs
         let kbId = null;
@@ -1024,6 +1125,10 @@ router.get('/context', async (req, res) => {
             if (kbResult.rows.length > 0) {
                 kbId = kbResult.rows[0].openwebui_kb_id;
             }
+
+            // 查询相关文档的 Open WebUI 文件 ID
+            // Re-construct params for fileIds query
+            const docsParams = [`%${roomCode}%`, `%${roomName || ''}%`, searchPatterns];
 
             // 查询相关文档的 Open WebUI 文件 ID
             const fileIdsResult = await pool.query(`
@@ -1074,14 +1179,18 @@ router.get('/context', async (req, res) => {
  */
 router.post('/format-citations', async (req, res) => {
     try {
-        const { analysisText, sourceIndexMap, sources } = req.body;
+        const { analysisText: rawAnalysisText, sourceIndexMap, sources } = req.body;
 
-        if (!analysisText) {
+        if (!rawAnalysisText) {
             return res.status(400).json({
                 success: false,
                 error: '缺少必要参数: analysisText'
             });
         }
+
+        let analysisText = rawAnalysisText;
+        // pre-process: Replace ][ with , to handle adjacent citations like [1][2] -> [1, 2]
+        analysisText = analysisText.replace(/\]\s*\[/g, ', ');
 
         console.log(`📝 格式化引用: 文本长度=${analysisText.length}, sources=${sources?.length || 0}`);
 
@@ -1114,6 +1223,43 @@ router.post('/format-citations', async (req, res) => {
                     file_name: doc.file_name,
                     title: doc.title
                 });
+            }
+        }
+
+        // 文件名 Fallback 匹配 (对于 ID 匹配失败的项)
+        const unresolvedIndices = [...indexMap.entries()]
+            .filter(([_, info]) => !info.docId && (info.name || info.fileName))
+            .map(([idx]) => idx);
+
+        if (unresolvedIndices.length > 0) {
+            const namesToLookup = unresolvedIndices.map(idx => {
+                const info = indexMap.get(idx);
+                return info.name || info.fileName;
+            });
+            console.log(`⚠️ /format-citations 尝试通过文件名回退匹配 ${unresolvedIndices.length} 个文档`);
+
+            const nameResult = await pool.query(`
+                SELECT id, title, file_name 
+                FROM documents 
+                WHERE file_name = ANY($1) OR title = ANY($1)
+             `, [namesToLookup]);
+
+            for (const doc of nameResult.rows) {
+                for (const idx of unresolvedIndices) {
+                    const info = indexMap.get(idx);
+                    const targetName = info.name || info.fileName;
+                    if (targetName === doc.file_name || targetName === doc.title) {
+                        info.docId = doc.id;
+                        info.fileName = doc.file_name;
+                        indexMap.set(idx, info);
+                        docMap.set(String(doc.id), {
+                            id: doc.id,
+                            file_name: doc.file_name,
+                            title: doc.title
+                        });
+                        console.log(`   ✅ 文件名回退匹配成功: [${idx}] ${targetName} -> ID ${doc.id}`);
+                    }
+                }
             }
         }
 

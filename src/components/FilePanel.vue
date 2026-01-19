@@ -269,6 +269,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Search, UploadFilled, Document, Close } from '@element-plus/icons-vue';
 import InfluxConfigPanel from './InfluxConfigPanel.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 

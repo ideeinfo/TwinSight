@@ -319,10 +319,12 @@ const loadChartData = async () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
-  console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}`);
+  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+  console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}, fileId=${currentFileId}`);
   if (isInfluxConfigured()) {
     try {
-      const pts = await queryAverageSeries(start, end, windowMs);
+      const pts = await queryAverageSeries(start, end, windowMs, currentFileId);
       chartData.value = pts || [];
       console.log(`  📈 图表数据已更新: ${chartData.value.length} 个点`);
     } catch (err) {
@@ -341,8 +343,10 @@ const refreshRoomSeriesCache = async (codes) => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
+  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
   const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
-  const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
+  const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
   const cache = {};
   list.forEach(({ code, pts }) => { cache[code] = pts || []; });
   roomSeriesCache = cache;
@@ -1180,10 +1184,18 @@ const processRooms = (dbIds) => {
 
       // 只添加有"编号"属性的房间
       if (code) {
+        // 尝试解析 fileId
+        let fileId;
+        if (props.rooms && props.rooms.length > 0) {
+          const match = props.rooms.find(r => r.code === code || r.dbId === dbId);
+          if (match) fileId = match.fileId;
+        }
+
         roomList.push({
           dbId: dbId,
           name: name || `房间 ${dbId}`,
-          code: code
+          code: code,
+          fileId: fileId
         });
         const tag = newTags.find(t => t.dbId === dbId);
         if (tag) {
@@ -1964,8 +1976,9 @@ const startAutoRefresh = () => {
       if (codes.length) {
         await refreshRoomSeriesCache(codes).catch(() => {});
         
-        // 更新最新温度值
-        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch((err) => {
+        // 获取当前模型的 fileId（使用第一个 room 的 fileId）
+        const currentFileId = roomTags.value[0]?.fileId;
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000, currentFileId).catch((err) => {
           console.warn('  ⚠️ queryLatestByRooms 失败:', err);
           return {};
         });
@@ -2029,7 +2042,7 @@ onMounted(() => {
       const codes = roomTags.value.map(t => t.code).filter(Boolean);
       if (codes.length) {
         refreshRoomSeriesCache(codes).catch(() => {});
-        queryLatestByRooms(codes, 60 * 60 * 1000).then(map => {
+        queryLatestByRooms(codes, 60 * 60 * 1000, roomTags.value[0]?.fileId).then(map => {
           roomTags.value.forEach(tag => {
             const v = map[tag.code];
             if (v !== undefined) tag.currentTemp = v.toFixed(1);
@@ -2071,7 +2084,7 @@ const refreshTimeSeriesData = async () => {
       
       // 更新最新温度值
       if (await isInfluxConfigured()) {
-        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch(() => ({}));
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000, roomTags.value[0]?.fileId).catch(() => ({}));
         roomTags.value.forEach(tag => {
           const v = map[tag.code];
           if (v !== undefined) tag.currentTemp = v.toFixed(1);
@@ -2130,7 +2143,9 @@ defineExpose({
     const start = startDate.value.getTime();
     const end = endDate.value.getTime();
     const windowMs = 0; // 不聚合，显示原始数据点
-    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
+    // 获取当前模型的 fileId
+    const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId));
     const list = await Promise.all(promises);
     overlaySeries.value = list;
     selectedRoomCodes.value = codes.slice();

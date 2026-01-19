@@ -431,6 +431,7 @@ const loadDataFromDatabase = async () => {
         dbId: space.db_id,
         name: space.name,
         code: space.space_code,
+        fileId: space.file_id, // 添加 fileId 用于 InfluxDB 查询
         classificationCode: space.classification_code,
         classificationDesc: space.classification_desc,
         floor: space.floor,
@@ -668,8 +669,8 @@ const onChartDataUpdate = async (data) => {
       try {
         const list = await Promise.all(
           selectedRooms.map(r => 
-            queryRoomSeries(r.code, startMs, endMs, windowMs)
-              .then(points => ({ room: r.code, name: r.name, points }))
+            queryRoomSeries(r.code, startMs, endMs, windowMs, r.fileId) // 传递 fileId
+              .then(points => ({ room: r.code, name: r.name, fileId: r.fileId, points })) // 保留 fileId
           )
         );
         selectedRoomSeries.value = list;
@@ -945,7 +946,7 @@ const onRoomsSelected = (dbIds) => {
   }
   if (mainViewRef.value?.getTimeRange) {
     const { startMs, endMs, windowMs } = mainViewRef.value.getTimeRange();
-    Promise.all(selectedRooms.map(r => queryRoomSeries(r.code, startMs, endMs, windowMs).then(points => ({ room: r.code, name: r.name, points }))))
+    Promise.all(selectedRooms.map(r => queryRoomSeries(r.code, startMs, endMs, windowMs, r.fileId).then(points => ({ room: r.code, name: r.name, fileId: r.fileId, points }))))
       .then(list => { selectedRoomSeries.value = list; })
       .catch(() => { selectedRoomSeries.value = []; });
   }
@@ -1424,11 +1425,12 @@ const onHoverSync = ({ time, percent }) => {
 const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
   currentRange.value = { startMs, endMs, windowMs };
   if (!selectedRoomSeries.value.length) return;
-  const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name }));
+  const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name, fileId: s.fileId }));
+  console.log('🔄 [App] 时间范围变化，更新图表:', { range: { startMs, endMs }, rooms: rooms.map(r => ({ code: r.room, fileId: r.fileId })) });
   if (mainViewRef.value?.setSelectedRooms) {
     mainViewRef.value.setSelectedRooms(rooms.map(r => r.room));
   }
-  Promise.all(rooms.map(r => queryRoomSeries(r.room, startMs, endMs, windowMs).then(points => ({ room: r.room, name: r.name, points }))))
+  Promise.all(rooms.map(r => queryRoomSeries(r.room, startMs, endMs, windowMs, r.fileId).then(points => ({ room: r.room, name: r.name, fileId: r.fileId, points }))))
     .then(list => { selectedRoomSeries.value = list; })
     .catch(() => {});
 };

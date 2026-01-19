@@ -54,8 +54,8 @@
         <h4>{{ t('influxConfig.authentication') }}</h4>
         
         <el-radio-group v-model="form.useBasicAuth" style="margin-bottom: 16px;">
-          <el-radio :label="false">Token API</el-radio>
-          <el-radio :label="true">Basic Auth</el-radio>
+          <el-radio :value="false">Token API</el-radio>
+          <el-radio :value="true">Basic Auth</el-radio>
         </el-radio-group>
 
         <div v-if="!form.useBasicAuth" class="form-group">
@@ -110,7 +110,7 @@
           <el-button @click="$emit('close')">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button type="primary" :loading="isSaving" :disabled="!isValid || !authStore.hasPermission('influx:manage')" @click="saveConfig">
+          <el-button type="primary" :loading="isSaving" :disabled="!isValid || !canManageInflux" @click="saveConfig">
             {{ isSaving ? t('common.saving') : t('common.save') }}
           </el-button>
         </div>
@@ -156,6 +156,30 @@ const testResult = ref(null);
 const hasToken = ref(false);
 const hasPassword = ref(false);
 
+// 表单验证 (必须在 canManageInflux 之前定义)
+const isValid = computed(() => {
+  const valid = form.value.influxUrl && form.value.influxOrg && form.value.influxBucket;
+  console.log('🔍 [InfluxConfigPanel] isValid 检查:', {
+    influxUrl: form.value.influxUrl,
+    influxOrg: form.value.influxOrg,
+    influxBucket: form.value.influxBucket,
+    result: valid
+  });
+  return valid;
+});
+
+// 调试：打印权限状态
+const canManageInflux = computed(() => {
+  const hasPerm = authStore.hasPermission('influx:manage');
+  console.log('[InfluxConfigPanel] 权限检查:', {
+    permissions: authStore.permissions,
+    hasInfluxManage: hasPerm,
+    isValid: isValid.value,
+    user: authStore.user
+  });
+  return hasPerm;
+});
+
 // Helper to show alert using ElMessageBox
 const showAlert = async (message, title = '') => {
   await ElMessageBox.alert(message, title || t('common.alert'), {
@@ -163,11 +187,6 @@ const showAlert = async (message, title = '') => {
     type: 'warning'
   });
 };
-
-// 表单验证
-const isValid = computed(() => {
-  return form.value.influxUrl && form.value.influxOrg && form.value.influxBucket;
-});
 
 // 加载现有配置
 const loadConfig = async () => {
@@ -186,9 +205,9 @@ const loadConfig = async () => {
         influxPort: config.influx_port || 8086,
         influxOrg: config.influx_org || '',
         influxBucket: config.influx_bucket || '',
-        influxToken: config.has_token ? '******' : '',
+        influxToken: config.influx_token || '',
         influxUser: config.influx_user || '',
-        influxPassword: config.has_password ? '******' : '',
+        influxPassword: config.influx_password || '',
         useBasicAuth: config.use_basic_auth || false,
         isEnabled: config.is_enabled !== false
       };
@@ -281,6 +300,12 @@ const saveConfig = async () => {
 };
 
 onMounted(() => {
+  console.log('🔍 [InfluxConfigPanel] onMounted 权限调试:', {
+    permissions: authStore.permissions,
+    hasInfluxManage: authStore.hasPermission('influx:manage'),
+    user: authStore.user,
+    isAuthenticated: authStore.isAuthenticated
+  });
   loadConfig();
 });
 </script>

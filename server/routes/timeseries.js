@@ -13,19 +13,19 @@ const router = Router();
 const API_KEY_SECRET = process.env.API_KEY_SECRET || 'tandem-timeseries-secret-2024';
 
 /**
- * 生成 Stream 的 API Key
+ * 生成 Stream 的 API Key（包含 fileId 以支持多模型）
  */
-export function generateStreamApiKey(spaceCode) {
+export function generateStreamApiKey(fileId, spaceCode) {
     const hmac = crypto.createHmac('sha256', API_KEY_SECRET);
-    hmac.update(spaceCode);
+    hmac.update(`${fileId}:${spaceCode}`);
     return hmac.digest('base64url').substring(0, 22);
 }
 
 /**
  * 验证 API Key 是否有效
  */
-export function validateStreamApiKey(spaceCode, providedKey) {
-    const expectedKey = generateStreamApiKey(spaceCode);
+export function validateStreamApiKey(fileId, spaceCode, providedKey) {
+    const expectedKey = generateStreamApiKey(fileId, spaceCode);
     return crypto.timingSafeEqual(
         Buffer.from(expectedKey),
         Buffer.from(providedKey.substring(0, 22))
@@ -33,12 +33,12 @@ export function validateStreamApiKey(spaceCode, providedKey) {
 }
 
 /**
- * 生成完整的 Stream URL
+ * 生成完整的 Stream URL（包含 fileId）
  */
-export function generateStreamUrl(spaceCode, baseUrl = '') {
-    const apiKey = generateStreamApiKey(spaceCode);
+export function generateStreamUrl(fileId, spaceCode, baseUrl = '') {
+    const apiKey = generateStreamApiKey(fileId, spaceCode);
     const encodedCode = encodeURIComponent(spaceCode);
-    return `${baseUrl}/api/v1/timeseries/streams/${encodedCode}?key=${apiKey}`;
+    return `${baseUrl}/api/v1/timeseries/streams/${fileId}/${encodedCode}?key=${apiKey}`;
 }
 
 /**
@@ -69,6 +69,37 @@ async function getInfluxConfigByFileId(fileId) {
         return config;
     } catch (error) {
         console.error('获取 InfluxDB 配置失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 根据 spaceCode 获取对应模型的 InfluxDB 配置
+ * 如果 space 没有关联到模型，则回退到激活模型配置
+ */
+async function getInfluxConfigBySpaceCode(spaceCode) {
+    try {
+        // 通过 space_code 查找关联的 file_id
+        const result = await query(
+            'SELECT file_id FROM spaces WHERE space_code = $1',
+            [spaceCode]
+        );
+        if (result.rows.length === 0) {
+            // 无法找到 space，回退到激活模型配置
+            console.log(`⚠️ spaceCode "${spaceCode}" 未找到，使用激活模型配置`);
+            return await getActiveInfluxConfig();
+        }
+        const fileId = result.rows[0].file_id;
+        if (!fileId) {
+            // space 没有关联 file_id，回退到激活模型配置
+            console.log(`⚠️ spaceCode "${spaceCode}" 未关联模型，使用激活模型配置`);
+            return await getActiveInfluxConfig();
+        }
+        console.log(`📊 spaceCode "${spaceCode}" 关联到模型 file_id=${fileId}`);
+        const config = await getInfluxConfig(fileId);
+        return config;
+    } catch (error) {
+        console.error('根据 spaceCode 获取 InfluxDB 配置失败:', error);
         return null;
     }
 }
@@ -132,9 +163,9 @@ function buildInfluxBaseUrl(config) {
 }
 
 /**
- * 将数据写入 InfluxDB
+ * 写入数据到 InfluxDB（包含 fileId 用于多模型支持）
  */
-async function writeToInflux(config, spaceCode, data, timestamp = Date.now()) {
+async function writeToInflux(config, fileId, spaceCode, data, timestamp = Date.now()) {
     const headers = buildInfluxHeaders(config);
     if (!headers) {
         console.warn('⚠️ InfluxDB 认证未配置');
@@ -147,7 +178,8 @@ async function writeToInflux(config, spaceCode, data, timestamp = Date.now()) {
 
     for (const [key, value] of Object.entries(data)) {
         if (typeof value === 'number' && !isNaN(value)) {
-            lines.push(`${key},room=${escapedCode},code=${escapedCode} value=${value} ${timestamp}`);
+            // 添加 file_id 作为 tag，用于精确查询
+            lines.push(`${key},room=${escapedCode},code=${escapedCode},file_id=${fileId} value=${value} ${timestamp}`);
         }
     }
 
@@ -261,8 +293,92 @@ function parseLatestByRoomsCsv(csv) {
 // ========================================
 
 /**
- * 接收时序数据
+ * 接收时序数据（新版：包含 fileId）
+ * POST /api/v1/timeseries/streams/:fileId/:spaceCode
+ */
+router.post('/streams/:fileId/:spaceCode', async (req, res) => {
+    try {
+        const { fileId, spaceCode } = req.params;
+
+        // 获取 API Key
+        let apiKey = req.query.key;
+        if (!apiKey) {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                apiKey = authHeader.substring(7);
+            }
+        }
+
+        if (!apiKey) {
+            return res.status(401).json({
+                success: false,
+                error: 'API Key is required'
+            });
+        }
+
+        console.log(`🔑 [API Key 验证] fileId=${fileId}, spaceCode=${spaceCode}, providedKey=${apiKey?.substring(0, 8)}...`);
+
+        try {
+            const isValid = validateStreamApiKey(fileId, spaceCode, apiKey);
+            console.log(`🔑 [API Key 验证结果] isValid=${isValid}`);
+            if (!isValid) {
+                // 打印期望的 key 用于调试
+                const expectedKey = generateStreamApiKey(fileId, spaceCode);
+                console.log(`🔑 [期望 Key] ${expectedKey} vs [提供 Key] ${apiKey?.substring(0, 22)}`);
+                return res.status(403).json({ success: false, error: 'Invalid API Key' });
+            }
+        } catch (e) {
+            console.error('🔑 [API Key 验证异常]', e);
+            return res.status(403).json({ success: false, error: 'Invalid API Key format' });
+        }
+
+        // 直接使用 fileId 获取 InfluxDB 配置
+        const config = await getInfluxConfigByFileId(parseInt(fileId));
+        if (!config || !config.is_enabled) {
+            return res.status(503).json({
+                success: false,
+                error: `InfluxDB not configured for model ${fileId}`
+            });
+        }
+
+        const data = req.body;
+        if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Request body must be a non-empty JSON object'
+            });
+        }
+
+        const timestamp = data.timestamp ? parseInt(data.timestamp) : Date.now();
+        const { timestamp: _, ...dataFields } = data;
+
+        const result = await writeToInflux(config, fileId, spaceCode, dataFields, timestamp);
+
+        if (result.ok) {
+            res.json({
+                success: true,
+                message: 'Data written successfully',
+                fileId,
+                spaceCode,
+                fieldsWritten: Object.keys(dataFields).length
+            });
+        } else if (result.reason === 'not_configured') {
+            res.status(503).json({ success: false, error: 'InfluxDB auth not configured' });
+        } else if (result.reason === 'no_valid_data') {
+            res.status(400).json({ success: false, error: 'No valid numeric data fields found' });
+        } else {
+            res.status(500).json({ success: false, error: result.error || 'Failed to write to InfluxDB' });
+        }
+    } catch (error) {
+        console.error('时序数据写入错误:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 接收时序数据（旧版：仅 spaceCode，向后兼容）
  * POST /api/v1/timeseries/streams/:spaceCode
+ * @deprecated 使用新版 /streams/:fileId/:spaceCode
  */
 router.post('/streams/:spaceCode', async (req, res) => {
     try {
@@ -284,20 +400,29 @@ router.post('/streams/:spaceCode', async (req, res) => {
             });
         }
 
-        try {
-            if (!validateStreamApiKey(spaceCode, apiKey)) {
-                return res.status(403).json({ success: false, error: 'Invalid API Key' });
-            }
-        } catch (e) {
-            return res.status(403).json({ success: false, error: 'Invalid API Key format' });
-        }
-
-        // 获取 InfluxDB 配置
-        const config = await getActiveInfluxConfig();
+        // 旧版路由：尝试通过 spaceCode 查找 file_id，然后验证 key
+        const config = await getInfluxConfigBySpaceCode(spaceCode);
         if (!config || !config.is_enabled) {
             return res.status(503).json({
                 success: false,
-                error: 'InfluxDB not configured for active model'
+                error: 'InfluxDB not configured for this space. Please use new URL format with fileId.'
+            });
+        }
+
+        // 使用找到的 file_id 验证 key（向后兼容：也尝试旧版 key 验证）
+        const fileId = config.file_id;
+        let keyValid = false;
+        try {
+            // 优先尝试新格式 key
+            keyValid = validateStreamApiKey(fileId, spaceCode, apiKey);
+        } catch (e) {
+            keyValid = false;
+        }
+
+        if (!keyValid) {
+            return res.status(403).json({
+                success: false,
+                error: 'Invalid API Key. Please regenerate URL from the app.'
             });
         }
 
@@ -312,7 +437,7 @@ router.post('/streams/:spaceCode', async (req, res) => {
         const timestamp = data.timestamp ? parseInt(data.timestamp) : Date.now();
         const { timestamp: _, ...dataFields } = data;
 
-        const result = await writeToInflux(config, spaceCode, dataFields, timestamp);
+        const result = await writeToInflux(config, fileId, spaceCode, dataFields, timestamp);
 
         if (result.ok) {
             res.json({
@@ -341,12 +466,15 @@ router.post('/streams/:spaceCode', async (req, res) => {
 router.get('/query/average', async (req, res) => {
     try {
         const { startMs, endMs, windowMs, fileId } = req.query;
+        console.log(`📊 [query/average] 收到请求: fileId=${fileId || '未传递'}`);
 
         // 获取配置
         let config;
         if (fileId) {
+            console.log(`📊 [query/average] 使用 fileId=${fileId} 获取配置`);
             config = await getInfluxConfigByFileId(parseInt(fileId));
         } else {
+            console.log(`📊 [query/average] 未传递 fileId，使用激活模型配置`);
             config = await getActiveInfluxConfig();
         }
 
@@ -358,9 +486,12 @@ router.get('/query/average', async (req, res) => {
         const endIso = new Date(parseInt(endMs)).toISOString();
         const window = parseInt(windowMs) || 60000;
 
+        // 构建 file_id 过滤条件（如果有 fileId 参数）
+        const fileIdFilter = fileId ? ` and r.file_id == "${fileId}"` : '';
+
         const flux = `from(bucket: "${config.influx_bucket}")
   |> range(start: ${startIso}, stop: ${endIso})
-  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value")
+  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value"${fileIdFilter})
   |> aggregateWindow(every: ${window}ms, fn: mean, createEmpty: false)
   |> group(columns: ["_time"]) 
   |> mean()`;
@@ -386,9 +517,12 @@ router.get('/query/room', async (req, res) => {
     try {
         const { roomCode, startMs, endMs, windowMs, fileId } = req.query;
 
+        // 优先使用 fileId，其次使用 roomCode 查找对应模型的配置
         let config;
         if (fileId) {
             config = await getInfluxConfigByFileId(parseInt(fileId));
+        } else if (roomCode) {
+            config = await getInfluxConfigBySpaceCode(roomCode);
         } else {
             config = await getActiveInfluxConfig();
         }
@@ -407,9 +541,12 @@ router.get('/query/room', async (req, res) => {
             ? `|> aggregateWindow(every: ${window}ms, fn: mean, createEmpty: false)`
             : '';
 
+        // 构建 file_id 过滤条件（如果有 fileId 参数）
+        const fileIdFilter = fileId ? ` and r.file_id == "${fileId}"` : '';
+
         const flux = `from(bucket: "${config.influx_bucket}")
   |> range(start: ${startIso}, stop: ${endIso})
-  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value")
+  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value"${fileIdFilter})
   |> filter(fn: (r) => r.code == "${escapedCode}")
   ${aggregateClause}`;
 
@@ -438,9 +575,12 @@ router.post('/query/latest', async (req, res) => {
             return res.json({ success: true, data: {} });
         }
 
+        // 优先使用 fileId，其次使用第一个 roomCode 查找对应模型的配置
         let config;
         if (fileId) {
             config = await getInfluxConfigByFileId(parseInt(fileId));
+        } else if (roomCodes.length > 0) {
+            config = await getInfluxConfigBySpaceCode(roomCodes[0]);
         } else {
             config = await getActiveInfluxConfig();
         }
@@ -452,9 +592,12 @@ router.post('/query/latest', async (req, res) => {
         const startIso = new Date(Date.now() - Math.max(lookbackMs || 300000, 300000)).toISOString();
         const regex = roomCodes.map(c => c.replace(/[,= ]/g, '_')).join('|');
 
+        // 构建 file_id 过滤条件（如果有 fileId 参数）
+        const fileIdFilter = fileId ? ` and r.file_id == "${fileId}"` : '';
+
         const flux = `from(bucket: "${config.influx_bucket}")
   |> range(start: ${startIso})
-  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value" and r["code"] =~ /${regex}/)
+  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature") and r._field == "value" and r["code"] =~ /${regex}/${fileIdFilter})
   |> group(columns: ["code"]) 
   |> last()`;
 
@@ -510,20 +653,21 @@ router.get('/status', async (req, res) => {
 
 /**
  * 获取 Stream URL
- * GET /api/v1/timeseries/stream-url/:spaceCode
+ * GET /api/v1/timeseries/stream-url/:fileId/:spaceCode
  */
-router.get('/stream-url/:spaceCode', async (req, res) => {
+router.get('/stream-url/:fileId/:spaceCode', async (req, res) => {
     try {
-        const { spaceCode } = req.params;
+        const { fileId, spaceCode } = req.params;
         const baseUrl = `${req.protocol}://${req.get('host')}`;
-        const streamUrl = generateStreamUrl(spaceCode, baseUrl);
+        const streamUrl = generateStreamUrl(fileId, spaceCode, baseUrl);
 
         res.json({
             success: true,
             data: {
+                fileId,
                 spaceCode,
                 streamUrl,
-                apiKey: generateStreamApiKey(spaceCode)
+                apiKey: generateStreamApiKey(fileId, spaceCode)
             }
         });
     } catch (error) {
@@ -537,7 +681,14 @@ router.get('/stream-url/:spaceCode', async (req, res) => {
  */
 router.post('/stream-urls', async (req, res) => {
     try {
-        const { spaceCodes } = req.body;
+        const { fileId, spaceCodes } = req.body;
+
+        if (!fileId) {
+            return res.status(400).json({
+                success: false,
+                error: 'fileId is required'
+            });
+        }
 
         if (!Array.isArray(spaceCodes) || spaceCodes.length === 0) {
             return res.status(400).json({
@@ -548,9 +699,10 @@ router.post('/stream-urls', async (req, res) => {
 
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const urls = spaceCodes.map(code => ({
+            fileId,
             spaceCode: code,
-            streamUrl: generateStreamUrl(code, baseUrl),
-            apiKey: generateStreamApiKey(code)
+            streamUrl: generateStreamUrl(fileId, code, baseUrl),
+            apiKey: generateStreamApiKey(fileId, code)
         }));
 
         res.json({ success: true, data: urls });
