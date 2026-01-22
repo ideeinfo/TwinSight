@@ -1,6 +1,6 @@
 # Docker 服务迁移至局域网 Ubuntu 服务器实施计划
 
-> **服务器 IP**: 192.168.1.120  
+> **服务器 IP**: 192.168.2.183  
 > **创建日期**: 2026-01-19
 
 ## 概述
@@ -14,7 +14,7 @@ flowchart LR
         BE["后端 API<br/>:3001"]
     end
     
-    subgraph Ubuntu["Ubuntu 192.168.1.120"]
+    subgraph Ubuntu["Ubuntu 192.168.2.183"]
         PG["PostgreSQL<br/>:5432"]
         INFLUX["InfluxDB<br/>:8086"]
         N8N["n8n<br/>:5678"]
@@ -57,14 +57,14 @@ flowchart LR
 
 ```powershell
 # 上传 Docker Compose 配置
-scp d:\TwinSIght\antigravity\twinsight\docker\docker-compose.lan.yml user@192.168.1.120:/opt/twinsight/docker-compose.yml
+scp d:\TwinSIght\antigravity\twinsight\docker\docker-compose.lan.yml user@192.168.2.183:/opt/twinsight/docker-compose.yml
 
 # 上传环境变量文件
-scp d:\TwinSIght\antigravity\twinsight\docker\.env.lan.example user@192.168.1.120:/opt/twinsight/.env
+scp d:\TwinSIght\antigravity\twinsight\docker\.env.lan.example user@192.168.2.183:/opt/twinsight/.env
 
 # 上传部署脚本
-scp d:\TwinSIght\antigravity\twinsight\scripts\deploy-lan.sh user@192.168.1.120:/opt/twinsight/
-scp d:\TwinSIght\antigravity\twinsight\scripts\import-data.sh user@192.168.1.120:/opt/twinsight/
+scp d:\TwinSIght\antigravity\twinsight\scripts\deploy-lan.sh user@192.168.2.183:/opt/twinsight/
+scp d:\TwinSIght\antigravity\twinsight\scripts\import-data.sh user@192.168.2.183:/opt/twinsight/
 ```
 
 > [!TIP]
@@ -93,7 +93,7 @@ chmod +x deploy-lan.sh import-data.sh
 
 ```ini
 # 确认服务器 IP
-LAN_SERVER_IP=192.168.1.120
+LAN_SERVER_IP=192.168.2.183
 
 # 填写 Gemini API Key
 GEMINI_API_KEY=your-actual-gemini-api-key
@@ -160,7 +160,7 @@ docker exec twinsight-postgres pg_dump -U postgres twinsight > D:\TwinSIght\back
 
 ```powershell
 # Windows: 上传备份文件
-scp -r D:\TwinSIght\backup\migration_* user@192.168.1.120:/opt/twinsight/backup/
+scp -r D:\TwinSIght\backup\migration_* user@192.168.2.183:/opt/twinsight/backup/
 ```
 
 ```bash
@@ -176,8 +176,8 @@ docker exec -i twinsight-postgres psql -U postgres twinsight < /opt/twinsight/ba
 
 | 服务 | 访问地址 | 导入步骤 |
 |------|----------|----------|
-| Node-RED | http://192.168.1.120:1880 | 右上角菜单 → Import → 选择 flows.json |
-| n8n | http://192.168.1.120:5678 | 右上角 → Import from File → 选择工作流 JSON |
+| Node-RED | http://192.168.2.183:1880 | 右上角菜单 → Import → 选择 flows.json |
+| n8n | http://192.168.2.183:5678 | 右上角 → Import from File → 选择工作流 JSON |
 
 ---
 
@@ -202,22 +202,22 @@ Copy-Item .env.lan .env.local
 VITE_API_URL=http://localhost:3001
 
 # PostgreSQL - 连接到 Ubuntu 服务器
-DB_HOST=192.168.1.120
+DB_HOST=192.168.2.183
 DB_PORT=5432
 DB_NAME=twinsight
 DB_USER=postgres
 DB_PASSWORD=password
 
 # InfluxDB - 连接到 Ubuntu 服务器
-INFLUX_URL=http://192.168.1.120:8086
+INFLUX_URL=http://192.168.2.183:8086
 INFLUX_ORG=demo
 INFLUX_BUCKET=twinsight
 INFLUX_TOKEN=SsFt9slg5E2jS6HmvxuaePjebpkNVRi-S0wrDexjQWOFXDeARRY8NeJ-_Dqe6eAzsyuWtIVHFmSs3XMuv0x1ww==
 
 # AI 服务 - 连接到 Ubuntu 服务器
-OPENWEBUI_URL=http://192.168.1.120:3080
+OPENWEBUI_URL=http://192.168.2.183:3080
 OPENWEBUI_API_KEY=sk-d88ba6f39e21479491e9ab3f7d5e11d7
-N8N_WEBHOOK_URL=http://192.168.1.120:5678
+N8N_WEBHOOK_URL=http://192.168.2.183:5678
 ```
 
 ### 测试连接
@@ -237,11 +237,11 @@ npm run dev
 
 | 服务 | 本地开发 (之前) | 局域网 Ubuntu (迁移后) |
 |------|-----------------|------------------------|
-| PostgreSQL | localhost:5432 | 192.168.1.120:5432 |
-| InfluxDB | http://localhost:8086 | http://192.168.1.120:8086 |
-| Node-RED | http://localhost:1880 | http://192.168.1.120:1880 |
-| n8n | http://localhost:5678 | http://192.168.1.120:5678 |
-| Open WebUI | http://localhost:3080 | http://192.168.1.120:3080 |
+| PostgreSQL | localhost:5432 | 192.168.2.183:5432 |
+| InfluxDB | http://localhost:8086 | http://192.168.2.183:8086 |
+| Node-RED | http://localhost:1880 | http://192.168.2.183:1880 |
+| n8n | http://localhost:5678 | http://192.168.2.183:5678 |
+| Open WebUI | http://localhost:3080 | http://192.168.2.183:3080 |
 
 ---
 
@@ -249,7 +249,7 @@ npm run dev
 
 ### 配置对比
 
-| 方面 | 局域网 (192.168.1.120) | 阿里云 ECS |
+| 方面 | 局域网 (192.168.2.183) | 阿里云 ECS |
 |------|------------------------|------------|
 | Docker Compose | docker-compose.lan.yml | docker-compose.prod.yml |
 | 网络模式 | 直接端口暴露 | Nginx 反向代理 |
@@ -311,7 +311,7 @@ free -m
 
 ```powershell
 # 测试网络连接
-Test-NetConnection -ComputerName 192.168.1.120 -Port 5432
+Test-NetConnection -ComputerName 192.168.2.183 -Port 5432
 
 # 检查 .env.local 配置是否正确
 Get-Content .env.local

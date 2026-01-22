@@ -87,7 +87,7 @@ services:
       N8N_HOST: 0.0.0.0
       N8N_PORT: 5678
       N8N_PROTOCOL: http
-      WEBHOOK_URL: http://${LAN_SERVER_IP:-192.168.1.120}:5678/
+      WEBHOOK_URL: http://${LAN_SERVER_IP:-192.168.2.183}:5678/
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "false"
       N8N_RUNNERS_ENABLED: "true"
       # 时区
@@ -155,23 +155,23 @@ networks:
 # 服务说明 (局域网部署):
 # ============================================
 #
-# PostgreSQL: 192.168.1.120:5432
+# PostgreSQL: 192.168.2.183:5432
 #   - 用户: postgres
 #   - 密码: (见 .env 文件)
 #   - 数据库: twinsight
 #
-# InfluxDB: http://192.168.1.120:8086
+# InfluxDB: http://192.168.2.183:8086
 #   - 用户: admin
 #   - 组织: demo
 #   - Bucket: twinsight
 #
-# Node-RED: http://192.168.1.120:1880
+# Node-RED: http://192.168.2.183:1880
 #   - 可视化流程编辑器
 #
-# n8n: http://192.168.1.120:5678
+# n8n: http://192.168.2.183:5678
 #   - AI 工作流自动化平台
 #
-# Open WebUI: http://192.168.1.120:3080
+# Open WebUI: http://192.168.2.183:3080
 #   - AI 对话界面
 #
 # ============================================

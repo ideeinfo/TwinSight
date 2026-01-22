@@ -74,8 +74,8 @@ check_config() {
     if [ ! -f "$PROJECT_DIR/$COMPOSE_FILE" ]; then
         echo -e "${RED}错误: 未找到 $PROJECT_DIR/$COMPOSE_FILE${NC}"
         echo -e "${YELLOW}请先上传配置文件:${NC}"
-        echo "  scp docker/docker-compose.lan.yml user@192.168.1.120:$PROJECT_DIR/docker-compose.yml"
-        echo "  scp docker/.env.lan.example user@192.168.1.120:$PROJECT_DIR/.env"
+        echo "  scp docker/docker-compose.lan.yml user@192.168.2.183:$PROJECT_DIR/docker-compose.yml"
+        echo "  scp docker/.env.lan.example user@192.168.2.183:$PROJECT_DIR/.env"
         exit 1
     fi
     

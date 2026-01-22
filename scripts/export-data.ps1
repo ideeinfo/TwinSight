@@ -144,7 +144,7 @@ function Show-UploadInstructions {
     Write-ColorOutput "下一步: 上传到 Ubuntu 服务器" "Yellow"
     Write-Host ""
     Write-Host "# 上传备份文件到 Ubuntu 服务器"
-    Write-Host "scp -r `"$BackupDir`" user@192.168.1.120:/opt/twinsight/backup/"
+    Write-Host "scp -r `"$BackupDir`" user@192.168.2.183:/opt/twinsight/backup/"
     Write-Host ""
     Write-Host "# 在 Ubuntu 服务器上导入 PostgreSQL 数据"
     Write-Host "docker exec -i twinsight-postgres psql -U postgres twinsight < /opt/twinsight/backup/postgres_twinsight.sql"
