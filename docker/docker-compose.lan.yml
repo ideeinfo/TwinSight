@@ -84,6 +84,7 @@ services:
       - "5678:5678"
     environment:
       # 基础配置
+      N8N_SECURE_COOKIE: "false"
       N8N_HOST: 0.0.0.0
       N8N_PORT: 5678
       N8N_PROTOCOL: http
@@ -98,7 +99,7 @@ services:
       N8N_BASIC_AUTH_USER: ${N8N_USER:-ideeinfo@gmail.com}
       N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-Mis730607}
       # Gemini API
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # 环境变量访问
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES: "true"
@@ -126,8 +127,9 @@ services:
       WEBUI_NAME: Twinsight AI
       DEFAULT_LOCALE: zh-CN
       ENABLE_API_KEYS: "true"
-      OPENAI_API_BASE_URLS: https://generativelanguage.googleapis.com/v1beta/openai
-      OPENAI_API_KEYS: ${GEMINI_API_KEY:-}
+      # LLM 配置已移至 Admin Panel，不再通过环境变量配置
+      # OPENAI_API_BASE_URLS: https://generativelanguage.googleapis.com/v1beta/openai
+      # OPENAI_API_KEYS: ${GEMINI_API_KEY:-}
       ENABLE_SIGNUP: "true"
       ENABLE_RAG_WEB_SEARCH: "true"
       HF_ENDPOINT: https://hf-mirror.com

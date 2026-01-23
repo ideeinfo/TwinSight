@@ -243,12 +243,13 @@
 
     <!-- Confirm Dialog with slot support -->
     <ConfirmDialog
-      v-model:visible="dialogState.visible"
+      :visible="dialogState.visible"
       :type="dialogState.type"
       :title="dialogState.title"
       :message="dialogState.message"
       :danger="dialogState.danger"
       :confirm-text="dialogState.confirmText"
+      @update:visible="dialogState.visible = $event"
       @confirm="dialogState.onConfirm"
       @cancel="dialogState.onCancel"
     >
@@ -270,6 +271,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Search, UploadFilled, Document, Close } from '@element-plus/icons-vue';
+import { ElMessageBox } from 'element-plus';
 import InfluxConfigPanel from './InfluxConfigPanel.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 
@@ -339,6 +341,7 @@ const dialogState = ref({
 
 // Helper to show dialog
 const showDialog = (options) => {
+  console.log('[FilePanel] showDialog called', options);
   return new Promise((resolve) => {
     dialogState.value = {
       visible: true,
@@ -349,23 +352,24 @@ const showDialog = (options) => {
       confirmText: options.confirmText || '',
       showDeleteKBOption: options.showDeleteKBOption || false,
       onConfirm: () => {
-        dialogState.value.visible = false;
+        console.log('[FilePanel] onConfirm callback, resolving true');
         resolve(true);
       },
       onCancel: () => {
-        dialogState.value.visible = false;
+        console.log('[FilePanel] onCancel callback, resolving false');
         resolve(false);
       }
     };
+    console.log('[FilePanel] dialogState.visible set to', dialogState.value.visible);
   });
 };
 
-// Helper to show alert
+// Helper to show alert - 使用 Element Plus 的 MessageBox
 const showAlert = (message, title = '') => {
-  return showDialog({
-    type: 'alert',
-    title: title || t('common.alert'),
-    message
+  console.log('[FilePanel] showAlert called with message:', message);
+  return ElMessageBox.alert(message, title || t('common.alert'), {
+    confirmButtonText: t('common.confirm'),
+    customClass: 'custom-dialog'
   });
 };
 
@@ -716,8 +720,8 @@ const handleCreateKB = async () => {
 
     const data = await response.json();
 
-    // 检查是否返回409冲突（已有知识库）
-    if (response.status === 409 && data.code === 'KB_EXISTS') {
+    // 检查是否返回 KB_EXISTS（已有知识库）
+    if (data.code === 'KB_EXISTS') {
       // 显示确认对话框
       const confirmed = await showDialog({
         type: 'confirm',
@@ -733,7 +737,7 @@ const handleCreateKB = async () => {
       }
     } else if (data.success) {
       await showAlert(t('filePanel.kbCreateSuccess'));
-      await loadFiles();
+
     } else {
       await showAlert(data.error || t('filePanel.kbCreateFailed'));
     }
@@ -755,7 +759,7 @@ const recreateKnowledgeBase = async (file) => {
 
     if (data.success) {
       await showAlert(t('filePanel.kbRecreateSuccess'));
-      await loadFiles();
+
     } else {
       await showAlert(data.error || t('filePanel.kbCreateFailed'));
     }

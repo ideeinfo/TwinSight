@@ -319,7 +319,7 @@ const selectAndRestoreView = async (view) => {
   await restoreView(view);
 };
 
-// Show save as dialog - using ConfirmDialog
+// Show save as dialog - using ElMessageBox
 const showSaveAsDialog = async () => {
   const result = await showDialog({
     type: 'prompt',
@@ -492,7 +492,7 @@ const updateView = async () => {
   await createOrUpdateView(view.name);
 };
 
-// Delete view - using ConfirmDialog
+// Delete view - using ElMessageBox
 const deleteView = async () => {
   const view = contextMenu.value.view;
   if (!view) {
@@ -652,9 +652,6 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
-.btn-sort {
-  /* Utility class for sort button layout if needed, colors handled by el-button */
-}
 
 .views-content {
   flex: 1;
@@ -773,10 +770,6 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-}
-
-.btn-menu {
-  /* No styles needed for el-button link */
 }
 
 /* List mode */

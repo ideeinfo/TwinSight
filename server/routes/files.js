@@ -618,7 +618,7 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
 
             // 如果已有知识库但未设置force参数，返回提示需要确认
             if (force !== 'true') {
-                return res.status(409).json({  // 409 Conflict
+                return res.json({  // 改为 200 OK，避免前端控制台报错
                     success: false,
                     code: 'KB_EXISTS',
                     error: '该模型已关联知识库',

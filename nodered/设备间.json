@@ -1,0 +1,231 @@
+[
+    {
+        "id": "897e7fdfeaaf656a",
+        "type": "tab",
+        "label": "设备间",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "12d075ba8e1d20b5",
+        "type": "debug",
+        "z": "897e7fdfeaaf656a",
+        "name": "debug ",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1350,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "7eabc90371cc2bc8",
+        "type": "inject",
+        "z": "897e7fdfeaaf656a",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 240,
+        "wires": [
+            [
+                "b2efd8a0844558f4"
+            ]
+        ]
+    },
+    {
+        "id": "b2efd8a0844558f4",
+        "type": "api-current-state",
+        "z": "897e7fdfeaaf656a",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.11_temperature",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_temp",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 470,
+        "y": 240,
+        "wires": [
+            [
+                "6854ca1bcd967cb1"
+            ]
+        ]
+    },
+    {
+        "id": "6854ca1bcd967cb1",
+        "type": "api-current-state",
+        "z": "897e7fdfeaaf656a",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.11_humidity",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_humi",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 840,
+        "y": 240,
+        "wires": [
+            [
+                "0f019f715d0e1370",
+                "ca97f29b594a2bc7"
+            ]
+        ]
+    },
+    {
+        "id": "0f019f715d0e1370",
+        "type": "http request",
+        "z": "897e7fdfeaaf656a",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://host.docker.internal:3001/api/v1/timeseries/streams/6/BF01US05?key=9W7Pn2VQztFrY8HNVwVf1-",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 400,
+        "wires": [
+            [
+                "12d075ba8e1d20b5"
+            ]
+        ]
+    },
+    {
+        "id": "ca97f29b594a2bc7",
+        "type": "http request",
+        "z": "897e7fdfeaaf656a",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://twinsight.up.railway.app/api/v1/timeseries/streams/4/BF01US05?key=mTXEzpoLwRcwQ_9yLXNUnS",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 460,
+        "wires": [
+            [
+                "12d075ba8e1d20b5"
+            ]
+        ]
+    },
+    {
+        "id": "09b7c85d2e8078ab",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": false,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": ": ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "default",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": false
+    },
+    {
+        "id": "1bf3aa9da855206e",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
+    }
+]

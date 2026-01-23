@@ -1,292 +1,193 @@
 # Docker 服务迁移至局域网 Ubuntu 服务器实施计划
 
 > **服务器 IP**: 192.168.2.183  
-> **创建日期**: 2026-01-19
+> **SSH 用户名**: diwei  
+> **更新日期**: 2026-01-23
 
-## 概述
+## 当前进度
 
-将本地 Windows Docker 环境中的服务（PostgreSQL、InfluxDB、Node-RED、n8n、Open WebUI）迁移至局域网 Ubuntu 24.04 服务器。迁移后，本地开发只需运行前端和后端 API，通过网络连接到 Ubuntu 服务器上的数据库和 AI 服务，从而节省本机资源。
-
-```mermaid
-flowchart LR
-    subgraph Windows["Windows 本机"]
-        FE["前端 Vue 3<br/>npm run dev"]
-        BE["后端 API<br/>:3001"]
-    end
-    
-    subgraph Ubuntu["Ubuntu 192.168.2.183"]
-        PG["PostgreSQL<br/>:5432"]
-        INFLUX["InfluxDB<br/>:8086"]
-        N8N["n8n<br/>:5678"]
-        OWUI["Open WebUI<br/>:3080"]
-        NR["Node-RED<br/>:1880"]
-    end
-    
-    BE --> PG
-    BE --> INFLUX
-    BE --> N8N
-    BE --> OWUI
-    FE --> BE
-```
+| 阶段 | 状态 |
+|------|------|
+| 本地 Docker 容器统一 | ✅ 完成 |
+| 配置文件创建 | ✅ 完成 |
+| 数据导出 | ✅ 完成 |
+| 上传配置到 Ubuntu | ⏳ 进行中 |
+| 启动 Ubuntu 服务 | ⏳ 待执行 |
+| 数据导入 | ⏳ 待执行 |
+| 本地开发切换 | ⏳ 待执行 |
 
 ---
 
-## 已创建的配置文件
+## 已完成的工作
+
+### 1. 本地 Docker 容器统一命名 ✅
+- 所有容器统一为 `twinsight-*` 前缀
+- PostgreSQL、InfluxDB、Node-RED、n8n、Open WebUI 已迁移到 docker-compose 管理
+- 旧容器已删除，数据通过 external volumes 保留
+
+### 2. 配置文件和脚本 ✅
 
 | 文件 | 用途 |
 |------|------|
-| [docker-compose.lan.yml](file:///d:/TwinSIght/antigravity/twinsight/docker/docker-compose.lan.yml) | 局域网 Docker Compose 配置 |
-| [.env.lan.example](file:///d:/TwinSIght/antigravity/twinsight/docker/.env.lan.example) | 局域网环境变量模板 |
-| [.env.production.example](file:///d:/TwinSIght/antigravity/twinsight/docker/.env.production.example) | 生产环境变量模板 |
-| [PASSWORD_MANAGEMENT.md](file:///d:/TwinSIght/antigravity/twinsight/docs/PASSWORD_MANAGEMENT.md) | 密码管理规范 |
-| [.env.lan](file:///d:/TwinSIght/antigravity/twinsight/.env.lan) | 本地开发连接 Ubuntu 的环境变量 |
+| `docker/docker-compose.lan.yml` | 局域网 Docker Compose 配置 |
+| `docker/.env.lan.example` | 环境变量模板 |
+| `.env.lan` | 本地连接 Ubuntu 配置 |
+| `scripts/deploy-lan.sh` | Ubuntu 部署脚本 |
 
-## 已创建的脚本
-
-| 脚本 | 用途 | 运行环境 |
-|------|------|----------|
-| [export-data.ps1](file:///d:/TwinSIght/antigravity/twinsight/scripts/export-data.ps1) | 导出本地 Docker 数据 | Windows PowerShell |
-| [deploy-lan.sh](file:///d:/TwinSIght/antigravity/twinsight/scripts/deploy-lan.sh) | Ubuntu 服务器部署 | Ubuntu Bash |
-| [import-data.sh](file:///d:/TwinSIght/antigravity/twinsight/scripts/import-data.sh) | 导入数据到 Ubuntu | Ubuntu Bash |
+### 3. 数据备份 ✅
+- `D:\TwinSIght\backup\postgres_twinsight.sql` (1.37 MB)
 
 ---
 
-## 第一步：上传配置文件到 Ubuntu 服务器
+## 待执行步骤
 
-在 Windows PowerShell 中执行：
+### 第一步：在 Ubuntu 创建目录并上传文件
 
+**1.1 SSH 登录 Ubuntu：**
 ```powershell
-# 上传 Docker Compose 配置
-scp d:\TwinSIght\antigravity\twinsight\docker\docker-compose.lan.yml user@192.168.2.183:/opt/twinsight/docker-compose.yml
-
-# 上传环境变量文件
-scp d:\TwinSIght\antigravity\twinsight\docker\.env.lan.example user@192.168.2.183:/opt/twinsight/.env
-
-# 上传部署脚本
-scp d:\TwinSIght\antigravity\twinsight\scripts\deploy-lan.sh user@192.168.2.183:/opt/twinsight/
-scp d:\TwinSIght\antigravity\twinsight\scripts\import-data.sh user@192.168.2.183:/opt/twinsight/
+ssh diwei@192.168.2.183
 ```
 
-> [!TIP]
-> 如果使用 SSH 密钥登录，请确保已配置好 `~/.ssh/config`。如果使用密码登录，会提示输入密码。
+**1.2 在 Ubuntu 上执行：**
+```bash
+sudo mkdir -p /opt/twinsight
+sudo chown diwei:diwei /opt/twinsight
+exit
+```
+
+**1.3 上传配置文件（Windows PowerShell）：**
+```powershell
+scp d:\TwinSIght\antigravity\twinsight\docker\docker-compose.lan.yml diwei@192.168.2.183:/opt/twinsight/docker-compose.yml
+scp d:\TwinSIght\antigravity\twinsight\docker\.env.lan.example diwei@192.168.2.183:/opt/twinsight/.env
+scp d:\TwinSIght\antigravity\twinsight\scripts\deploy-lan.sh diwei@192.168.2.183:/opt/twinsight/
+scp D:\TwinSIght\backup\postgres_twinsight.sql diwei@192.168.2.183:/opt/twinsight/
+```
 
 ---
 
-## 第二步：在 Ubuntu 服务器上准备环境
+### 第二步：在 Ubuntu 启动服务
 
-SSH 登录到 Ubuntu 服务器后执行：
-
+**2.1 SSH 登录后执行：**
 ```bash
-# 创建项目目录（如果不存在）
-sudo mkdir -p /opt/twinsight
-sudo chown $USER:$USER /opt/twinsight
 cd /opt/twinsight
 
-# 编辑环境变量文件，填写实际值
+# 编辑 .env (GEMINI_API_KEY 已通过 AI 面板配置，此处无需设置)
 nano .env
 
-# 赋予脚本执行权限
-chmod +x deploy-lan.sh import-data.sh
-```
-
-**需要编辑的 `.env` 配置项：**
-
-```ini
-# 确认服务器 IP
-LAN_SERVER_IP=192.168.2.183
-
-# 填写 Gemini API Key
-GEMINI_API_KEY=your-actual-gemini-api-key
-```
-
----
-
-## 第三步：启动 Docker 服务
-
-在 Ubuntu 服务器上执行：
-
-```bash
-cd /opt/twinsight
-
-# 方式一：使用部署脚本（推荐）
+# 设置脚本权限并启动
+chmod +x deploy-lan.sh
 ./deploy-lan.sh
+```
 
-# 方式二：手动启动
+**2.2 或手动启动：**
+```bash
 docker compose pull
 docker compose up -d
 docker compose ps
 ```
 
-验证服务状态：
+---
+
+### 第三步：导入 PostgreSQL 数据
 
 ```bash
-# 查看所有服务状态
-docker compose ps
-
-# 查看日志
-docker compose logs -f
-
-# 测试 PostgreSQL 连接
-docker exec twinsight-postgres pg_isready -U postgres
-
-# 测试 InfluxDB
-curl http://localhost:8086/health
+docker exec -i twinsight-postgres psql -U postgres twinsight < /opt/twinsight/postgres_twinsight.sql
 ```
 
 ---
 
-## 第四步：导出本地数据 (Windows)
+### 第四步：配置本地开发环境
 
-在 Windows PowerShell 中执行：
-
+**Windows PowerShell：**
 ```powershell
 cd d:\TwinSIght\antigravity\twinsight
 
-# 运行数据导出脚本
-.\scripts\export-data.ps1
-
-# 或者手动导出 PostgreSQL
-docker exec twinsight-postgres pg_dump -U postgres twinsight > D:\TwinSIght\backup\postgres_backup.sql
-```
-
-脚本会导出：
-- PostgreSQL 完整数据库
-- PostgreSQL 仅结构（用于生产环境初始化）
-- InfluxDB 数据备份
-
----
-
-## 第五步：上传并导入数据 (Ubuntu)
-
-```powershell
-# Windows: 上传备份文件
-scp -r D:\TwinSIght\backup\migration_* user@192.168.2.183:/opt/twinsight/backup/
-```
-
-```bash
-# Ubuntu: 导入数据
-cd /opt/twinsight
-./import-data.sh /opt/twinsight/backup/migration_*
-
-# 或手动导入 PostgreSQL
-docker exec -i twinsight-postgres psql -U postgres twinsight < /opt/twinsight/backup/postgres_twinsight.sql
-```
-
-### 手动导入 Node-RED 和 n8n
-
-| 服务 | 访问地址 | 导入步骤 |
-|------|----------|----------|
-| Node-RED | http://192.168.2.183:1880 | 右上角菜单 → Import → 选择 flows.json |
-| n8n | http://192.168.2.183:5678 | 右上角 → Import from File → 选择工作流 JSON |
-
----
-
-## 第六步：配置本地开发环境
-
-### 方式一：使用预配置的 .env.lan 文件
-
-```powershell
 # 备份当前配置
 Copy-Item .env.local .env.local.backup
 
 # 使用局域网配置
 Copy-Item .env.lan .env.local
-```
 
-### 方式二：手动修改 .env.local
-
-编辑 `d:\TwinSIght\antigravity\twinsight\.env.local`：
-
-```ini
-# API 服务器配置
-VITE_API_URL=http://localhost:3001
-
-# PostgreSQL - 连接到 Ubuntu 服务器
-DB_HOST=192.168.2.183
-DB_PORT=5432
-DB_NAME=twinsight
-DB_USER=postgres
-DB_PASSWORD=password
-
-# InfluxDB - 连接到 Ubuntu 服务器
-INFLUX_URL=http://192.168.2.183:8086
-INFLUX_ORG=demo
-INFLUX_BUCKET=twinsight
-INFLUX_TOKEN=SsFt9slg5E2jS6HmvxuaePjebpkNVRi-S0wrDexjQWOFXDeARRY8NeJ-_Dqe6eAzsyuWtIVHFmSs3XMuv0x1ww==
-
-# AI 服务 - 连接到 Ubuntu 服务器
-OPENWEBUI_URL=http://192.168.2.183:3080
-OPENWEBUI_API_KEY=sk-d88ba6f39e21479491e9ab3f7d5e11d7
-N8N_WEBHOOK_URL=http://192.168.2.183:5678
-```
-
-### 测试连接
-
-```powershell
-# 启动后端 API
+# 重启后端服务
 cd server
 npm run dev
-
-# 在另一个终端启动前端
-npm run dev
 ```
 
 ---
 
-## 服务访问地址汇总
+## 服务访问地址
 
-| 服务 | 本地开发 (之前) | 局域网 Ubuntu (迁移后) |
-|------|-----------------|------------------------|
-| PostgreSQL | localhost:5432 | 192.168.2.183:5432 |
-| InfluxDB | http://localhost:8086 | http://192.168.2.183:8086 |
-| Node-RED | http://localhost:1880 | http://192.168.2.183:1880 |
-| n8n | http://localhost:5678 | http://192.168.2.183:5678 |
-| Open WebUI | http://localhost:3080 | http://192.168.2.183:3080 |
-
----
-
-## 生产环境部署一致性
-
-### 配置对比
-
-| 方面 | 局域网 (192.168.2.183) | 阿里云 ECS |
-|------|------------------------|------------|
-| Docker Compose | docker-compose.lan.yml | docker-compose.prod.yml |
-| 网络模式 | 直接端口暴露 | Nginx 反向代理 |
-| SSL | 无 | Let's Encrypt |
-| 域名 | IP 访问 | 自定义域名 |
-| 密码 | 开发/测试密码 | 强密码 (见密码规范) |
-
-### 迁移到阿里云 ECS
-
-1. 使用 `docker/docker-compose.prod.yml`
-2. 配置 `.env.production.example` → `.env`
-3. 申请 SSL 证书
-4. 配置 Nginx 反向代理
-5. 更新密码为生产级别
-
-详细步骤参考：[ALIBABA_ECS_DEPLOYMENT.md](file:///d:/TwinSIght/antigravity/twinsight/ALIBABA_ECS_DEPLOYMENT.md)
+| 服务 | Ubuntu 地址 |
+|------|-------------|
+| PostgreSQL | 192.168.2.183:5432 |
+| InfluxDB | http://192.168.2.183:8086 |
+| Node-RED | http://192.168.2.183:1880 |
+| n8n | http://192.168.2.183:5678 |
+| Open WebUI | http://192.168.2.183:3080 |
 
 ---
 
-## 密码管理
+## 配置
+用docker-compose中的用户名密码登录Open WebUI，创建权限组（所有权限），将当前用户分配到权限组
+创建Open WebUI的Token，填写到n8n流程的调用Open WebUI RAG节点，取名Header Auth
+配置Open WebUI的LLM API连接地址、文档参数（Top K=10；块大小=800）
 
-请参考 [PASSWORD_MANAGEMENT.md](file:///d:/TwinSIght/antigravity/twinsight/docs/PASSWORD_MANAGEMENT.md) 了解：
+## Open WebUI管理配置面板提示词：
 
-- 各环境密码强度要求
-- 密码轮换策略
-- 密钥管理工具推荐
-- 紧急响应流程
+### 任务:
+请根据提供的上下文 (Context) 回答用户的问题。
 
----
+### 规则:
+1. **语言限制**：必须使用简体中文回答。
+2. **思考过程**：在给出正式回答前，请先在 <thought> 标签中展示你的推理过程，分析上下文与问题的关联。
+3. **准确性**：如果上下文中没有提到相关信息，请诚实告知，不要胡编乱造。
+4. **引用规范**：在回答的关键句末尾，使用 [id] 的格式标注引用来源（如果 Context 中有 id 的话）。
+5. **技术格式**：如果是代码或 PowerShell 命令，请确保格式正确并符合 Windows 环境规范。
+
+### 上下文 (Context):
+{{CONTEXT}}
+
+### 用户问题:
+{{QUERY}}
+
+## 在知识库创建模型时的提示词：
+你是一个建筑设施设备运营维护专家，优先使用知识库，在知识库无相关知识的情况可以联网搜索，必须提供引用来源，为建筑运维人员提供帮助。如果知识库以及联网都没找到，就如实回答“没有相关知识”。
+
+## Homeassistant令牌(XPS)
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwODI4ZTlkMzI2YjU0ZTg1YWJmNGI5NTQwOGI0MjU3NyIsImlhdCI6MTc2OTE3NzcxMCwiZXhwIjoyMDg0NTM3NzEwfQ.HegG1f9hgUSKjStQ6vz21u_MJ9Vg2R23ebL5C9yY9Nc
+
+
+## open WebUI Token(XPS):
+
+sk-ca761aa4d9164f9b9930cb4dea16a894
+
+
+## influxdb Token(XPS):
+
+
+nLGajutgYSfV65VhAw0hakHeeKnwAXAvvnap1yQHNl87Q6C1H4oua35MOu1XG2HJqOWGAmAJLuctHq7LOLPNhQ==
+
+
+## 让docker自启动
+
+sudo systemctl enable docker.service
+sudo systemctl enable containerd.service
+
+验证状态：sudo systemctl is-enabled docker
+
+## 让已有的docker容器自启动
+docker update --restart unless-stopped twinsight-open-webui
+docker update --restart unless-stopped twinsight-postgres
+docker update --restart unless-stopped twinsight-n8n
+docker update --restart unless-stopped twinsight-nodered
+docker update --restart unless-stopped twinsight-influxdb
+
 
 ## 故障排除
 
-### 无法连接到 Ubuntu 服务器
-
+### Ubuntu 防火墙
 ```bash
-# 检查 Ubuntu 防火墙
-sudo ufw status
 sudo ufw allow 5432/tcp  # PostgreSQL
 sudo ufw allow 8086/tcp  # InfluxDB
 sudo ufw allow 1880/tcp  # Node-RED
@@ -294,25 +195,7 @@ sudo ufw allow 5678/tcp  # n8n
 sudo ufw allow 3080/tcp  # Open WebUI
 ```
 
-### Docker 服务无法启动
-
-```bash
-# 查看详细日志
-docker compose logs [service-name]
-
-# 检查磁盘空间
-df -h
-
-# 检查内存
-free -m
-```
-
-### 本地开发无法连接数据库
-
+### 测试网络连接
 ```powershell
-# 测试网络连接
 Test-NetConnection -ComputerName 192.168.2.183 -Port 5432
-
-# 检查 .env.local 配置是否正确
-Get-Content .env.local
 ```

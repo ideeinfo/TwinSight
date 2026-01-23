@@ -31,7 +31,7 @@
         <el-button 
           :type="danger ? 'danger' : 'primary'"
           :disabled="type === 'prompt' && !inputValue.trim()"
-          @click="handleConfirm"
+          @click="() => { console.log('[ConfirmDialog] Button clicked directly'); handleConfirm(); }"
         >
           {{ finalConfirmText }}
         </el-button>
@@ -84,16 +84,20 @@ watch(() => props.visible, (newVal) => {
 });
 
 const handleConfirm = () => {
+  console.log('[ConfirmDialog] handleConfirm called, type:', props.type);
   if (props.type === 'prompt') {
     emit('confirm', inputValue.value);
   } else {
     emit('confirm');
   }
+  console.log('[ConfirmDialog] emitting update:visible false');
   emit('update:visible', false);
 };
 
 const handleCancel = () => {
+  console.log('[ConfirmDialog] handleCancel called');
   emit('cancel');
+  console.log('[ConfirmDialog] emitting update:visible false');
   emit('update:visible', false);
 };
 </script>

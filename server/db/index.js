@@ -4,9 +4,14 @@
  */
 import pg from 'pg';
 import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// 加载环境变量
-config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 加载项目根目录的 .env.local
+config({ path: join(__dirname, '../../.env.local') });
 
 const { Pool } = pg;
 

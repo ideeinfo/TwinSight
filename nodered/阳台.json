@@ -1,0 +1,256 @@
+[
+    {
+        "id": "c7619c9e87f7f9d3",
+        "type": "tab",
+        "label": "阳台",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "a882bf06060d81a2",
+        "type": "debug",
+        "z": "c7619c9e87f7f9d3",
+        "name": "debug ",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1350,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "27833cda2f4c7b13",
+        "type": "inject",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 240,
+        "wires": [
+            [
+                "eca8e4452b6fc868"
+            ]
+        ]
+    },
+    {
+        "id": "eca8e4452b6fc868",
+        "type": "api-current-state",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.10_temperature",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_temp",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 470,
+        "y": 240,
+        "wires": [
+            [
+                "d51c3a1c54cac03a"
+            ]
+        ]
+    },
+    {
+        "id": "d51c3a1c54cac03a",
+        "type": "api-current-state",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "server": "09b7c85d2e8078ab",
+        "version": 3,
+        "outputs": 1,
+        "halt_if": "",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "sensor.10_humidity",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload.room_humi",
+                "propertyType": "msg",
+                "value": "number",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 840,
+        "y": 240,
+        "wires": [
+            [
+                "46871b7c6a2136ad",
+                "f75ab14241a7b6ae",
+                "aa0a1b3d26f7c221"
+            ]
+        ]
+    },
+    {
+        "id": "46871b7c6a2136ad",
+        "type": "http request",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http:///host.docker.internal:3001/api/v1/timeseries/streams/6/BF01US07?key=tq2bDuTG5Rz4Yvrn_aXUbO",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 400,
+        "wires": [
+            [
+                "a882bf06060d81a2"
+            ]
+        ]
+    },
+    {
+        "id": "f75ab14241a7b6ae",
+        "type": "http request",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://host.docker.internal:3001/api/v1/timeseries/streams/27/1?key=EGvW5g3wrxnsv6PdIL9eaQ",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 500,
+        "wires": [
+            [
+                "a882bf06060d81a2"
+            ]
+        ]
+    },
+    {
+        "id": "aa0a1b3d26f7c221",
+        "type": "http request",
+        "z": "c7619c9e87f7f9d3",
+        "name": "",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "http://twinsight.up.railway.app/api/v1/timeseries/streams/4/BF01US07?key=ruVDbza3ozW9R0QiZdZ0dE",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1160,
+        "y": 580,
+        "wires": [
+            [
+                "a882bf06060d81a2"
+            ]
+        ]
+    },
+    {
+        "id": "09b7c85d2e8078ab",
+        "type": "server",
+        "name": "Home Assistant",
+        "version": 6,
+        "addon": false,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": [
+            "y",
+            "yes",
+            "true",
+            "on",
+            "home",
+            "open"
+        ],
+        "connectionDelay": true,
+        "cacheJson": true,
+        "heartbeat": false,
+        "heartbeatInterval": 30,
+        "areaSelector": "friendlyName",
+        "deviceSelector": "friendlyName",
+        "entitySelector": "friendlyName",
+        "statusSeparator": ": ",
+        "statusYear": "hidden",
+        "statusMonth": "short",
+        "statusDay": "numeric",
+        "statusHourCycle": "default",
+        "statusTimeFormat": "h:m",
+        "enableGlobalContextStore": false
+    },
+    {
+        "id": "273ab605ef125730",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-home-assistant-websocket": "0.80.3"
+        }
+    }
+]
