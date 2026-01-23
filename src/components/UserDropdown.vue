@@ -97,6 +97,9 @@
 
         <!-- 操作按钮 -->
         <div class="panel-actions">
+          <el-button size="small" @click="openLLMSettings">
+            AI 设置
+          </el-button>
           <el-button type="primary" size="small" @click="openAccountSettings">
             {{ $t('account.settings') }}
           </el-button>
@@ -109,6 +112,9 @@
 
     <!-- 账户设置对话框 -->
     <AccountDialog v-model="showAccountDialog" />
+    
+    <!-- LLM 配置对话框 -->
+    <LLMConfigPanel v-model="showLLMConfig" />
   </div>
 </template>
 
@@ -121,6 +127,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import * as authService from '@/services/auth';
 import AccountDialog from './AccountDialog.vue';
+import LLMConfigPanel from './LLMConfigPanel.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -130,6 +137,7 @@ const themeStore = useThemeStore();
 const dropdownRef = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 const showAccountDialog = ref(false);
+const showLLMConfig = ref(false);
 
 // 用户信息
 const user = computed(() => authStore.user);
@@ -187,6 +195,12 @@ const handleThemeChange = (val: string) => {
 // 打开账户设置
 const openAccountSettings = () => {
   showAccountDialog.value = true;
+  closeDropdown();
+};
+
+// 打开 LLM 设置
+const openLLMSettings = () => {
+  showLLMConfig.value = true;
   closeDropdown();
 };
 

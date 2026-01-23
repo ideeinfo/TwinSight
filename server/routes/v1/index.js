@@ -10,6 +10,7 @@ import documentsRouter from './documents.js';
 import aiRouter from './ai.js';
 import authRouter from './auth.js';
 import usersRouter from './users.js';
+import systemConfigRouter from './system-config.js';
 // import facilitiesRouter from './facilities.js'; // 预留
 // import propertiesRouter from './properties.js'; // 预留
 
@@ -34,6 +35,7 @@ router.use('/documents', documentsRouter);
 router.use('/ai', aiRouter);
 router.use('/auth', authRouter);
 router.use('/users', usersRouter);
+router.use('/system-config', systemConfigRouter);
 // router.use('/facilities', facilitiesRouter); // 预留
 // router.use('/properties', propertiesRouter); // 预留
 

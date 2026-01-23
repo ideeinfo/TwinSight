@@ -8,6 +8,8 @@ import express from 'express';
 import { chatWithRAG, checkHealth as checkOpenWebUIHealth } from '../services/openwebui-service.js';
 // 获取上下文数据的 API
 import pool from '../db/index.js';
+// 获取 LLM 配置
+import { getConfig } from '../services/config-service.js';
 
 const router = express.Router();
 
@@ -76,10 +78,11 @@ async function getContextData(pool, roomCode, roomName, fileId) {
         FROM assets WHERE (room ILIKE $1 OR room ILIKE $2)
     `;
     const assetParams = [`%${roomCode}%`, `%${roomName || ''}%`];
-    if (fileId) {
-        assetsQueryKey += ` AND file_id = $3`;
-        assetParams.push(fileId);
-    }
+    // 移除 assets 的 strict file_id 过滤，防止版本不一致导致找不到资产
+    // if (fileId) {
+    //     assetsQueryKey += ` AND file_id = $3`;
+    //     assetParams.push(fileId);
+    // }
     const assetsResult = await pool.query(assetsQueryKey, assetParams);
     const assets = assetsResult.rows;
 
@@ -596,11 +599,13 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
         }
 
         // 4. 调用 Open WebUI RAG（使用文件 ID 精确引用 + 知识库作为补充）
+        // 从系统配置读取 LLM 模型
+        const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
         const ragResult = await chatWithRAG({
             prompt,
             kbId,
             fileIds,
-            model: 'models/gemini-2.5-flash',
+            model: llmModel,
         });
 
         console.log(`✅ Open WebUI RAG 返回成功`);

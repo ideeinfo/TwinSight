@@ -81,7 +81,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"models/gemini-3-flash-preview\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ],\n  \"files\": {{ $json.fileIds && $json.fileIds.length > 0 ? JSON.stringify($json.fileIds.map(id => ({\"type\": \"file\", \"id\": id}))) : '[]' }}\n}",
+        "jsonBody": "={\n  \"model\": \"qwen3-omni-flash-2025-12-01\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ],\n  \"files\": {{ $json.fileIds && $json.fileIds.length > 0 ? JSON.stringify($json.fileIds.map(id => ({\"type\": \"file\", \"id\": id}))) : '[]' }}\n}",
         "options": {
           "timeout": 120000
         }
@@ -192,7 +192,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "4f811f0c-8ef3-4274-a272-059b49b8bc46",
+  "versionId": "83d662a7-08bb-450e-bedb-2f1750fb912f",
   "meta": {
     "instanceId": "d0f0226cfbfb58e6c2e79f9a7ffc650b650227aae5bfa7e4780e5be2fe63e145"
   },

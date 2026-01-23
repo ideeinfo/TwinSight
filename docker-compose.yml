@@ -15,6 +15,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: twinsight
+      TZ: Asia/Shanghai
     ports:
       - "5432:5432"
     volumes:
@@ -25,7 +26,7 @@ services:
   # InfluxDB 2.x - 时序数据库 (使用现有容器配置，保留历史数据)
   influxdb:
     image: influxdb:2.7-alpine
-    container_name: influxdb2
+    container_name: twinsight-influxdb
     restart: always
     environment:
       # 注意：这些初始化变量只在首次启动时生效，已有数据不受影响
@@ -35,6 +36,7 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: demo
       DOCKER_INFLUXDB_INIT_BUCKET: twinsight
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: SsFt9slg5E2jS6HmvxuaePjebpkNVRi-S0wrDexjQWOFXDeARRY8NeJ-_Dqe6eAzsyuWtIVHFmSs3XMuv0x1ww==
+      TZ: Asia/Shanghai
     ports:
       - "8086:8086"
     volumes:
@@ -46,12 +48,10 @@ services:
 
   # ==================== IoT 服务 ====================
 
-  # Node-RED - 可视化流程编程工具 (使用自定义Dockerfile，包含预装依赖)
+  # Node-RED - 可视化流程编程工具
   nodered:
-    build:
-      context: .
-      dockerfile: node-red.Dockerfile
-    container_name: mynodered
+    image: nodered/node-red:latest
+    container_name: twinsight-nodered
     restart: always
     environment:
       TZ: Asia/Shanghai
@@ -72,26 +72,27 @@ services:
       timeout: 10s
       retries: 3
 
-  # Grafana - 数据可视化仪表盘
-  grafana:
-    image: grafana/grafana-enterprise
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=mis730607
-      - TZ=Asia/Shanghai
-    depends_on:
-      - influxdb
-      - postgres
-    networks:
-      - twinsight-network
+  # Grafana - 数据可视化仪表盘 (暂时禁用)
+  # grafana:
+  #   image: grafana/grafana-enterprise
+  #   container_name: twinsight-grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=mis730607
+  #     - TZ=Asia/Shanghai
+  #   depends_on:
+  #     - influxdb
+  #     - postgres
+  #   networks:
+  #     - twinsight-network
 
   # ==================== AI 服务 ====================
+
 
   # n8n 工作流自动化平台
   n8n:
@@ -131,6 +132,9 @@ services:
       - n8n_data:/home/node/.n8n
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 223.5.5.5
+      - 8.8.8.8
     networks:
       - twinsight-network
 
@@ -143,37 +147,58 @@ services:
       - "3080:8080"
     environment:
       # 基础配置
+      - TZ=Asia/Shanghai
       - WEBUI_NAME=Twinsight AI
       - DEFAULT_LOCALE=zh-CN
       # 安全配置 (注意：新版变量名为复数 KEYS)
       - ENABLE_API_KEYS=true
-      # Gemini API 配置
-      - OPENAI_API_BASE_URLS=https://generativelanguage.googleapis.com/v1beta/openai
-      - OPENAI_API_KEYS=${GEMINI_API_KEY:-}
+      # LLM 配置已移至 Open WebUI Admin 界面，支持用户自主配置
+      # 如需预置 API，可取消以下注释并设置对应的环境变量
+      # - OPENAI_API_BASE_URLS=https://dashscope.aliyuncs.com/compatible-mode/v1
+      # - OPENAI_API_KEYS=${QWEN_API_KEY:-}
       # 允许注册（首次使用需要创建管理员账户）
       - ENABLE_SIGNUP=true
       # RAG 配置（使用内置 ChromaDB）
-      - ENABLE_RAG_WEB_SEARCH=true
+      - ENABLE_RAG_WEB_SEARCH=false
       # 国内 Hugging Face 镜像源
       - HF_ENDPOINT=https://hf-mirror.com
       # RAG 配置 (强制使用本地多语言模型)
+      - HF_HUB_OFFLINE=1
       - RAG_EMBEDDING_ENGINE=
       - RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
     volumes:
       - open_webui_data:/app/backend/data
     networks:
       - twinsight-network
+    # network_mode: host # 添加这一行
+    dns:
+      - 223.5.5.5 # 阿里云 DNS
+      - 8.8.8.8 # Google DNS
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:
+    external: true
+    name: tandem-demo_postgres_data
   grafana_data:
+    external: true
+    name: tandem-demo_grafana_data
   n8n_data:
-  open_webui_data: # 新增：InfluxDB 和 Node-RED volumes
-
+    external: true
+    name: tandem-demo_n8n_data
+  open_webui_data:
+    external: true
+    name: tandem-demo_open_webui_data
   influxdb_data:
+    external: true
+    name: tandem-demo_influxdb_data
   influxdb_config:
+    external: true
+    name: tandem-demo_influxdb_config
   nodered_data:
-
+    external: true
+    name: tandem-demo_nodered_data
 
 networks:
   twinsight-network:
