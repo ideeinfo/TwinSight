@@ -608,7 +608,7 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
 
         // 检查是否已有知识库
         const existingKb = await getDbPool().query(
-            'SELECT openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
+            'SELECT id, openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
             [file.id]
         );
 
@@ -666,19 +666,28 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
                     console.log(`⏭️ 跳过删除不存在的知识库，直接清理数据库记录`);
                 }
 
-                // 删除数据库映射记录（knowledge_bases表）
-                await getDbPool().query(
-                    'DELETE FROM knowledge_bases WHERE file_id = $1',
-                    [file.id]
-                );
-                console.log(`💾 knowledge_bases表记录已删除`);
+                // 3. 显式清理本地数据库记录（即使有 CASCADE 也手动清理以确保万无一失）
+                const internalKbId = existingKb.rows[0].id;
 
-                // 级联删除文档同步记录（kb_documents表）
+                // 3.1 清理文档同步记录 (kb_documents)
+                // 按内部主键删除
                 const deleteDocsResult = await getDbPool().query(
-                    'DELETE FROM kb_documents WHERE kb_id IN (SELECT id FROM knowledge_bases WHERE openwebui_kb_id = $1)',
+                    'DELETE FROM kb_documents WHERE kb_id = $1',
+                    [internalKbId]
+                );
+                // 按 Open WebUI ID 删除 (清除可能的存量孤儿数据)
+                const deleteOrphansResult = await getDbPool().query(
+                    'DELETE FROM kb_documents WHERE openwebui_kb_id = $1',
                     [kbId]
                 );
-                console.log(`💾 级联删除 ${deleteDocsResult.rowCount} 条kb_documents记录`);
+                console.log(`💾 已清理同步记录: ${deleteDocsResult.rowCount} 条关联记录, ${deleteOrphansResult.rowCount} 条孤儿记录`);
+
+                // 3.2 删除知识库映射记录 (knowledge_bases)
+                await getDbPool().query(
+                    'DELETE FROM knowledge_bases WHERE id = $1',
+                    [internalKbId]
+                );
+                console.log(`💾 knowledge_bases表记录已删除`);
 
             } catch (deleteError) {
                 console.error(`❌ 删除知识库失败:`, deleteError);
@@ -740,7 +749,7 @@ router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
 
         // 查询未同步的文档
         const docsResult = await getDbPool().query(`
-            SELECT DISTINCT d.id, d.title, d.file_path as path, d.file_type, d.created_at
+            SELECT DISTINCT d.id, d.title, d.file_name as org_name, d.file_path as path, d.file_type, d.created_at
             FROM documents d
             LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $1
             LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $1
@@ -765,7 +774,7 @@ router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
 
         // 调用同步函数
         const { syncDocumentsToKB } = await import('../services/openwebui-service.js');
-        const syncResult = await syncDocumentsToKB(kb.id, documents);
+        const syncResult = await syncDocumentsToKB(kb.openwebui_kb_id, documents);
 
         console.log(`✅ 同步完成: 成功 ${syncResult.success}, 失败 ${syncResult.failed}`);
 

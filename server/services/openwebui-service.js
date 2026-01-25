@@ -370,7 +370,7 @@ export async function syncDocumentsToKB(kbId, documents) {
                 continue;
             }
 
-            const result = await uploadDocument(kbId, fullPath);
+            const result = await uploadDocument(kbId, fullPath, doc.org_name || doc.title);
             results.push({ id: doc.id, status: 'synced', openwebui_doc_id: result.id });
             success++;
         } catch (error) {

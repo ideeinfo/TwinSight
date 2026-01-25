@@ -72,15 +72,17 @@ router.get('/health', async (req, res) => {
 
 // Helper: 获取上下文资产和文档 (复用逻辑)
 async function getContextData(pool, roomCode, roomName, fileId) {
-    // 1. 查询资产
+    // 1. 查询资产 (关联 asset_specs 获取分类信息)
     let assetsQueryKey = `
-        SELECT asset_code, name, spec_code, floor, room
-        FROM assets WHERE (room ILIKE $1 OR room ILIKE $2)
+        SELECT a.asset_code, a.name, a.spec_code, a.floor, a.room, sp.category
+        FROM assets a
+        LEFT JOIN asset_specs sp ON a.spec_code = sp.spec_code AND (a.file_id = sp.file_id OR sp.file_id IS NULL)
+        WHERE (a.room ILIKE $1 OR a.room ILIKE $2)
     `;
     const assetParams = [`%${roomCode}%`, `%${roomName || ''}%`];
     // 移除 assets 的 strict file_id 过滤，防止版本不一致导致找不到资产
     // if (fileId) {
-    //     assetsQueryKey += ` AND file_id = $3`;
+    //     assetsQueryKey += ` AND a.file_id = $3`;
     //     assetParams.push(fileId);
     // }
     const assetsResult = await pool.query(assetsQueryKey, assetParams);
@@ -267,7 +269,10 @@ router.post('/temperature-alert', async (req, res) => {
                         }
                     });
 
-                    // 格式化引用 - 处理 [source X], [id: X], [X] 格式
+                    // 格式化引用 - 处理 [source X], [id: X], [X]
+                    // ... (Refactored below by reusing existing logic)
+
+                    // 格式化引用 - 处理 [source X]
                     analysisText = analysisText.replace(/\[source\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
                         const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
                         const linkedNums = indices.map(idx => {
@@ -280,29 +285,129 @@ router.post('/temperature-alert', async (req, res) => {
                         return `[${linkedNums.join(', ')}]`;
                     });
 
-                    analysisText = analysisText.replace(/\[id:?\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
-                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
-                        const linkedNums = indices.map(num => {
-                            const info = sourceIndexMap[String(num)];
-                            if (info && info.docId) {
-                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
+                    // 格式化引用 - 处理 [id: X]
+                    analysisText = analysisText.replace(/\[id:?\s*([0-9,\s]+)\]/gi, (match, idStr) => {
+                        const ids = idStr.split(/[,\s]+/).filter(n => n);
+                        const linkedIds = ids.map(id => {
+                            // 尝试在 sourceIndexMap 中查找
+                            const entry = Object.values(sourceIndexMap).find(e => String(e.docId) === String(id));
+                            if (entry) {
+                                return `<span class="ai-doc-link" data-id="${entry.docId}" data-name="${entry.fileName}">${entry.index}</span>`;
                             }
-                            return String(num);
+                            // 如果不在 sourceIndexMap 中，尝试从 contextDocs 查找
+                            const doc = contextDocs && contextDocs.find(d => String(d.id) === String(id));
+                            if (doc) {
+                                return `<span class="ai-doc-link" data-id="${doc.id}" data-name="${doc.file_name}">${doc.file_name}</span>`;
+                            }
+                            return id;
+                        });
+                        return `[${linkedIds.join(', ')}]`;
+                    });
+
+                    // 格式化引用 - 处理 [X] (标准学术格式)
+                    analysisText = analysisText.replace(/(?<!\w)\[(\d+(?:,\s*\d+)*)\](?!\()/g, (match, nums) => {
+                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
+                        const linkedNums = indices.map(idx => {
+                            const info = sourceIndexMap[String(idx)];
+                            if (info && info.docId) {
+                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${idx}</span>`;
+                            }
+                            return String(idx);
                         });
                         return `[${linkedNums.join(', ')}]`;
                     });
 
-                    analysisText = analysisText.replace(/(?<!\w)\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (match, nums) => {
-                        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
-                        const linkedNums = indices.map(num => {
-                            const info = sourceIndexMap[String(num)];
-                            if (info && info.docId) {
-                                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
-                            }
-                            return String(num);
+                    // 计算下一个可用索引
+                    const maxIndex = Math.max(0, ...Object.keys(sourceIndexMap).map(k => parseInt(k) || 0));
+                    let nextIndex = maxIndex + 1;
+
+                    // 文本扫描：检查分析文本中是否提到了上下文中的文档
+                    // n8n 模式有时可能使用了上下文中的文件名但没有返回 structured source
+                    if (contextDocs && contextDocs.length > 0) {
+                        console.log('🔍 (n8n) 扫描 AI 文本以匹配上下文文档引用...');
+                        const existingDocIds = new Set();
+
+                        // 收集已有的 docId
+                        Object.values(sourceIndexMap).forEach(info => {
+                            if (info.docId) existingDocIds.add(info.docId);
                         });
-                        return `[${linkedNums.join(', ')}]`;
-                    });
+
+                        for (const doc of contextDocs) {
+                            if (existingDocIds.has(doc.id)) continue;
+
+                            // 检查文件名是否出现在文本中
+                            const baseName = doc.file_name.replace(/\.[^/.]+$/, '');
+                            const escapedName = doc.file_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                            const namePattern = new RegExp(escapedName, 'i');
+                            const baseNamePattern = (baseName.length >= 2) ? new RegExp(escapedBaseName, 'i') : null;
+
+                            if (namePattern.test(analysisText) || (baseNamePattern && baseNamePattern.test(analysisText))) {
+                                console.log(`   ➕ (n8n) 从文本中找回引用: ${doc.file_name}`);
+                                // 添加到 formattedSources
+                                const sourceInfo = {
+                                    name: doc.file_name,
+                                    fileName: doc.file_name,
+                                    url: `/api/documents/${doc.id}/preview`,
+                                    downloadUrl: `/api/documents/${doc.id}/download`,
+                                    docId: doc.id,
+                                    matchedBy: 'text_reference' // 标记来源
+                                };
+                                formattedSources.push(sourceInfo);
+                                sourceIndexMap[nextIndex] = sourceInfo;
+                                nextIndex++;
+                                existingDocIds.add(doc.id);
+                            }
+                        }
+                    }
+
+                    // 兜底逻辑：如果 formattedSources 为空且有上下文文档，将所有上下文文档作为参考
+                    // 这是为了防止 AI 没有显式引用（或 n8n 没解析出引用）导致文档面板空白
+                    if (formattedSources.length === 0 && contextDocs && contextDocs.length > 0) {
+                        console.log(`⚠️ (n8n) 未检测到引用，使用上下文文档作为兜底 (${contextDocs.length} 个)`);
+                        contextDocs.forEach(doc => {
+                            const sourceInfo = {
+                                name: doc.file_name,
+                                fileName: doc.file_name,
+                                url: `/api/documents/${doc.id}/preview`,
+                                downloadUrl: `/api/documents/${doc.id}/download`,
+                                docId: doc.id,
+                                isContextFallback: true
+                            };
+                            formattedSources.push(sourceInfo);
+                            sourceIndexMap[nextIndex] = sourceInfo;
+                            nextIndex++;
+                        });
+                    }
+
+                    // 名称链接化：为文中出现的纯文件名（无 ID 标记）添加链接
+                    // 仅针对确认为来源的文档
+                    for (const source of formattedSources) {
+                        if (!source.docId) continue;
+
+                        const docName = source.name;
+                        const docId = source.docId;
+
+                        const escapedName = docName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const baseName = docName.replace(/\.[^/.]+$/, '');
+                        let patternStr = `(${escapedName})`;
+
+                        if (baseName && baseName.length >= 2 && baseName !== docName) {
+                            const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            patternStr = `(${escapedName}|${escapedBaseName})`;
+                        }
+
+                        // 避免替换已经在 span 标签内的文本
+                        // 这是一个简单的处理，可能无法涵盖所有边缘情况，但在大多情况下有效
+                        const plainNameRegex = new RegExp(`${patternStr}(?![^<]*>|\\s*\\[id)`, 'gi'); // Simplified lookahead
+
+                        analysisText = analysisText.replace(plainNameRegex, (match) => {
+                            // 简单检查是否已经在 span 中 (context check is hard with regex alone, assumed handled by frontend/logic structure)
+                            // 更严谨的方法是先因 tokenizer 分离 tags，这里沿用 Direct 模式的简单逻辑
+                            return `<span class="ai-doc-link" data-id="${docId}" data-name="${docName}">${match}</span>`;
+                        });
+                    }
 
                     // 提取引用的文档 ID 生成参考文档列表
                     const citedDocIds = new Set();
@@ -375,109 +480,20 @@ router.post('/temperature-alert', async (req, res) => {
             roomName, roomCode, temperature, threshold: finalThreshold, alertType: finalAlertType
         });
 
-        // 1. 获取房间上下文（设备、文档）
+        // 1. 获取房间上下文（设备、文档）—— 使用 getContextData 复用逻辑
         let context = { assets: [], documents: [] };
         try {
-            // 查询房间内的设备（使用正确的列名 asset_code）
-            let assetsQueryKey = `
-                SELECT asset_code, name, spec_code, floor, room
-                FROM assets WHERE (room ILIKE $1 OR room ILIKE $2)
-            `;
-            const assetParams = [`%${roomCode}%`, `%${roomName}%`];
-
-            if (fileId) {
-                assetsQueryKey += ` AND file_id = $3`;
-                assetParams.push(fileId);
-            }
-
-            const assetsResult = await pool.query(assetsQueryKey, assetParams);
-            context.assets = assetsResult.rows;
-            console.log(`📦 查询到 ${context.assets.length} 个设备 (fileId: ${fileId || 'any'})`);
-
-            // 1.1 收集搜索关键词
-            const searchPatterns = [`%${roomCode}%`, `%${roomName}%`];
-            // 收集资产名称作为模糊搜索关键词
-            if (context.assets.length > 0) {
-                const assetPatterns = context.assets
-                    .flatMap(a => [a.name]) // 只保留名称用于文件名模糊匹配
-                    .filter(val => val && val.length > 2)
-                    .map(val => `%${val}%`);
-                searchPatterns.push(...assetPatterns);
-            }
-
-            const assetCodes = context.assets.map(a => a.asset_code).filter(c => c);
-            const specCodes = context.assets.map(a => a.spec_code).filter(c => c);
-
-            // 查询相关文档（包括房间相关、设备相关、规范相关）
-            // 优化：如果有 fileId，增加 JOIN 过滤确保文档属于当前模型
-            let docsQuery = '';
-            let docsParams = [];
-
-            if (fileId) {
-                docsQuery = `
-                    SELECT DISTINCT d.id, d.title, d.file_name, d.file_type, d.space_code, d.asset_code, d.spec_code
-                    FROM documents d
-                    LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $4
-                    LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $4
-                    LEFT JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $4
-                    WHERE (
-                        (d.space_code ILIKE $1 OR d.space_code ILIKE $2)
-                        OR
-                        (d.file_name ILIKE ANY($3) OR d.title ILIKE ANY($3))
-                    )
-                    AND (
-                        (d.space_code IS NOT NULL AND s.file_id IS NOT NULL) OR
-                        (d.asset_code IS NOT NULL AND a.file_id IS NOT NULL) OR
-                        (d.spec_code IS NOT NULL AND sp.file_id IS NOT NULL)
-                    )
-                    ${assetCodes.length > 0 ? 'OR d.asset_code = ANY($5)' : ''}
-                    ${specCodes.length > 0 ? 'OR d.spec_code = ANY($6)' : ''}
-                    AND d.file_name NOT ILIKE '%.jpg' 
-                    AND d.file_name NOT ILIKE '%.png'
-                    AND d.file_name NOT ILIKE '%.jpeg'
-                    AND d.file_name NOT ILIKE '%.gif'
-                    AND d.file_name NOT ILIKE '%.webp'
-                    LIMIT 20
-                `;
-                docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns, fileId];
-                if (assetCodes.length > 0) docsParams.push(assetCodes);
-                if (specCodes.length > 0) docsParams.push(specCodes);
-            } else {
-                // 原有的无 fileId 逻辑 (Fallback)
-                docsQuery = `
-                    SELECT id, title, file_name, file_type, space_code, asset_code, spec_code
-                    FROM documents
-                    WHERE (
-                        space_code ILIKE $1 
-                        OR space_code ILIKE $2 
-                        ${assetCodes.length > 0 ? 'OR asset_code = ANY($4)' : ''}
-                        ${specCodes.length > 0 ? 'OR spec_code = ANY($5)' : ''}
-                        OR file_name ILIKE ANY($3)
-                        OR title ILIKE ANY($3)
-                    )
-                      AND file_name NOT ILIKE '%.jpg' 
-                      AND file_name NOT ILIKE '%.png'
-                      AND file_name NOT ILIKE '%.jpeg'
-                      AND file_name NOT ILIKE '%.gif'
-                      AND file_name NOT ILIKE '%.webp'
-                    LIMIT 20
-                `;
-                docsParams = [`%${roomCode}%`, `%${roomName}%`, searchPatterns];
-                if (assetCodes.length > 0) docsParams.push(assetCodes);
-                if (specCodes.length > 0) docsParams.push(specCodes);
-            }
-
-            const docsResult = await pool.query(docsQuery, docsParams);
-
-            context.documents = docsResult.rows;
-            console.log(`📄 查询到 ${context.documents.length} 个相关文档`);
+            const contextData = await getContextData(pool, roomCode, roomName, fileId);
+            context = {
+                assets: contextData.assets,
+                documents: contextData.documents
+            };
+            console.log(`📦 查询到 ${context.assets.length} 个设备, ${context.documents.length} 个相关文档`);
         } catch (dbError) {
             console.warn('⚠️ 获取上下文数据失败:', dbError.message);
         }
 
         // 2. 构建 Prompt
-
-
         const prompt = `你是一个建筑设施运维专家。请根据以下报警信息和上下文，提供运维建议。
 
 **重要规则**：
@@ -492,7 +508,7 @@ router.post('/temperature-alert', async (req, res) => {
 - 报警类型：${alertType === 'high' ? '高温报警' : '低温报警'}
 
 ## 上下文信息
-${context.assets.length > 0 ? `### 房间内设备\n${context.assets.map(a => `- ${a.name} (${a.asset_code})`).join('\n')}` : '（无设备信息）'}
+${context.assets.length > 0 ? `### 房间内设备\n${context.assets.map(a => `- ${a.name} (${a.asset_code}) [${a.category || '其它设备'}]`).join('\n')}` : '（无设备信息）'}
 
 ## 可用参考文档
 ${context.documents && context.documents.length > 0 ? context.documents.map(d => `- ${d.file_name}`).join('\n') : '（无相关文档）'}
