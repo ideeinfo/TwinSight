@@ -188,12 +188,33 @@ const isPdf = computed(() => fileType.value === 'pdf');
 const isImage = computed(() => ['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp'].includes(fileType.value));
 const isVideo = computed(() => ['mp4', 'webm', 'ogg'].includes(fileType.value));
 
-// 判断是否是全景图（长宽比接近 2:1）
+/**
+ * 判断是否是全景图 (混合判断方案)
+ * 优先级: 1.标签 > 2.auto_detected_type > 3.图片尺寸
+ * 这样设计便于: 用户手动更正、LLM增强、系统自动检测
+ */
 const isPanorama = computed(() => {
   if (!['jpg', 'jpeg', 'png'].includes(fileType.value)) return false;
-  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
-  const width = props.document?.image_width || props.document?.imageWidth;
-  const height = props.document?.image_height || props.document?.imageHeight;
+  
+  const doc = props.document;
+  if (!doc) return false;
+  
+  // 1. 优先检查标签 (用户可编辑, LLM可增强)
+  const tags = doc.tags || [];
+  const panoramaTags = ['全景图', '全景', 'panorama', '360'];
+  if (tags.some(tag => panoramaTags.includes(tag.name?.toLowerCase?.() || tag.name))) {
+    return true;
+  }
+  
+  // 2. 检查系统自动检测的类型
+  const autoType = doc.auto_detected_type;
+  if (autoType && autoType.includes('panorama')) {
+    return true;
+  }
+  
+  // 3. Fallback: 使用图片尺寸判断 (宽高比 2:1)
+  const width = doc.image_width || doc.imageWidth;
+  const height = doc.image_height || doc.imageHeight;
   if (!width || !height || height === 0) return false;
   const ratio = width / height;
   return ratio >= 1.9 && ratio <= 2.1;

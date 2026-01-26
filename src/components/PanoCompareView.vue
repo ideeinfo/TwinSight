@@ -258,9 +258,11 @@ const uploadPanoImage = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('title', `Pano_View_${currentViewId.value || 'temp'}`);
-  // 使用 viewId 关联
+  
+  // 使用 v2 API 的 associations 格式
   if (currentViewId.value) {
-      formData.append('viewId', currentViewId.value);
+      const associations = [{ type: 'view', code: String(currentViewId.value) }];
+      formData.append('associations', JSON.stringify(associations));
   } else {
       console.warn('⚠️ 当前没有 View ID，全景图可能无法正确关联');
   }
@@ -268,9 +270,8 @@ const uploadPanoImage = async (file) => {
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   
   try {
-    // 复用文档上传接口，或者新建专用接口
-    // 这里假设有一个可以关联图片的接口，或者简单上传为 Document
-    const res = await fetch(`${API_BASE}/api/documents/upload`, {
+    // 使用 v2 文档上传接口
+    const res = await fetch(`${API_BASE}/api/v2/documents`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authStore.token}`

@@ -223,9 +223,27 @@ const showAlert = async (message, title = '') => {
 const getFileIcon = (doc) => {
   const fileType = doc?.file_type?.toLowerCase();
   
-  // 检查是否是全景图（长宽比接近 2:1）
+  /**
+   * 检查是否是全景图 (混合判断方案)
+   * 优先级: 1.标签 > 2.auto_detected_type > 3.图片尺寸
+   */
   const isPanorama = () => {
     if (!['jpg', 'jpeg', 'png'].includes(fileType)) return false;
+    
+    // 1. 优先检查标签 (用户可编辑, LLM可增强)
+    const tags = doc.tags || [];
+    const panoramaTags = ['全景图', '全景', 'panorama', '360'];
+    if (tags.some(tag => panoramaTags.includes(tag.name?.toLowerCase?.() || tag.name))) {
+      return true;
+    }
+    
+    // 2. 检查系统自动检测的类型
+    const autoType = doc.auto_detected_type;
+    if (autoType && autoType.includes('panorama')) {
+      return true;
+    }
+    
+    // 3. Fallback: 使用图片尺寸判断 (宽高比 2:1)
     const width = doc.image_width;
     const height = doc.image_height;
     if (!width || !height || height === 0) return false;
@@ -293,7 +311,7 @@ const getFileIcon = (doc) => {
   </svg>`;
 };
 
-// 加载文档列表
+// 加载文档列表 (使用 V2 API, 从 document_associations 表查询)
 const loadDocuments = async () => {
   if (!relatedCode.value) {
     documents.value = [];
@@ -302,11 +320,19 @@ const loadDocuments = async () => {
 
   try {
     const params = new URLSearchParams();
-    if (props.assetCode) params.append('assetCode', props.assetCode);
-    if (props.spaceCode) params.append('spaceCode', props.spaceCode);
-    if (props.specCode) params.append('specCode', props.specCode);
+    // V2 API 使用 objectType + objectCode 参数
+    if (props.assetCode) {
+      params.append('objectType', 'asset');
+      params.append('objectCode', props.assetCode);
+    } else if (props.spaceCode) {
+      params.append('objectType', 'space');
+      params.append('objectCode', props.spaceCode);
+    } else if (props.specCode) {
+      params.append('objectType', 'spec');
+      params.append('objectCode', props.specCode);
+    }
 
-    const response = await fetch(`${API_BASE}/api/documents?${params}`, {
+    const response = await fetch(`${API_BASE}/api/v2/documents?${params}`, {
       headers: {
         'Authorization': `Bearer ${authStore.token}`
       }
@@ -404,9 +430,15 @@ const processFiles = (files) => {
 const uploadFile = (uploadItem) => {
   const formData = new FormData();
   formData.append('file', uploadItem.file);
-  if (props.assetCode) formData.append('assetCode', props.assetCode);
-  if (props.spaceCode) formData.append('spaceCode', props.spaceCode);
-  if (props.specCode) formData.append('specCode', props.specCode);
+  
+  // 构建关联数组 (v2 API 格式)
+  const associations = [];
+  if (props.assetCode) associations.push({ type: 'asset', code: props.assetCode });
+  if (props.spaceCode) associations.push({ type: 'space', code: props.spaceCode });
+  if (props.specCode) associations.push({ type: 'spec', code: props.specCode });
+  if (associations.length > 0) {
+    formData.append('associations', JSON.stringify(associations));
+  }
 
   const xhr = new XMLHttpRequest();
   uploadXhrMap.set(uploadItem.id, xhr);
@@ -470,7 +502,7 @@ const uploadFile = (uploadItem) => {
     uploadXhrMap.delete(uploadItem.id);
   });
 
-  xhr.open('POST', `${API_BASE}/api/documents/upload`);
+  xhr.open('POST', `${API_BASE}/api/v2/documents`);
   
   if (authStore.token) {
     xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);

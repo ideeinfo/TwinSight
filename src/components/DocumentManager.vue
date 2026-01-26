@@ -39,7 +39,10 @@
           <template v-if="selectedIds.length > 0">
             <el-divider direction="vertical" />
             <span class="selection-count">{{ t('documents.selectedCount', { count: selectedIds.length }) }}</span>
-            <el-button :icon="FolderOpened" size="small" text class="action-btn" style="margin-left: 16px;" @click="openMoveDialog">
+            <el-button :icon="CollectionTag" size="small" text class="action-btn" style="margin-left: 16px;" @click="openBatchTagDialog">
+              {{ t('documents.tags') }}
+            </el-button>
+            <el-button :icon="FolderOpened" size="small" text class="action-btn" @click="openMoveDialog">
               {{ t('documents.moveTo') }}
             </el-button>
             <el-button :icon="Delete" size="small" type="danger" text class="action-btn-danger" @click="handleBatchDelete">
@@ -48,6 +51,54 @@
           </template>
         </div>
         <div class="toolbar-right">
+          <!-- 已选中的标签展示 -->
+          <div class="selected-tags" v-if="filterTagIds.length > 0">
+            <el-tag 
+              v-for="tagId in filterTagIds" 
+              :key="tagId" 
+              size="small"
+              closable
+              :style="{ backgroundColor: tags.find(t => t.id === tagId)?.color, borderColor: tags.find(t => t.id === tagId)?.color }"
+              @close="removeFilterTag(tagId)"
+            >
+              {{ tags.find(t => t.id === tagId)?.name }}
+            </el-tag>
+          </div>
+          <!-- 标签筛选 -->
+          <el-dropdown trigger="click" :hide-on-click="false" @command="handleTagFilter">
+            <el-button size="small" text class="action-btn">
+              <el-icon><CollectionTag /></el-icon>
+              {{ t('documents.tags') }}
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item 
+                  :command="'clear'" 
+                  :disabled="filterTagIds.length === 0"
+                >
+                  {{ t('documents.clearFilter') }}
+                </el-dropdown-item>
+                <el-dropdown-item divided disabled v-if="tags.length === 0">
+                  {{ t('documents.noTags') }}
+                </el-dropdown-item>
+                <el-dropdown-item 
+                  v-for="tag in tags" 
+                  :key="tag.id" 
+                  :command="tag.id"
+                  :class="{ 'is-active': filterTagIds.includes(tag.id) }"
+                >
+                  <el-checkbox :model-value="filterTagIds.includes(tag.id)" style="pointer-events: none; margin-right: 8px;" />
+                  <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
+                  {{ tag.name }}
+                  <span class="tag-count">({{ tag.document_count || 0 }})</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided @click.stop="openTagManageDialog">
+                  <el-icon><Edit /></el-icon>
+                  {{ t('documents.manageTag') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-input
             v-model="searchText"
             :placeholder="t('common.search')"
@@ -111,6 +162,22 @@
               <el-tag v-else size="small" type="info">{{ row.file_type?.toUpperCase() }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column prop="tags" :label="t('documents.tags')" width="180">
+            <template #default="{ row }">
+              <template v-if="!row._isFolder && row.tags?.length > 0">
+                <el-tag 
+                  v-for="tag in row.tags.slice(0, 2)" 
+                  :key="tag.id" 
+                  size="small" 
+                  :style="{ backgroundColor: tag.color, borderColor: tag.color, color: '#fff', marginRight: '4px' }"
+                >
+                  {{ tag.name }}
+                </el-tag>
+                <el-tag v-if="row.tags.length > 2" size="small" type="info">+{{ row.tags.length - 2 }}</el-tag>
+              </template>
+              <span v-else-if="!row._isFolder" class="no-tags">--</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="file_size" :label="t('documents.fileSize')" sortable="custom" width="120">
             <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
           </el-table-column>
@@ -136,6 +203,7 @@
                       <el-dropdown-item command="download"><el-icon><Download /></el-icon>{{ t('documents.download') }}</el-dropdown-item>
                       <el-dropdown-item command="rename"><el-icon><Edit /></el-icon>{{ t('documents.rename') }}</el-dropdown-item>
                       <el-dropdown-item command="move"><el-icon><FolderOpened /></el-icon>{{ t('documents.moveTo') }}</el-dropdown-item>
+                      <el-dropdown-item command="tags"><el-icon><CollectionTag /></el-icon>{{ t('documents.tags') }}</el-dropdown-item>
                       <el-dropdown-item divided command="delete" style="color: var(--el-color-danger)">
                         <el-icon><Delete /></el-icon>{{ t('documents.delete') }}
                       </el-dropdown-item>
@@ -169,6 +237,7 @@
                     <el-dropdown-item command="download"><el-icon><Download /></el-icon>{{ t('documents.download') }}</el-dropdown-item>
                     <el-dropdown-item command="rename"><el-icon><Edit /></el-icon>{{ t('documents.rename') }}</el-dropdown-item>
                     <el-dropdown-item command="move"><el-icon><FolderOpened /></el-icon>{{ t('documents.moveTo') }}</el-dropdown-item>
+                    <el-dropdown-item command="tags"><el-icon><CollectionTag /></el-icon>{{ t('documents.tags') }}</el-dropdown-item>
                     <el-dropdown-item divided command="delete" style="color: var(--el-color-danger)">
                       <el-icon><Delete /></el-icon>{{ t('documents.delete') }}
                     </el-dropdown-item>
@@ -186,6 +255,18 @@
                   <component :is="getFileIconComponent(doc.file_type)" />
                 </el-icon>
                 <span class="card-name" :title="doc.title || doc.file_name">{{ doc.title || doc.file_name }}</span>
+              </div>
+              <div v-if="doc.tags?.length > 0" class="card-tags">
+                <span 
+                  v-for="tag in doc.tags.slice(0, 3)" 
+                  :key="tag.id" 
+                  class="card-tag"
+                  :style="{ backgroundColor: tag.color }"
+                  :title="tag.name"
+                >
+                  {{ tag.name }}
+                </span>
+                <span v-if="doc.tags.length > 3" class="card-tag-more">+{{ doc.tags.length - 3 }}</span>
               </div>
             </div>
           </template>
@@ -291,11 +372,107 @@
       </template>
     </el-dialog>
 
+    <!-- 文档标签对话框 -->
+    <el-dialog v-model="isTagDialogOpen" :title="t('documents.tags')" width="400px">
+      <div class="tag-select-list">
+        <el-checkbox-group v-model="selectedTagIds">
+          <div v-for="tag in tags" :key="tag.id" class="tag-select-item">
+            <el-checkbox :label="tag.id">
+              <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
+              {{ tag.name }}
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+        <el-empty v-if="tags.length === 0" :description="t('documents.noTags')" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button @click="isTagDialogOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="saveDocumentTags">{{ t('common.confirm') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量标签对话框 -->
+    <el-dialog v-model="isBatchTagDialogOpen" :title="t('documents.batchTagTitle', { count: selectedIds.length })" width="400px">
+      <div class="tag-select-list">
+        <el-checkbox-group v-model="batchSelectedTagIds">
+          <div v-for="tag in tags" :key="tag.id" class="tag-select-item">
+            <el-checkbox :label="tag.id">
+              <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
+              {{ tag.name }}
+            </el-checkbox>
+          </div>
+        </el-checkbox-group>
+        <el-empty v-if="tags.length === 0" :description="t('documents.noTags')" :image-size="60" />
+      </div>
+      <template #footer>
+        <el-button @click="isBatchTagDialogOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="saveBatchTags">{{ t('common.confirm') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 标签管理对话框 -->
+    <el-dialog v-model="isTagManageDialogOpen" :title="t('documents.manageTag')" width="500px">
+      <div class="tag-manage-form">
+        <el-form :model="tagForm" label-width="80px" size="small">
+          <el-form-item :label="t('documents.tagName')">
+            <el-input v-model="tagForm.name" :placeholder="t('documents.tagNamePlaceholder')" />
+          </el-form-item>
+          <el-form-item :label="t('documents.tagColor')">
+            <el-color-picker v-model="tagForm.color" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :disabled="!tagForm.name" @click="saveTag">
+              {{ tagForm.id ? t('common.save') : t('documents.createTag') }}
+            </el-button>
+            <el-button v-if="tagForm.id" @click="tagForm = { id: null, name: '', color: '#409EFF', description: '' }">
+              {{ t('common.cancel') }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+      <el-divider />
+      <div class="tag-list">
+        <div v-for="tag in tags" :key="tag.id" class="tag-list-item">
+          <span class="tag-info">
+            <span class="tag-dot" :style="{ backgroundColor: tag.color }"></span>
+            <span class="tag-name">{{ tag.name }}</span>
+            <span class="tag-count">({{ tag.document_count || 0 }})</span>
+          </span>
+          <span class="tag-actions">
+            <el-button size="small" text @click="editTag(tag)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
+            <el-button size="small" text type="danger" @click="deleteTag(tag)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </span>
+        </div>
+        <el-empty v-if="tags.length === 0" :description="t('documents.noTags')" :image-size="60" />
+      </div>
+      <template #footer>
+        <div class="tag-dialog-footer">
+          <el-button :disabled="tags.length === 0" @click="autoAssignColors">
+            {{ t('documents.autoAssignColors') }}
+          </el-button>
+          <el-button @click="isTagManageDialogOpen = false">{{ t('common.close') }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 文档预览 -->
     <DocumentPreview
       :visible="isPreviewOpen"
       :document="previewDocument"
       @close="isPreviewOpen = false"
+    />
+
+    <!-- 智能关联对话框 -->
+    <DocumentAssociationDialog
+      v-model:visible="isAssociationDialogOpen"
+      :files="associationFiles"
+      :folder-id="currentFolderId"
+      @success="handleAssociationSuccess"
+      @skip="handleAssociationSkip"
     />
   </div>
 </template>
@@ -308,9 +485,10 @@ import { useThemeStore } from '../stores/theme';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Plus, Folder, FolderOpened, Search, List, Grid, Upload, Download,
-  Delete, View, MoreFilled, Loading, Document, Picture, VideoPlay, Headset, Edit
+  Delete, View, MoreFilled, Loading, Document, Picture, VideoPlay, Headset, Edit, CollectionTag
 } from '@element-plus/icons-vue';
 import DocumentPreview from './DocumentPreview.vue';
+import DocumentAssociationDialog from './DocumentAssociationDialog.vue';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -368,6 +546,10 @@ const isUploading = ref(false);
 const uploadProgress = ref(0);
 const uploadForm = ref({ title: '', folderId: null, files: [] });
 
+// 智能关联对话框
+const isAssociationDialogOpen = ref(false);
+const associationFiles = ref([]);
+
 // 文件夹
 const newFolderName = ref('');
 const folderTreeRef = ref(null);
@@ -382,6 +564,17 @@ const itemsToMove = ref([]);
 const isRenameDialogOpen = ref(false);
 const renameForm = ref({ id: null, name: '', type: 'file' });
 const renameInputRef = ref(null);
+
+// 标签
+const tags = ref([]);
+const filterTagIds = ref([]);  // 标签筛选（多选）
+const isTagDialogOpen = ref(false);
+const isTagManageDialogOpen = ref(false);
+const tagForm = ref({ id: null, name: '', color: '#409EFF', description: '' });
+const documentForTagging = ref(null);
+const selectedTagIds = ref([]);  // 单文档标签编辑用
+const isBatchTagDialogOpen = ref(false);
+const batchSelectedTagIds = ref([]);
 
 // ========================================
 // 计算属性
@@ -446,6 +639,10 @@ const loadDocuments = async (append = false) => {
   try {
     const params = new URLSearchParams();
     if (currentFolderId.value) params.set('folderId', currentFolderId.value);
+    // 多标签筛选
+    if (filterTagIds.value.length > 0) {
+      params.set('tagIds', filterTagIds.value.join(','));
+    }
     params.set('page', currentPage.value.toString());
     params.set('pageSize', pageSize.toString());
     
@@ -502,6 +699,10 @@ const flattenTree = (tree, level = 1, result = []) => {
 };
 
 const handleFolderClick = (data) => {
+  // 点击文件夹时清除标签筛选，恢复文件夹层级模式
+  if (filterTagIds.value.length > 0) {
+    filterTagIds.value = [];
+  }
   currentFolderId.value = data.id;
   loadDocuments();
 };
@@ -577,10 +778,6 @@ const toggleSelection = (id) => {
   }
 };
 
-const clearSelection = () => {
-  selectedIds.value = [];
-};
-
 // 命令处理
 const handleCommand = (cmd, item) => {
   switch (cmd) {
@@ -591,6 +788,7 @@ const handleCommand = (cmd, item) => {
     case 'enterFolder': enterFolder(item); break;
     case 'deleteFolder': handleDeleteFolder(item); break;
     case 'rename': openRenameDialog(item); break;
+    case 'tags': openTagDialog(item); break;
   }
 };
 
@@ -774,16 +972,40 @@ const handleUploadChange = (file, fileList) => {
 
 const uploadFiles = async () => {
   if (uploadForm.value.files.length === 0) return;
+  
+  // 打开智能关联对话框
+  associationFiles.value = uploadForm.value.files.map(f => ({
+    name: f.name,
+    raw: f.raw
+  }));
+  isUploadDialogOpen.value = false;
+  isAssociationDialogOpen.value = true;
+};
+
+// 关联对话框 - 跳过关联直接上传
+const handleAssociationSkip = async (files) => {
+  isAssociationDialogOpen.value = false;
+  await directUploadFiles(files);
+};
+
+// 关联对话框 - 上传成功
+const handleAssociationSuccess = () => {
+  isAssociationDialogOpen.value = false;
+  ElMessage.success(t('common.success'));
+  loadDocuments();
+};
+
+// 直接上传文件（不经过关联对话框）
+const directUploadFiles = async (files) => {
+  if (!files || files.length === 0) return;
   isUploading.value = true;
   uploadProgress.value = 0;
   
   try {
     const formData = new FormData();
-    // 使用当前已选择的文件夹ID
     if (currentFolderId.value) formData.append('folderId', currentFolderId.value);
     
-    // 不再传递 title
-    for (const f of uploadForm.value.files) formData.append('files', f.raw);
+    for (const f of files) formData.append('files', f.raw || f);
     
     const xhr = new XMLHttpRequest();
     xhr.upload.onprogress = (e) => {
@@ -794,7 +1016,6 @@ const uploadFiles = async () => {
         const result = JSON.parse(xhr.responseText);
         if (result.success) {
           ElMessage.success(t('common.success'));
-          isUploadDialogOpen.value = false;
           loadDocuments();
         }
       }
@@ -910,13 +1131,215 @@ const getFileIconComponent = (type) => {
 const isImageType = (type) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type?.toLowerCase());
 
 const getThumbnailUrl = (doc) => {
+  // 优先使用缩略图，如果没有则使用原图
+  if (doc.thumbnail_path) {
+    return `${API_BASE}${doc.thumbnail_path}`;
+  }
   return `${API_BASE}${doc.file_path}`;
+};
+
+// ========================================
+// 标签管理
+// ========================================
+const loadTags = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/v2/documents/tags/list`, { headers: getHeaders() });
+    const data = await res.json();
+    if (data.success) {
+      tags.value = data.data || [];
+    }
+  } catch (e) {
+    console.error('加载标签失败:', e);
+  }
+};
+
+const handleTagFilter = (command) => {
+  if (command === 'clear') {
+    // 清除所有筛选
+    filterTagIds.value = [];
+  } else {
+    // 切换标签选中状态
+    const idx = filterTagIds.value.indexOf(command);
+    if (idx === -1) {
+      filterTagIds.value.push(command);
+    } else {
+      filterTagIds.value.splice(idx, 1);
+    }
+  }
+  loadDocuments();
+};
+
+const removeFilterTag = (tagId) => {
+  const idx = filterTagIds.value.indexOf(tagId);
+  if (idx !== -1) {
+    filterTagIds.value.splice(idx, 1);
+    loadDocuments();
+  }
+};
+
+const openTagDialog = (doc) => {
+  documentForTagging.value = doc;
+  selectedTagIds.value = (doc.tags || []).map(t => t.id);
+  isTagDialogOpen.value = true;
+};
+
+const saveDocumentTags = async () => {
+  if (!documentForTagging.value) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/v2/documents/${documentForTagging.value.id}/tags`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ tagIds: selectedTagIds.value })
+    });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(t('common.success'));
+      isTagDialogOpen.value = false;
+      loadDocuments();
+      loadTags(); // 刷新标签统计
+    }
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const openBatchTagDialog = () => {
+  // 过滤掉文件夹，只保留文档
+  const docs = selectedIds.value
+    .map(id => combinedItems.value.find(i => i.id === id))
+    .filter(item => item && !item._isFolder);
+  
+  if (docs.length === 0) {
+    ElMessage.warning(t('documents.selectDocumentsOnly'));
+    return;
+  }
+  
+  // 如果只选中一个文档，预选其已有标签
+  // 如果选中多个文档，显示它们共同拥有的标签（交集）
+  if (docs.length === 1) {
+    batchSelectedTagIds.value = (docs[0].tags || []).map(t => t.id);
+  } else {
+    // 计算所有选中文档标签的交集
+    const tagSets = docs.map(doc => new Set((doc.tags || []).map(t => t.id)));
+    const intersection = tagSets.reduce((acc, set) => 
+      new Set([...acc].filter(id => set.has(id))), tagSets[0] || new Set());
+    batchSelectedTagIds.value = [...intersection];
+  }
+  
+  isBatchTagDialogOpen.value = true;
+};
+
+const saveBatchTags = async () => {
+  // 过滤掉文件夹
+  const docIds = selectedIds.value.filter(id => {
+    const item = combinedItems.value.find(i => i.id === id);
+    return item && !item._isFolder;
+  });
+  
+  if (docIds.length === 0) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/v2/documents/batch/tags`, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ 
+        documentIds: docIds, 
+        tagIds: batchSelectedTagIds.value 
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(data.message || t('common.success'));
+      isBatchTagDialogOpen.value = false;
+      loadDocuments();
+      loadTags();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const openTagManageDialog = () => {
+  tagForm.value = { id: null, name: '', color: '#409EFF', description: '' };
+  isTagManageDialogOpen.value = true;
+};
+
+const editTag = (tag) => {
+  tagForm.value = { ...tag };
+};
+
+const saveTag = async () => {
+  if (!tagForm.value.name) return;
+  
+  try {
+    const isEdit = !!tagForm.value.id;
+    const url = isEdit 
+      ? `${API_BASE}/api/v2/documents/tags/${tagForm.value.id}`
+      : `${API_BASE}/api/v2/documents/tags`;
+    
+    const res = await fetch(url, {
+      method: isEdit ? 'PATCH' : 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        name: tagForm.value.name,
+        color: tagForm.value.color,
+        description: tagForm.value.description
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(t('common.success'));
+      tagForm.value = { id: null, name: '', color: '#409EFF', description: '' };
+      loadTags();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+const deleteTag = async (tag) => {
+  try {
+    await ElMessageBox.confirm(
+      t('documents.confirmDeleteTag', { name: tag.name }),
+      t('common.confirm'),
+      { type: 'warning' }
+    );
+    const res = await fetch(`${API_BASE}/api/v2/documents/tags/${tag.id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(t('common.success'));
+      loadTags();
+    }
+  } catch (e) {
+    if (e !== 'cancel') console.error(e);
+  }
+};
+
+const autoAssignColors = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/v2/documents/tags/auto-color`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(data.message || t('common.success'));
+      loadTags();
+    }
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 // 初始化
 onMounted(() => {
   loadDocuments();
   loadFolders();
+  loadTags();
 });
 </script>
 
@@ -1077,6 +1500,19 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 选中的筛选标签 */
+.selected-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.selected-tags .el-tag {
+  color: #fff;
+  border: none;
 }
 
 /* 视图切换按钮组 */
@@ -1326,6 +1762,119 @@ onMounted(() => {
 
 :deep(.custom-upload-dragger .el-icon--close) {
   color: var(--md-sys-color-outline);
+}
+
+/* 标签样式 */
+.tag-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.tag-count {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.tag-select-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.tag-select-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.tag-select-item:last-child {
+  border-bottom: none;
+}
+
+.tag-manage-form {
+  margin-bottom: 16px;
+}
+
+.tag-list {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.tag-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.tag-list-item:last-child {
+  border-bottom: none;
+}
+
+.tag-info {
+  display: flex;
+  align-items: center;
+}
+
+.tag-name {
+  font-size: 13px;
+}
+
+.tag-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.tag-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* 网格视图卡片标签 */
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-lighter);
+}
+
+.card-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #fff;
+  border-radius: 3px;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-tag-more {
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 列表视图无标签 */
+.no-tags {
+  color: var(--el-text-color-placeholder);
+  font-size: 12px;
+}
+
+/* 下拉菜单中的标签项 */
+:deep(.el-dropdown-menu__item) .tag-dot {
+  vertical-align: middle;
+}
+
+:deep(.el-dropdown-menu__item.is-active) {
+  color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
 }
 
 /* 按钮样式 - 已移除自定义类，使用 EP 默认 */

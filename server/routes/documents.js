@@ -10,6 +10,7 @@ import openwebuiService from '../services/openwebui-service.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/auth.js';
 import appConfig from '../config/index.js';
+import { processNewDocument } from '../services/document-intelligence-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -203,6 +204,11 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.DOCUMENT_CREATE), upl
                 console.log(`EXIF 信息已保存: 文档ID ${result.id}`);
             }
         }
+
+        // 异步触发智能分析 (缩略图生成、类型检测、自动打标签等)
+        processNewDocument(result.id, doc.filePath, doc.fileName).catch(err => {
+            console.error('[Documents] Intelligence processing error:', err);
+        });
 
         res.json({ success: true, data: result, exif: exifData });
 
