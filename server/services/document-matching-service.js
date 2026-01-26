@@ -183,9 +183,120 @@ async function matchByCode(codes) {
  * 名称模糊匹配 - 已禁用，仅保留精确编码匹配以减少误判
  * 如需启用，可修改 matchFileName 中的调用
  */
-async function matchByName(keywords) {
-    // 禁用模糊匹配以减少误判
-    return [];
+/**
+ * 名称模糊匹配 - 宽松模式
+ * 只要编码/名称包含文件名中的4个以上连续字符，即视为匹配
+ */
+async function matchByName(fileName, options = {}) {
+    // 1. 预处理文件名提取 token
+    const processed = preprocessFileName(fileName);
+
+    // 2. 筛选长度 >= 4 的有效 token
+    const searchTokens = new Set(
+        processed.tokens.filter(t => t.length >= 4 && !STOP_WORDS.has(t.toLowerCase()))
+    );
+
+    if (searchTokens.size === 0) return [];
+
+    const matches = [];
+    const limitPerToken = 5; // 每个词最多匹配5个结果，避免过多
+    const tokenArray = Array.from(searchTokens);
+
+    // 3. 并行查询数据库
+    // 性能优化：使用 ANY($1) ILIKE 或 多个 OR 查询
+    // 这里为了简单和准确，对每个 token 进行查询
+
+    for (const token of tokenArray) {
+        const pattern = `%${token}%`;
+
+        // 查询资产
+        const assetResult = await query(`
+            SELECT asset_code as code, name, floor, room, spec_code, 'asset' as type
+            FROM assets 
+            WHERE asset_code ILIKE $1 OR name ILIKE $1
+            LIMIT $2
+        `, [pattern, limitPerToken]);
+
+        for (const row of assetResult.rows) {
+            matches.push({
+                type: 'asset',
+                code: row.code,
+                name: row.name,
+                confidence: calculateFuzzyConfidence(token, row.code, row.name),
+                matchType: 'name_fuzzy',
+                matchedToken: token,
+                metadata: { floor: row.floor, room: row.room, specCode: row.spec_code }
+            });
+        }
+
+        // 查询空间
+        const spaceResult = await query(`
+            SELECT space_code as code, name, floor, classification_code, 'space' as type
+            FROM spaces 
+            WHERE space_code ILIKE $1 OR name ILIKE $1
+            LIMIT $2
+        `, [pattern, limitPerToken]);
+
+        for (const row of spaceResult.rows) {
+            matches.push({
+                type: 'space',
+                code: row.code,
+                name: row.name,
+                confidence: calculateFuzzyConfidence(token, row.code, row.name),
+                matchType: 'name_fuzzy',
+                matchedToken: token,
+                metadata: { floor: row.floor, classificationCode: row.classification_code }
+            });
+        }
+
+        // 查询规格 (通常规格编码较短，名字较长，也可能匹配)
+        const specResult = await query(`
+            SELECT spec_code as code, spec_name as name, category, family, 'spec' as type
+            FROM asset_specs 
+            WHERE spec_code ILIKE $1 OR spec_name ILIKE $1
+            LIMIT $2
+        `, [pattern, limitPerToken]);
+
+        for (const row of specResult.rows) {
+            matches.push({
+                type: 'spec',
+                code: row.code,
+                name: row.name,
+                confidence: calculateFuzzyConfidence(token, row.code, row.name),
+                matchType: 'name_fuzzy',
+                matchedToken: token,
+                metadata: { category: row.category, family: row.family }
+            });
+        }
+    }
+
+    return matches;
+}
+
+/**
+ * 计算模糊匹配置信度
+ * 根据匹配词长度和匹配程度给分
+ */
+function calculateFuzzyConfidence(token, dbCode, dbName) {
+    let score = 60; // 基础分
+
+    // 长度加分: 匹配词越长越可信
+    if (token.length >= 8) score += 20;
+    else if (token.length >= 6) score += 10;
+
+    // 全匹配加分
+    // 注意: token 是 filename 的一部分，dbCode/dbName 是数据库记录
+    const lowerToken = token.toLowerCase();
+    const lowerCode = dbCode ? dbCode.toLowerCase() : '';
+    const lowerName = dbName ? dbName.toLowerCase() : '';
+
+    // 如果数据库记录恰好等于该 token (或包含关系非常紧密)
+    if (lowerCode === lowerToken || lowerName === lowerToken) {
+        score += 10;
+    }
+
+    // 上限 85 (低于精确编码匹配的 90+)
+    return Math.min(score, 85);
 }
 
 /**
@@ -199,8 +310,16 @@ function mergeMatches(matches, maxResults = 10) {
         const key = `${match.type}:${match.code}`;
         const existing = uniqueMap.get(key);
 
-        if (!existing || match.confidence > existing.confidence) {
+        if (!existing) {
             uniqueMap.set(key, match);
+        } else {
+            // 如果已存在，保留置信度高的。
+            // 如果置信度相同，优先保留 精确匹配 (code_exact)
+            if (match.confidence > existing.confidence) {
+                uniqueMap.set(key, match);
+            } else if (match.confidence === existing.confidence && match.matchType === 'code_exact') {
+                uniqueMap.set(key, match);
+            }
         }
     }
 
@@ -211,21 +330,26 @@ function mergeMatches(matches, maxResults = 10) {
 }
 
 /**
- * 匹配单个文件名 - 精确编码匹配模式
+ * 匹配单个文件名 - 混合模式 (精确编码 + 模糊名称)
  */
 async function matchFileName(fileName, options = {}) {
-    const { minConfidence = 80, maxResults = 5 } = options;
+    const { minConfidence = 60, maxResults = 10 } = options; // 降低默认置信度阈值以容纳模糊匹配
 
     const processed = preprocessFileName(fileName);
-    const extractedCodes = extractCodes(processed.nameWithoutExt);
 
-    // 执行精确编码匹配
+    // 1. 执行精确编码匹配 (优先级高)
+    const extractedCodes = extractCodes(processed.nameWithoutExt);
     const codeMatches = await matchByCode(extractedCodes);
 
-    // 合并结果
-    const merged = mergeMatches(codeMatches, maxResults);
+    // 2. 执行名称模糊匹配 (补充)
+    // 只有当文件名可以被 matchByName 处理时才调用 (逻辑内含 filter)
+    const fuzzyMatches = await matchByName(fileName);
 
-    // 过滤低置信度
+    // 3. 合并结果
+    const allMatches = [...codeMatches, ...fuzzyMatches];
+    const merged = mergeMatches(allMatches, maxResults);
+
+    // 4. 过滤低置信度
     return merged.filter(m => m.confidence >= minConfidence);
 }
 
@@ -295,7 +419,10 @@ export async function searchObjects(keyword, types = ['asset', 'space', 'spec'],
     return results.slice(0, limit);
 }
 
+export { matchFileName };
+
 export default {
     matchFileNames,
-    searchObjects
+    searchObjects,
+    matchFileName
 };
