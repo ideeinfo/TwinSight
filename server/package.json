@@ -5,8 +5,8 @@
     "type": "module",
     "main": "index.js",
     "scripts": {
-        "start": "node index.js",
-        "dev": "node --watch index.js",
+        "start": "node scripts/migrate.js && node index.js",
+        "dev": "node scripts/migrate.js && node --watch index.js",
         "db:init": "node scripts/init-db.js",
         "db:seed": "node scripts/seed-db.js",
         "db:add-uuid": "node scripts/add-uuid-columns.js"
