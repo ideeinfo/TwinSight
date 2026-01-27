@@ -1,12 +1,17 @@
 # 文档模块 P2 - 自动化部署验证文档
 
 ## 1. 变更摘要
-为确保 Railway 部署时自动执行数据库迁移，实施了以下变更：
+为确保 Railway 部署时自动执行数据库迁移，及优化文档自动关联体验，实施了以下变更：
 
 - **自动化脚本**: 创建 `server/scripts/migrate.js`，实现迁移文件的自动扫描与执行。
 - **启动配置**: 修改 `server/package.json` 的 `start` 命令，增加 `node scripts/migrate.js` 前置步骤。
 - **迁移文件管理**: 将 `server/db/migrations/document_module_p2.sql` 移动并重命名为 `server/migrations/006_document_module_p2.sql`，纳入统一版本管理。
-- **自动关联逻辑优化**: 修改 `server/services/document-matching-service.js`，引入文件名模糊匹配逻辑（>=4个连续字符重合即视为关联）。
+- **自动关联逻辑优化**: 修改 `server/services/document-matching-service.js`：
+    - 引入文件名模糊匹配逻辑。
+    - **优化**: 中文 >= 2 个字符即可匹配 (解决"配电室"等短词匹配)。
+    - **优化**: 英文/数字 >= 3 个字符即可匹配 (解决"GK1"等短码匹配)。
+    - **优化**: 保留文件名中的完整编码 (如 `GK1-1`) 不被拆分。
+- **自动标签修复**: 修复 `document-intelligence-service.js` 中文件路径解析的 Bug，确保图片能被正确识别并打上"照片"标签；添加"原片"为照片同义词。
 
 ## 2. 验证结果
 
@@ -24,7 +29,10 @@
 
 ### 2.3 模糊匹配逻辑验证
 - [x] **精确匹配**: 包含完整 Asset Code 的文件名 (e.g., `TESTUNIQUE-001_Report`) 正确匹配，置信度 80%+。
-- [x] **模糊名称匹配**: 文件名包含资产/空间名称的连续子串 (>=4 chars, e.g., `SpecialHandlingUnit`) 正确匹配，置信度 85%。
+- [x] **模糊名称匹配**: 
+    - 长词 (e.g., `SpecialHandlingUnit`) -> 匹配 `Air Handling Unit`
+    - 中文短词 (e.g., `配电室`) -> 匹配 `低压配电室`
+    - 短码 (e.g., `GK1`) -> 匹配 `GK1` 相关设备
 - [x] **无关文件**: 无关名称文件正确返回无匹配。
 - [x] **验证脚本**: `scripts/test-matching.js` 全部 4 个测试用例通过。
 
@@ -34,4 +42,4 @@
 
 ## 4. 后续建议
 - 监控首次部署日志，确认迁移成功日志输出。
-- 将来建议引入专门的迁移工具（如 `node-pg-migrate` 或 `Knex`）以获得更强大的回滚和状态管理能力。
+- 确认上传图片后，"照片"标签是否正常自动添加。

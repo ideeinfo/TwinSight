@@ -70,6 +70,7 @@ function preprocessFileName(fileName) {
     // 移除扩展名
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
 
+    // 1. 标准拆分 (用于一般关键词)
     // 按分隔符拆分 (-, _, 空格, 中文字符边界)
     const tokens = nameWithoutExt
         .split(/[-_\s]+/)
@@ -80,14 +81,20 @@ function preprocessFileName(fileName) {
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
+    // 2. 为了保留编码完整性 (如 GK1-1)，也尝试仅按空格拆分
+    const rawTokens = nameWithoutExt.split(/\s+/).filter(t => t.length > 0);
+
+    // 3. 将完整文件名也作为一个 token (很有用，如 "配电室.png")
+    const allTokens = new Set([...tokens, ...rawTokens, nameWithoutExt]);
+
     // 过滤停用词
-    const keywords = tokens.filter(t => !STOP_WORDS.has(t.toLowerCase()));
+    const keywords = Array.from(allTokens).filter(t => !STOP_WORDS.has(t.toLowerCase()));
 
     return {
         original: fileName,
         nameWithoutExt,
-        tokens,
-        keywords
+        tokens: keywords, // 这里返回去重后的所有候选词
+        keywords          // 保持兼容
     };
 }
 
@@ -180,31 +187,37 @@ async function matchByCode(codes) {
 }
 
 /**
- * 名称模糊匹配 - 已禁用，仅保留精确编码匹配以减少误判
- * 如需启用，可修改 matchFileName 中的调用
- */
-/**
- * 名称模糊匹配 - 宽松模式
- * 只要编码/名称包含文件名中的4个以上连续字符，即视为匹配
+ * 名称模糊匹配 - 宽松模式 (优化版)
+ * 1. 中文 >= 2 个字符
+ * 2. 英文/数字 >= 3 个字符
+ * 3. 包含完整文件名匹配
  */
 async function matchByName(fileName, options = {}) {
     // 1. 预处理文件名提取 token
     const processed = preprocessFileName(fileName);
 
-    // 2. 筛选长度 >= 4 的有效 token
-    const searchTokens = new Set(
-        processed.tokens.filter(t => t.length >= 4 && !STOP_WORDS.has(t.toLowerCase()))
-    );
+    // 2. 筛选有效 token
+    const searchTokens = new Set();
+    const CJK_REGEX = /[\u4e00-\u9fa5]/;
+
+    for (const token of processed.tokens) {
+        // 如果包含中文，长度 >= 2 即可 (如 "配电", "格栅")
+        if (CJK_REGEX.test(token)) {
+            if (token.length >= 2) searchTokens.add(token);
+        } else {
+            // 纯英文/数字，长度 >= 3 (如 "AHU", "GK1")
+            // 避免匹配 "at", "by", "1", "01" 等噪音
+            if (token.length >= 3) searchTokens.add(token);
+        }
+    }
 
     if (searchTokens.size === 0) return [];
 
     const matches = [];
-    const limitPerToken = 5; // 每个词最多匹配5个结果，避免过多
+    const limitPerToken = 5;
     const tokenArray = Array.from(searchTokens);
 
-    // 3. 并行查询数据库
-    // 性能优化：使用 ANY($1) ILIKE 或 多个 OR 查询
-    // 这里为了简单和准确，对每个 token 进行查询
+    console.log(`[FuzzyMatch] Searching tokens for "${fileName}":`, tokenArray);
 
     for (const token of tokenArray) {
         const pattern = `%${token}%`;
@@ -249,7 +262,7 @@ async function matchByName(fileName, options = {}) {
             });
         }
 
-        // 查询规格 (通常规格编码较短，名字较长，也可能匹配)
+        // 查询规格
         const specResult = await query(`
             SELECT spec_code as code, spec_name as name, category, family, 'spec' as type
             FROM asset_specs 

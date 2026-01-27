@@ -29,6 +29,17 @@ const EQUIRECTANGULAR_RATIO = 2.0;
 const EQUIRECTANGULAR_TOLERANCE = 0.05; // 允许 1.95 - 2.05
 
 /**
+ * 辅助函数：解析绝对路径
+ */
+function resolveAbsolutePath(filePath) {
+    if (path.isAbsolute(filePath)) {
+        return filePath;
+    }
+    // 如果是相对路径，默认相对于 dataPath (public 目录)
+    return path.join(appConfig.upload.dataPath, filePath);
+}
+
+/**
  * 生成缩略图
  * @param {string} filePath - 源文件路径
  * @param {number} documentId - 文档ID
@@ -36,15 +47,13 @@ const EQUIRECTANGULAR_TOLERANCE = 0.05; // 允许 1.95 - 2.05
  */
 async function generateThumbnail(filePath, documentId) {
     const ext = path.extname(filePath).slice(1).toLowerCase();
-    
+
     if (!SUPPORTED_IMAGE_FORMATS.includes(ext)) {
         return null;
     }
 
     // 构建绝对路径
-    const absolutePath = filePath.startsWith('/')
-        ? path.join(appConfig.upload.dataDir, '..', filePath)
-        : filePath;
+    const absolutePath = resolveAbsolutePath(filePath);
 
     if (!fs.existsSync(absolutePath)) {
         console.error(`[Thumbnail] Source file not found: ${absolutePath}`);
@@ -71,7 +80,7 @@ async function generateThumbnail(filePath, documentId) {
 
         // 返回相对路径
         const relativePath = `/data/thumbnails/${thumbnailFileName}`;
-        
+
         // 更新数据库
         await query(
             'UPDATE documents SET thumbnail_path = $1 WHERE id = $2',
@@ -93,14 +102,12 @@ async function generateThumbnail(filePath, documentId) {
  */
 async function detectImageType(filePath) {
     const ext = path.extname(filePath).slice(1).toLowerCase();
-    
+
     if (!SUPPORTED_IMAGE_FORMATS.includes(ext)) {
         return null;
     }
 
-    const absolutePath = filePath.startsWith('/')
-        ? path.join(appConfig.upload.dataDir, '..', filePath)
-        : filePath;
+    const absolutePath = resolveAbsolutePath(filePath);
 
     if (!fs.existsSync(absolutePath)) {
         return null;
@@ -109,7 +116,7 @@ async function detectImageType(filePath) {
     try {
         const metadata = await sharp(absolutePath).metadata();
         const { width, height } = metadata;
-        
+
         if (!width || !height) {
             return null;
         }
@@ -118,7 +125,7 @@ async function detectImageType(filePath) {
         let detectedType = 'photo';
 
         // 全景图检测逻辑 - 严格按照 2:1 等距柱状投影判定
-        if (aspectRatio >= EQUIRECTANGULAR_RATIO - EQUIRECTANGULAR_TOLERANCE && 
+        if (aspectRatio >= EQUIRECTANGULAR_RATIO - EQUIRECTANGULAR_TOLERANCE &&
             aspectRatio <= EQUIRECTANGULAR_RATIO + EQUIRECTANGULAR_TOLERANCE) {
             // 严格 2:1 等距柱状投影全景图 (1.95 - 2.05)
             detectedType = 'panorama_equirectangular';
@@ -149,42 +156,42 @@ async function detectImageType(filePath) {
  */
 function detectBusinessTypeByFileName(fileName) {
     const name = fileName.toLowerCase();
-    
+
     // 全景图关键词
     if (/pano|panorama|360|vr|全景/.test(name)) {
         return 'panorama';
     }
-    
+
     // CAD图纸
     if (/dwg|dxf|cad|图纸/.test(name)) {
         return 'cad';
     }
-    
+
     // BIM模型
     if (/rvt|ifc|nwd|nwc|bim|模型/.test(name)) {
         return 'bim';
     }
-    
+
     // 设备手册
     if (/manual|handbook|说明书|手册|操作指南/.test(name)) {
         return 'manual';
     }
-    
+
     // 维护记录
     if (/maintenance|repair|维护|保养|检修|维修/.test(name)) {
         return 'maintenance';
     }
-    
+
     // 合同文档
     if (/contract|agreement|合同|协议/.test(name)) {
         return 'contract';
     }
-    
+
     // 竣工图
     if (/as-built|竣工|completion/.test(name)) {
         return 'as-built';
     }
-    
+
     return null;
 }
 
@@ -196,13 +203,13 @@ function detectBusinessTypeByFileName(fileName) {
 function extractAssociationCodes(fileName) {
     const associations = [];
     const name = fileName.replace(/\.[^.]+$/, ''); // 移除扩展名
-    
+
     // 资产编码模式 (如: AHU-01, PUMP-001, CT-1)
     const assetPatterns = [
         /\b([A-Z]{2,6}[-_]?\d{1,4})\b/g,  // AHU-01, PUMP001
         /\b(设备[-_]?\d{4,})\b/g,          // 设备-0001
     ];
-    
+
     for (const pattern of assetPatterns) {
         let match;
         while ((match = pattern.exec(name)) !== null) {
@@ -212,13 +219,13 @@ function extractAssociationCodes(fileName) {
             });
         }
     }
-    
+
     // 空间编码模式 (如: B1-01-001, 1F-A区)
     const spacePatterns = [
         /\b([B]?\d+[-_]?\d{2}[-_]?\d{3})\b/gi,  // B1-01-001
         /\b(\d+[F楼层][-_]?[A-Z区]?\d*)\b/gi,   // 1F-A区
     ];
-    
+
     for (const pattern of spacePatterns) {
         let match;
         while ((match = pattern.exec(name)) !== null) {
@@ -228,7 +235,7 @@ function extractAssociationCodes(fileName) {
             });
         }
     }
-    
+
     // 去重
     const seen = new Set();
     return associations.filter(a => {
@@ -263,7 +270,7 @@ const AUTO_TAG_COLORS = {
 // 同义词/近义词映射 (用于模糊匹配)
 const TAG_SYNONYMS = {
     '全景': ['全景图', '全景照片', '360', '360度', 'panorama', 'pano', 'vr'],
-    '照片': ['图片', '相片', '照', 'photo', 'picture', 'image'],
+    '照片': ['图片', '相片', '照', 'photo', 'picture', 'image', '原片'],
     '图纸': ['图', '平面图', '设计图', 'cad', 'dwg', 'drawing'],
     '合同': ['协议', '契约', 'contract', 'agreement'],
     '运维手册': ['手册', '说明书', '操作手册', '使用手册', 'manual', 'handbook'],
@@ -279,13 +286,13 @@ const TAG_SYNONYMS = {
 function calculateSimilarity(str1, str2) {
     const s1 = str1.toLowerCase();
     const s2 = str2.toLowerCase();
-    
+
     // 完全相等
     if (s1 === s2) return 1.0;
-    
+
     // 包含关系
     if (s1.includes(s2) || s2.includes(s1)) return 0.8;
-    
+
     // 检查同义词
     for (const [key, synonyms] of Object.entries(TAG_SYNONYMS)) {
         const allTerms = [key.toLowerCase(), ...synonyms.map(s => s.toLowerCase())];
@@ -293,7 +300,7 @@ function calculateSimilarity(str1, str2) {
         const s2Match = allTerms.some(t => s2.includes(t) || t.includes(s2));
         if (s1Match && s2Match) return 0.7;
     }
-    
+
     return 0;
 }
 
@@ -306,7 +313,7 @@ function calculateSimilarity(str1, str2) {
 function findBestMatchingTag(targetName, existingTags) {
     let bestMatch = null;
     let bestSimilarity = 0;
-    
+
     for (const tag of existingTags) {
         const similarity = calculateSimilarity(targetName, tag.name);
         if (similarity > bestSimilarity && similarity >= 0.7) {
@@ -314,7 +321,7 @@ function findBestMatchingTag(targetName, existingTags) {
             bestMatch = { ...tag, similarity };
         }
     }
-    
+
     return bestMatch;
 }
 
@@ -332,7 +339,7 @@ async function getOrCreateTag(tagName) {
                 WHERE table_name = 'document_tags'
             ) as has_table
         `);
-        
+
         if (!tableCheck.rows[0]?.has_table) {
             console.log(`[AutoTag] Tags table does not exist`);
             return null;
@@ -343,7 +350,7 @@ async function getOrCreateTag(tagName) {
             'SELECT id FROM document_tags WHERE name = $1',
             [tagName]
         );
-        
+
         if (exactMatch.rows.length > 0) {
             console.log(`[AutoTag] Exact match found for "${tagName}": id=${exactMatch.rows[0].id}`);
             return exactMatch.rows[0].id;
@@ -352,9 +359,9 @@ async function getOrCreateTag(tagName) {
         // 2. 模糊匹配 - 获取所有现有标签
         const allTags = await query('SELECT id, name FROM document_tags');
         console.log(`[AutoTag] Looking for fuzzy match for "${tagName}" among ${allTags.rows.length} tags:`, allTags.rows.map(t => t.name));
-        
+
         const bestMatch = findBestMatchingTag(tagName, allTags.rows);
-        
+
         if (bestMatch) {
             console.log(`[AutoTag] Fuzzy matched "${tagName}" -> "${bestMatch.name}" (similarity: ${bestMatch.similarity})`);
             return bestMatch.id;
@@ -367,7 +374,7 @@ async function getOrCreateTag(tagName) {
             'INSERT INTO document_tags (name, color) VALUES ($1, $2) RETURNING id',
             [tagName, color]
         );
-        
+
         console.log(`[AutoTag] Created new tag "${tagName}" with id ${result.rows[0].id}`);
         return result.rows[0].id;
         return result.rows[0].id;
@@ -391,7 +398,7 @@ async function autoTagDocument(documentId, analysisResult) {
                 WHERE table_name = 'document_tag_relations'
             ) as has_table
         `);
-        
+
         if (!tableCheck.rows[0]?.has_table) {
             return;
         }
@@ -455,7 +462,7 @@ async function processNewDocument(documentId, filePath, fileName) {
         if (imageTypeResult) {
             result.detectedType = imageTypeResult.type;
             result.metadata = imageTypeResult.metadata;
-            
+
             // 如果检测到全景图，设置业务类型
             if (imageTypeResult.type.startsWith('panorama')) {
                 result.businessType = 'panorama';
