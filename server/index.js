@@ -62,7 +62,7 @@ app.use(cors({
                 callback(null, true); // 生产环境暂时允许所有来源，可按需调整
             }
         }
-        : allowedOrigins,
+        : (origin, callback) => callback(null, true),
     credentials: true
 }));
 app.use(express.json({ limit: '200mb' }));
@@ -204,4 +204,4 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 export default app;
- 
+
