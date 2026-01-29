@@ -160,7 +160,7 @@ import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
 const { t } = useI18n();
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 // Helper to get auth headers
 const getHeaders = () => {

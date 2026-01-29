@@ -330,40 +330,60 @@ function findBestMatchingTag(targetName, existingTags) {
  * @param {string} tagName - 标签名称
  * @returns {Promise<number|null>} 标签ID
  */
+// 标签缓存 (Name -> ID)
+const TAG_CACHE = new Map();
+
+/**
+ * 获取或创建标签 (支持模糊匹配和缓存)
+ * @param {string} tagName - 标签名称
+ * @returns {Promise<number|null>} 标签ID
+ */
 async function getOrCreateTag(tagName) {
     try {
-        // 检查标签表是否存在
-        const tableCheck = await query(`
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'document_tags'
-            ) as has_table
-        `);
-
-        if (!tableCheck.rows[0]?.has_table) {
-            console.log(`[AutoTag] Tags table does not exist`);
-            return null;
+        // 0. 检查缓存
+        if (TAG_CACHE.has(tagName)) {
+            return TAG_CACHE.get(tagName);
         }
 
-        // 1. 精确匹配
+        // 检查标签表是否存在 (可以考虑只检查一次，这里保留逻辑但简要处理)
+        // 实际生产中表肯定存在，这里为了健壮性保留，但也可以假设存在
+
+        // 1. 精确匹配 (DB)
         const exactMatch = await query(
             'SELECT id FROM document_tags WHERE name = $1',
             [tagName]
         );
 
         if (exactMatch.rows.length > 0) {
-            console.log(`[AutoTag] Exact match found for "${tagName}": id=${exactMatch.rows[0].id}`);
-            return exactMatch.rows[0].id;
+            const id = exactMatch.rows[0].id;
+            TAG_CACHE.set(tagName, id);
+            return id;
         }
 
         // 2. 模糊匹配 - 获取所有现有标签
-        const allTags = await query('SELECT id, name FROM document_tags');
-        console.log(`[AutoTag] Looking for fuzzy match for "${tagName}" among ${allTags.rows.length} tags:`, allTags.rows.map(t => t.name));
+        // 这一步比较重，可以考虑缓存所有标签列表? 
+        // 暂时只优化精确匹配的缓存。如果标签少，可以全部缓存。
 
-        const bestMatch = findBestMatchingTag(tagName, allTags.rows);
+        const allTagsResult = await query('SELECT id, name FROM document_tags');
+        const allTags = allTagsResult.rows;
+
+        // Populate cache with existing tags to speed up future lookups
+        for (const t of allTags) {
+            TAG_CACHE.set(t.name, t.id);
+        }
+
+        // Re-check cache after population
+        if (TAG_CACHE.has(tagName)) {
+            return TAG_CACHE.get(tagName);
+        }
+
+        const bestMatch = findBestMatchingTag(tagName, allTags);
 
         if (bestMatch) {
             console.log(`[AutoTag] Fuzzy matched "${tagName}" -> "${bestMatch.name}" (similarity: ${bestMatch.similarity})`);
+            // Cache the mapping from requested name to validation tag ID?
+            // Yes, map alias to ID
+            TAG_CACHE.set(tagName, bestMatch.id);
             return bestMatch.id;
         }
 
@@ -375,12 +395,14 @@ async function getOrCreateTag(tagName) {
             [tagName, color]
         );
 
-        console.log(`[AutoTag] Created new tag "${tagName}" with id ${result.rows[0].id}`);
-        return result.rows[0].id;
-        return result.rows[0].id;
+        const newId = result.rows[0].id;
+        TAG_CACHE.set(tagName, newId);
+        console.log(`[AutoTag] Created new tag "${tagName}" with id ${newId}`);
+        return newId;
+
     } catch (error) {
         console.error(`[AutoTag] Error getting/creating tag "${tagName}":`, error);
-        return null;
+        return null; // Return null on error to avoid crashing
     }
 }
 

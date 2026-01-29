@@ -267,7 +267,7 @@ const uploadPanoImage = async (file) => {
       console.warn('⚠️ 当前没有 View ID，全景图可能无法正确关联');
   }
   
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
   
   try {
     // 使用 v2 文档上传接口
@@ -437,7 +437,7 @@ const loadModel = (path) => {
 
       // 尝试恢复默认视图
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         // 获取默认视图元数据
         console.log('🔍 [PanoView] 尝试获取默认视图, fileId:', props.fileId);
         const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${props.fileId}`, { headers: getHeaders() });
@@ -558,7 +558,7 @@ const applyDefaultView = () => {
 // 根据 View ID 加载全景图
 const loadPanoForView = async (viewId) => {
     try {
-        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         const res = await fetch(`${API_BASE}/api/documents/view/${viewId}`, { headers: getHeaders() });
         const result = await res.json();
         
@@ -611,7 +611,7 @@ const saveDefaultView = async () => {
       };
       
       // 4. 调用 API 更新
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
       const res = await fetch(`${API_BASE}/api/views/${currentViewId.value}`, {
           method: 'PUT',
           headers: {

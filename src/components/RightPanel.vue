@@ -225,7 +225,7 @@ const handleFieldChange = async (fieldName, newValue) => {
   }
   
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
     
     if (isAssetMode.value) {
       // 定义资产表字段(存储在assets表)

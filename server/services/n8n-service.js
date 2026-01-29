@@ -4,6 +4,8 @@
  */
 
 // n8n Webhook URL（需要在 n8n 中创建 Webhook 节点后获取）
+import { server } from '../config/index.js';
+
 const N8N_BASE_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678';
 
 /**
@@ -48,6 +50,8 @@ export async function triggerTemperatureAlert(alertData) {
                 timestamp: alertData.timestamp || new Date().toISOString(),
                 fileId: alertData.fileId,
                 severity: calculateSeverity(alertData),
+                apiBaseUrl: server.baseUrl,
+
             },
             metadata: {
                 source: 'twinsight',
@@ -105,6 +109,8 @@ export async function triggerManualAnalysis(analysisRequest) {
                     question: analysisRequest.question || '',
                     fileId: analysisRequest.fileId,
                     timestamp: new Date().toISOString(),
+                    apiBaseUrl: server.baseUrl,
+
                 },
                 metadata: {
                     source: 'twinsight',

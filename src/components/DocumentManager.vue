@@ -500,7 +500,7 @@ watch(() => themeStore.isDark, () => {
   tableKey.value++;
 });
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 // Headers
 const getHeaders = () => {
@@ -1516,9 +1516,7 @@ onMounted(() => {
 }
 
 /* 视图切换按钮组 */
-.view-toggle {
-  /* 使用 EP Button Group 默认样式 */
-}
+
 
 
 

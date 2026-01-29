@@ -89,6 +89,8 @@ services:
       N8N_PORT: 5678
       N8N_PROTOCOL: http
       WEBHOOK_URL: http://${LAN_SERVER_IP:-192.168.2.183}:5678/
+      # HTTP 请求默认超时调整为 300秒 (5分钟)，防止调用 AI 接口超时
+      N8N_DEFAULT_HTTP_REQUEST_TIMEOUT: 300
       N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "false"
       N8N_RUNNERS_ENABLED: "true"
       # 时区

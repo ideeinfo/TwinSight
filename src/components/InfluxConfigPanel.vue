@@ -135,7 +135,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 // 表单数据
 const form = ref({

@@ -20,6 +20,9 @@ const config = {
         port: parseInt(process.env.PORT || '3001', 10),
         host: process.env.HOST || '0.0.0.0',
         env: process.env.NODE_ENV || 'development',
+        // API Base URL for external services (like n8n) to call back
+        // Default to localhost for dev, but strongly recommend setting API_BASE_URL in production
+        baseUrl: process.env.API_BASE_URL || `http://localhost:${parseInt(process.env.PORT || '3001', 10)}`,
     },
 
     // 数据库配置 - 使用 getter 确保运行时动态读取环境变量

@@ -1,7 +1,7 @@
 
 import { readdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
 import fs from 'fs';
 
@@ -20,9 +20,9 @@ let query;
 
 async function runMigrations() {
     console.log('🚀 开始检查数据库迁移...');
-    
+
     try {
-        const dbModule = await import(dbConfigPath);
+        const dbModule = await import(pathToFileURL(dbConfigPath).href);
         query = dbModule.query;
     } catch (err) {
         console.error('❌ 无法加载数据库配置:', err);

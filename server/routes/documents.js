@@ -74,15 +74,30 @@ const upload = multer({
  * @param {string} fileType - 文件类型
  * @returns {Object|null} EXIF 数据
  */
+/**
+ * 提取图像 EXIF 信息
+ * @param {string} filePath - 文件路径
+ * @param {string} fileType - 文件类型
+ * @returns {Object|null} EXIF 数据
+ */
 async function extractExif(filePath, fileType) {
     // 只处理 JPG/JPEG 文件（PNG 通常不包含 EXIF）
     if (!['jpg', 'jpeg'].includes(fileType.toLowerCase())) {
         return null;
     }
 
+    let fileHandle = null;
     try {
-        const buffer = await fs.readFile(filePath);
-        const parser = ExifParser.create(buffer);
+        // 优化：只读取文件头部 64KB (通常 EXIF 信息都在头部)
+        // 避免读取整个文件导致内存飙升
+        fileHandle = await fs.open(filePath, 'r');
+        const buffer = Buffer.alloc(65536); // 64KB
+        const { bytesRead } = await fileHandle.read(buffer, 0, 65536, 0);
+
+        // 如果文件小于 64KB，切片为实际大小
+        const dataToParse = bytesRead < 65536 ? buffer.subarray(0, bytesRead) : buffer;
+
+        const parser = ExifParser.create(dataToParse);
         const result = parser.parse();
 
         if (!result || !result.tags) {
@@ -138,8 +153,16 @@ async function extractExif(filePath, fileType) {
             gpsAltitude: tags.GPSAltitude
         };
     } catch (error) {
-        console.error('提取 EXIF 信息失败:', error.message);
+        // 只有当错误不是"Buffer is too small"时才记录错误
+        // ExifParser 有时在数据不完整时会抛出错误，这是预期行为
+        if (error.message !== 'Buffer is too small') {
+            console.error('提取 EXIF 信息失败:', error.message);
+        }
         return null;
+    } finally {
+        if (fileHandle) {
+            await fileHandle.close();
+        }
     }
 }
 

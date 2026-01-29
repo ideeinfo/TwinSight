@@ -4,7 +4,7 @@
  */
 
 // 后端 API 基础 URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 // API v1 路径
 const API_V1 = `${API_BASE_URL}/api/v1`;

@@ -173,7 +173,7 @@ const handleOpenSource = async (source) => {
   
   // 从 API 获取完整的文档信息（包括正确的 file_path）
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
     const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`, { headers: getHeaders() });
     const data = await response.json();
     

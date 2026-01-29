@@ -374,7 +374,7 @@ const showAlert = (message, title = '') => {
 };
 
 // API 基础 URL
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 // 计算属性
 const filteredFiles = computed(() => {

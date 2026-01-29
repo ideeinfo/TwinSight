@@ -209,7 +209,7 @@ const initPanoCompareMode = async () => {
     
     if (panoFileId.value) {
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         console.log('🔍 [App] 获取文件列表...');
         const response = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
         const data = await response.json();
@@ -493,7 +493,7 @@ const onViewerReady = async () => {
   } else {
     // 没有 pending 文件，加载当前激活的文件或默认模型
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
       const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
       const filesData = await filesRes.json();
       
@@ -712,7 +712,7 @@ const onFileActivated = async (file) => {
   
   try {
     // 从数据库加载该文件的资产和空间
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
     // 加载文件的资产和空间数据
     console.log('📂 [App.vue] onFileActivated called with file:', file);
     console.log('📂 [App.vue] file.id:', file.id);
@@ -1484,7 +1484,7 @@ watch(isChartPanelOpen, () => {
 // 组件挂载时加载激活的文件及其数据
 onMounted(async () => {
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
     
     // 获取所有文件列表，找到激活的文件
     // 获取所有文件列表，找到激活的文件
