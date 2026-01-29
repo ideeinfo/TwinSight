@@ -30,7 +30,6 @@
           clearable
           style="flex: 1"
         />
-        <div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg></div>
       </div>
 
       
@@ -242,9 +241,8 @@ const handleDeleteRooms = async () => {
 .actions:hover { color: var(--md-sys-color-primary); }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 /* .search-input-wrapper removed in favor of el-input */
-.filter-icon { cursor: pointer; padding: 4px; color: var(--md-sys-color-secondary); }
-.filter-icon:hover { color: var(--md-sys-color-primary); }
-.filter-icon svg { stroke: currentColor; }
+
+
 
 .item-list { flex: 1; overflow-y: auto; }
 .list-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); cursor: pointer; transition: background-color 0.2s; }

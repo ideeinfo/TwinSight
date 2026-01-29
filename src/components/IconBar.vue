@@ -2,11 +2,11 @@
   <div class="icon-bar">
     <!-- 上部按钮组 -->
     <div class="nav-group-top">
-      <div class="nav-item disabled">
+      <div class="nav-item" :class="{ 'active-blue': currentView === 'models' }" @click="$emit('switch-view', 'models')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>
-        <span class="label">{{ t('leftPanel.filters') }}</span>
+        <span class="label">{{ t('leftPanel.models') }}</span>
       </div>
       <div class="nav-item" :class="{ 'active-blue': currentView === 'assets' }" @click="$emit('switch-view', 'assets')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -16,11 +16,14 @@
         </svg>
         <span class="label">{{ t('leftPanel.assets') }}</span>
       </div>
-      <div class="nav-item" :class="{ 'active-blue': currentView === 'models' }" @click="$emit('switch-view', 'models')">
+      <div class="nav-item" :class="{ 'active-blue': currentView === 'spaces' }" @click="$emit('switch-view', 'spaces')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
         </svg>
-        <span class="label">{{ t('leftPanel.models') }}</span>
+        <span class="label">{{ t('leftPanel.spaces') }}</span>
       </div>
       <div class="nav-item disabled">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
