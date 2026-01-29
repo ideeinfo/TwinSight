@@ -4,7 +4,21 @@
     <div class="panel-header">
       <span class="title">{{ t('assetPanel.assets') }}</span>
       <div class="actions">
-        <span class="plus">+</span> {{ t('common.create') }}
+        <template v-if="selectedAssetsForDeletion.length > 0">
+          <span class="selection-count">{{ t('common.selected', { count: selectedAssetsForDeletion.length }) }}</span>
+          <el-button 
+            type="danger" 
+            text 
+            size="small" 
+            class="delete-btn"
+            style="color: #F56C6C !important;"
+            @click="handleDeleteAssets"
+          >
+           <el-icon><Delete /></el-icon>
+            {{ t('common.delete') }}
+          </el-button>
+        </template>
+        <!-- 移除“+ 创建”按钮 -->
       </div>
     </div>
 
@@ -54,7 +68,9 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Search } from '@element-plus/icons-vue';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { Search, Delete } from '@element-plus/icons-vue';
+import { deleteAssets } from '../services/postgres.js';
 
 const { t } = useI18n();
 
@@ -63,7 +79,7 @@ const props = defineProps({
   selectedDbIds: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['open-properties', 'assets-selected']);
+const emit = defineEmits(['open-properties', 'assets-selected', 'assets-deleted']);
 
 // 搜索文本
 const searchText = ref('');
@@ -130,13 +146,16 @@ const treeData = computed(() => {
     }
     
     // 第三级：资产
-    tree[classificationKey].children[specKey].children.push({
-      id: `asset-${asset.dbId}`,
-      label: asset.name || 'Unnamed Asset',
-      dbId: asset.dbId,
-      mcCode: asset.mcCode,
-      isAsset: true
-    });
+    // 确保有 dbId 才能被操作
+    if (asset.dbId) {
+      tree[classificationKey].children[specKey].children.push({
+        id: `asset-${asset.dbId}`,
+        label: asset.name || 'Unnamed Asset',
+        dbId: asset.dbId,
+        mcCode: asset.mcCode,
+        isAsset: true
+      });
+    }
   });
 
   // 转换为数组并添加计数
@@ -172,6 +191,9 @@ const debounce = (fn, delay) => {
   };
 };
 
+// 选中的资产 ID 列表 (用于删除等操作)
+const selectedAssetsForDeletion = ref([]);
+
 // 处理节点勾选变化（使用防抖优化性能）
 const handleCheckChange = debounce(() => {
   // el-tree-v2 获取选中节点的方法不同
@@ -181,11 +203,47 @@ const handleCheckChange = debounce(() => {
     .filter(node => node.isAsset && node.dbId)
     .map(node => node.dbId);
   
+  selectedAssetsForDeletion.value = assetDbIds; // 记录选中用于删除
+
   emit('assets-selected', assetDbIds);
   if (assetDbIds.length > 0) {
     emit('open-properties');
   }
 }, 100);
+
+// 删除选中的资产
+const handleDeleteAssets = async () => {
+    const count = selectedAssetsForDeletion.value.length;
+    if (count === 0) return;
+
+    try {
+        await ElMessageBox.confirm(
+            t('common.confirmDelete', { count }),
+            t('common.warning'),
+            {
+                confirmButtonText: t('common.confirm'),
+                cancelButtonText: t('common.cancel'),
+                type: 'warning',
+            }
+        );
+
+        // 调用删除 API
+        await deleteAssets(selectedAssetsForDeletion.value);
+        
+        ElMessage.success(t('common.deleteSuccess') || '删除成功');
+        
+        // 触发父组件刷新列表
+        emit('assets-deleted');
+        
+        // 不需要手动清空 selectedAssetsForDeletion，
+        // 因为父组件刷新 props.assets 后，树会重建，选中状态会重置
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('删除失败:', error);
+            ElMessage.error(t('common.deleteFailed') || '删除失败: ' + error.message);
+        }
+    }
+};
 
 // 处理节点点击
 const handleNodeClick = (data) => {
@@ -403,6 +461,22 @@ defineExpose({
 :deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
   background-color: var(--md-sys-color-primary);
   border-color: var(--md-sys-color-primary);
+}
+
+.selection-count {
+  font-size: 12px;
+  color: var(--md-sys-color-primary);
+  margin-right: 8px;
+}
+
+.delete-btn {
+  padding: 4px 8px;
+  color: var(--el-color-danger) !important; /* 强制使用红色，解决浅色主题下看不清的问题 */
+}
+
+.delete-btn:hover {
+  color: var(--el-color-danger-light-3) !important;
+  background-color: var(--el-color-danger-light-9);
 }
 </style>
 

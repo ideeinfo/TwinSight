@@ -51,10 +51,6 @@
         </div>
 
         <div class="actions-section">
-          <el-button @click="checkConnection">
-            {{ $t('dataExport.checkConnection') }}
-          </el-button>
-
           <el-button 
             type="primary" 
             :loading="isExporting"

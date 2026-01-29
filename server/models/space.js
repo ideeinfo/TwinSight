@@ -209,6 +209,25 @@ export async function updateSpace(spaceCode, updates) {
     return result.rows[0];
 }
 
+/**
+ * 删除单个空间
+ */
+export async function deleteSpace(spaceCode) {
+    const sql = 'DELETE FROM spaces WHERE space_code = $1';
+    const result = await query(sql, [spaceCode]);
+    return result.rowCount > 0;
+}
+
+/**
+ * 批量删除空间（根据 DB ID）
+ */
+export async function deleteSpacesByDbIds(dbIds) {
+    if (!dbIds || dbIds.length === 0) return 0;
+    const sql = 'DELETE FROM spaces WHERE db_id = ANY($1)';
+    const result = await query(sql, [dbIds]);
+    return result.rowCount;
+}
+
 export default {
     upsertSpace,
     batchUpsertSpaces,
@@ -219,5 +238,7 @@ export default {
     getSpacesByClassification,
     getSpacesByFileId,
     deleteAllSpaces,
+    deleteSpace,
+    deleteSpacesByDbIds,
     updateSpace
 };

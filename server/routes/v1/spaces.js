@@ -156,6 +156,33 @@ router.delete('/:code',
 
 /**
  * @swagger
+ * /api/v1/spaces/batch-delete:
+ *   post:
+ *     summary: 批量删除空间
+ *     tags: [Spaces]
+ */
+router.post('/batch-delete',
+    authenticate,
+    authorize(PERMISSIONS.SPACE_DELETE),
+    body('dbIds').isArray().withMessage('dbIds 必须是数组'),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const { dbIds } = req.body;
+            const deletedCount = await spaceModel.deleteSpacesByDbIds(dbIds);
+            res.json({
+                success: true,
+                count: deletedCount,
+                message: `成功删除 ${deletedCount} 个空间`
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
  * /api/v1/spaces/batch:
  *   post:
  *     summary: 批量导入空间

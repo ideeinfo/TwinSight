@@ -33,6 +33,7 @@
               :selected-db-ids="savedRoomSelections"
               @open-properties="openRightPanel"
               @rooms-selected="onRoomsSelected"
+              @rooms-deleted="reloadCurrentFileSpaces"
             />
             <AssetPanel
               v-else-if="currentView === 'assets'"
@@ -41,6 +42,7 @@
               :selected-db-ids="savedAssetSelections"
               @open-properties="openRightPanel"
               @assets-selected="onAssetsSelected"
+              @assets-deleted="reloadCurrentFileAssets"
             />
             <FilePanel
               v-else-if="currentView === 'models'"
@@ -700,6 +702,83 @@ const switchView = (view) => {
   
   // 温度标签和热力图按钮现在是全局的，不受视图切换影响
   // 由用户通过按钮控制显示/隐藏
+};
+
+// 重新加载当前文件的资产（用于删除资产后刷新）
+const reloadCurrentFileAssets = async () => {
+  if (activeFileId.value) {
+    console.log('🔄 重新加载当前文件资产:', activeFileId.value);
+    // 复用已有的加载逻辑，构造一个伪文件对象调用 onFileActivated
+    // 或者更干净的做法是提取加载逻辑。
+    // 这里为了最快实现，直接调用 API 获取最新数据更新 assetList
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+      const assetsRes = await fetch(`${API_BASE}/api/files/${activeFileId.value}/assets`, { headers: getHeaders() });
+      const assetsData = await assetsRes.json();
+      
+      if (assetsData.success) {
+        assetList.value = assetsData.data.map(asset => ({
+          dbId: asset.db_id,
+          name: asset.name,
+          mcCode: asset.asset_code,
+          classification: asset.classification_code || 'Uncategorized',
+          classification_code: asset.classification_code || '',
+          classification_desc: asset.classification_desc || '',
+          specCode: asset.spec_code,
+          specName: asset.spec_name,
+          floor: asset.floor,
+          room: asset.room,
+          category: asset.category,
+          family: asset.family,
+          type: asset.type,
+          manufacturer: asset.manufacturer,
+          address: asset.address,
+          phone: asset.phone,
+          fileId: activeFileId.value
+        }));
+        console.log(`✅ 重新加载完成: ${assetList.value.length} 个资产`);
+        
+        // 清除选择状态
+        savedAssetSelections.value = [];
+        selectedObjectIds.value = [];
+      }
+    } catch (e) {
+      console.error('❌ 重新加载资产失败:', e);
+    }
+  }
+};
+
+// 重新加载当前文件的空间（用于删除空间后刷新）
+const reloadCurrentFileSpaces = async () => {
+  if (activeFileId.value) {
+    console.log('🔄 重新加载当前文件空间:', activeFileId.value);
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+      const spacesRes = await fetch(`${API_BASE}/api/files/${activeFileId.value}/spaces`, { headers: getHeaders() });
+      const spacesData = await spacesRes.json();
+      
+      if (spacesData.success) {
+        roomList.value = spacesData.data.map(space => ({
+          dbId: space.db_id,
+          name: space.name || '',
+          code: space.space_code,
+          classificationCode: space.classification_code,
+          classificationDesc: space.classification_desc,
+          floor: space.floor,
+          area: space.area,
+          perimeter: space.perimeter,
+          fileId: activeFileId.value
+        }));
+        console.log(`✅ 重新加载完成: ${roomList.value.length} 个空间`);
+        
+        // 清除选择状态
+        savedRoomSelections.value = [];
+        selectedObjectIds.value = [];
+      }
+    } catch (e) {
+      console.error('❌ 重新加载空间失败:', e);
+    }
+  }
 };
 
 // 文件激活后加载对应的资产和空间数据

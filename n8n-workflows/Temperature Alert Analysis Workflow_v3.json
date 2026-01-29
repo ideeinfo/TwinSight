@@ -1,0 +1,202 @@
+{
+  "name": "Temperature Alert Analysis Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "temperature-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dcec39e6-f8ff-4be9-82be-93b14fc0acb0",
+      "name": "Webhook 接收温度报警",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        240
+      ],
+      "webhookId": "e261fc62-a3da-48d4-892a-51e5a7d65b5d"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.apiBaseUrl }}/api/ai/context",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "roomCode",
+              "value": "={{ $json.body.roomCode }}"
+            },
+            {
+              "name": "roomName",
+              "value": "={{ $json.body.roomName }}"
+            },
+            {
+              "name": "fileId",
+              "value": "={{ $json.body.fileId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "7225c04d-8d9f-4e38-9b30-17227eb6f1e4",
+      "name": "查询上下文",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1616,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 构建与 ai-analysis.js 一致的 Prompt\nconst alertData = $('Webhook 接收温度报警').item.json.body;\nconst contextData = $input.item.json;\n\nconst roomCode = alertData.roomCode;\nconst roomName = alertData.roomName;\nconst temperature = alertData.temperature;\nconst threshold = alertData.threshold;\nconst alertType = alertData.alertType || 'high';\nconst fileId = alertData.fileId;\n\n// 提取上下文\nconst assets = contextData.assets || [];\nconst documents = contextData.documents || [];\nconst fileIds = contextData.fileIds || [];\nconst kbId = contextData.kbId || null;\n\n// 构建设备列表\nlet assetList = '（无设备信息）';\nif (assets.length > 0) {\n  assetList = `### 房间内设备\\n${assets.map(a => `- ${a.name} (${a.asset_code}) [${a.category || '其它设备'}]`).join('\\n')}`;\n}\n\n// 构建文档列表\nlet docList = '（无相关文档）';\nif (documents.length > 0) {\n  docList = documents.map(d => `- ${d.file_name}`).join('\\n');\n}\n\nconst prompt = `你是一个建筑设施运维专家。请根据以下报警信息和上下文，提供运维建议。\n\n**重要规则**：\n1. **全程必须使用中文回答**。\n2. **不要**输出你的思考过程、任务复述或英文摘要。\n3. **不要**使用英文标题，必须严格按照下方的【输出格式】回答。\n\n## 报警信息\n- 房间：${roomName} (${roomCode})\n- 当前温度：${temperature}°C\n- 报警阈值：${threshold}°C\n- 报警类型：${alertType === 'high' ? '高温报警' : '低温报警'}\n\n## 上下文信息\n${assetList}\n\n## 可用参考文档\n${docList}\n\n## 【输出格式】\n请严格按照以下格式输出，不同层级使用不同编号样式和缩进：\n\n### 1. 可能原因分析\n（一级标题使用\"### 数字.\"格式）\n  1) 二级条目使用\"数字)\"格式，缩进2空格\n    - 三级细节使用\"- \"格式，缩进4空格\n\n### 2. 建议的处理步骤\n  1) 第一步操作说明\n    - 具体操作细节\n    - 注意事项\n  2) 第二步操作说明\n    - 具体操作细节\n\n### 3. 需要检查的设备\n  1) 设备类型一\n    - 设备名称 (编码)\n  2) 设备类型二\n    - 设备名称 (编码)\n\n**注意**：请不要输出\"参考的文档\"部分，系统会自动根据你的引用生成。在正文中使用 [N] 格式引用文档即可（N为数字）。`;\n\nreturn {\n  prompt,\n  kbId,\n  fileIds,\n  alertData,\n  documents,\n  roomCode,\n  roomName,\n  temperature,\n  threshold,\n  alertType\n};"
+      },
+      "id": "bef49d1f-86b9-40b6-969e-8b20f11d0427",
+      "name": "构建 RAG Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://open-webui:8080/api/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen3-omni-flash-2025-12-01\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ],\n  \"files\": {{ $json.fileIds && $json.fileIds.length > 0 ? JSON.stringify($json.fileIds.map(id => ({\"type\": \"file\", \"id\": id}))) : '[]' }}\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "bf4ff929-120b-4a87-8270-24a97b127ccf",
+      "name": "调用 Open WebUI RAG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        240
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SsUPSQBKkJQeTzub",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析 AI 回复\nconst response = $input.item.json;\nconst prevData = $('构建 RAG Prompt').item.json;\n\n// 提取分析文本\nlet analysisText = '';\nif (response.choices && response.choices.length > 0) {\n  analysisText = response.choices[0].message?.content || '';\n} else if (response.message?.content) {\n  analysisText = response.message.content;\n}\n\n// 提取 sources（供后端格式化使用）\nconst sources = response.sources || [];\n\n// 构建 sourceIndexMap\nconst sourceIndexMap = {};\nfor (let i = 0; i < sources.length; i++) {\n  const sourceItem = sources[i];\n  const sourceIndex = i + 1;\n  const openwebuiFileId = sourceItem.source?.id || sourceItem.metadata?.[0]?.file_id;\n  const docName = sourceItem.metadata?.[0]?.name || sourceItem.metadata?.[0]?.source || `Source ${sourceIndex}`;\n  \n  if (openwebuiFileId) {\n    sourceIndexMap[String(sourceIndex)] = {\n      index: sourceIndex,\n      openwebuiFileId,\n      name: docName\n    };\n  }\n}\n\n// 返回结果（来源格式化将在后端完成）\nreturn {\n  analysis: analysisText,\n  rawSources: sources,\n  sourceIndexMap,\n  alert: {\n    roomCode: prevData.roomCode,\n    roomName: prevData.roomName,\n    temperature: prevData.temperature,\n    threshold: prevData.threshold,\n    alertType: prevData.alertType\n  }\n};"
+      },
+      "id": "ca170aca-29a9-4106-bb5a-676720b41f30",
+      "name": "解析 AI 回复",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "8e71c253-d174-4155-9a74-be9b4be31c97",
+      "name": "返回结果",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2496,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook 接收温度报警": {
+      "main": [
+        [
+          {
+            "node": "查询上下文",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "查询上下文": {
+      "main": [
+        [
+          {
+            "node": "构建 RAG Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "构建 RAG Prompt": {
+      "main": [
+        [
+          {
+            "node": "调用 Open WebUI RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "调用 Open WebUI RAG": {
+      "main": [
+        [
+          {
+            "node": "解析 AI 回复",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析 AI 回复": {
+      "main": [
+        [
+          {
+            "node": "返回结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "8c977e9c-e776-486d-9189-da7c574e6b04",
+  "meta": {
+    "instanceId": "6627b8bf7d2bb90da3f8dc924b610048bec500c72212eb21bd35e61e9ae235c4"
+  },
+  "id": "UivladYUDbmaQSsXdluDt",
+  "tags": []
+}

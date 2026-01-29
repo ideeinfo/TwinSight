@@ -2,7 +2,25 @@
   <div class="left-container">
     <!-- List Panel -->
     <div class="list-panel">
-      <div class="panel-header"><span class="title">{{ t('leftPanel.connections') }}</span><div class="actions"><span class="plus">+</span> {{ t('common.create') }}</div></div>
+      <div class="panel-header">
+        <span class="title">{{ t('leftPanel.connections') }}</span>
+        <div class="actions">
+          <template v-if="selectedDbIdsLocal.length > 0">
+            <span class="selection-count">{{ t('common.selected', { count: selectedDbIdsLocal.length }) }}</span>
+            <el-button 
+              type="danger" 
+              text 
+              size="small" 
+              class="delete-btn"
+              style="color: #F56C6C !important;"
+              @click="handleDeleteRooms"
+            >
+             <el-icon><Delete /></el-icon>
+              {{ t('common.delete') }}
+            </el-button>
+          </template>
+        </div>
+      </div>
       <div class="search-row">
         <el-input
           v-model="searchText"
@@ -72,8 +90,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Search } from '@element-plus/icons-vue';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { Search, Delete } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
+import { deleteSpaces } from '../services/postgres.js';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -92,7 +112,7 @@ const props = defineProps({
   selectedDbIds: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['open-properties', 'rooms-selected']);
+const emit = defineEmits(['open-properties', 'rooms-selected', 'rooms-deleted']);
 
 // 复制提示状态
 const showCopyToast = ref(false);
@@ -175,6 +195,37 @@ const copyStreamUrl = async (fileId, spaceCode) => {
   }
 };
 
+// 删除选中的空间
+const handleDeleteRooms = async () => {
+    const count = selectedDbIdsLocal.value.length;
+    if (count === 0) return;
+
+    try {
+        await ElMessageBox.confirm(
+            t('common.confirmDelete', { count }),
+            t('common.warning'),
+            {
+                confirmButtonText: t('common.confirm'),
+                cancelButtonText: t('common.cancel'),
+                type: 'warning',
+            }
+        );
+
+        // 调用删除 API
+        await deleteSpaces(selectedDbIdsLocal.value);
+        
+        ElMessage.success(t('common.deleteSuccess') || '删除成功');
+        
+        // 触发父组件刷新列表
+        emit('rooms-deleted');
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('删除失败:', error);
+            ElMessage.error(t('common.deleteFailed') || '删除失败: ' + error.message);
+        }
+    }
+};
+
 </script>
 
 <style scoped>
@@ -185,8 +236,10 @@ const copyStreamUrl = async (fileId, spaceCode) => {
 .panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 .title { font-size: 11px; font-weight: 600; color: var(--md-sys-color-on-surface); text-transform: uppercase; }
 .actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--md-sys-color-secondary); cursor: pointer; }
+.selection-count { font-size: 12px; color: var(--md-sys-color-primary); margin-right: 8px; }
+.delete-btn { padding: 4px 8px; }
+.delete-btn:hover { background-color: var(--el-color-danger-light-9); }
 .actions:hover { color: var(--md-sys-color-primary); }
-.plus { font-size: 14px; font-weight: bold; }
 .search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 /* .search-input-wrapper removed in favor of el-input */
 .filter-icon { cursor: pointer; padding: 4px; color: var(--md-sys-color-secondary); }

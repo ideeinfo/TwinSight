@@ -241,6 +241,25 @@ export async function updateAsset(assetCode, updates) {
     return result.rows[0];
 }
 
+/**
+ * 删除单个资产
+ */
+export async function deleteAsset(assetCode) {
+    const sql = 'DELETE FROM assets WHERE asset_code = $1';
+    const result = await query(sql, [assetCode]);
+    return result.rowCount > 0;
+}
+
+/**
+ * 批量删除资产（根据 DB ID）
+ */
+export async function deleteAssetsByDbIds(dbIds) {
+    if (!dbIds || dbIds.length === 0) return 0;
+    const sql = 'DELETE FROM assets WHERE db_id = ANY($1)';
+    const result = await query(sql, [dbIds]);
+    return result.rowCount;
+}
+
 export default {
     upsertAsset,
     batchUpsertAssets,
@@ -252,5 +271,7 @@ export default {
     getAssetsByRoom,
     getAssetsByFileId,
     deleteAllAssets,
+    deleteAsset,
+    deleteAssetsByDbIds,
     updateAsset
 };

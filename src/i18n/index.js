@@ -24,7 +24,13 @@ const messages = {
       clickToEditAll: '点击编辑所有选中对象',
       alert: '提示',
       success: '成功',
-      language: '语言'
+      language: '语言',
+      delete: '删除',
+      confirmDelete: '确定要删除选中的 {count} 项吗？',
+      selected: '已选中 {count} 项',
+      warning: '警告',
+      deleteSuccess: '删除成功',
+      deleteFailed: '删除失败'
     },
     assetPanel: {
       assets: '资产列表',
@@ -542,7 +548,13 @@ const messages = {
       saveSuccess: 'Saved successfully',
       clickToEditAll: 'Click to edit all selected objects',
       alert: 'Alert',
-      language: 'Language'
+      language: 'Language',
+      delete: 'Delete',
+      confirmDelete: 'Are you sure you want to delete {count} selected items?',
+      selected: 'Selected {count}',
+      warning: 'Warning',
+      deleteSuccess: 'Deleted successfully',
+      deleteFailed: 'Delete failed'
     },
     assetPanel: {
       assets: 'Asset List',

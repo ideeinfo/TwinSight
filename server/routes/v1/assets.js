@@ -190,6 +190,33 @@ router.delete('/:code',
 
 /**
  * @swagger
+ * /api/v1/assets/batch-delete:
+ *   post:
+ *     summary: 批量删除资产
+ *     tags: [Assets]
+ */
+router.post('/batch-delete',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_DELETE),
+    body('dbIds').isArray().withMessage('dbIds 必须是数组'),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const { dbIds } = req.body;
+            const deletedCount = await assetModel.deleteAssetsByDbIds(dbIds);
+            res.json({
+                success: true,
+                count: deletedCount,
+                message: `成功删除 ${deletedCount} 个资产`
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
  * /api/v1/assets/batch:
  *   post:
  *     summary: 批量导入资产
