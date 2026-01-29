@@ -44,6 +44,15 @@
               @assets-selected="onAssetsSelected"
               @assets-deleted="reloadCurrentFileAssets"
             />
+            <SpacePanel
+              v-else-if="currentView === 'spaces'"
+              ref="spacePanelRef"
+              :spaces="roomList"
+              :selected-db-ids="savedSpaceSelections"
+              @open-properties="openRightPanel"
+              @spaces-selected="onSpacesSelected"
+              @spaces-deleted="reloadCurrentFileSpaces"
+            />
             <FilePanel
               v-else-if="currentView === 'models'"
               @file-activated="onFileActivated"
@@ -170,6 +179,7 @@ import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
 import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
+import SpacePanel from './components/SpacePanel.vue';
 import FilePanel from './components/FilePanel.vue';
 import DocumentManager from './components/DocumentManager.vue';
 import RightPanel from './components/RightPanel.vue';
@@ -250,14 +260,16 @@ const roomList = ref([]);
 const assetList = ref([]);
 const mainViewRef = ref(null);
 const assetPanelRef = ref(null);
+const spacePanelRef = ref(null);
 const selectedRoomProperties = ref(null);
 const selectedObjectIds = ref([]); // 当前选中的对象ID列表（用于批量编辑）
 const chartData = ref([]);
-const currentView = ref('assets'); // 'connect' or 'assets' - 默认加载资产页面
+const currentView = ref('assets'); // 'connect' or 'assets' or 'spaces' - 默认加载资产页面
 const selectedRoomSeries = ref([]);
 const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
+const savedSpaceSelections = ref([]);
 const isDataExportOpen = ref(false);
 const isLoadingFromDb = ref(false);
 const dbDataLoaded = ref(false);
@@ -1150,6 +1162,88 @@ const onAssetsSelected = async (dbIds) => {
   }
 };
 
+// 处理空间选择事件
+const onSpacesSelected = async (dbIds) => {
+  savedSpaceSelections.value = dbIds.slice();
+  
+  // 更新选中的对象ID列表（使用 space code）
+  selectedObjectIds.value = dbIds.map(dbId => {
+    const space = roomList.value.find(s => s.dbId === dbId);
+    return space?.code;
+  }).filter(Boolean);
+
+  // 根据选中数量更新属性面板和模型隔离
+  if (dbIds.length === 0) {
+    // 未选中任何空间
+    selectedRoomProperties.value = null;
+    mainViewRef.value?.showAllRooms();
+  } else {
+    // 孤立显示选中的空间
+    if (mainViewRef.value?.isolateAndFocusRooms) {
+      mainViewRef.value.isolateAndFocusRooms(dbIds);
+    }
+
+    if (dbIds.length === 1) {
+      // 单选：显示详情
+      const space = roomList.value.find(s => s.dbId === dbIds[0]);
+      if (space) {
+        selectedRoomProperties.value = {
+          name: space.name,
+          code: space.code,
+          floor: space.floor,
+          area: space.area,
+          perimeter: space.perimeter,
+          omniClass21Number: space.classificationCode || '',
+          omniClass21Description: space.classificationDesc || ''
+        };
+      }
+    } else {
+      // 多选：显示共有属性或 VARIES
+      const selectedSpaces = dbIds.map(id => roomList.value.find(s => s.dbId === id)).filter(Boolean);
+      
+      const allProps = selectedSpaces.map(space => ({
+        name: space.name,
+        code: space.code,
+        floor: space.floor,
+        area: space.area,
+        perimeter: space.perimeter,
+        omniClass21Number: space.classificationCode || '',
+        omniClass21Description: space.classificationDesc || ''
+      }));
+
+      if (allProps.length > 0) {
+        const VARIES_VALUE = '__VARIES__';
+        
+        // 辅助函数：判断两个值是否相同
+        const isSameValue = (v1, v2) => {
+          const normalize = (v) => (v == null || v === '') ? '' : String(v);
+          return normalize(v1) === normalize(v2);
+        };
+        
+        const mergedProps = { ...allProps[0], isMultiple: true };
+        const keys = Object.keys(mergedProps).filter(k => k !== 'isMultiple');
+
+        for (let i = 1; i < allProps.length; i++) {
+          const props = allProps[i];
+          const base = allProps[0];
+
+          for (const key of keys) {
+            if (mergedProps[key] !== VARIES_VALUE) {
+              if (!isSameValue(base[key], props[key])) {
+                mergedProps[key] = VARIES_VALUE;
+              }
+            }
+          }
+        }
+        
+        selectedRoomProperties.value = mergedProps;
+      } else {
+        selectedRoomProperties.value = { isMultiple: true };
+      }
+    }
+  }
+};
+
 // 处理属性变更事件
 const onPropertyChanged = ({ fieldName, newValue }) => {
   console.log(`📝 App.vue 收到属性变更: ${fieldName} = ${newValue}`);
@@ -1359,6 +1453,69 @@ const loadRoomProperties = (dbIds) => {
   }
 };
 
+// 🔑 仅加载空间属性（反向定位专用，不触发孤立操作）
+const loadSpaceProperties = (dbIds) => {
+  if (!dbIds || dbIds.length === 0) {
+    selectedRoomProperties.value = null;
+    return;
+  }
+
+  if (dbIds.length === 1) {
+    // 单选：从 roomList 中获取空间属性
+    const space = roomList.value.find(s => s.dbId === dbIds[0]);
+    if (space) {
+      selectedRoomProperties.value = {
+        name: space.name,
+        code: space.code,
+        floor: space.floor,
+        area: space.area,
+        perimeter: space.perimeter,
+        omniClass21Number: space.classificationCode || '',
+        omniClass21Description: space.classificationDesc || ''
+      };
+    }
+  } else {
+    // 多选：合并属性
+    const VARIES_VALUE = '__VARIES__';
+    
+    const isSameValue = (v1, v2) => {
+      const normalize = (v) => (v == null || v === '') ? '' : String(v);
+      return normalize(v1) === normalize(v2);
+    };
+    
+    const selectedSpaces = dbIds.map(id => roomList.value.find(s => s.dbId === id)).filter(Boolean);
+    
+    if (selectedSpaces.length > 0) {
+      const base = selectedSpaces[0];
+      const merged = {
+        name: base.name,
+        code: base.code,
+        floor: base.floor,
+        area: base.area,
+        perimeter: base.perimeter,
+        omniClass21Number: base.classificationCode || '',
+        omniClass21Description: base.classificationDesc || '',
+        isMultiple: true
+      };
+      
+      for (let i = 1; i < selectedSpaces.length; i++) {
+        const p = selectedSpaces[i];
+        if (!isSameValue(merged.name, p.name)) merged.name = VARIES_VALUE;
+        if (!isSameValue(merged.code, p.code)) merged.code = VARIES_VALUE;
+        if (!isSameValue(merged.floor, p.floor)) merged.floor = VARIES_VALUE;
+        if (!isSameValue(merged.area, p.area)) merged.area = VARIES_VALUE;
+        if (!isSameValue(merged.perimeter, p.perimeter)) merged.perimeter = VARIES_VALUE;
+        if (!isSameValue(merged.omniClass21Number, p.classificationCode)) merged.omniClass21Number = VARIES_VALUE;
+        if (!isSameValue(merged.omniClass21Description, p.classificationDesc)) merged.omniClass21Description = VARIES_VALUE;
+      }
+      
+      selectedRoomProperties.value = merged;
+    } else {
+      selectedRoomProperties.value = { isMultiple: true };
+    }
+  }
+};
+
 const openRightPanel = () => {
   isRightPanelOpen.value = true;
   triggerResize(); // 面板出现时，强制刷新布局
@@ -1522,6 +1679,8 @@ const onModelSelectionChanged = (dbIds) => {
       savedAssetSelections.value = [];
     } else if (currentView.value === 'connect') {
       savedRoomSelections.value = [];
+    } else if (currentView.value === 'spaces') {
+      savedSpaceSelections.value = [];
     }
     selectedRoomProperties.value = null;
     return;
@@ -1548,6 +1707,19 @@ const onModelSelectionChanged = (dbIds) => {
     
     // 🔑 仅加载属性，不触发孤立操作
     loadRoomProperties(dbIds);
+  } else if (currentView.value === 'spaces') {
+    // 空间页面：更新空间选中状态
+    savedSpaceSelections.value = dbIds.slice();
+    
+    // 🔑 自动展开楼层并滚动到选中的空间（支持多选）
+    if (spacePanelRef.value && dbIds.length > 0) {
+      nextTick(() => {
+        spacePanelRef.value.expandAndScrollToSpace(dbIds);
+      });
+    }
+    
+    // 🔑 加载空间属性
+    loadSpaceProperties(dbIds);
   }
 };
 

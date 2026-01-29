@@ -118,17 +118,30 @@ const showCopyToast = ref(false);
 const searchText = ref('');
 let toastTimer = null;
 
-// 使用从模型获取的房间列表，如果为空则显示加载提示
+// 使用从模型获取的房间列表，支持搜索过滤
 const items = computed(() => {
-  if (props.rooms && props.rooms.length > 0) {
-    return props.rooms.map(room => ({
-      name: room.name,
-      code: room.code,
-      dbId: room.dbId,
-      fileId: room.fileId  // 包含 fileId 用于生成唯一的 Stream URL
-    }));
+  if (!props.rooms || props.rooms.length === 0) {
+    return [];
   }
-  return [];
+  
+  // 将房间数据转换为列表项格式
+  let list = props.rooms.map(room => ({
+    name: room.name,
+    code: room.code,
+    dbId: room.dbId,
+    fileId: room.fileId  // 包含 fileId 用于生成唯一的 Stream URL
+  }));
+  
+  // 🔑 根据搜索文本过滤
+  if (searchText.value) {
+    const search = searchText.value.toLowerCase();
+    list = list.filter(item => 
+      (item.name || '').toLowerCase().includes(search) ||
+      (item.code || '').toLowerCase().includes(search)
+    );
+  }
+  
+  return list;
 });
 
 // 多选：存储选中的 dbId 数组（由父级传入以在视图切换时保留）

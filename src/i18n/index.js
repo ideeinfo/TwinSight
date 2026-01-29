@@ -38,6 +38,11 @@ const messages = {
       uncategorized: '未分类',
       noSpec: '未指定规格'
     },
+    spacePanel: {
+      spaces: '空间列表',
+      noFloor: '未分配楼层',
+      loading: '加载中...'
+    },
     header: {
       properties: '属性',
       rooms: '房间',
@@ -562,6 +567,11 @@ const messages = {
       loading: 'Loading...',
       uncategorized: 'Uncategorized',
       noSpec: 'No Spec'
+    },
+    spacePanel: {
+      spaces: 'Space List',
+      noFloor: 'Unassigned Floor',
+      loading: 'Loading...'
     },
     header: {
       properties: 'Properties',
