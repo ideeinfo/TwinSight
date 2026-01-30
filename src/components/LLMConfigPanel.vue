@@ -1,3 +1,7 @@
+<!--
+  @deprecated 此组件已弃用，请使用 SystemConfigPanel.vue
+  LLM 配置已整合到系统配置中心。此文件保留用于参考，将在后续版本中删除。
+-->
 <template>
   <el-dialog
     v-model="visible"

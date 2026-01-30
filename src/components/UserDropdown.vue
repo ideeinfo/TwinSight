@@ -97,8 +97,8 @@
 
         <!-- 操作按钮 -->
         <div class="panel-actions">
-          <el-button size="small" @click="openLLMSettings">
-            AI 设置
+          <el-button size="small" @click="openSystemConfig">
+            系统配置
           </el-button>
           <el-button type="primary" size="small" @click="openAccountSettings">
             {{ $t('account.settings') }}
@@ -113,8 +113,8 @@
     <!-- 账户设置对话框 -->
     <AccountDialog v-model="showAccountDialog" />
     
-    <!-- LLM 配置对话框 -->
-    <LLMConfigPanel v-model="showLLMConfig" />
+    <!-- 系统配置对话框 -->
+    <SystemConfigPanel v-model="showSystemConfig" />
   </div>
 </template>
 
@@ -127,7 +127,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import * as authService from '@/services/auth';
 import AccountDialog from './AccountDialog.vue';
-import LLMConfigPanel from './LLMConfigPanel.vue';
+import SystemConfigPanel from './SystemConfigPanel.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -137,7 +137,7 @@ const themeStore = useThemeStore();
 const dropdownRef = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 const showAccountDialog = ref(false);
-const showLLMConfig = ref(false);
+const showSystemConfig = ref(false);
 
 // 用户信息
 const user = computed(() => authStore.user);
@@ -198,9 +198,9 @@ const openAccountSettings = () => {
   closeDropdown();
 };
 
-// 打开 LLM 设置
-const openLLMSettings = () => {
-  showLLMConfig.value = true;
+// 打开系统配置
+const openSystemConfig = () => {
+  showSystemConfig.value = true;
   closeDropdown();
 };
 

@@ -177,9 +177,14 @@ async function writeToInflux(config, fileId, spaceCode, data, timestamp = Date.n
     const escapedCode = spaceCode.replace(/[,= ]/g, '_');
 
     for (const [key, value] of Object.entries(data)) {
-        if (typeof value === 'number' && !isNaN(value)) {
+        // 尝试将字符串转换为数字（兼容 Node-RED 可能发送字符串类型的数值）
+        let numValue = value;
+        if (typeof value === 'string') {
+            numValue = parseFloat(value);
+        }
+        if (typeof numValue === 'number' && !isNaN(numValue)) {
             // 添加 file_id 作为 tag，用于精确查询
-            lines.push(`${key},room=${escapedCode},code=${escapedCode},file_id=${fileId} value=${value} ${timestamp}`);
+            lines.push(`${key},room=${escapedCode},code=${escapedCode},file_id=${fileId} value=${numValue} ${timestamp}`);
         }
     }
 
@@ -188,17 +193,12 @@ async function writeToInflux(config, fileId, spaceCode, data, timestamp = Date.n
     }
 
     const body = lines.join('\n');
-    // 禁用日志
-    // console.log(`📊 写入 InfluxDB: ${lines.length} 条数据点, 空间=${spaceCode}`);
 
     try {
-        const resp = await fetch(
-            `${baseUrl}/api/v2/write?org=${encodeURIComponent(config.influx_org)}&bucket=${encodeURIComponent(config.influx_bucket)}&precision=ms`,
-            { method: 'POST', headers, body }
-        );
+        const writeUrl = `${baseUrl}/api/v2/write?org=${encodeURIComponent(config.influx_org)}&bucket=${encodeURIComponent(config.influx_bucket)}&precision=ms`;
+        const resp = await fetch(writeUrl, { method: 'POST', headers, body });
 
         if (resp.ok) {
-            // console.log(`✅ InfluxDB 写入成功`);
             return { ok: true };
         } else {
             const errorText = await resp.text();

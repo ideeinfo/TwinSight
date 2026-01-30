@@ -243,9 +243,10 @@ html.dark {
 
 
   /* Message Box / Dialog */
-  --el-dialog-bg-color: var(--md-sys-color-surface-container-high);
-  --el-dialog-box-shadow: 0px 12px 32px 4px rgba(0, 0, 0, .36), 0px 8px 20px rgba(0, 0, 0, .72);
-  --el-overlay-color-lighter: rgba(0, 0, 0, 0.5);
+  --el-dialog-bg-color: var(--md-sys-color-surface);
+  /* 改为纯色背景 */
+  --el-dialog-box-shadow: 0px 12px 32px 4px rgba(0, 0, 0, .12), 0px 8px 20px rgba(0, 0, 0, .08);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.3);
 
   /* Pagination */
   --el-pagination-bg-color: transparent;
@@ -298,6 +299,10 @@ html.light {
   --el-tree-node-hover-bg-color: var(--list-item-bg-hover);
   --el-tree-text-color: var(--list-item-text);
   --el-tree-expand-icon-color: var(--list-item-text-secondary);
+
+  /* Dialog - 强制纯白背景 */
+  --el-dialog-bg-color: #ffffff;
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.3);
 }
 
 html.light body {
@@ -686,8 +691,9 @@ html.light .file-panel {
 }
 
 /* 表单输入 */
-html.light input,
-html.light textarea,
+/* 表单输入 - 排除 Element Plus 内部 input 以避免样式冲突 */
+html.light input:not(.el-input__inner),
+html.light textarea:not(.el-textarea__inner),
 html.light select {
   background-color: var(--md-sys-color-surface-container) !important;
   color: var(--md-sys-color-on-surface) !important;

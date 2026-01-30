@@ -168,12 +168,7 @@
           </svg>
           {{ t('filePanel.syncKB') }}
         </div>
-        <div v-if="authStore.hasPermission('influx:read')" class="context-menu-item" @click="handleInfluxConfig">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-          {{ t('filePanel.influxConfig') }}
-        </div>
+
         <div class="context-menu-item" @click="handlePanoCompare">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" />
@@ -231,15 +226,7 @@
       </div>
     </el-dialog>
 
-    <!-- InfluxDB 配置弹窗 -->
-    <Teleport to="body">
-      <InfluxConfigPanel
-        v-if="isInfluxConfigOpen"
-        :file-id="influxConfigFileId"
-        @close="closeInfluxConfig"
-        @saved="onInfluxConfigSaved"
-      />
-    </Teleport>
+
 
     <!-- Confirm Dialog with slot support -->
     <ConfirmDialog
@@ -272,7 +259,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Search, UploadFilled, Document, Close } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
-import InfluxConfigPanel from './InfluxConfigPanel.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 
 
@@ -305,8 +291,6 @@ const isExtracting = ref(false);
 const fileInput = ref(null);
 const isEditDialogOpen = ref(false);
 const isSaving = ref(false);
-const isInfluxConfigOpen = ref(false);
-const influxConfigFileId = ref(null);
 const deleteKnowledgeBase = ref(true);
 
 const uploadForm = ref({
@@ -680,23 +664,7 @@ const onGlobalClick = () => {
   hideContextMenu();
 };
 
-// InfluxDB 配置
-const handleInfluxConfig = () => {
-  const file = contextMenu.value.file;
-  hideContextMenu();
-  influxConfigFileId.value = file.id;
-  isInfluxConfigOpen.value = true;
-};
 
-const closeInfluxConfig = () => {
-  isInfluxConfigOpen.value = false;
-  influxConfigFileId.value = null;
-};
-
-const onInfluxConfigSaved = (config) => {
-  console.log('InfluxDB 配置已保存:', config);
-  // 可以在这里添加保存成功的提示
-};
 
 const handlePanoCompare = () => {
   const file = contextMenu.value.file;

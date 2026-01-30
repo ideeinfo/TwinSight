@@ -1,3 +1,8 @@
+<!--
+  @deprecated 此组件已弃用，请使用 SystemConfigPanel.vue
+  InfluxDB 配置已迁移到系统配置中心 (system_config 表)，不再支持按模型单独配置。
+  此文件保留用于向后兼容，将在后续版本中删除。
+-->
 <template>
   <el-dialog
     :model-value="true"
@@ -5,7 +10,7 @@
     width="600px"
     :close-on-click-modal="false"
     destroy-on-close
-    class="custom-dialog"
+    class="custom-dialog custom-influx-dialog"
     @close="$emit('close')"
   >
     <div class="influx-config-content">
@@ -19,6 +24,8 @@
             v-model="form.influxUrl"
             :disabled="!authStore.hasPermission('influx:manage')" 
             placeholder="http://localhost 或 /influx"
+            name="influx-url"
+            autocomplete="off"
           />
         </div>
         
@@ -29,6 +36,8 @@
               v-model.number="form.influxPort" 
               type="number" 
               placeholder="8086"
+              name="influx-port"
+              autocomplete="off"
             />
           </div>
           <div class="form-group half">
@@ -36,6 +45,8 @@
             <el-input 
               v-model="form.influxOrg" 
               placeholder="demo"
+              name="influx-org"
+              autocomplete="off"
             />
           </div>
         </div>
@@ -44,7 +55,9 @@
           <label>{{ t('influxConfig.bucket') }} <span class="required">*</span></label>
           <el-input 
             v-model="form.influxBucket" 
-            placeholder="tandem"
+            placeholder="twinsight"
+            name="influx-bucket"
+            autocomplete="off"
           />
         </div>
       </div>
@@ -65,6 +78,8 @@
             type="password" 
             show-password
             :placeholder="hasToken ? t('influxConfig.keepExisting') : t('influxConfig.enterToken')"
+            name="influx-token"
+            autocomplete="new-password"
           />
         </div>
 
@@ -74,6 +89,8 @@
             <el-input 
               v-model="form.influxUser" 
               placeholder="root"
+              name="influx-user"
+              autocomplete="off"
             />
           </div>
           <div class="form-group half">
@@ -83,6 +100,8 @@
               type="password" 
               show-password
               :placeholder="hasPassword ? t('influxConfig.keepExisting') : t('influxConfig.enterPassword')"
+              name="influx-password"
+              autocomplete="new-password"
             />
           </div>
         </div>
@@ -310,22 +329,28 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.influx-config-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+<style>
+/* 非 Scoped 样式，确保能穿透到 Element Plus 内部组件 */
+/* 提升权重：加上 html.light 前缀以覆盖全局样式 */
+html.light .custom-influx-dialog .el-input__wrapper {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  box-shadow: none !important; 
 }
 
-/* 模态框样式移除，使用 el-dialog */
-.influx-config-content { padding: 10px; }
+html.light .custom-influx-dialog .el-input__inner {
+  background-color: transparent !important;
+  color: var(--el-text-color-primary) !important;
+}
+
+/* 修复下拉框等可能是 input 的情况 */
+html.light .custom-influx-dialog input {
+  background-color: transparent !important;
+}
+</style>
+
+<style scoped>
+/* 移除 fixed 定位，让 el-dialog 控制布局 */
+/* .influx-config-content { padding: 10px; } */
 
 /* 底部按钮布局 */
 .dialog-footer-row { display: flex; justify-content: space-between; width: 100%; }
@@ -333,8 +358,8 @@ onMounted(() => {
 .footer-right { display: flex; gap: 8px; }
 
 .test-result-inline { font-size: 12px; margin-left: 8px; display: flex; align-items: center; }
-.test-result-inline.success { color: #67c23a; }
-.test-result-inline.error { color: #f56c6c; }
+.test-result-inline.success { color: var(--el-color-success); }
+.test-result-inline.error { color: var(--el-color-danger); }
 
 .form-section {
   margin-bottom: 24px;
@@ -343,9 +368,10 @@ onMounted(() => {
 .form-section h4 {
   margin: 0 0 12px 0;
   font-size: 13px;
-  color: #888;
+  color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
 .form-group {
@@ -355,30 +381,30 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 12px;
-  color: #aaa;
+  color: var(--el-text-color-regular);
   margin-bottom: 6px;
 }
 
 .form-group label .required {
-  color: #f44336;
+  color: var(--el-color-danger);
 }
 
-.form-group input[type="text"],
-.form-group input[type="password"],
-.form-group input[type="number"] {
-  width: 100%;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 10px 12px;
-  color: #fff;
-  font-size: 13px;
-  transition: border-color 0.2s;
+/* 使用 Element Plus 输入框样式，移除自定义的硬编码样式 */
+:deep(.el-input__wrapper) {
+  /* 浅色模式下使用浅灰背景，深色模式下 Element Plus 会自动适配 */
+  background-color: var(--md-sys-color-surface-container-high) !important; 
+  box-shadow: none !important; /* 浅灰背景下可以移除边框，或者保留看效果 */
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #38ABDF;
+:deep(.el-input__inner) {
+  color: var(--el-text-color-primary);
+  background-color: transparent !important; /* 必须强制透明，否则会受全局 input 样式污染导致色差 */
+}
+
+/* 降低 placeholder 对比度，自动适应深浅色 */
+:deep(.el-input__inner::placeholder) {
+  color: var(--el-text-color-placeholder) !important;
+  opacity: 0.6; /* 稍微降低不透明度 */
 }
 
 .form-row {
@@ -390,111 +416,13 @@ onMounted(() => {
   flex: 1;
 }
 
-.auth-toggle {
-  display: flex;
-  background: #2a2a2a;
-  border-radius: 6px;
-  padding: 4px;
-  margin-bottom: 16px;
+/* 移除自定义的 Toggle 样式，直接使用 ElRadio */
+:deep(.el-radio) {
+  margin-right: 20px;
 }
 
-.toggle-option {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: #888;
-  font-size: 12px;
-  transition: all 0.2s;
+/* Checkbox 样式 */
+:deep(.el-checkbox__label) {
+  color: var(--el-text-color-regular);
 }
-
-.toggle-option input {
-  display: none;
-}
-
-.toggle-option.active {
-  background: #38ABDF;
-  color: #fff;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: #ccc;
-  font-size: 13px;
-}
-
-.checkbox-label input {
-  width: 16px;
-  height: 16px;
-}
-
-.test-result {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  margin-top: 16px;
-}
-
-.test-result.success {
-  background: rgba(76, 175, 80, 0.15);
-  color: #4caf50;
-  border: 1px solid rgba(76, 175, 80, 0.3);
-}
-
-.test-result.error {
-  background: rgba(244, 67, 54, 0.15);
-  color: #f44336;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-}
-
-.test-icon {
-  font-weight: bold;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-top: 1px solid #333;
-}
-
-.footer-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.test-result-inline {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 4px;
-}
-
-.test-result-inline.success {
-  color: #4caf50;
-  background: rgba(76, 175, 80, 0.15);
-}
-
-.test-result-inline.error {
-  color: #f44336;
-  background: rgba(244, 67, 54, 0.15);
-}
-
-.footer-right {
-  display: flex;
-  gap: 12px;
-}
-
-
 </style>

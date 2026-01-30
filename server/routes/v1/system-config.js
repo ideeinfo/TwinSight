@@ -1,12 +1,270 @@
 /**
  * 系统配置 API 路由
- * 用于管理 LLM 等系统级配置
+ * 用于管理 LLM、InfluxDB 等系统级配置
  */
 import { Router } from 'express';
 import pool from '../../db/index.js';
-import { getConfig, setConfig, getAllConfigs, clearConfigCache } from '../../services/config-service.js';
+import { getConfig, setConfig, getAllConfigs, getConfigRaw, batchSetConfigs, clearConfigCache } from '../../services/config-service.js';
 
 const router = Router();
+
+/**
+ * GET /api/v1/system-config
+ * 获取所有配置（按分类分组）
+ */
+router.get('/', async (req, res) => {
+    try {
+        const configs = await getAllConfigs();
+
+        // 按分类分组
+        const grouped = {};
+        for (const config of configs) {
+            const category = config.category || 'general';
+            if (!grouped[category]) {
+                grouped[category] = [];
+            }
+            // 对于加密字段，只返回脱敏值
+            grouped[category].push({
+                key: config.config_key,
+                value: config.config_value,
+                label: config.label,
+                description: config.description,
+                type: config.config_type || 'string',
+                isEncrypted: config.is_encrypted,
+                sortOrder: config.sort_order
+            });
+        }
+
+        res.json({ success: true, data: grouped });
+    } catch (error) {
+        console.error('获取系统配置失败:', error);
+        res.status(500).json({ success: false, error: '获取配置失败' });
+    }
+});
+
+/**
+ * GET /api/v1/system-config/:category
+ * 获取指定分类的配置
+ */
+router.get('/:category', async (req, res) => {
+    try {
+        const { category } = req.params;
+
+        // 如果是 llm 分类，使用原有的特殊处理
+        if (category === 'llm') {
+            return router.handle(req, res, () => { });
+        }
+
+        const configs = await getAllConfigs(category);
+
+        const data = configs.map(config => ({
+            key: config.config_key,
+            value: config.config_value,
+            label: config.label,
+            description: config.description,
+            type: config.config_type || 'string',
+            isEncrypted: config.is_encrypted,
+            sortOrder: config.sort_order
+        }));
+
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('获取系统配置失败:', error);
+        res.status(500).json({ success: false, error: '获取配置失败' });
+    }
+});
+
+/**
+ * POST /api/v1/system-config
+ * 批量更新配置
+ */
+router.post('/', async (req, res) => {
+    try {
+        const { configs } = req.body;
+
+        if (!configs || !Array.isArray(configs)) {
+            return res.status(400).json({ success: false, error: '请提供配置数组' });
+        }
+
+        const success = await batchSetConfigs(configs);
+
+        if (success) {
+            res.json({ success: true, message: '配置已更新' });
+        } else {
+            res.status(500).json({ success: false, error: '更新配置失败' });
+        }
+    } catch (error) {
+        console.error('批量更新配置失败:', error);
+        res.status(500).json({ success: false, error: '更新配置失败' });
+    }
+});
+
+/**
+ * POST /api/v1/system-config/test-influx
+ * 测试 InfluxDB 连接
+ */
+router.post('/test-influx', async (req, res) => {
+    try {
+        const { url, port, org, bucket, token } = req.body;
+
+        // 使用传入的值或从数据库获取
+        const influxUrl = url || await getConfigRaw('INFLUXDB_URL');
+        const influxPort = port || await getConfigRaw('INFLUXDB_PORT');
+        const influxOrg = org || await getConfigRaw('INFLUXDB_ORG');
+        const influxToken = token || await getConfigRaw('INFLUXDB_TOKEN');
+
+        if (!influxUrl || !influxToken) {
+            return res.status(400).json({
+                success: false,
+                error: '请提供 InfluxDB URL 和 Token'
+            });
+        }
+
+        // 构建完整 URL
+        const baseUrl = influxPort ? `${influxUrl}:${influxPort}` : influxUrl;
+        const healthUrl = `${baseUrl}/health`;
+
+        console.log(`🧪 测试 InfluxDB 连接: ${healthUrl}`);
+
+        const response = await fetch(healthUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Token ${influxToken}`
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ InfluxDB 连接测试成功:', data);
+            res.json({
+                success: true,
+                message: '连接成功',
+                data: {
+                    status: data.status,
+                    version: data.version
+                }
+            });
+        } else {
+            const errorText = await response.text();
+            console.error('❌ InfluxDB 连接测试失败:', response.status, errorText);
+            res.status(response.status).json({
+                success: false,
+                error: `连接失败: ${response.status} - ${errorText}`
+            });
+        }
+    } catch (error) {
+        console.error('❌ InfluxDB 连接测试异常:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/v1/system-config/test-openwebui
+ * 测试 Open WebUI 连接
+ */
+router.post('/test-openwebui', async (req, res) => {
+    try {
+        const { url, apiKey: providedApiKey } = req.body;
+
+        // 使用传入的值或从数据库获取
+        const openwebuiUrl = url || await getConfigRaw('OPENWEBUI_URL');
+        let apiKey = providedApiKey;
+        if (!apiKey) {
+            apiKey = await getConfigRaw('OPENWEBUI_API_KEY');
+        }
+
+        if (!openwebuiUrl) {
+            return res.status(400).json({
+                success: false,
+                error: '请提供 Open WebUI 地址'
+            });
+        }
+
+        // 使用 /health 端点检查连接（无需认证）
+        const baseUrl = openwebuiUrl.replace(/\/$/, '');
+        const testUrl = `${baseUrl}/health`;
+
+        console.log(`🧪 测试 Open WebUI 连接: ${testUrl}`);
+
+        const response = await fetch(testUrl, {
+            method: 'GET'
+        });
+
+        if (response.ok) {
+            const text = await response.text();
+            console.log('✅ Open WebUI 连接测试成功:', text);
+            res.json({
+                success: true,
+                message: '连接成功',
+                data: {
+                    status: text === 'true' ? 'healthy' : text
+                }
+            });
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Open WebUI 连接测试失败:', response.status, errorText);
+            res.status(response.status).json({
+                success: false,
+                error: `连接失败: ${response.status}`
+            });
+        }
+    } catch (error) {
+        console.error('❌ Open WebUI 连接测试异常:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/v1/system-config/test-n8n
+ * 测试 n8n Webhook 连接
+ */
+router.post('/test-n8n', async (req, res) => {
+    try {
+        const { webhookUrl } = req.body;
+
+        // 使用传入的值或从数据库获取
+        const n8nUrl = webhookUrl || await getConfigRaw('N8N_WEBHOOK_URL');
+
+        if (!n8nUrl) {
+            return res.status(400).json({
+                success: false,
+                error: '请提供 n8n Webhook 地址'
+            });
+        }
+
+        // 检查 n8n 健康检查端点
+        const baseUrl = n8nUrl.replace(/\/$/, '');
+        const healthUrl = `${baseUrl}/healthz`;
+
+        console.log(`🧪 测试 n8n 连接: ${healthUrl}`);
+
+        const response = await fetch(healthUrl, {
+            method: 'GET'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ n8n 连接测试成功:', data);
+            res.json({
+                success: true,
+                message: '连接成功',
+                data: {
+                    status: data.status || 'ok'
+                }
+            });
+        } else {
+            const errorText = await response.text();
+            console.error('❌ n8n 连接测试失败:', response.status, errorText);
+            res.status(response.status).json({
+                success: false,
+                error: `连接失败: ${response.status}`
+            });
+        }
+    } catch (error) {
+        console.error('❌ n8n 连接测试异常:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 
 // 预置 LLM 提供商配置
 const LLM_PROVIDERS = {
@@ -104,7 +362,13 @@ router.put('/llm', async (req, res) => {
  */
 router.post('/llm/models', async (req, res) => {
     try {
-        const { provider, apiKey, baseUrl } = req.body;
+        const { provider, apiKey: providedApiKey, baseUrl } = req.body;
+
+        // 如果没有提供 API Key，从数据库读取
+        let apiKey = providedApiKey;
+        if (!apiKey) {
+            apiKey = await getConfigRaw('LLM_API_KEY');
+        }
 
         if (!apiKey) {
             return res.status(400).json({ success: false, error: '请提供 API Key' });
@@ -179,10 +443,20 @@ router.post('/llm/models', async (req, res) => {
  */
 router.post('/llm/test', async (req, res) => {
     try {
-        const { provider, apiKey, baseUrl, model } = req.body;
+        const { provider, apiKey: providedApiKey, baseUrl, model } = req.body;
 
-        if (!apiKey || !model) {
-            return res.status(400).json({ success: false, error: '请提供 API Key 和模型' });
+        if (!model) {
+            return res.status(400).json({ success: false, error: '请提供模型名称' });
+        }
+
+        // 如果没有提供 API Key，从数据库读取
+        let apiKey = providedApiKey;
+        if (!apiKey) {
+            apiKey = await getConfigRaw('LLM_API_KEY');
+        }
+
+        if (!apiKey) {
+            return res.status(400).json({ success: false, error: '请提供 API Key' });
         }
 
         const effectiveBaseUrl = baseUrl || (LLM_PROVIDERS[provider]?.baseUrl);
