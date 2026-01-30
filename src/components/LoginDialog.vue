@@ -569,24 +569,37 @@ body .auth-input .el-input__wrapper.is-focus {
 
 /* 
   自动填充样式覆盖 (Autofill Hack)
-  利用 transition 延迟背景色变化，实现"透明"背景
+  使用 box-shadow 覆盖自动填充的背景色
 */
 body .auth-input .el-input__inner:-webkit-autofill,
 body .auth-input .el-input__inner:-webkit-autofill:hover,
 body .auth-input .el-input__inner:-webkit-autofill:focus,
 body .auth-input .el-input__inner:-webkit-autofill:active {
-  -webkit-transition: color 99999s ease-out, background-color 99999s ease-out;
-  transition: color 99999s ease-out, background-color 99999s ease-out;
+  -webkit-transition: background-color 99999s ease-out;
+  transition: background-color 99999s ease-out;
   -webkit-transition-delay: 99999s;
   transition-delay: 99999s;
 }
 
-/* 确保自动填充的文字颜色正确 */
-body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill {
+/* 深色模式自动填充背景覆盖 */
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill,
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill:hover,
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill:focus,
+body .el-dialog.auth-dialog.is-dark .auth-input .el-input__inner:-webkit-autofill:active {
   -webkit-text-fill-color: #f0f0f5 !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(26, 26, 36, 0.01) inset !important;
+  box-shadow: 0 0 0 1000px rgba(26, 26, 36, 0.01) inset !important;
+  caret-color: #f0f0f5;
 }
 
-body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill {
-  -webkit-text-fill-color: #606266 !important;
+/* 浅色模式自动填充背景覆盖 */
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill,
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill:hover,
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill:focus,
+body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-autofill:active {
+  -webkit-text-fill-color: #303133 !important;
+  -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.01) inset !important;
+  box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.01) inset !important;
+  caret-color: #303133;
 }
 </style>
