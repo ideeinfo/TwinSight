@@ -99,27 +99,69 @@ feat(rds): 阶段四前端组件开发
 
 ---
 
+### ✅ 阶段二：Excel 数据导入 (已完成 2026-02-02)
+
+#### 创建的文件
+
+| 文件路径 | 说明 |
+|----------|------|
+| `logic-engine/services/importer.py` | 数据导入服务，将解析数据写入 PostgreSQL |
+| `logic-engine/routers/import_data.py` | 导入 API 路由 |
+
+#### 新增 API 端点
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| POST | `/api/import/excel/{file_id}` | 上传 Excel 并导入到数据库 |
+| DELETE | `/api/import/{file_id}` | 清除指定文件的 RDS 数据 |
+| GET | `/api/import/{file_id}/stats` | 获取 RDS 数据统计 |
+
+#### 核心功能
+
+- **Excel 解析** - 读取工艺功能、位置、电源功能三列编码
+- **对象创建** - 根据设备名称智能判断类型（equipment/panel/transformer 等）
+- **方面编码展开** - 支持展开层级链，创建所有中间节点
+- **供电关系自动建立** - 分析电源编码层级，建立 `FEEDS_POWER_TO` 关系
+- **事务处理** - 使用 savepoint 隔离单条记录失败
+- **Upsert 支持** - 重复数据自动更新
+
+#### 导入结果 (MC数据20230620_完整.xlsx)
+
+| 类别 | 数量 |
+|------|------|
+| 对象 (rds_objects) | 338 |
+| 方面编码 (rds_aspects) | 3,971 |
+| 供电关系 (rds_relations) | 188 |
+
+---
+
+### ✅ 阶段五：服务器部署 (已完成 2026-02-02)
+
+#### 部署配置修改
+
+| 文件 | 变更 |
+|------|------|
+| `docker-compose.yml` | logic-engine 使用外部网络 twinsight-lan_twinsight-network |
+| `docker-compose.yml` | volumes 名称改为 twinsight-lan_* |
+
+#### 部署命令
+
+```bash
+# 服务器上
+cd /opt/twinsight
+git pull origin rds
+docker compose up -d --build --no-deps logic-engine
+```
+
+---
+
 ## 待完成阶段
 
-### ⏳ 阶段二：Python 逻辑引擎开发
+### ⏳ 阶段三：功能完善
 
-**已创建基础文件，待完善**:
-- Excel 导入器 (`excel_importer.py`) - 基础框架已有，需补充完整导入逻辑
-- 单元测试 (`tests/`) - 待创建
-
-### ⏳ 阶段三：Node.js 后端集成
-
-**已完成基础路由，待完善**:
-- 数据导入 API - 待添加
-- 批量解析 API - 待添加
-- 关系建立 API - 待添加
-
-### ⏳ 阶段五：部署与测试
-
-**待执行**:
-- Railway 部署配置
-- 验证计划执行
-- 功能测试
+- 前端组件集成测试
+- 拓扑追溯功能验证
+- BIM 模型联动测试
 
 ---
 
@@ -142,12 +184,12 @@ feat(rds): 阶段四前端组件开发
 
 ## 验证检查清单
 
-- [ ] logic-engine Docker 镜像构建成功
-- [ ] 数据库迁移脚本执行成功
-- [ ] `/api/rds/health` 接口返回正常
-- [ ] 编码解析 API 功能正确
+- [x] logic-engine Docker 镜像构建成功
+- [x] 数据库迁移脚本执行成功
+- [x] `/api/rds/health` 接口返回正常
+- [x] 编码解析 API 功能正确
+- [x] Excel 导入功能正常 (338 对象, 3971 方面, 188 关系)
 - [ ] 方面树面板渲染正常
-- [ ] Excel 导入功能正常
 - [ ] 模型高亮联动正常
 - [ ] 电源追溯功能正常
 
