@@ -216,6 +216,10 @@ def _create_power_relations(
         if parent_code and parent_code in power_code_to_object:
             parent_object_id = power_code_to_object[parent_code]
             
+            # 避免自引用关系
+            if parent_object_id == object_id:
+                continue
+            
             # 创建供电关系：父级 -> 当前
             insert_query = text("""
                 INSERT INTO rds_relations (
@@ -224,7 +228,7 @@ def _create_power_relations(
                 VALUES (
                     :source_id, :target_id, 'FEEDS_POWER_TO'
                 )
-                ON CONFLICT ON CONSTRAINT unique_relation DO NOTHING
+                ON CONFLICT (source_obj_id, target_obj_id, relation_type) DO NOTHING
             """)
             
             session.execute(insert_query, {
