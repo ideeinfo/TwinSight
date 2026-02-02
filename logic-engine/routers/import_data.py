@@ -121,10 +121,10 @@ async def import_excel_to_db(
 
                 obj = {
                     'sheet': sheet_name,
-
                     'row_index': int(idx),
                     'name': name,
                     'asset_code': asset_code,
+                    'ref_code': ref_code,
                     'aspects': []
                 }
                 

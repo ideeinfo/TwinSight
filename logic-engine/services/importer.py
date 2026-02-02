@@ -120,8 +120,8 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
     # 确定对象类型
     object_type = _determine_object_type(obj_data)
     
-    # 生成参考编码（优先使用设备编码，否则用名称）
-    ref_code = obj_data.get('asset_code', '') or obj_data.get('name', '')
+    # 生成参考编码（优先使用传入的 ref_code，否则尝试 asset_code 或 name）
+    ref_code = obj_data.get('ref_code') or obj_data.get('asset_code', '') or obj_data.get('name', '')
     
     # 使用 upsert 语法处理重复记录
     insert_query = text("""
@@ -138,6 +138,7 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
     metadata = json.dumps({
         'sheet': obj_data.get('sheet', ''),
         'row_index': obj_data.get('row_index', 0),
+        'original_asset_code': obj_data.get('asset_code', ''),
         'source': 'excel_import'
     })
     
