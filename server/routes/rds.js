@@ -354,4 +354,86 @@ router.get('/health', async (req, res) => {
     }
 });
 
+// ==================== 数据导入接口 ====================
+
+/**
+ * POST /api/rds/import/:fileId
+ * 上传 Excel 并导入到数据库（代理到 Logic Engine）
+ * 
+ * 注意：需要使用 multer 或 formidable 处理文件上传
+ */
+router.post('/import/:fileId', async (req, res) => {
+    const { fileId } = req.params;
+    const { clearExisting, createRelations } = req.query;
+
+    try {
+        // 转发文件到 Logic Engine
+        // 需要在这里处理 multipart/form-data
+        const url = `${LOGIC_ENGINE_URL}/api/import/excel/${fileId}?clear_existing=${clearExisting || false}&create_relations=${createRelations !== 'false'}`;
+
+        // 简单代理 - 假设前端直接调用 Logic Engine
+        res.json({
+            success: false,
+            message: '请直接调用 Logic Engine 的导入接口',
+            directUrl: url
+        });
+    } catch (error) {
+        console.error('导入失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * DELETE /api/rds/import/:fileId
+ * 清除指定文件的 RDS 数据
+ */
+router.delete('/import/:fileId', async (req, res) => {
+    const { fileId } = req.params;
+
+    try {
+        const response = await axios.delete(
+            `${LOGIC_ENGINE_URL}/api/import/${fileId}`,
+            { timeout: 30000 }
+        );
+        res.json({
+            success: true,
+            ...response.data
+        });
+    } catch (error) {
+        console.error('清除数据失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.response?.data?.detail || error.message
+        });
+    }
+});
+
+/**
+ * GET /api/rds/import/:fileId/stats
+ * 获取指定文件的 RDS 数据统计
+ */
+router.get('/import/:fileId/stats', async (req, res) => {
+    const { fileId } = req.params;
+
+    try {
+        const response = await axios.get(
+            `${LOGIC_ENGINE_URL}/api/import/${fileId}/stats`,
+            { timeout: 10000 }
+        );
+        res.json({
+            success: true,
+            ...response.data
+        });
+    } catch (error) {
+        console.error('获取统计失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.response?.data?.detail || error.message
+        });
+    }
+});
+
 export default router;
