@@ -207,25 +207,25 @@ services:
 volumes:
   postgres_data:
     external: true
-    name: tandem-demo_postgres_data
+    name: twinsight-lan_postgres_data
   grafana_data:
     external: true
-    name: tandem-demo_grafana_data
+    name: twinsight-lan_grafana_data
   n8n_data:
     external: true
-    name: tandem-demo_n8n_data
+    name: twinsight-lan_n8n_data
   open_webui_data:
     external: true
-    name: tandem-demo_open_webui_data
+    name: twinsight-lan_open_webui_data
   influxdb_data:
     external: true
-    name: tandem-demo_influxdb_data
+    name: twinsight-lan_influxdb_data
   influxdb_config:
     external: true
-    name: tandem-demo_influxdb_config
+    name: twinsight-lan_influxdb_config
   nodered_data:
     external: true
-    name: tandem-demo_nodered_data
+    name: twinsight-lan_nodered_data
 
 networks:
   twinsight-network:
