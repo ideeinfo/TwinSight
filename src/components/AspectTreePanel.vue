@@ -46,6 +46,7 @@
         :props="treeProps"
         :height="containerHeight"
         :item-size="36"
+        node-key="code"
         show-checkbox
         :expand-on-click-node="false"
         @check-change="handleCheckChange"
