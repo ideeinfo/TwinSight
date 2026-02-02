@@ -304,24 +304,44 @@ async function highlightInViewer() {
   if (selectedCodes.value.length === 0) return;
   
   try {
-    // 获取所有选中编码对应的 BIM GUID 和 RefCode
     const allGuids = [];
-    const allRefCodes = [];
+    const allMcCodes = [];
     
-    for (const code of selectedCodes.value) {
-      const response = await getBimGuidsByCode(props.fileId, code, true);
-      if (response.success) {
-        if (response.guids) allGuids.push(...response.guids);
-        if (response.refCodes) allRefCodes.push(...response.refCodes);
+    // 递归收集当前节点及其子节点的 GUID 和 MC编码
+    const collectCodes = (node) => {
+      // 收集当前节点
+      if (node.bimGuid) allGuids.push(node.bimGuid);
+      if (node.mcCode) allMcCodes.push(node.mcCode);
+      // 兼容性：如果 mcCode 空但 refCode 有值（且不是自动生成的内部ID），是否应该收集？
+      // 用户明确要求：只收集非空的对象。这里 mcCode 就是 Excel 中的 DeviceCode。
+      
+      // 递归子节点
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(collectCodes);
       }
-    }
+    };
+
+    // 在树数据中查找选中的节点并开始收集
+    const findAndCollect = (nodes) => {
+      for (const node of nodes) {
+        if (selectedCodes.value.includes(node.code)) {
+          collectCodes(node);
+        }
+        if (node.children && node.children.length > 0) {
+          findAndCollect(node.children);
+        }
+      }
+    };
+    
+    findAndCollect(treeData.value);
     
     // 去重
     const uniqueGuids = [...new Set(allGuids)];
-    const uniqueRefCodes = [...new Set(allRefCodes)];
+    const uniqueRefCodes = [...new Set(allMcCodes)];
     
     if (uniqueGuids.length > 0 || uniqueRefCodes.length > 0) {
       // 传递对象格式 { guids, refCodes }
+      // 注意：这里 refCodes 传递的是 mcCode (BIM 关联编码)
       emit('highlight-guids', { guids: uniqueGuids, refCodes: uniqueRefCodes });
       
       const count = uniqueGuids.length + uniqueRefCodes.length;
@@ -330,7 +350,7 @@ async function highlightInViewer() {
       ElMessage.warning(t('rds.noGuidFound'));
     }
   } catch (error) {
-    console.error('获取 BIM GUID 失败:', error);
+    console.error('收集高亮数据失败:', error);
     ElMessage.error(t('rds.highlightFailed'));
   }
 }

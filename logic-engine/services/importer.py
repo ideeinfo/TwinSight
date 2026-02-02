@@ -125,10 +125,11 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
     
     # 使用 upsert 语法处理重复记录
     insert_query = text("""
-        INSERT INTO rds_objects (file_id, object_type, ref_code, name, metadata)
-        VALUES (:file_id, :object_type, :ref_code, :name, CAST(:metadata AS jsonb))
+        INSERT INTO rds_objects (file_id, object_type, ref_code, name, mc_code, metadata)
+        VALUES (:file_id, :object_type, :ref_code, :name, :mc_code, CAST(:metadata AS jsonb))
         ON CONFLICT (file_id, object_type, ref_code) DO UPDATE SET
             name = EXCLUDED.name,
+            mc_code = EXCLUDED.mc_code,
             metadata = EXCLUDED.metadata,
             updated_at = NOW()
         RETURNING id
@@ -147,6 +148,7 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
         'object_type': object_type,
         'ref_code': ref_code,
         'name': obj_data.get('name', ''),
+        'mc_code': obj_data.get('asset_code', ''),
         'metadata': metadata
     })
     

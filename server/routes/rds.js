@@ -108,7 +108,9 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
                 a.aspect_type,
                 a.hierarchy_level as level,
                 o.name,
-                o.bim_guid
+                o.bim_guid,
+                o.mc_code,
+                o.ref_code
             FROM rds_aspects a
             JOIN rds_objects o ON a.object_id = o.id
             WHERE o.file_id = $1
@@ -148,6 +150,8 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
             level: node.level,
             aspectType: node.aspect_type,
             bimGuid: node.bim_guid,
+            mcCode: node.mc_code, // BIM 关联编码
+            refCode: node.ref_code, // 兼容性：系统内部编码
             children: node.children.map(formatNode)
         });
 
