@@ -100,68 +100,63 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
     const { aspectType } = req.query;
 
     try {
-        // 使用递归 CTE 构建层级树
+        // 方案 B: 查询所有节点，在内存中构建树（避免 SQL 递归性能问题）
         const query = `
-            WITH RECURSIVE tree AS (
-                -- 根节点（没有父节点的节点）
-                SELECT 
-                    a.full_code as code,
-                    a.parent_code,
-                    a.aspect_type,
-                    a.hierarchy_level as level,
-                    o.name,
-                    o.bim_guid,
-                    ARRAY[a.full_code]::text[] as path
-                FROM rds_aspects a
-                JOIN rds_objects o ON a.object_id = o.id
-                WHERE o.file_id = $1 
-                    AND a.parent_code IS NULL
-                    ${aspectType ? 'AND a.aspect_type = $2' : ''}
-                
-                UNION ALL
-                
-                -- 递归查找子节点
-                SELECT 
-                    a.full_code as code,
-                    a.parent_code,
-                    a.aspect_type,
-                    a.hierarchy_level as level,
-                    o.name,
-                    o.bim_guid,
-                    t.path || a.full_code::text
-                FROM rds_aspects a
-                JOIN rds_objects o ON a.object_id = o.id
-                JOIN tree t ON a.parent_code = t.code
-                WHERE o.file_id = $1
-                -- 防止死循环：确保当前节点不在路径中
-                AND NOT a.full_code = ANY(t.path)
-            )
-            SELECT * FROM tree ORDER BY path;
+            SELECT 
+                a.full_code as code,
+                a.parent_code,
+                a.aspect_type,
+                a.hierarchy_level as level,
+                o.name,
+                o.bim_guid
+            FROM rds_aspects a
+            JOIN rds_objects o ON a.object_id = o.id
+            WHERE o.file_id = $1
+            ${aspectType ? 'AND a.aspect_type = $2' : ''}
+            ORDER BY a.hierarchy_level, a.full_code
         `;
 
         const params = aspectType ? [fileId, aspectType] : [fileId];
         const result = await db.query(query, params);
+        const allNodes = result.rows;
 
         // 构建树形结构
-        const buildTree = (nodes, parentCode = null) => {
-            return nodes
-                .filter(n => n.parent_code === parentCode)
-                .map(node => ({
-                    code: node.code,
-                    name: node.name,
-                    level: node.level,
-                    aspectType: node.aspect_type,
-                    bimGuid: node.bim_guid,
-                    children: buildTree(nodes, node.code)
-                }));
-        };
+        const nodeMap = new Map();
+        const rootNodes = [];
 
-        const tree = buildTree(result.rows);
+        // 1. 初始化所有节点
+        allNodes.forEach(node => {
+            node.children = [];
+            nodeMap.set(node.code, node);
+        });
+
+        // 2. 建立父子关系
+        allNodes.forEach(node => {
+            if (node.parent_code && nodeMap.has(node.parent_code)) {
+                const parent = nodeMap.get(node.parent_code);
+                parent.children.push(node);
+            } else {
+                // 没有父节点，或者父节点不在当前查询结果中
+                rootNodes.push(node);
+            }
+        });
+
+        // 3. 格式化输出
+        const formatNode = (node) => ({
+            code: node.code,
+            name: node.name,
+            level: node.level,
+            aspectType: node.aspect_type,
+            bimGuid: node.bim_guid,
+            children: node.children.map(formatNode)
+        });
+
+        const treeData = rootNodes.map(formatNode);
 
         res.json({
             success: true,
-            data: tree,
-            total: result.rowCount
+            data: treeData,
+            total: allNodes.length
         });
     } catch (error) {
         console.error('获取层级树失败:', error);
