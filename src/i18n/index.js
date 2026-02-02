@@ -525,6 +525,32 @@ const messages = {
     userManual: {
       title: '操作手册',
       tableOfContents: '目录'
+    },
+    rds: {
+      aspectTree: 'RDS 方面树',
+      refreshTree: '刷新树',
+      noData: '暂无 RDS 数据',
+      loadFailed: '加载方面树失败',
+      highlightInModel: '模型高亮',
+      traceUpstream: '追溯上游',
+      highlightCount: '已高亮 {count} 个构件',
+      noGuidFound: '未找到关联的 BIM 构件',
+      highlightFailed: '模型高亮失败',
+      traceComplete: '追溯完成，共 {count} 个节点',
+      traceFailed: '拓扑追溯失败',
+      function: '工艺功能',
+      location: '位置',
+      power: '电源',
+      importExcel: '导入 Excel',
+      parseCode: '解析编码',
+      codeParseResult: '编码解析结果',
+      aspectType: '方面类型',
+      hierarchyLevel: '层级深度',
+      parentCode: '父级编码',
+      fullCode: '完整编码',
+      serviceStatus: '服务状态',
+      logicEngineOnline: 'Logic Engine 在线',
+      logicEngineOffline: 'Logic Engine 离线'
     }
   },
   en: {
@@ -1055,6 +1081,32 @@ const messages = {
     userManual: {
       title: 'User Manual',
       tableOfContents: 'Table of Contents'
+    },
+    rds: {
+      aspectTree: 'RDS Aspect Tree',
+      refreshTree: 'Refresh Tree',
+      noData: 'No RDS data available',
+      loadFailed: 'Failed to load aspect tree',
+      highlightInModel: 'Highlight in Model',
+      traceUpstream: 'Trace Upstream',
+      highlightCount: 'Highlighted {count} components',
+      noGuidFound: 'No associated BIM components found',
+      highlightFailed: 'Model highlight failed',
+      traceComplete: 'Trace complete, {count} nodes found',
+      traceFailed: 'Topology trace failed',
+      function: 'Function',
+      location: 'Location',
+      power: 'Power',
+      importExcel: 'Import Excel',
+      parseCode: 'Parse Code',
+      codeParseResult: 'Code Parse Result',
+      aspectType: 'Aspect Type',
+      hierarchyLevel: 'Hierarchy Level',
+      parentCode: 'Parent Code',
+      fullCode: 'Full Code',
+      serviceStatus: 'Service Status',
+      logicEngineOnline: 'Logic Engine Online',
+      logicEngineOffline: 'Logic Engine Offline'
     }
   }
 }
