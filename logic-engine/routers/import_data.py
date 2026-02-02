@@ -103,6 +103,8 @@ async def import_excel_to_db(
                 code_val = row.get('设备编码', row.get('DeviceCode', ''))
                 asset_code = str(code_val).strip() if pd.notna(code_val) else ""
                 if asset_code.lower() == 'nan': asset_code = ""
+                # 特殊补丁：如果设备编码等于名称，视为无效编码（可能是误填），强制分离
+                if asset_code == name: asset_code = ""
                 
                 # 生成唯一标识 ref_code
                 if asset_code:
