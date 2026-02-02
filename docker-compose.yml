@@ -104,15 +104,14 @@ services:
     container_name: twinsight-logic-engine
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-twinsight}
+      # 使用容器名 twinsight-postgres 或宿主机 IP
+      # 服务器上 postgres 容器名为 twinsight-postgres
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@twinsight-postgres:5432/${DB_NAME:-twinsight}
       TZ: Asia/Shanghai
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
-      - twinsight-network
+      - twinsight-lan_twinsight-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -230,6 +229,9 @@ volumes:
 networks:
   twinsight-network:
     driver: bridge
+  # 服务器上已存在的网络（用于 logic-engine 连接 postgres）
+  twinsight-lan_twinsight-network:
+    external: true
 
 # ============================================
 # 服务说明:
