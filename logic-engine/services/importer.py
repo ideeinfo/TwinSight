@@ -123,9 +123,14 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
     # 生成参考编码（优先使用设备编码，否则用名称）
     ref_code = obj_data.get('asset_code', '') or obj_data.get('name', '')
     
+    # 使用 upsert 语法处理重复记录
     insert_query = text("""
         INSERT INTO rds_objects (file_id, object_type, ref_code, name, metadata)
         VALUES (:file_id, :object_type, :ref_code, :name, CAST(:metadata AS jsonb))
+        ON CONFLICT (file_id, object_type, ref_code) DO UPDATE SET
+            name = EXCLUDED.name,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
         RETURNING id
     """)
     
