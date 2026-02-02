@@ -12,9 +12,9 @@ services:
     container_name: twinsight-postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: twinsight
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-twinsight}
       TZ: Asia/Shanghai
     ports:
       - "5432:5432"
@@ -22,6 +22,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - twinsight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d twinsight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # InfluxDB 2.x - 时序数据库 (使用现有容器配置，保留历史数据)
   influxdb:
@@ -99,12 +104,13 @@ services:
     container_name: twinsight-logic-engine
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/twinsight
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-twinsight}
       TZ: Asia/Shanghai
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - twinsight-network
     healthcheck:
