@@ -4,7 +4,44 @@
  * 提供 IEC 81346-12 工程数据管理相关接口封装
  */
 
-import request from './request'
+// API 基础 URL
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+
+// 简单的请求封装
+const request = {
+    async get(url) {
+        try {
+            const response = await fetch(`${API_BASE}${url}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('RDS API GET 请求失败:', error);
+            return { success: false, error: error.message };
+        }
+    },
+    async post(url, body, options = {}) {
+        try {
+            const isFormData = body instanceof FormData;
+            const response = await fetch(`${API_BASE}${url}`, {
+                method: 'POST',
+                headers: isFormData ? {} : {
+                    'Content-Type': 'application/json'
+                },
+                body: isFormData ? body : JSON.stringify(body)
+            });
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('RDS API POST 请求失败:', error);
+            return { success: false, error: error.message };
+        }
+    }
+};
 
 /**
  * RDS API URL 前缀
