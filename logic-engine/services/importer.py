@@ -179,7 +179,7 @@ def _create_aspect(session, object_id: int, aspect: Dict) -> None:
             :object_id, :aspect_type, :full_code, :prefix,
             :parent_code, :hierarchy_level
         )
-        ON CONFLICT (object_id, full_code) DO NOTHING
+        ON CONFLICT (object_id, aspect_type, full_code) DO NOTHING
     """)
     
     session.execute(insert_query, {
