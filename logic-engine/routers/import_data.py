@@ -106,21 +106,16 @@ async def import_excel_to_db(
                 
                 # 生成唯一标识 ref_code
                 if asset_code:
-                    # 检查是否已存在（处理 HSC0502 这种重复编码的情况）
-                    if asset_code in explicit_objects_map:
-                        # 如果已存在，则强制添加后缀以分离对象
-                        ref_code = f"{asset_code}_{sheet_name}_{idx}"
-                    else:
-                        ref_code = asset_code
+                    # 有设备编码：严格使用设备编码作为 ID，允许重复（意味着同一设备的多行定义）
+                    ref_code = asset_code
                 elif name:
-                    # 无设备编码，使用名称+位置
+                    # 无设备编码：使用 Name + Sheet + RowIndex 确保物理独立性
+                    # (这是为了解决 115 个开关如果没有编码会被错误合并成 1 个的问题)
                     ref_code = f"{name}_{sheet_name}_{idx}"
                 else:
                     continue # 跳过空行
                 
-                # 再次检查最终的 ref_code 是否冲突（理论上加了 idx 不会冲突，但为了保险）
-                if ref_code in explicit_objects_map:
-                     ref_code = f"{ref_code}_{idx}"
+
 
                 obj = {
                     'sheet': sheet_name,
@@ -151,7 +146,16 @@ async def import_excel_to_db(
                                 })
                 
                 if obj['aspects']:
-                    explicit_objects_map[ref_code] = obj
+                    if ref_code in explicit_objects_map:
+                        # 核心逻辑变更：如果对象已存在，则合并 aspects (一物多面)
+                        existing_obj = explicit_objects_map[ref_code]
+                        existing_obj['aspects'].extend(obj['aspects'])
+                        # 更新属性为最新一行的值（如名称修正）
+                        existing_obj['name'] = obj['name']
+                        existing_obj['sheet'] = obj['sheet']
+                        existing_obj['row_index'] = obj['row_index']
+                    else:
+                        explicit_objects_map[ref_code] = obj
                     
             except Exception as e:
                 parse_errors.append(f"Sheet '{sheet_name}' 行 {idx}: {str(e)}")
