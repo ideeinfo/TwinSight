@@ -1738,24 +1738,28 @@ const onModelSelectionChanged = (dbIds) => {
  * 处理 RDS 编码高亮请求
  * 将选中编码对应的 BIM GUID 转换为 dbId 并在模型中隔离显示
  */
-const onHighlightGuids = async (guids) => {
-  if (!guids || guids.length === 0) return;
+const onHighlightGuids = async (payload) => {
+  // 兼容旧格式(数组)和新格式({guids, refCodes})
+  let guids = [];
+  let refCodes = [];
+
+  if (Array.isArray(payload)) {
+      guids = payload;
+  } else if (payload) {
+      guids = payload.guids || [];
+      refCodes = payload.refCodes || [];
+  }
   
-  console.log(`🔍 [RDS] 高亮 ${guids.length} 个构件`);
+  if (guids.length === 0 && refCodes.length === 0) return;
   
-  if (mainViewRef.value && mainViewRef.value.isolateByExternalIds) {
-    // 使用 External ID（即 BIM GUID）隔离构件
+  console.log(`🔍 [RDS] 高亮请求: ${guids.length} GUIDs, ${refCodes.length} RefCodes`);
+  
+  if (mainViewRef.value && mainViewRef.value.highlightBimObjects) {
+      // 优先使用新方法
+      mainViewRef.value.highlightBimObjects(guids, refCodes);
+  } else if (mainViewRef.value && mainViewRef.value.isolateByExternalIds && guids.length > 0) {
+    // 降级：仅使用 External ID
     mainViewRef.value.isolateByExternalIds(guids);
-  } else if (mainViewRef.value && mainViewRef.value.getDbIdsByExternalIds) {
-    // 转换 GUID 为 dbId 后隔离
-    try {
-      const dbIds = await mainViewRef.value.getDbIdsByExternalIds(guids);
-      if (dbIds && dbIds.length > 0 && mainViewRef.value.isolateObjects) {
-        mainViewRef.value.isolateObjects(dbIds);
-      }
-    } catch (error) {
-      console.error('转换 GUID 到 dbId 失败:', error);
-    }
   }
 };
 

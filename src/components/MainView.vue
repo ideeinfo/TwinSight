@@ -2098,8 +2098,75 @@ const refreshTimeSeriesData = async () => {
   }
 };
 
+// 12. 根据 GUID 和 RefCode 高亮构件
+const highlightBimObjects = (guids, refCodes) => {
+  if (!viewer || !viewer.model) return;
+
+  const targetDbIds = new Set();
+  
+  // 辅助函数：根据 dbIds 完成高亮
+  const finalize = () => {
+    const finalDbIds = Array.from(targetDbIds);
+    if (finalDbIds.length > 0) {
+      console.log(`🎯 高亮 ${finalDbIds.length} 个构件`);
+      isolateAndFocusAssets(finalDbIds);
+    } else {
+      ElMessage.warning('在模型中未找到对应构件');
+    }
+  };
+
+  // 1. 处理 GUIDs
+  if (guids && guids.length > 0) {
+    viewer.model.getExternalIdMapping((mapping) => {
+      guids.forEach(guid => {
+        if (mapping[guid]) targetDbIds.add(mapping[guid]);
+      });
+      processRefCodes();
+    }, (err) => {
+       console.error('获取 ExternalIdMapping 失败', err);
+       processRefCodes();
+    });
+  } else {
+      processRefCodes();
+  }
+
+  // 2. 处理 RefCodes
+  function processRefCodes() {
+    if (!refCodes || refCodes.length === 0) {
+      finalize();
+      return;
+    }
+
+    // 为了提高效率，只搜索特定属性
+    const searchAttributes = ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number'];
+    
+    // 如果 refCodes 数量过多，只取前 50 个避免卡顿
+    const codesToSearch = refCodes.length > 50 ? refCodes.slice(0, 50) : refCodes;
+    if (refCodes.length > 50) {
+       ElMessage.info(`选中项过多，仅搜索前 50 个构件`);
+    }
+
+    const searchPromises = codesToSearch.map(code => {
+      return new Promise((resolve) => {
+        viewer.search(code, (dbIds) => {
+           dbIds.forEach(id => targetDbIds.add(id));
+           resolve();
+        }, (err) => {
+           // console.warn(`搜索编码 ${code} 失败`, err);
+           resolve();
+        }, searchAttributes);
+      });
+    });
+
+    Promise.all(searchPromises).then(() => {
+      finalize();
+    });
+  }
+};
+
 // 暴露方法给父组件
 defineExpose({
+  highlightBimObjects,
   resizeViewer,
   loadNewModel,
   // 模型就绪后执行回调（如果已就绪则立即执行）

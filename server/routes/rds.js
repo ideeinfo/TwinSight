@@ -282,46 +282,44 @@ router.get('/bim/:fileId/guids', async (req, res) => {
 
     try {
         let query;
+        const params = [fileId, code];
 
         if (includeChildren === 'true') {
-            // 包含子节点的查询
+            // 使用 LIKE 查询替代递归 CTE (利用 RDS 编码的层级特性)
+            // 注意：需要转义 code 中的特殊字符（如下划线），但 RDS 编码通常比较规范
             query = `
-                WITH RECURSIVE subtree AS (
-                    SELECT full_code FROM rds_aspects 
-                    WHERE full_code = $2 
-                    AND object_id IN (SELECT id FROM rds_objects WHERE file_id = $1)
-                    
-                    UNION ALL
-                    
-                    SELECT a.full_code 
-                    FROM rds_aspects a
-                    JOIN subtree s ON a.parent_code = s.full_code
-                    WHERE a.object_id IN (SELECT id FROM rds_objects WHERE file_id = $1)
-                )
-                SELECT DISTINCT o.bim_guid
+                SELECT DISTINCT o.bim_guid, o.ref_code
                 FROM rds_objects o
                 JOIN rds_aspects a ON a.object_id = o.id
                 WHERE o.file_id = $1 
-                    AND a.full_code IN (SELECT full_code FROM subtree)
-                    AND o.bim_guid IS NOT NULL
+                    AND (a.full_code = $2 OR a.full_code LIKE $2 || '.%')
             `;
         } else {
             // 仅当前节点
             query = `
-                SELECT DISTINCT o.bim_guid
+                SELECT DISTINCT o.bim_guid, o.ref_code
                 FROM rds_objects o
                 JOIN rds_aspects a ON a.object_id = o.id
                 WHERE o.file_id = $1 
                     AND a.full_code = $2
-                    AND o.bim_guid IS NOT NULL
             `;
         }
 
-        const result = await db.query(query, [fileId, code]);
+        const result = await db.query(query, params);
+
+        // 分离 GUID 和 RefCodes
+        const guids = result.rows
+            .map(r => r.bim_guid)
+            .filter(g => g); // 过滤 null/empty
+
+        const refCodes = result.rows
+            .map(r => r.ref_code)
+            .filter(c => c); // 过滤 null/empty
 
         res.json({
             success: true,
-            guids: result.rows.map(r => r.bim_guid),
+            guids: guids,
+            refCodes: [...new Set(refCodes)], // 去重
             total: result.rowCount
         });
     } catch (error) {

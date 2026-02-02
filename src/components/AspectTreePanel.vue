@@ -304,22 +304,28 @@ async function highlightInViewer() {
   if (selectedCodes.value.length === 0) return;
   
   try {
-    // 获取所有选中编码对应的 BIM GUID
+    // 获取所有选中编码对应的 BIM GUID 和 RefCode
     const allGuids = [];
+    const allRefCodes = [];
     
     for (const code of selectedCodes.value) {
       const response = await getBimGuidsByCode(props.fileId, code, true);
-      if (response.success && response.guids) {
-        allGuids.push(...response.guids);
+      if (response.success) {
+        if (response.guids) allGuids.push(...response.guids);
+        if (response.refCodes) allRefCodes.push(...response.refCodes);
       }
     }
     
     // 去重
     const uniqueGuids = [...new Set(allGuids)];
+    const uniqueRefCodes = [...new Set(allRefCodes)];
     
-    if (uniqueGuids.length > 0) {
-      emit('highlight-guids', uniqueGuids);
-      ElMessage.success(t('rds.highlightCount', { count: uniqueGuids.length }));
+    if (uniqueGuids.length > 0 || uniqueRefCodes.length > 0) {
+      // 传递对象格式 { guids, refCodes }
+      emit('highlight-guids', { guids: uniqueGuids, refCodes: uniqueRefCodes });
+      
+      const count = uniqueGuids.length + uniqueRefCodes.length;
+      ElMessage.success(t('rds.highlightCount', { count: count }));
     } else {
       ElMessage.warning(t('rds.noGuidFound'));
     }
