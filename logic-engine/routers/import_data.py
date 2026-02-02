@@ -104,16 +104,27 @@ async def import_excel_to_db(
                 asset_code = str(code_val).strip() if pd.notna(code_val) else ""
                 if asset_code.lower() == 'nan': asset_code = ""
                 
-                # 生成唯一标识 ref_code (优先用设备编码，其次用名称+行号防止重名)
+                # 生成唯一标识 ref_code
                 if asset_code:
-                    ref_code = asset_code
+                    # 检查是否已存在（处理 HSC0502 这种重复编码的情况）
+                    if asset_code in explicit_objects_map:
+                        # 如果已存在，则强制添加后缀以分离对象
+                        ref_code = f"{asset_code}_{sheet_name}_{idx}"
+                    else:
+                        ref_code = asset_code
                 elif name:
+                    # 无设备编码，使用名称+位置
                     ref_code = f"{name}_{sheet_name}_{idx}"
                 else:
                     continue # 跳过空行
                 
+                # 再次检查最终的 ref_code 是否冲突（理论上加了 idx 不会冲突，但为了保险）
+                if ref_code in explicit_objects_map:
+                     ref_code = f"{ref_code}_{idx}"
+
                 obj = {
                     'sheet': sheet_name,
+
                     'row_index': int(idx),
                     'name': name,
                     'asset_code': asset_code,

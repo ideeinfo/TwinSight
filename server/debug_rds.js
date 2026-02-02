@@ -18,10 +18,12 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const fileId = 6; // Based on user context
+        // Check available file_ids
+        const resFiles = await client.query('SELECT DISTINCT file_id, count(*) FROM rds_objects GROUP BY file_id');
+        console.log('File IDs present:', resFiles.rows);
 
-        // 1. 检查总数
-        const resObj = await client.query('SELECT count(*) FROM rds_objects WHERE file_id = $1', [fileId]);
+        const fileId = 6; // Keep 6 for now, but look at output
+
         console.log('Total Objects:', resObj.rows[0].count);
 
         const resAsp = await client.query(`
@@ -38,12 +40,24 @@ async function run() {
         `, [fileId]);
         console.log('=TA001 Object (Name search):', resTA001Name.rows);
 
-        // 3. 检查特定节点 "电气系统" by Name
-        const resElecName = await client.query(`
-            SELECT id, name, object_type, ref_code FROM rds_objects 
-            WHERE file_id = $1 AND name LIKE '%电气系统%'
+        // 4. Check for System Objects (Virtual Nodes)
+        const resSystem = await client.query(`
+            SELECT id, name, ref_code, object_type FROM rds_objects 
+            WHERE file_id = $1 AND object_type = 'system'
         `, [fileId]);
-        console.log('Electrical System Object (Name search):', resElecName.rows);
+        console.log('System Objects Found:', resSystem.rows.length);
+        if (resSystem.rows.length > 0) console.log(resSystem.rows[0]);
+
+        // 5. Check "Switch" details
+        const resSwitches = await client.query(`
+            SELECT id, name, ref_code, object_type, metadata FROM rds_objects 
+            WHERE file_id = $1 AND name LIKE '%一位单控暗开关%'
+        `, [fileId]);
+        console.log('Switches Found Count:', resSwitches.rows.length);
+        if (resSwitches.rows.length > 0) {
+            console.log('Sample Switch:', resSwitches.rows[0]);
+        }
+
 
 
     } catch (e) {
