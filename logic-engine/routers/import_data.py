@@ -84,47 +84,107 @@ async def import_excel_to_db(
     parse_errors = []
     total_rows = 0
     
+    # 1. 收集所有 Excel 行定义的显式对象
+    # ref_code -> obj_data
+    explicit_objects_map = {} 
+    # 记录所有已被显式对象占用的 full_code，避免为它们创建虚拟父节点
+    known_codes = set() 
+    
     for sheet_name, df in dfs.items():
         total_rows += len(df)
         
         for idx, row in df.iterrows():
             try:
+                name = str(row.get('名称', row.get('Name', ''))).strip()
+                asset_code = str(row.get('设备编码', row.get('DeviceCode', ''))).strip()
+                
+                # 生成唯一标识 ref_code (优先用设备编码，其次用名称+行号防止重名)
+                if asset_code:
+                    ref_code = asset_code
+                elif name:
+                    ref_code = f"{name}_{sheet_name}_{idx}"
+                else:
+                    continue # 跳过空行
+                
                 obj = {
                     'sheet': sheet_name,
                     'row_index': int(idx),
-                    'name': str(row.get('名称', row.get('Name', ''))),
-                    'asset_code': str(row.get('设备编码', row.get('DeviceCode', ''))),
+                    'name': name,
+                    'asset_code': asset_code,
                     'aspects': []
                 }
                 
-                # 解析三种方面编码
+                # 解析三种方面编码（只取当前对象的直接编码）
                 for col_name, aspect_type in column_mapping.items():
                     code = row.get(col_name, '')
                     if pd.notna(code) and str(code).strip():
-                        # 清理编码（移除末尾的点号）
+                        # 清理编码
                         code_str = str(code).strip().rstrip('.')
                         if code_str:
-                            hierarchy = parser.expand_hierarchy(code_str)
-                            for h in hierarchy:
+                            # 仅解析当前编码结构，不展开层级
+                            parsed = parser.parse_code(code_str)
+                            if parsed:
+                                known_codes.add(parsed.full_code)
                                 obj['aspects'].append({
-                                    'full_code': h.full_code,
-                                    'prefix': h.prefix,
-                                    'aspect_type': h.aspect_type,
-                                    'hierarchy_level': h.hierarchy_level,
-                                    'parent_code': h.parent_code
+                                    'full_code': parsed.full_code,
+                                    'prefix': parsed.prefix,
+                                    'aspect_type': parsed.aspect_type,
+                                    'hierarchy_level': parsed.hierarchy_level,
+                                    'parent_code': parsed.parent_code
                                 })
                 
-                # 只有有方面编码的对象才导入
                 if obj['aspects']:
-                    parsed_objects.append(obj)
+                    explicit_objects_map[ref_code] = obj
                     
             except Exception as e:
                 parse_errors.append(f"Sheet '{sheet_name}' 行 {idx}: {str(e)}")
     
+    parsed_objects = list(explicit_objects_map.values())
+    
+    # 2. 补全缺失的父节点（虚拟对象）
+    virtual_objects = []
+    processed_virtual_codes = set()
+
+    for obj in parsed_objects:
+        for aspect in obj['aspects']:
+            # 展开该 aspect 的所有父级
+            hierarchy = parser.expand_hierarchy(aspect['full_code'])
+            
+            # 排除掉最后一个（即它自己）
+            parents = hierarchy[:-1] if hierarchy else []
+            
+            for p in parents:
+                if p.full_code in known_codes:
+                    continue # 已经有显式对象了，跳过
+                
+                if p.full_code in processed_virtual_codes:
+                    continue # 已经创建过虚拟对象了，跳过
+                
+                # 创建虚拟系统对象
+                virtual_obj = {
+                    'sheet': 'SYSTEM_GENERATED',
+                    'row_index': -1,
+                    'name': p.full_code,  # 虚拟对象默认用编码作为名称
+                    'asset_code': p.full_code, # 用 full_code 作为 ref_code
+                    'object_type': 'system',
+                    'aspects': [{
+                        'full_code': p.full_code,
+                        'prefix': p.prefix,
+                        'aspect_type': p.aspect_type,
+                        'hierarchy_level': p.hierarchy_level,
+                        'parent_code': p.parent_code
+                    }]
+                }
+                virtual_objects.append(virtual_obj)
+                processed_virtual_codes.add(p.full_code)
+    
+    # 合并显式对象和虚拟对象
+    all_objects = parsed_objects + virtual_objects
+    
     # 导入到数据库
     import_result = import_excel_data(
         file_id=file_id,
-        parsed_objects=parsed_objects,
+        parsed_objects=all_objects,
         create_power_relations=create_relations
     )
     
@@ -132,7 +192,8 @@ async def import_excel_to_db(
         'success': import_result.success,
         'statistics': {
             'total_rows': total_rows,
-            'parsed_objects': len(parsed_objects),
+            'parsed_objects': len(parsed_objects), # 只统计显式解析的对象
+            'virtual_objects_created': len(virtual_objects), # 额外统计虚拟对象
             'objects_created': import_result.objects_created,
             'aspects_created': import_result.aspects_created,
             'relations_created': import_result.relations_created
