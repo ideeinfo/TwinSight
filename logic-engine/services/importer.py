@@ -65,6 +65,8 @@ def import_excel_data(
             power_code_to_object: Dict[str, int] = {}
             
             for obj_data in parsed_objects:
+                # 使用 savepoint 让单个对象失败不影响其他对象
+                savepoint = session.begin_nested()
                 try:
                     # 1. 创建 rds_objects 记录
                     object_id = _create_object(
@@ -83,13 +85,16 @@ def import_excel_data(
                         if aspect.get('aspect_type') == 'power':
                             power_code_to_object[aspect['full_code']] = object_id
                     
+                    savepoint.commit()
+                    
                 except Exception as e:
+                    savepoint.rollback()
                     result.errors.append(
                         f"对象 '{obj_data.get('name', 'unknown')}': {str(e)}"
                     )
             
             # 3. 创建供电链路关系
-            if create_power_relations:
+            if create_power_relations and power_code_to_object:
                 relations_count = _create_power_relations(
                     session, 
                     power_code_to_object
