@@ -93,6 +93,25 @@ services:
 
   # ==================== AI 服务 ====================
 
+  # IEC 81346 Logic Engine - Python FastAPI 编码解析与拓扑分析服务
+  logic-engine:
+    build: ./logic-engine
+    container_name: twinsight-logic-engine
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/twinsight
+      TZ: Asia/Shanghai
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # n8n 工作流自动化平台
   n8n:
