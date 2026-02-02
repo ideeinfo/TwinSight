@@ -105,7 +105,7 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
                     a.hierarchy_level as level,
                     o.name,
                     o.bim_guid,
-                    ARRAY[a.full_code] as path
+                    ARRAY[a.full_code]::text[] as path
                 FROM rds_aspects a
                 JOIN rds_objects o ON a.object_id = o.id
                 WHERE o.file_id = $1 
@@ -122,7 +122,7 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
                     a.hierarchy_level as level,
                     o.name,
                     o.bim_guid,
-                    t.path || a.full_code
+                    t.path || a.full_code::text
                 FROM rds_aspects a
                 JOIN rds_objects o ON a.object_id = o.id
                 JOIN tree t ON a.parent_code = t.code
