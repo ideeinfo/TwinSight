@@ -95,8 +95,14 @@ async def import_excel_to_db(
         
         for idx, row in df.iterrows():
             try:
-                name = str(row.get('名称', row.get('Name', ''))).strip()
-                asset_code = str(row.get('设备编码', row.get('DeviceCode', ''))).strip()
+                # 安全获取值，处理 NaN
+                name_val = row.get('名称', row.get('Name', ''))
+                name = str(name_val).strip() if pd.notna(name_val) else ""
+                if name.lower() == 'nan': name = ""
+
+                code_val = row.get('设备编码', row.get('DeviceCode', ''))
+                asset_code = str(code_val).strip() if pd.notna(code_val) else ""
+                if asset_code.lower() == 'nan': asset_code = ""
                 
                 # 生成唯一标识 ref_code (优先用设备编码，其次用名称+行号防止重名)
                 if asset_code:
