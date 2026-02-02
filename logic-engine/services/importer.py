@@ -120,22 +120,23 @@ def _create_object(session, file_id: int, obj_data: Dict) -> int:
     
     insert_query = text("""
         INSERT INTO rds_objects (file_id, object_type, ref_code, name, metadata)
-        VALUES (:file_id, :object_type, :ref_code, :name, :metadata::jsonb)
+        VALUES (:file_id, :object_type, :ref_code, :name, CAST(:metadata AS jsonb))
         RETURNING id
     """)
     
-    metadata = {
+    import json
+    metadata = json.dumps({
         'sheet': obj_data.get('sheet', ''),
         'row_index': obj_data.get('row_index', 0),
         'source': 'excel_import'
-    }
+    })
     
     result = session.execute(insert_query, {
         'file_id': file_id,
         'object_type': object_type,
         'ref_code': ref_code,
         'name': obj_data.get('name', ''),
-        'metadata': str(metadata).replace("'", '"')
+        'metadata': metadata
     })
     
     return result.fetchone()[0]
