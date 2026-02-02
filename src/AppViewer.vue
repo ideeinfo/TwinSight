@@ -58,6 +58,13 @@
               @file-activated="onFileActivated"
               @open-data-export="openDataExportPanel"
             />
+            <AspectTreePanel
+              v-else-if="currentView === 'rds'"
+              ref="aspectTreePanelRef"
+              :file-id="activeFileId"
+              @highlight-guids="onHighlightGuids"
+              @trace-result="onTraceResult"
+            />
           </div>
         </div>
 
@@ -181,6 +188,7 @@ import LeftPanel from './components/LeftPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import SpacePanel from './components/SpacePanel.vue';
 import FilePanel from './components/FilePanel.vue';
+import AspectTreePanel from './components/AspectTreePanel.vue';
 import DocumentManager from './components/DocumentManager.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
@@ -261,6 +269,7 @@ const assetList = ref([]);
 const mainViewRef = ref(null);
 const assetPanelRef = ref(null);
 const spacePanelRef = ref(null);
+const aspectTreePanelRef = ref(null);
 const selectedRoomProperties = ref(null);
 const selectedObjectIds = ref([]); // 当前选中的对象ID列表（用于批量编辑）
 const chartData = ref([]);
@@ -1720,6 +1729,52 @@ const onModelSelectionChanged = (dbIds) => {
     
     // 🔑 加载空间属性
     loadSpaceProperties(dbIds);
+  }
+};
+
+// ==================== RDS 方面树事件处理 ====================
+
+/**
+ * 处理 RDS 编码高亮请求
+ * 将选中编码对应的 BIM GUID 转换为 dbId 并在模型中隔离显示
+ */
+const onHighlightGuids = async (guids) => {
+  if (!guids || guids.length === 0) return;
+  
+  console.log(`🔍 [RDS] 高亮 ${guids.length} 个构件`);
+  
+  if (mainViewRef.value && mainViewRef.value.isolateByExternalIds) {
+    // 使用 External ID（即 BIM GUID）隔离构件
+    mainViewRef.value.isolateByExternalIds(guids);
+  } else if (mainViewRef.value && mainViewRef.value.getDbIdsByExternalIds) {
+    // 转换 GUID 为 dbId 后隔离
+    try {
+      const dbIds = await mainViewRef.value.getDbIdsByExternalIds(guids);
+      if (dbIds && dbIds.length > 0 && mainViewRef.value.isolateObjects) {
+        mainViewRef.value.isolateObjects(dbIds);
+      }
+    } catch (error) {
+      console.error('转换 GUID 到 dbId 失败:', error);
+    }
+  }
+};
+
+/**
+ * 处理拓扑追溯结果
+ * 显示追溯路径上的所有节点
+ */
+const onTraceResult = (nodes) => {
+  if (!nodes || nodes.length === 0) return;
+  
+  console.log(`🔗 [RDS] 追溯结果: ${nodes.length} 个节点`);
+  
+  // 收集所有节点的 BIM GUID
+  const allGuids = nodes
+    .filter(node => node.bim_guid)
+    .map(node => node.bim_guid);
+  
+  if (allGuids.length > 0) {
+    onHighlightGuids(allGuids);
   }
 };
 

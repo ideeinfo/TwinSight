@@ -66,6 +66,7 @@ const messages = {
       ai: 'AI 分析',
       history: '历史',
       inventory: '列表',
+      rds: '编码',
       copyStreamUrl: '复制数据接入 URL',
       urlCopied: 'URL 已复制到剪贴板'
     },
@@ -622,6 +623,7 @@ const messages = {
       ai: 'AI Analysis',
       history: 'History',
       inventory: 'Inventory',
+      rds: 'RDS',
       copyStreamUrl: 'Copy Stream URL',
       urlCopied: 'URL copied to clipboard'
     },

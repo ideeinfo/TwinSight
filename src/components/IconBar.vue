@@ -25,16 +25,17 @@
         </svg>
         <span class="label">{{ t('leftPanel.spaces') }}</span>
       </div>
-      <div class="nav-item disabled">
+      <div class="nav-item" :class="{ 'active-blue': currentView === 'rds' }" @click="$emit('switch-view', 'rds')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="5" r="3" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="12" x2="6" y2="15" />
-          <line x1="12" y1="12" x2="18" y2="15" />
-          <circle cx="6" cy="18" r="3" />
-          <circle cx="18" cy="18" r="3" />
+          <!-- 树形结构图标 - 表示编码层级 -->
+          <line x1="6" y1="4" x2="6" y2="20" />
+          <line x1="6" y1="8" x2="18" y2="8" />
+          <line x1="6" y1="14" x2="14" y2="14" />
+          <circle cx="18" cy="8" r="2" />
+          <circle cx="14" cy="14" r="2" />
+          <circle cx="6" cy="20" r="2" />
         </svg>
-        <span class="label">{{ t('leftPanel.systems') }}</span>
+        <span class="label">{{ t('leftPanel.rds') }}</span>
       </div>
       <div class="nav-item" :class="{ 'active-blue': currentView === 'connect' }" @click="$emit('switch-view', 'connect')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
