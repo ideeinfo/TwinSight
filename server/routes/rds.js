@@ -127,6 +127,8 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
                 JOIN rds_objects o ON a.object_id = o.id
                 JOIN tree t ON a.parent_code = t.code
                 WHERE o.file_id = $1
+                -- 防止死循环：确保当前节点不在路径中
+                AND NOT a.full_code = ANY(t.path)
             )
             SELECT * FROM tree ORDER BY path;
         `;
