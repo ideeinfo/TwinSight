@@ -128,6 +128,9 @@
       </template>
     </el-dialog>
 
+    <!-- 用于上传 RDS 数据的隐藏文件输入框 -->
+    <input ref="excelInput" type="file" accept=".xlsx,.xls" hidden @change="onExcelSelect" />
+
     <!-- 上下文菜单 -->
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
@@ -137,6 +140,15 @@
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
           {{ t('filePanel.edit') }}
+        </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleUploadRDS">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="14 2 14 8 20 8" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <line x1="12" y1="18" x2="12" y2="12" />
+            <line x1="9" y1="15" x2="15" y2="15" />
+          </svg>
+          {{ t('filePanel.uploadRDS') }}
         </div>
         <div v-if="authStore.hasPermission('model:activate')" class="context-menu-item" @click="handleActivate">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -263,6 +275,7 @@ import ConfirmDialog from './ConfirmDialog.vue';
 
 
 import { useAuthStore } from '../stores/auth';
+import { importExcelToDb } from '../api/rds';
 
 const authStore = useAuthStore();
 const { t } = useI18n();
@@ -289,6 +302,7 @@ const uploadProgress = ref(0);
 const isDragging = ref(false);
 const isExtracting = ref(false);
 const fileInput = ref(null);
+const excelInput = ref(null);  // RDS Excel 上传输入框
 const isEditDialogOpen = ref(false);
 const isSaving = ref(false);
 const deleteKnowledgeBase = ref(true);
@@ -664,7 +678,53 @@ const onGlobalClick = () => {
   hideContextMenu();
 };
 
+const handleUploadRDS = () => {
+  const file = contextMenu.value.file;
+  hideContextMenu();
+  // 触发文件选择
+  excelInput.value?.click();
+};
 
+const onExcelSelect = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const targetFile = contextMenu.value.file;
+  const targetFileId = targetFile.id;
+
+  // 清除 input 值，允许重复选择同一文件
+  e.target.value = '';
+
+  try {
+    const confirmed = await showDialog({
+      type: 'confirm',
+      title: t('filePanel.uploadRDS'),
+      message: t('filePanel.confirmUploadRDS', { fileName: file.name, modelName: targetFile.title }),
+      danger: true,
+      confirmText: t('common.confirm')
+    });
+
+    if (!confirmed) return;
+
+    isLoading.value = true;
+    
+    // 调用 API
+    const response = await importExcelToDb(targetFileId, file, true);
+    
+    if (response.success) {
+      // 成功提示
+      const stats = `对象: ${response.objects_created}, 方面: ${response.aspects_created}, 关系: ${response.relations_created}`;
+      await showAlert(t('filePanel.uploadRDSSuccess') + '\n\n' + stats, t('common.success'));
+    } else {
+      await showAlert(t('filePanel.uploadRDSFailed') + '\n' + (response.error || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('RDS 上传异常:', error);
+    await showAlert(t('filePanel.uploadRDSFailed') + ': ' + error.message);
+  } finally {
+    isLoading.value = false;
+  }
+};
 
 const handlePanoCompare = () => {
   const file = contextMenu.value.file;

@@ -12,7 +12,13 @@
 
 import express from 'express';
 import axios from 'axios';
+import multer from 'multer';
+import FormData from 'form-data';
 import db from '../db/index.js';
+
+// 配置 multer (使用内存存储，因为我们要直接转发到 logic engine)
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 const router = express.Router();
 
@@ -361,29 +367,52 @@ router.get('/health', async (req, res) => {
 /**
  * POST /api/rds/import/:fileId
  * 上传 Excel 并导入到数据库（代理到 Logic Engine）
- * 
- * 注意：需要使用 multer 或 formidable 处理文件上传
  */
-router.post('/import/:fileId', async (req, res) => {
+router.post('/import/:fileId', upload.single('file'), async (req, res) => {
     const { fileId } = req.params;
+    // 注意：multer 解析完后参数在 req.query 或 req.body
     const { clearExisting, createRelations } = req.query;
 
-    try {
-        // 转发文件到 Logic Engine
-        // 需要在这里处理 multipart/form-data
-        const url = `${LOGIC_ENGINE_URL}/api/import/excel/${fileId}?clear_existing=${clearExisting || false}&create_relations=${createRelations !== 'false'}`;
+    if (!req.file) {
+        return res.status(400).json({ success: false, error: '未找到上传文件' });
+    }
 
-        // 简单代理 - 假设前端直接调用 Logic Engine
+    try {
+        console.log(`[RDS] 正在转发文件导入请求: fileId=${fileId}, clear=${clearExisting}`);
+
+        // 构造 FormData
+        const formData = new FormData();
+        // 将内存中的 buffer 作为文件流
+        formData.append('file', req.file.buffer, {
+            filename: req.file.originalname,
+            contentType: req.file.mimetype
+        });
+
+        // 构造 Logic Engine URL
+        // 注意 Logic Engine 期望的参数名是 clear_existing 和 create_relations
+        const targetUrl = `${LOGIC_ENGINE_URL}/api/import/excel/${fileId}?clear_existing=${clearExisting || true}&create_relations=${createRelations !== 'false'}`;
+
+        // 发送给 Logic Engine
+        const response = await axios.post(targetUrl, formData, {
+            headers: {
+                ...formData.getHeaders()
+            },
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity
+        });
+
         res.json({
-            success: false,
-            message: '请直接调用 Logic Engine 的导入接口',
-            directUrl: url
+            success: true,
+            ...response.data
         });
     } catch (error) {
-        console.error('导入失败:', error);
+        console.error('导入转发失败:', error.message);
+        if (error.response) {
+            console.error('Logic Engine Error:', error.response.data);
+        }
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.response?.data?.detail || error.message
         });
     }
 });

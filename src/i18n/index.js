@@ -404,7 +404,11 @@ const messages = {
       kbRecreateSuccess: '知识库已重建',
       kbCreateFailed: '知识库创建失败',
       syncKB: '同步知识库',
-      syncKBFailed: '同步失败'
+      syncKBFailed: '同步失败',
+      uploadRDS: '上传 RDS 数据',
+      confirmUploadRDS: '这将上传 "{fileName}" 并重建与模型 "{modelName}" 关联的 RDS 数据。现有数据将被清除。\n确认继续吗？',
+      uploadRDSSuccess: 'RDS 数据导入成功！',
+      uploadRDSFailed: 'RDS 数据导入失败'
     },
     influxConfig: {
       title: '时序数据库配置',
@@ -961,7 +965,11 @@ const messages = {
       kbRecreateSuccess: 'Knowledge base recreated successfully',
       kbCreateFailed: 'Failed to create knowledge base',
       syncKB: 'Sync Knowledge Base',
-      syncKBFailed: 'Sync failed'
+      syncKBFailed: 'Sync failed',
+      uploadRDS: 'Upload RDS Data',
+      confirmUploadRDS: 'This will upload "{fileName}" and rebuild RDS data for model "{modelName}". Existing data will be cleared.\nContinue?',
+      uploadRDSSuccess: 'RDS data imported successfully!',
+      uploadRDSFailed: 'RDS data import failed'
     },
     influxConfig: {
       title: 'Time Series Database Configuration',

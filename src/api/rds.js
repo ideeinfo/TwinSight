@@ -226,6 +226,26 @@ export async function importExcel(file) {
     })
 }
 
+
+/**
+ * 上传 Excel 文件并导入到数据库
+ * 
+ * @param {number} fileId - 模型文件 ID
+ * @param {File} file - Excel 文件
+ * @param {boolean} clearExisting - 是否清除旧数据 (默认 true)
+ * @returns {Promise<{success: boolean, objects_created: number, aspects_created: number}>}
+ */
+export async function importExcelToDb(fileId, file, clearExisting = true) {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    // 前端直接 POST /api/rds/import/:fileId
+    // 后端会转发给 Logic Engine
+    const url = `${RDS_BASE}/import/${fileId}?clearExisting=${clearExisting}`
+
+    return request.post(url, formData)
+}
+
 export default {
     AspectType,
     AspectTypeLabels,
@@ -240,5 +260,6 @@ export default {
     lookupByBimGuid,
     getBimGuidsByCode,
     checkHealth,
-    importExcel
+    importExcel,
+    importExcelToDb
 }
