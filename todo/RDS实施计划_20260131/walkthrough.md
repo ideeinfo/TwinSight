@@ -26,7 +26,7 @@
 | `logic-engine/services/iec_parser.py` | IEC 81346-12 编码解析器核心实现 |
 | `logic-engine/models/__init__.py` | 模型模块初始化 |
 | `logic-engine/models/schemas.py` | Pydantic 数据模型定义 |
-| `server/db/migrations/iec_81346_tables.sql` | 数据库迁移脚本 |
+| `server/migrations/008_rds_iec_81346.sql` | 数据库迁移脚本 |
 | `server/routes/rds.js` | Node.js RDS API 路由 |
 
 #### 修改的文件
