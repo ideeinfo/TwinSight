@@ -132,8 +132,8 @@ async def import_excel_to_db(
                 for col_name, aspect_type in column_mapping.items():
                     code = row.get(col_name, '')
                     if pd.notna(code) and str(code).strip():
-                        # 清理编码
-                        code_str = str(code).strip().rstrip('.')
+                        # 清理编码 (保留末尾点号，因为它是叶子节点标识)
+                        code_str = str(code).strip()
                         if code_str:
                             # 仅解析当前编码结构，不展开层级
                             parsed = parser.parse_code(code_str)

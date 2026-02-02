@@ -62,14 +62,13 @@ class IECParser:
         # 移除前缀，解析层级
         code_body = code[len(prefix):]
         
-        # 处理末尾可能的点号
-        if code_body.endswith('.'):
-            code_body = code_body[:-1]
+        # 分割段落，过滤掉中间的空段（如 ..），但保留末尾的点号语义
+        raw_segments = code_body.split('.')
+        segments = [s for s in raw_segments if s]
         
-        segments = code_body.split('.') if code_body else []
-        
-        # 过滤空段
-        segments = [s for s in segments if s]
+        # 如果原始编码以点号结尾，说明是叶子节点，追加一个空段落以区分父级
+        if code.endswith('.'):
+            segments.append('')
         
         if not segments:
             return None
