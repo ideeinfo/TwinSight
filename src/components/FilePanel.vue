@@ -713,7 +713,8 @@ const onExcelSelect = async (e) => {
     
     if (response.success) {
       // 成功提示
-      const stats = `对象: ${response.objects_created}, 方面: ${response.aspects_created}, 关系: ${response.relations_created}`;
+      const statistics = response.statistics || {};
+      const stats = `对象: ${statistics.objects_created || 0}, 方面: ${statistics.aspects_created || 0}, 关系: ${statistics.relations_created || 0}`;
       await showAlert(t('filePanel.uploadRDSSuccess') + '\n\n' + stats, t('common.success'));
     } else {
       await showAlert(t('filePanel.uploadRDSFailed') + '\n' + (response.error || 'Unknown error'));
