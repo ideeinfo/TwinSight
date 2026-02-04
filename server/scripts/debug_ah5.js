@@ -31,7 +31,28 @@ async function debugData() {
 
                 console.log(`Found ${resAspects.rowCount} aspects:`);
                 console.table(resAspects.rows);
+            } else {
+                console.log('No objects found with name "AH5柜出线"');
             }
+
+            // --- Investigate Missing Parent ---
+            console.log('\n--- Investigating Missing Parent "10KV出线1 AH5" / Code "===OY1.AH1" ---');
+
+            // Search by Name
+            const resParentName = await client.query(`SELECT * FROM rds_objects WHERE name LIKE '%10KV出线1 AH5%'`);
+            console.log(`Objects named "10KV出线1 AH5": ${resParentName.rowCount}`);
+            if (resParentName.rowCount > 0) console.table(resParentName.rows);
+
+            // Search by Code in Aspects
+            const resParentCode = await client.query(`
+                SELECT a.*, o.name as object_name 
+                FROM rds_aspects a
+                LEFT JOIN rds_objects o ON a.object_id = o.id
+                WHERE a.full_code LIKE '%===OY1.AH1%'
+            `);
+            console.log(`Aspects matching "%===OY1.AH1%": ${resParentCode.rowCount}`);
+            console.table(resParentCode.rows);
+
 
         } finally {
             client.release();

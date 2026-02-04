@@ -153,6 +153,7 @@ async def import_excel(file: UploadFile = File(...)):
                         # Each object should only claim the specific code defined in its row.
                         parsed = parser.parse_code(str(code))
                         if parsed:
+                            # Add Entity Aspect (e.g., ===A)
                             obj.aspects.append(AspectInfo(
                                 full_code=parsed.full_code,
                                 prefix=parsed.prefix,
@@ -160,6 +161,19 @@ async def import_excel(file: UploadFile = File(...)):
                                 hierarchy_level=parsed.hierarchy_level,
                                 parent_code=parsed.parent_code
                             ))
+                            
+                            # Fix: Explicitly create Container Aspect (e.g., ===A.) if it's an entity
+                            # This ensures children can link to this object via the container node
+                            if not parsed.full_code.endswith('.'):
+                                container_code = parsed.full_code + '.'
+                                container_level = parsed.hierarchy_level + 1
+                                obj.aspects.append(AspectInfo(
+                                    full_code=container_code,
+                                    prefix=parsed.prefix,
+                                    aspect_type=parsed.aspect_type,
+                                    hierarchy_level=container_level,
+                                    parent_code=parsed.full_code # Container parent is the Entity itself
+                                ))
                 
                 results.parsed_objects.append(obj)
                 
