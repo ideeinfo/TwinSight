@@ -46,7 +46,7 @@
         :props="treeProps"
         :height="containerHeight"
         :item-size="36"
-        node-key="code"
+        node-key="uitreeId"
         show-checkbox
         :expand-on-click-node="false"
         @check-change="handleCheckChange"
@@ -54,10 +54,15 @@
       >
         <template #default="{ node, data }">
           <div class="tree-node-content" :class="{ 'is-leaf': !data.children?.length }">
-            <span class="node-label" :title="data.name || data.code">
+            <span 
+              class="node-label" 
+              :class="{ 'has-model': data.mcCode }"
+              :title="data.name || data.code"
+            >
               {{ data.name || data.code }}
             </span>
             <span v-if="data.code" class="node-code">{{ data.code }}</span>
+            <!-- 图标已移除，改为文字高亮 -->
             <span v-if="data.childCount" class="node-count">{{ data.childCount }}</span>
           </div>
         </template>
@@ -82,7 +87,6 @@
       </span>
       <el-button 
         type="primary" 
-        text 
         size="small"
         @click="highlightInViewer"
       >
@@ -92,6 +96,7 @@
       <el-button 
         text 
         size="small"
+        :disabled="!canTrace"
         @click="traceUpstream"
       >
         <el-icon><Top /></el-icon>
@@ -157,7 +162,7 @@ const containerHeight = ref(0);
 
 // 树组件配置
 const treeProps = {
-  value: 'code',
+  value: 'uitreeId', // 使用前端生成的唯一 ID，避免 ID 重复导致的多选联动
   label: 'name',
   children: 'children'
 };
@@ -173,8 +178,10 @@ const filteredTreeData = computed(() => {
   const filterNode = (node) => {
     const nameMatch = (node.name || '').toLowerCase().includes(search);
     const codeMatch = (node.code || '').toLowerCase().includes(search);
+    // 搜索时也可以匹配 ID，方便调试
+    const idMatch = String(node.id || '').includes(search);
     
-    if (nameMatch || codeMatch) {
+    if (nameMatch || codeMatch || idMatch) {
       return { ...node };
     }
     
@@ -241,16 +248,23 @@ async function loadTreeData() {
     const response = await getAspectHierarchy(props.fileId, activeAspect.value);
     
     if (response.success) {
-      // 添加子节点数量
-      const addChildCount = (nodes) => {
+      console.log('🌳 [AspectTree] 数据加载成功. 首个节点示例:', response.data[0]);
+      
+      // 递归处理节点，生成前端唯一的 UI ID
+      const processNodes = (nodes) => {
         return nodes.map(node => ({
           ...node,
+          // 原始 id 可能在不同分支重复（引用同一对象），导致 Tree 组件多选联动
+          // 生成一个前端专用的唯一 ID 作为 node-key
+          uitreeId: `${node.id || 'temp'}_${Math.random().toString(36).substr(2, 9)}`,
+          // 确保 id 存在 (虽然这里不再用作 key，但业务逻辑需要)
+          id: node.id || `temp_${Math.random().toString(36).substr(2, 9)}`,
           childCount: node.children?.length || 0,
-          children: node.children ? addChildCount(node.children) : []
+          children: node.children ? processNodes(node.children) : []
         }));
       };
       
-      treeData.value = addChildCount(response.data);
+      treeData.value = processNodes(response.data);
     } else {
       ElMessage.warning(response.error || t('rds.loadFailed'));
       treeData.value = [];
@@ -284,7 +298,14 @@ function handleAspectChange() {
  */
 function handleCheckChange() {
   const checkedNodes = treeRef.value?.getCheckedNodes(false) || [];
-  selectedCodes.value = checkedNodes.map(node => node.code);
+  // 关键修改：存储 ID 而不是 code 或 refCode
+  selectedCodes.value = checkedNodes.map(node => node.id);
+  
+  // 调试日志
+  if (selectedCodes.value.length > 0) {
+     console.log(`✅ [AspectTree] 选中 ${selectedCodes.value.length} 个节点 (ID). 示例:`, selectedCodes.value[0]);
+  }
+  
   emit('codes-selected', selectedCodes.value);
 }
 
@@ -292,9 +313,15 @@ function handleCheckChange() {
  * 处理节点点击
  */
 function handleNodeClick(data) {
-  const isChecked = treeRef.value?.getCheckedKeys().includes(data.code);
-  treeRef.value?.setChecked(data.code, !isChecked);
+  // data 是节点对象，使用 uitreeId 作为 key
+  const key = data.uitreeId;
+  const isChecked = treeRef.value?.getCheckedKeys().includes(key);
+  treeRef.value?.setChecked(key, !isChecked);
   handleCheckChange();
+  
+  // 🛠️ 只有当点击叶子节点时，且之前没有选中时（即本次操作是选中），
+  // 可以考虑自动触发一次高亮，提升用户体验（可选）
+  // 但目前先保持手动与多选逻辑一致
 }
 
 /**
@@ -303,48 +330,114 @@ function handleNodeClick(data) {
 async function highlightInViewer() {
   if (selectedCodes.value.length === 0) return;
   
+  console.log('🔍 [AspectTree] 开始执行高亮查找 (基于 ID)...');
+  
   try {
     const allGuids = [];
-    const allMcCodes = [];
+    const componentCodes = [];
+    const roomCodes = [];
     
-    // 递归收集当前节点及其子节点的 GUID 和 MC编码
-    const collectCodes = (node) => {
-      // 收集当前节点
-      if (node.bimGuid) allGuids.push(node.bimGuid);
-      if (node.mcCode) allMcCodes.push(node.mcCode);
-      // 兼容性：如果 mcCode 空但 refCode 有值（且不是自动生成的内部ID），是否应该收集？
-      // 用户明确要求：只收集非空的对象。这里 mcCode 就是 Excel 中的 DeviceCode。
-      
-      // 递归子节点
+    // 构建父节点映射以便查找上级
+    const parentMap = new Map();
+    // 构建 ID 到节点的映射以便快速查找
+    const nodeMap = new Map();
+    
+    // 使用 String(id) 确保 Map 键值类型一致，避免 string/number 混用导致查找失败
+    const indexNodes = (nodes, parent = null) => {
+      nodes.forEach(node => {
+        if (node.id) nodeMap.set(String(node.id), node);
+        if (parent && parent.id) parentMap.set(String(node.id), parent);
+        if (node.children) indexNodes(node.children, node);
+      });
+    };
+    indexNodes(treeData.value);
+
+    // 递归收集子节点的 MC编码
+    const collectDescendantCodes = (node, targetList) => {
+      if (node.mcCode) targetList.push(node.mcCode);
       if (node.children && node.children.length > 0) {
-        node.children.forEach(collectCodes);
+        node.children.forEach(child => collectDescendantCodes(child, targetList));
       }
     };
 
-    // 在树数据中查找选中的节点并开始收集
-    const findAndCollect = (nodes) => {
-      for (const node of nodes) {
-        if (selectedCodes.value.includes(node.code)) {
-          collectCodes(node);
-        }
-        if (node.children && node.children.length > 0) {
-          findAndCollect(node.children);
-        }
+    // 遍历所有选中的节点 ID
+    for (const rawId of selectedCodes.value) {
+      const id = String(rawId);
+      const node = nodeMap.get(id);
+      
+      if (!node) {
+        console.warn(`⚠️ [AspectTree] 未找到 ID 为 ${id} 的节点，跳过高亮处理`);
+        continue;
       }
-    };
-    
-    findAndCollect(treeData.value);
+
+      // 收集 GUID
+      if (node.bimGuid) allGuids.push(node.bimGuid);
+      
+      // 注意：Element Tree 默认级联选中。如果父节点被选中，意味着其所有子节点也已被选中（并存在于 selectedCodes 中）。
+      // 因此无需在此递归收集子节点，否则会导致处理重复，且逻辑上“选谁高亮谁”更为清晰。
+
+      // 处理不同方面的逻辑
+      const isLocation = activeAspect.value === AspectType.LOCATION;
+      const isLeaf = !node.children || node.children.length === 0;
+
+      if (isLocation) {
+        // --- 位置树逻辑 ---
+        if (isLeaf) {
+          // 1. 叶子节点：作为构件
+          if (node.mcCode) componentCodes.push(node.mcCode);
+          
+          // 2. 上级节点：作为房间
+          const parent = parentMap.get(id);
+          if (parent && parent.mcCode) {
+            console.log(`🏠 [AspectTree] 找到位置节点 ${node.name} 的上级房间: ${parent.name} (${parent.mcCode})`);
+            roomCodes.push(parent.mcCode);
+          }
+        } else {
+          // 1. 非叶子节点：本身作为房间
+          if (node.mcCode) roomCodes.push(node.mcCode);
+        }
+      } else {
+        // --- 工艺/电源树逻辑 ---
+        if (node.mcCode) componentCodes.push(node.mcCode);
+      }
+    }
     
     // 去重
     const uniqueGuids = [...new Set(allGuids)];
-    const uniqueRefCodes = [...new Set(allMcCodes)];
+    const uniqueComponentCodes = [...new Set(componentCodes)];
+    const uniqueRoomCodes = [...new Set(roomCodes)];
     
-    if (uniqueGuids.length > 0 || uniqueRefCodes.length > 0) {
-      // 传递对象格式 { guids, refCodes }
-      // 注意：这里 refCodes 传递的是 mcCode (BIM 关联编码)
-      emit('highlight-guids', { guids: uniqueGuids, refCodes: uniqueRefCodes });
+    console.log(`📊 [AspectTree] 查找结果: GUIDs=${uniqueGuids.length}, Components=${uniqueComponentCodes.length}, Rooms=${uniqueRoomCodes.length}`);
+    if (uniqueComponentCodes.length > 0) console.log('  🔩 Components:', uniqueComponentCodes.slice(0, 5));
+    if (uniqueRoomCodes.length > 0) console.log('  🏠 Rooms:', uniqueRoomCodes);
+
+    if (uniqueGuids.length > 0 || uniqueComponentCodes.length > 0 || uniqueRoomCodes.length > 0) {
+      // 构造多重查询 Payload
+      const searchQueries = [];
       
-      const count = uniqueGuids.length + uniqueRefCodes.length;
+      if (uniqueComponentCodes.length > 0) {
+        searchQueries.push({
+          values: uniqueComponentCodes,
+          attributes: ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number']
+        });
+      }
+      
+      if (uniqueRoomCodes.length > 0) {
+        searchQueries.push({
+          values: uniqueRoomCodes,
+          attributes: ['编号', 'Number', 'Mark', 'Room Number']
+        });
+      }
+
+      emit('highlight-guids', { 
+        guids: uniqueGuids, 
+        // 兼容旧RefCodes (设为组件代码)
+        refCodes: uniqueComponentCodes, 
+        // 新增查询结构
+        searchQueries: searchQueries
+      });
+      
+      const count = uniqueGuids.length + uniqueComponentCodes.length + uniqueRoomCodes.length;
       ElMessage.success(t('rds.highlightCount', { count: count }));
     } else {
       ElMessage.warning(t('rds.noGuidFound'));
@@ -356,30 +449,95 @@ async function highlightInViewer() {
 }
 
 /**
+ * 追溯能力检查
+ */
+const canTrace = computed(() => {
+  // 允许选中多个节点，但在追溯时会自动选择层级最深（最具体）的一个作为起点
+  // 这解决了父子节点同时被选中（级联选择）导致无法追溯的问题
+  return selectedCodes.value.length > 0;
+});
+
+/**
  * 追溯上游电源
  */
 async function traceUpstream() {
-  if (selectedCodes.value.length === 0) return;
+  if (!canTrace.value) {
+    ElMessage.warning(t('rds.selectOneToTrace'));
+    return;
+  }
+  
+  // 获取所有选中的节点数据对象
+  const checkedNodes = treeRef.value?.getCheckedNodes() || [];
+  if (checkedNodes.length === 0) return;
+  
+  // 按层级降序排序 (Level 大的在前 -> 更深/更具体的节点)
+  // 如果层级相同，任意取一个
+  checkedNodes.sort((a, b) => (b.level || 0) - (a.level || 0));
+  
+  const startNode = checkedNodes[0];
+  // 必须使用 node.id 而不是 uitreeId (key)，因为后端只认数据库 ID
+  const startId = String(startNode.id);
+  
+  console.log(`🔌 [AspectTree] 开始追溯上游`);
+  if (checkedNodes.length > 1) {
+    console.log(`ℹ️ [AspectTree] 选中了多个节点，自动选择最深层级节点作为起点: ${startNode.name} (Level ${startNode.level})`);
+  }
   
   try {
-    // 对第一个选中的编码进行追溯
     const response = await traceTopology(
-      selectedCodes.value[0],
+      startId,
       TraceDirection.UPSTREAM
     );
     
-    if (response.success) {
-      emit('trace-result', response.nodes);
-      ElMessage.success(t('rds.traceComplete', { count: response.total }));
+    // Logic Engine 直接返回 { nodes: [], total: 0 }，不包含 success 字段
+    // 所以只要 nodes 存在且数组长度 > 0 即视为成功
+    if (response && response.nodes && response.nodes.length > 0) {
+      console.log('🔗 [AspectTree] 追溯 API 返回:', response.nodes);
+      
+      // 过滤出上游节点 (排除自身)
+      // 注意：API 返回的 ID 类型可能与 startId 类型不一致 (Number vs String)，统一转为 String 比较
+      const upstreamIds = response.nodes
+        .filter(n => String(n.id) !== startId)
+        .map(n => String(n.id));
+      
+      if (upstreamIds.length === 0) {
+        console.warn('⚠️ [AspectTree] 追溯结果仅包含起点自身，无上游节点');
+        ElMessage.warning(t('rds.noUpstreamFound'));
+        return;
+      }
+
+      console.log('🎯 [AspectTree] 准备选中上游节点ID:', upstreamIds);
+      
+      // 检查这些 ID 是否在当前树中存在（防止选中了不在视图中的节点导致报错或无反应）
+      // 简单的检查方式是看 highlightInViewer 能否找到它们，但这里我们先强制选中
+      
+      // 2. 自动选中上游节点 (保留当前选中，叠加显示)
+      const currentSelection = selectedCodes.value.map(String);
+      const newSelection = [...new Set([...currentSelection, ...upstreamIds])];
+      
+      selectedCodes.value = newSelection;
+      treeRef.value?.setCheckedKeys(newSelection);
+      
+      // 3. 触发高亮孤立逻辑
+      setTimeout(async () => {
+         await highlightInViewer();
+      }, 0);
+      
+      ElMessage.success(t('rds.traceSuccess', { count: upstreamIds.length }));
+      
     } else {
-      ElMessage.warning(response.error || t('rds.traceFailed'));
+      console.warn('⚠️ [AspectTree] 追溯未找到结果或失败:', response);
+      ElMessage.warning(response.error || t('rds.noUpstreamFound'));
     }
   } catch (error) {
-    console.error('追溯失败:', error);
+    console.error('❌ 追溯失败:', error);
     ElMessage.error(t('rds.traceFailed'));
   }
 }
 
+/**
+ * 展开并定位到指定编码
+ */
 /**
  * 展开并定位到指定编码
  */
@@ -391,10 +549,67 @@ function expandAndScrollToCode(code) {
   emit('codes-selected', selectedCodes.value);
 }
 
+/**
+ * 根据 MC 编码列表反选树节点 (用于模型联动)
+ */
+function selectByMcCodes(mcCodes) {
+  if (!mcCodes || mcCodes.length === 0) {
+    // 如果传入空列表，清除选中 (除非你想保留)
+    // 这里选择不清除，保持现状，或者根据需求清除
+    return;
+  }
+  
+  const targetMcCodes = new Set(mcCodes);
+  const matchedUiTreeIds = [];
+  const expandedUiTreeIds = new Set();
+  
+  // 递归查找匹配的节点及其路径
+  const findAndCollect = (nodes, parentPathIds = []) => {
+    for (const node of nodes) {
+      if (node.mcCode && targetMcCodes.has(node.mcCode)) {
+        matchedUiTreeIds.push(node.uitreeId);
+        // 将路径上的所有父节点 ID 加入展开列表
+        parentPathIds.forEach(id => expandedUiTreeIds.add(id));
+      }
+      
+      if (node.children && node.children.length > 0) {
+        findAndCollect(node.children, [...parentPathIds, node.uitreeId]);
+      }
+    }
+  };
+  
+  findAndCollect(treeData.value);
+  
+  if (matchedUiTreeIds.length > 0) {
+    console.log(`🔗 [AspectTree] 根据 MC 编码联动选中 ${matchedUiTreeIds.length} 个节点`);
+    
+    // 1. 展开父节点
+    if (treeRef.value?.setExpandedKeys) {
+      treeRef.value.setExpandedKeys(Array.from(expandedUiTreeIds));
+    }
+    
+    // 2. 选中目标节点 (根据需求，可能要清除旧的选择?)
+    // 这里我们假设是替换选择
+    selectedCodes.value = matchedUiTreeIds;
+    treeRef.value?.setCheckedKeys(matchedUiTreeIds);
+    
+    // 3. 滚动到第一个匹配节点 (可选)
+    if (treeRef.value?.scrollToNode) {
+       // treeRef.value.scrollToNode(matchedUiTreeIds[0]);
+    }
+    
+    // 注意：这里更新了选中状态，通常不应当反向再次触发 highlightInViewer，避免死循环
+    // 但我们需要 update selectedCodes 以便 Trace 功能可用
+  } else {
+    console.log('ℹ️ [AspectTree] 未找到匹配的 MC 编码节点');
+  }
+}
+
 // 暴露方法给父组件
 defineExpose({
   refreshData,
-  expandAndScrollToCode
+  expandAndScrollToCode,
+  selectByMcCodes
 });
 </script>
 
@@ -491,6 +706,11 @@ defineExpose({
   max-width: 60%;
 }
 
+.node-label.has-model {
+  color: #ff9800; /* 橙色高亮，表示关联了模型 */
+  font-weight: 500;
+}
+
 .node-code {
   font-size: 10px;
   font-family: monospace;
@@ -509,6 +729,8 @@ defineExpose({
   border-radius: 10px;
   flex-shrink: 0;
 }
+
+/* .model-icon removed */
 
 .loading-state,
 .empty-state {
