@@ -261,13 +261,19 @@ def _get_parent_power_code(code: str) -> Optional[str]:
     prefix = '==='
     body = code[len(prefix):]
     
-    # 按点号分割
-    parts = body.split('.')
-    if len(parts) <= 1:
-        return None
-    
     # 返回父级
-    return prefix + '.'.join(parts[:-1])
+    if code.endswith('.'):
+        # A. 的父级是 A
+        return code[:-1]
+    else:
+        # A.B 的父级是 A.
+        # 使用 rfind 查找最后一个点号
+        last_dot_idx = code.rfind('.')
+        # 确保点号不在前缀中（===\+\+等）
+        if last_dot_idx > len(prefix):
+            return code[:last_dot_idx + 1]
+            
+    return None
 
 
 def clear_file_rds_data(file_id: int) -> Dict:

@@ -20,6 +20,7 @@
             :current-view="currentView"
             :is-streams-open="isChartPanelOpen"
             :is-a-i-enabled="isAIAnalysisEnabled"
+            :is-loading="isModelLoading"
             @switch-view="switchView"
             @toggle-streams="toggleChartPanel"
             @toggle-ai="toggleAIAnalysis"
@@ -198,7 +199,11 @@ import DataExportPanel from './components/DataExportPanel.vue';
 import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
-import { checkApiHealth, getAssets, getSpaces } from './services/postgres.js';
+import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
+import { usePropertySelection } from './composables/usePropertySelection';
+
+const { getPropertiesFromSelection, formatAssetProperties, formatSpaceProperties } = usePropertySelection();
+
 const authStore = useAuthStore();
 
 // Helper to get auth headers
@@ -282,7 +287,9 @@ const savedSpaceSelections = ref([]);
 const isDataExportOpen = ref(false);
 const isLoadingFromDb = ref(false);
 const dbDataLoaded = ref(false);
-const currentLoadedModelPath = ref(null); // 追踪当前加载的模型路径，防止重复加载
+// 追踪当前加载的模型路径，防止重复加载
+const currentLoadedModelPath = ref(null); 
+const isModelLoading = ref(true); // 模型加载状态，默认 true 以禁用侧边栏
 
 // 模型数据缓存（用于 dbId 映射）
 const modelRoomDbIds = ref([]);
@@ -501,154 +508,170 @@ const loadDataFromDatabase = async () => {
 
 // Viewer 初始化完成回调
 const onViewerReady = async () => {
-  console.log('🎬 Viewer 初始化完成');
+  console.log('🎬 [App] Viewer 初始化完成, isModelLoading 初始状态:', isModelLoading.value);
   viewerReady.value = true;
+  isModelLoading.value = true; // 强制确保开始为 true
   
-  // 如果有待加载的激活文件，立即加载其模型
-  if (pendingActiveFile.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
-    const file = pendingActiveFile.value;
-    if (file.extracted_path) {
-      console.log('📦 加载待加载的模型:', file.extracted_path);
-      currentLoadedModelPath.value = file.extracted_path;
-      mainViewRef.value.loadNewModel(file.extracted_path);
-    }
-    pendingActiveFile.value = null;
-  } else {
-    // 没有 pending 文件，加载当前激活的文件或默认模型
-    try {
-      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
-      const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
-      const filesData = await filesRes.json();
-      
-      if (filesData.success && filesData.data.length > 0) {
-        const activeFile = filesData.data.find(f => f.is_active);
-        if (activeFile) {
-          console.log('🔍 找到激活文件:', activeFile.title);
-          
-          // 🔑 检查是否已经在加载或已加载同一个模型
-          if (currentLoadedModelPath.value === activeFile.extracted_path) {
-            console.log('⏭️ 模型已加载，跳过重复加载:', activeFile.extracted_path);
-            return;
-          }
-          
-          // 🔑 关键修复：先从数据库加载该文件的资产和空间数据
-          try {
-            // 获取该文件的资产
-            const assetsRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/assets`, { headers: getHeaders() });
-            const assetsData = await assetsRes.json();
-            if (assetsData.success) {
-              assetList.value = assetsData.data.map(asset => ({
-                dbId: asset.db_id,
-                name: asset.name,
-                mcCode: asset.asset_code,
-                classification: asset.classification_code || 'Uncategorized',
-                classification_code: asset.classification_code || '',
-                classification_desc: asset.classification_desc || '',
-                specCode: asset.spec_code,
-                specName: asset.spec_name,
-                floor: asset.floor,
-                room: asset.room,
-                category: asset.category,
-                family: asset.family,
-                type: asset.type,
-                manufacturer: asset.manufacturer,
-                address: asset.address,
-                phone: asset.phone,
-                fileId: activeFile.id // 添加 fileId
-              }));
-              console.log(`✅ 页面刷新：从数据库加载了 ${assetList.value.length} 个资产`);
-            }
-
-            // 获取该文件的空间
-            const spacesRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/spaces`, { headers: getHeaders() });
-            const spacesData = await spacesRes.json();
-            if (spacesData.success) {
-              roomList.value = spacesData.data.map(space => ({
-                dbId: space.db_id,
-                name: space.name || '',
-                code: space.space_code,
-                classificationCode: space.classification_code,
-                classificationDesc: space.classification_desc,
-                floor: space.floor,
-                area: space.area,
-                perimeter: space.perimeter,
-                fileId: activeFile.id // 添加 fileId
-              }));
-              console.log(`✅ 页面刷新：从数据库加载了 ${roomList.value.length} 个空间`);
-            }
-
-            // 标记数据库数据已加载
-            dbDataLoaded.value = true;
-          } catch (dbError) {
-            console.warn('⚠️ 加载数据库数据失败，将使用模型数据:', dbError);
-          }
-          
-          // 然后加载模型
-          if (activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
-            console.log('📦 加载当前激活的模型:', activeFile.extracted_path);
-            currentLoadedModelPath.value = activeFile.extracted_path;
-            await mainViewRef.value.loadNewModel(activeFile.extracted_path);
+  try {
+    // 如果有待加载的激活文件，立即加载其模型
+    if (pendingActiveFile.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
+      const file = pendingActiveFile.value;
+      if (file.extracted_path) {
+        console.log('📦 [App] 加载待加载的模型:', file.extracted_path);
+        currentLoadedModelPath.value = file.extracted_path;
+        await mainViewRef.value.loadNewModel(file.extracted_path);
+        console.log('✅ [App] 待加载模型加载完毕');
+      }
+      pendingActiveFile.value = null;
+    } else {
+      // 没有 pending 文件，加载当前激活的文件或默认模型
+      console.log('🔍 [App] 开始获取文件列表...');
+      try {
+        const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+        const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
+        const filesData = await filesRes.json();
+        
+        if (filesData.success && filesData.data.length > 0) {
+          const activeFile = filesData.data.find(f => f.is_active);
+          if (activeFile) {
+            console.log('🔍 [App] 找到激活文件:', activeFile.title);
             
-            // 🏠 检查并恢复默认视图
+            // 🔑 检查是否已经在加载或已加载同一个模型
+            if (currentLoadedModelPath.value === activeFile.extracted_path) {
+              console.log('⏭️ [App] 模型已加载，跳过重复加载:', activeFile.extracted_path);
+              isModelLoading.value = false; // 模型已加载，解除锁定
+              console.log('🔓 [App] 跳过加载，手动解锁 isModelLoading');
+              return;
+            }
+            
+            // 🔑 关键修复：先从数据库加载该文件的资产和空间数据
+            console.log('📥 [App] 开始加载数据库数据...');
             try {
-              const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`, { headers: getHeaders() });
-              const defaultViewData = await defaultViewRes.json();
-              if (defaultViewData.success && defaultViewData.data) {
-                console.log('🏠 找到默认视图，正在恢复:', defaultViewData.data.name);
-                
-                // 🔑 更新 currentViewName 让 TopBar 显示视图名称
-                currentViewName.value = defaultViewData.data.name;
-                
-                // 🔑 更新激活文件信息让 ViewsPanel 同步
-                activeFileId.value = activeFile.id;
-                activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
-                
-                // 获取完整视图数据
-                const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
-                const fullViewData = await fullViewRes.json();
-                if (fullViewData.success && mainViewRef.value?.restoreViewState) {
-                  // 使用事件驱动的方式恢复视图，确保模型完全就绪
-                  if (mainViewRef.value?.onModelReady) {
-                    console.log('⏳ 等待模型就绪后恢复视图...');
-                    mainViewRef.value.onModelReady(() => {
-                      console.log('🔄 模型已就绪，正在恢复默认视图...');
-                      mainViewRef.value.restoreViewState(fullViewData.data);
-                      console.log('✅ 默认视图已恢复');
-                    });
-                  } else {
-                    // 后备方案：直接恢复
-                    mainViewRef.value.restoreViewState(fullViewData.data);
-                  }
-                }
-              } else {
-                console.log('ℹ️ 没有设置默认视图，使用模型默认状态');
-                // 没有默认视图时也更新激活文件信息
-                activeFileId.value = activeFile.id;
-                activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
+              // 获取该文件的资产
+              const assetsRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/assets`, { headers: getHeaders() });
+              const assetsData = await assetsRes.json();
+              if (assetsData.success) {
+                assetList.value = assetsData.data.map(asset => ({
+                  dbId: asset.db_id,
+                  name: asset.name,
+                  mcCode: asset.asset_code,
+                  classification: asset.classification_code || 'Uncategorized',
+                  classification_code: asset.classification_code || '',
+                  classification_desc: asset.classification_desc || '',
+                  specCode: asset.spec_code,
+                  specName: asset.spec_name,
+                  floor: asset.floor,
+                  room: asset.room,
+                  category: asset.category,
+                  family: asset.family,
+                  type: asset.type,
+                  manufacturer: asset.manufacturer,
+                  address: asset.address,
+                  phone: asset.phone,
+                  fileId: activeFile.id // 添加 fileId
+                }));
+                console.log(`✅ [App] 页面刷新：从数据库加载了 ${assetList.value.length} 个资产`);
               }
-            } catch (viewErr) {
-              console.warn('⚠️ 恢复默认视图失败:', viewErr);
+
+              // 获取该文件的空间
+              const spacesRes = await fetch(`${API_BASE}/api/files/${activeFile.id}/spaces`, { headers: getHeaders() });
+              const spacesData = await spacesRes.json();
+              if (spacesData.success) {
+                roomList.value = spacesData.data.map(space => ({
+                  dbId: space.db_id,
+                  name: space.name || '',
+                  code: space.space_code,
+                  classificationCode: space.classification_code,
+                  classificationDesc: space.classification_desc,
+                  floor: space.floor,
+                  area: space.area,
+                  perimeter: space.perimeter,
+                  fileId: activeFile.id // 添加 fileId
+                }));
+                console.log(`✅ [App] 页面刷新：从数据库加载了 ${roomList.value.length} 个空间`);
+              }
+
+              // 标记数据库数据已加载
+              dbDataLoaded.value = true;
+            } catch (dbError) {
+              console.warn('⚠️ [App] 加载数据库数据失败，将使用模型数据:', dbError);
             }
             
-            return;
+            // 然后加载模型
+            if (activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
+              console.log('📦 [App] 开始调用 loadNewModel:', activeFile.extracted_path);
+              currentLoadedModelPath.value = activeFile.extracted_path;
+              await mainViewRef.value.loadNewModel(activeFile.extracted_path);
+              console.log('✅ [App] loadNewModel 返回（Promise resolved）');
+              
+              // 🏠 检查并恢复默认视图
+              try {
+                const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`, { headers: getHeaders() });
+                const defaultViewData = await defaultViewRes.json();
+                if (defaultViewData.success && defaultViewData.data) {
+                  console.log('🏠 [App] 找到默认视图，正在恢复:', defaultViewData.data.name);
+                  
+                  // 🔑 更新 currentViewName 让 TopBar 显示视图名称
+                  currentViewName.value = defaultViewData.data.name;
+                  
+                  // 🔑 更新激活文件信息让 ViewsPanel 同步
+                  activeFileId.value = activeFile.id;
+                  activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
+                  
+                  // 获取完整视图数据
+                  const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
+                  const fullViewData = await fullViewRes.json();
+                  if (fullViewData.success && mainViewRef.value?.restoreViewState) {
+                    // 使用事件驱动的方式恢复视图，确保模型完全就绪
+                    if (mainViewRef.value?.onModelReady) {
+                      console.log('⏳ [App] 等待模型就绪后恢复视图...');
+                      mainViewRef.value.onModelReady(() => {
+                        console.log('🔄 [App] 模型已就绪，正在恢复默认视图...');
+                        mainViewRef.value.restoreViewState(fullViewData.data);
+                        console.log('✅ [App] 默认视图已恢复');
+                      });
+                    } else {
+                      // 后备方案：直接恢复
+                      mainViewRef.value.restoreViewState(fullViewData.data);
+                    }
+                  }
+                } else {
+                  console.log('ℹ️ [App] 没有设置默认视图，使用模型默认状态');
+                  // 没有默认视图时也更新激活文件信息
+                  activeFileId.value = activeFile.id;
+                  activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
+                }
+              } catch (viewErr) {
+                console.warn('⚠️ [App] 恢复默认视图失败:', viewErr);
+              }
+              
+              console.log('🔓 [App] 流程结束，解锁 isModelLoading');
+              isModelLoading.value = false; // 模型加载完成，解除锁定
+              return;
+            }
           }
         }
+      } catch (e) {
+        console.warn('⚠️ 无法获取激活文件，加载默认模型', e);
       }
-    } catch (e) {
-      console.warn('⚠️ 无法获取激活文件，加载默认模型', e);
-    }
-    
-    // 如果没有激活文件，不加载任何模型
-    if (mainViewRef.value && mainViewRef.value.loadNewModel) {
-      const defaultPath = null; // 已禁用：之前是 '/models/my-building'
-      if (defaultPath) {
-        console.log('📦 加载默认模型');
-        currentLoadedModelPath.value = defaultPath;
-        mainViewRef.value.loadNewModel(defaultPath);
-      } else {
-        console.log('📝 没有激活的模型文件，请先上传并激活模型');
+      
+      // 如果没有激活文件，不加载任何模型
+      if (mainViewRef.value && mainViewRef.value.loadNewModel) {
+        const defaultPath = null;
+        if (defaultPath) {
+          console.log('📦 加载默认模型');
+          currentLoadedModelPath.value = defaultPath;
+          await mainViewRef.value.loadNewModel(defaultPath);
+        } else {
+          console.log('📝 没有激活的模型文件，请先上传并激活模型');
+        }
       }
     }
+  } catch (error) {
+    console.error('❌ [App] Viewer 初始化或模型加载过程出错:', error);
+  } finally {
+    console.log('🏁 [App] onViewerReady Finally Block - 解锁 isModelLoading');
+    isModelLoading.value = false; // 无论如何解除锁定，防止界面死锁
   }
 };
 
@@ -665,17 +688,36 @@ const onRoomsLoaded = (rooms) => {
   // 如果存在默认视图，由 onViewerReady 自动恢复
 };
 
-const onAssetsLoaded = (assets) => {
-  // 保存模型中的 dbId 列表
-  modelAssetDbIds.value = assets.map(a => a.dbId);
+const onAssetsLoaded = (inputAssets) => {
+  console.log('📦 Assets data loaded in App:', inputAssets?.length);
   
-  // 如果数据库数据已加载，则使用数据库数据；否则使用模型数据
-  if (!dbDataLoaded.value) {
-    assetList.value = assets;
+  // Normalize assets to ensure camelCase properties exist
+  const assets = (inputAssets || []).map(a => ({
+    ...a,
+    mcCode: a.mcCode || a.asset_code || a.code || '',
+    specCode: a.specCode || a.spec_code || '',
+    specName: a.specName || a.spec_name || '',
+    classificationCode: a.classificationCode || a.classification_code || '',
+    classificationDesc: a.classificationDesc || a.classification_desc || '',
+    type: a.type || '',
+    // Ensure numeric fields are preserved
+    dbId: a.dbId,
+    fileId: a.fileId || a.file_id
+  }));
+
+  if (assets.length > 0) {
+    const sample = assets[0];
+    console.log('🔍 Asset sample (normalized):', {
+      mcCode: sample.mcCode,
+      specCode: sample.specCode,
+      specName: sample.specName,
+      raw_name: sample.name
+    });
   }
 
-  // 【已移除】原自动孤立逻辑 - 模型现在保持默认状态
-  // 如果存在默认视图，由 onViewerReady 自动恢复
+  assetList.value = assets;
+  modelAssetDbIds.value = assets.map(a => a.dbId);
+  isModelLoading.value = false;
 };
 
 const onChartDataUpdate = async (data) => {
@@ -882,7 +924,7 @@ const onFileActivated = async (file) => {
     if (file.extracted_path) {
       if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
         // 只有当切换到不同的模型时才刷新页面
-        // 避免初次加载或激活相同模型时无限刷新
+        // 避免初次加载或相同模型时无限刷新
         if (currentLoadedModelPath.value && currentLoadedModelPath.value !== file.extracted_path) {
           console.log('🔄 切换到不同模型，刷新页面...');
           window.location.reload();
@@ -1077,96 +1119,16 @@ const onAssetsSelected = async (dbIds) => {
       }
     }
 
-    if (dbIds.length === 1) {
-      // 单选：显示详情
-      const asset = assetList.value.find(a => a.dbId === dbIds[0]);
-      if (asset) {
-        selectedRoomProperties.value = {
-          name: asset.name,
-          mcCode: asset.mcCode,
-          level: asset.floor,
-          room: asset.room,
-          omniClass21Number: asset.classification_code || '',
-          omniClass21Description: asset.classification_desc || '',
-          category: asset.category,
-          family: asset.family,
-          type: asset.type,
-          typeComments: asset.specCode, // 暂用 specCode 映射
-          specName: asset.specName,
-          manufacturer: asset.manufacturer,
-          address: asset.address,
-          phone: asset.phone
-        };
-      }
+    const dbProps = getPropertiesFromSelection(dbIds, assetList.value, 'asset');
+    if (dbProps) {
+      selectedRoomProperties.value = dbProps;
+    } else if (dbIds.length === 1 && mainViewRef.value?.getAssetProperties) {
+      // 回退到模型数据
+      mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
+        selectedRoomProperties.value = props;
+      });
     } else {
-      // 多选：显示共有属性或 VARIES
-      // 优化：从 assetList Map 中获取数据，避免 O(N*M) 查找
-      // 假设 assetList 是数组，查找仍需优化。但 dbIds 对应的 asset 对象提取出来比每次 find 快
-      const selectedAssets = dbIds.map(id => assetList.value.find(a => a.dbId === id)).filter(Boolean);
-      
-      const allProps = selectedAssets.map(asset => ({
-        name: asset.name,
-        mcCode: asset.mcCode,
-        level: asset.floor,
-        room: asset.room,
-        omniClass21Number: asset.classification_code || '',
-        omniClass21Description: asset.classification_desc || '',
-        category: asset.category,
-        family: asset.family,
-        type: asset.type,
-        typeComments: asset.specCode,
-        specName: asset.specName,
-        manufacturer: asset.manufacturer,
-        address: asset.address,
-        phone: asset.phone
-      }));
-
-      if (allProps.length > 0) {
-        // 比较属性值，相同则显示值，不同则显示 VARIES_VALUE
-        const VARIES_VALUE = '__VARIES__';
-        
-        console.log(`🔍 多选资产属性比较：处理 ${allProps.length} 个资产`);
-        
-        // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
-        const isSameValue = (v1, v2) => {
-          const normalize = (v) => (v == null || v === '') ? '' : String(v);
-          return normalize(v1) === normalize(v2);
-        };
-        
-        const mergedProps = { ...allProps[0], isMultiple: true };
-        const keys = Object.keys(mergedProps).filter(k => k !== 'isMultiple');
-
-        // 优化比较循环：一旦所有属性都变成 VARIES，提前退出
-        let allVaries = false;
-
-        for (let i = 1; i < allProps.length; i++) {
-          if (allVaries) break; // 所有属性都不同了，无需继续比较
-
-          const props = allProps[i];
-          const base = allProps[0];
-          let stillConsistent = false;
-
-          for (const key of keys) {
-            if (mergedProps[key] !== VARIES_VALUE) {
-              if (!isSameValue(base[key], props[key])) {
-                mergedProps[key] = VARIES_VALUE;
-              } else {
-                stillConsistent = true; // 至少还有一个属性是一致的
-              }
-            }
-          }
-
-          if (!stillConsistent) {
-             // 检查是否所有 key 都是 VARIES (除了 isMultiple)
-             allVaries = keys.every(key => mergedProps[key] === VARIES_VALUE);
-          }
-        }
-        
-        console.log('✅ 比较完成');
-        selectedRoomProperties.value = mergedProps;
-      } else {
-        selectedRoomProperties.value = { isMultiple: true };
-      }
+      selectedRoomProperties.value = { isMultiple: true };
     }
   }
 };
@@ -1192,63 +1154,11 @@ const onSpacesSelected = async (dbIds) => {
       mainViewRef.value.isolateAndFocusRooms(dbIds);
     }
 
-    if (dbIds.length === 1) {
-      // 单选：显示详情
-      const space = roomList.value.find(s => s.dbId === dbIds[0]);
-      if (space) {
-        selectedRoomProperties.value = {
-          name: space.name,
-          code: space.code,
-          floor: space.floor,
-          area: space.area,
-          perimeter: space.perimeter,
-          omniClass21Number: space.classificationCode || '',
-          omniClass21Description: space.classificationDesc || ''
-        };
-      }
+    const dbProps = getPropertiesFromSelection(dbIds, roomList.value, 'space');
+    if (dbProps) {
+      selectedRoomProperties.value = dbProps;
     } else {
-      // 多选：显示共有属性或 VARIES
-      const selectedSpaces = dbIds.map(id => roomList.value.find(s => s.dbId === id)).filter(Boolean);
-      
-      const allProps = selectedSpaces.map(space => ({
-        name: space.name,
-        code: space.code,
-        floor: space.floor,
-        area: space.area,
-        perimeter: space.perimeter,
-        omniClass21Number: space.classificationCode || '',
-        omniClass21Description: space.classificationDesc || ''
-      }));
-
-      if (allProps.length > 0) {
-        const VARIES_VALUE = '__VARIES__';
-        
-        // 辅助函数：判断两个值是否相同
-        const isSameValue = (v1, v2) => {
-          const normalize = (v) => (v == null || v === '') ? '' : String(v);
-          return normalize(v1) === normalize(v2);
-        };
-        
-        const mergedProps = { ...allProps[0], isMultiple: true };
-        const keys = Object.keys(mergedProps).filter(k => k !== 'isMultiple');
-
-        for (let i = 1; i < allProps.length; i++) {
-          const props = allProps[i];
-          const base = allProps[0];
-
-          for (const key of keys) {
-            if (mergedProps[key] !== VARIES_VALUE) {
-              if (!isSameValue(base[key], props[key])) {
-                mergedProps[key] = VARIES_VALUE;
-              }
-            }
-          }
-        }
-        
-        selectedRoomProperties.value = mergedProps;
-      } else {
-        selectedRoomProperties.value = { isMultiple: true };
-      }
+      selectedRoomProperties.value = { isMultiple: true };
     }
   }
 };
@@ -1322,88 +1232,60 @@ const onPropertyChanged = ({ fieldName, newValue }) => {
 
 
 // 🔑 仅加载资产属性（反向定位专用，不触发孤立操作）
-const loadAssetProperties = (dbIds) => {
+const loadAssetProperties = async (dbIds) => {
   if (!dbIds || dbIds.length === 0) {
     selectedRoomProperties.value = null;
     return;
   }
 
+ // 1. 优先从后端 API 获取最新完整数据 (支持 Element 和 Type 属性)
   if (dbIds.length === 1) {
-    // 单选：显示单个资产属性
-    const dbAsset = assetList.value.find(a => a.dbId === dbIds[0]);
-    if (dbAsset) {
-      selectedRoomProperties.value = {
-        name: dbAsset.name || '',
-        mcCode: dbAsset.mcCode || '',
-        level: dbAsset.floor || '',
-        room: dbAsset.room || '',
-        omniClass21Number: dbAsset.classification_code || '',
-        omniClass21Description: dbAsset.classification_desc || '',
-        category: dbAsset.category || '',
-        family: dbAsset.family || '',
-        type: dbAsset.type || '',
-        typeComments: dbAsset.specCode || '',
-        specName: dbAsset.specName || '',
-        manufacturer: dbAsset.manufacturer || '',
-        address: dbAsset.address || '',
-        phone: dbAsset.phone || ''
-      };
-    } else if (mainViewRef.value?.getAssetProperties) {
-      // 回退到模型数据
-      mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
-        selectedRoomProperties.value = props;
-      });
-    }
-  } else {
-    // 多选：合并属性
-    const allProps = dbIds.map(dbId => {
-      const dbAsset = assetList.value.find(a => a.dbId === dbId);
-      if (dbAsset) {
-        return {
-          name: dbAsset.name || '',
-          mcCode: dbAsset.mcCode || '',
-          level: dbAsset.floor || '',
-          room: dbAsset.room || '',
-          omniClass21Number: dbAsset.classification_code || '',
-          omniClass21Description: dbAsset.classification_desc || '',
-          category: dbAsset.category || '',
-          family: dbAsset.family || '',
-          type: dbAsset.type || '',
-          typeComments: dbAsset.specCode || '',
-          specName: dbAsset.specName || '',
-          manufacturer: dbAsset.manufacturer || '',
-          address: dbAsset.address || '',
-          phone: dbAsset.phone || ''
-        };
+    try {
+      const dbId = dbIds[0];
+      console.log(`🔍 [PropertyLoad] Starting API fetch for DBID: ${dbId}, FileID: ${activeFileId.value}, View: ${currentView.value}`);
+      
+      const apiAsset = await getAssetDetailByDbId(dbId, activeFileId.value);
+      console.log(`🔍 [PropertyLoad] API Response:`, apiAsset ? 'Found' : 'Null');
+      
+      if (apiAsset) {
+        // 格式化 API 返回的蛇形字段数据
+        const formattedProps = formatAssetProperties(apiAsset);
+        console.log(`🔍 [PropertyLoad] Formatted Props:`, formattedProps);
+        selectedRoomProperties.value = formattedProps;
+        
+        // 关键：确保 assetCode 存在以便加载文档
+        if (formattedProps.mcCode) {
+           // 更新 assetList 中的缓存 (可选)
+           // 触发文档加载
+           // 注意：onPropertyChanged 中会用到 selectedRoomProperties.value.mcCode
+        }
+        return; 
+      } else {
+         console.warn(`⚠️ [PropertyLoad] API returned null for DBID: ${dbId} in File: ${activeFileId.value}`);
       }
-      return null;
-    }).filter(Boolean);
+    } catch (err) {
+      console.warn('❌ API 获取资产详情失败，回退到本地缓存', err);
+    }
+  }
 
-    if (allProps.length > 0) {
-      const VARIES_VALUE = '__VARIES__';
-      
-      // 辅助函数：判断两个值是否相同（把 null, undefined, '' 视为相同）
-      const isSameValue = (v1, v2) => {
-        const normalize = (v) => (v == null || v === '') ? '' : String(v);
-        return normalize(v1) === normalize(v2);
-      };
-      
-      const mergedProps = { ...allProps[0], isMultiple: true };
-      const base = allProps[0]; // 用第一个元素作为基准
-      
-      for (let i = 1; i < allProps.length; i++) {
-        const props = allProps[i];
-        Object.keys(mergedProps).forEach(key => {
-          if (key !== 'isMultiple' && mergedProps[key] !== VARIES_VALUE && !isSameValue(base[key], props[key])) {
-            mergedProps[key] = VARIES_VALUE;
-          }
-        });
-      }
-      
-      selectedRoomProperties.value = mergedProps;
-    } else {
-      selectedRoomProperties.value = { isMultiple: true };
-    }
+  // 2. 回退：从本地 assetList 获取 (主要是多选或 API 失败时)
+  const dbProps = getPropertiesFromSelection(dbIds, assetList.value, 'asset');
+  
+  console.log('🔍 loadAssetProperties debug:', {
+    dbIds,
+    assetListSize: assetList.value?.length,
+    foundProps: dbProps
+  });
+
+  if (dbProps) {
+    selectedRoomProperties.value = dbProps;
+  } else if (dbIds.length === 1 && mainViewRef.value?.getAssetProperties) {
+    // 2. 回退到模型数据
+    mainViewRef.value.getAssetProperties(dbIds[0]).then(props => {
+      selectedRoomProperties.value = props;
+    });
+  } else {
+    selectedRoomProperties.value = { isMultiple: true };
   }
 };
 
@@ -1729,6 +1611,23 @@ const onModelSelectionChanged = (dbIds) => {
     
     // 🔑 加载空间属性
     loadSpaceProperties(dbIds);
+  } else if (currentView.value === 'rds') {
+    // RDS 页面：尝试在树中选中对应的构件
+    
+    // 1. 加载属性面板 (需存在于资产列表中)
+    loadAssetProperties(dbIds);
+    
+    // 2. 在 RDS 树中选中
+    if (aspectTreePanelRef.value && dbIds.length > 0) {
+      const mcCodes = dbIds.map(id => {
+        const asset = assetList.value.find(a => a.dbId === id);
+        return asset?.mcCode;
+      }).filter(Boolean);
+      
+      if (mcCodes.length > 0) {
+        aspectTreePanelRef.value.selectByMcCodes(mcCodes);
+      }
+    }
   }
 };
 
@@ -1739,24 +1638,32 @@ const onModelSelectionChanged = (dbIds) => {
  * 将选中编码对应的 BIM GUID 转换为 dbId 并在模型中隔离显示
  */
 const onHighlightGuids = async (payload) => {
-  // 兼容旧格式(数组)和新格式({guids, refCodes})
+  // 兼容旧格式(数组)和新格式({guids, refCodes, searchQueries})
   let guids = [];
   let refCodes = [];
+  let searchQueries = [];
 
   if (Array.isArray(payload)) {
       guids = payload;
   } else if (payload) {
       guids = payload.guids || [];
       refCodes = payload.refCodes || [];
+      searchQueries = payload.searchQueries || [];
   }
   
-  if (guids.length === 0 && refCodes.length === 0) return;
+  if (guids.length === 0 && refCodes.length === 0 && searchQueries.length === 0) return;
   
-  console.log(`🔍 [RDS] 高亮请求: ${guids.length} GUIDs, ${refCodes.length} RefCodes`);
+  console.log(`🔍 [RDS] 高亮请求: ${guids.length} GUIDs, ${refCodes.length} RefCodes, ${searchQueries.length} Queries`);
   
   if (mainViewRef.value && mainViewRef.value.highlightBimObjects) {
       // 优先使用新方法
-      mainViewRef.value.highlightBimObjects(guids, refCodes);
+      if (searchQueries.length > 0) {
+          // 传递高级查询对象
+          mainViewRef.value.highlightBimObjects(guids, { queries: searchQueries });
+      } else {
+          // 兼容旧调用
+          mainViewRef.value.highlightBimObjects(guids, refCodes);
+      }
   } else if (mainViewRef.value && mainViewRef.value.isolateByExternalIds && guids.length > 0) {
     // 降级：仅使用 External ID
     mainViewRef.value.isolateByExternalIds(guids);

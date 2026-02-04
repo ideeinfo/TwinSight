@@ -260,6 +260,20 @@ export async function deleteAssetsByDbIds(dbIds) {
     return result.rowCount;
 }
 
+/**
+ * 根据 DB ID 和 文件 ID 获取资产详情 (包含规格信息)
+ */
+export async function getAssetByDbId(dbId, fileId) {
+    const sql = `
+    SELECT a.*, s.spec_name, s.classification_code, s.classification_desc, s.category, s.family, s.type, s.manufacturer, s.address, s.phone
+    FROM assets a
+    LEFT JOIN asset_specs s ON a.spec_code = s.spec_code AND a.file_id = s.file_id
+    WHERE a.db_id = $1 AND a.file_id = $2
+  `;
+    const result = await query(sql, [dbId, fileId]);
+    return result.rows[0];
+}
+
 export default {
     upsertAsset,
     batchUpsertAssets,
@@ -273,5 +287,6 @@ export default {
     deleteAllAssets,
     deleteAsset,
     deleteAssetsByDbIds,
-    updateAsset
+    updateAsset,
+    getAssetByDbId
 };

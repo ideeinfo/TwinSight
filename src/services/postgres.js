@@ -118,6 +118,20 @@ export async function getAssetsByRoom(room) {
 }
 
 /**
+ * 根据 DB ID 和 文件 ID 获取资产详情
+ */
+export async function getAssetDetailByDbId(dbId, fileId) {
+    const response = await fetch(`${API_V1}/assets/by-dbid/${dbId}?fileId=${fileId}`, { headers: getHeaders() });
+    const data = await response.json();
+
+    if (!data.success) {
+        throw new Error(data.error || '获取资产详情失败');
+    }
+
+    return data.data;
+}
+
+/**
  * 获取所有空间
  */
 export async function getSpaces() {
@@ -301,6 +315,7 @@ export default {
     getAssets,
     getAssetsByFloor,
     getAssetsByRoom,
+    getAssetDetailByDbId,
     getSpaces,
     getSpacesByFloor,
     importModelData,

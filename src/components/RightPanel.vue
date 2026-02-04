@@ -170,7 +170,7 @@ watch(() => props.roomProperties, (newVal) => {
 
 // 判断是否为资产模式
 const isAssetMode = computed(() => {
-  return props.viewMode === 'assets';
+  return props.viewMode === 'assets' || props.viewMode === 'rds';
 });
 
 // 获取有效的规格代码（用于文档显示）

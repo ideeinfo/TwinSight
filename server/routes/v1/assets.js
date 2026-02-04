@@ -83,6 +83,47 @@ router.get('/:code',
 
 /**
  * @swagger
+ * /api/v1/assets/by-dbid/{dbId}:
+ *   get:
+ *     summary: 根据 DB ID 获取资产
+ *     tags: [Assets]
+ *     parameters:
+ *       - in: path
+ *         name: dbId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 数据库 ID (db_id)
+ *       - in: query
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 文件 ID
+ */
+router.get('/by-dbid/:dbId',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_READ),
+    param('dbId').isInt().toInt(),
+    query('fileId').isInt().toInt(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const asset = await assetModel.getAssetByDbId(req.params.dbId, req.query.fileId);
+            if (!asset) {
+                // 如果数据库中没有记录，返回 null data 而不是 404，
+                // 因为前端可能选中了模型中存在但数据库未同步的构件
+                return res.json({ success: true, data: null });
+            }
+            res.json({ success: true, data: asset });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
  * /api/v1/assets:
  *   post:
  *     summary: 创建资产
