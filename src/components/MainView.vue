@@ -832,17 +832,43 @@ const initViewer = () => {
 
 
 // 新增：加载新模型（返回 Promise，等待模型加载完成）
+// 新增：加载新模型（返回 Promise，等待模型加载完成）
+// 使用单例 Promise 模式，防止重复调用导致提前返回
+let currentLoadPromise = null;
+
 const loadNewModel = async (modelPath) => {
   if (!viewer) return Promise.resolve(false);
   
-  // 防止重复加载同一个模型
-  if (isLoadingModel || currentModelPath === modelPath) {
-    console.log(`⏭️ 模型正在加载或已加载，跳过: ${modelPath}`);
-    return Promise.resolve(true); // 已加载，返回成功
+  // 如果已经在加载，直接返回当前的 loading promise
+  if (isLoadingModel && currentLoadPromise) {
+    console.log(`⏭️ 模型正在加载中，返回现有 Promise 以保持锁定: ${modelPath}`);
+    return currentLoadPromise;
+  }
+  
+  // 防止重复加载同一个已加载的模型
+  if (!isLoadingModel && currentModelPath === modelPath) {
+    console.log(`⏭️ 模型已完全加载，跳过重复加载: ${modelPath}`);
+    return Promise.resolve(true); 
   }
   
   isLoadingModel = true;
   modelFullyReady = false; // 重置模型就绪状态
+  
+  // 创建并存储当前的 loading promise
+  currentLoadPromise = (async () => {
+    try {
+      return await performLoadNewModel(modelPath);
+    } finally {
+      // 加载完成（成功或失败）后，清理 promise 引用
+      currentLoadPromise = null;
+    }
+  })();
+  
+  return currentLoadPromise;
+};
+
+// 提取实际的加载逻辑到单独函数
+const performLoadNewModel = async (modelPath) => {
   console.log('🔄 开始加载新模型:', modelPath);
   
   // 构造候选路径 - 使用完整 URL 确保 Web Worker 能正确解析（特别是 HTTPS 环境）
@@ -913,6 +939,33 @@ const loadNewModel = async (modelPath) => {
   
   // 返回 Promise，等待模型加载完成
   return new Promise((resolve, reject) => {
+    // 监听 Promise 1: 几何体加载完成
+    const geometryPromise = new Promise(res => {
+      const handler = () => {
+        viewer.removeEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, handler);
+        console.log('✅ [loadNewModel] GEOMETRY_LOADED_EVENT 触发');
+        res();
+      };
+      viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, handler);
+    });
+
+    // 监听 Promise 2: 对象树构建完成（确保可交互）
+    const treePromise = new Promise(res => {
+      const handler = () => {
+        viewer.removeEventListener(window.Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, handler);
+        console.log('✅ [loadNewModel] OBJECT_TREE_CREATED_EVENT 触发');
+        res();
+      };
+      viewer.addEventListener(window.Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, handler);
+    });
+
+    // 加载错误处理
+    const onLoadError = (errorCode) => {
+       console.error('❌ 模型加载失败:', errorCode, finalPath);
+       isLoadingModel = false;
+       reject(new Error(`模型加载失败: ${errorCode}`));
+    };
+
     // 加载新模型，并明确指定全局坐标系
     const loadOptions = {
       globalOffset: { x: 0, y: 0, z: 0 },
@@ -934,7 +987,7 @@ const loadNewModel = async (modelPath) => {
           console.log('⚡ 模型加载回调：立即强制设置 WorldUpVector 为 Z 轴向上');
         }
         
-        console.log('✅ 新模型加载成功:', finalPath);
+        console.log('✅ loadModel 调用成功 (Manifest Loaded):', finalPath);
         console.log('📊 模型信息:', { 
           hasGeometry: model.getGeometryList ? 'Yes' : 'No',
           rootId: model.getRootId ? model.getRootId() : 'N/A'
@@ -959,36 +1012,47 @@ const loadNewModel = async (modelPath) => {
           console.log('🧭 已强制设置 WorldUpVector 为 Z 轴向上:', correctUpVector);
         }
         
-        // 检查几何体是否已加载完成
-        // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
-        setTimeout(() => {
-          if (model.isLoadDone && model.isLoadDone()) {
-            console.log('📦 检测到几何体已加载完成，确保初始化执行');
-            // GEOMETRY_LOADED_EVENT 应该已经触发，但为了保险，我们检查状态
-            if (foundRoomDbIds.length === 0 && foundAssetDbIds.length === 0) {
-              console.log('⚠️ 数据未提取，手动触发 onModelLoaded');
-              onModelLoaded();
-            }
-          }
-          // 标记模型完全就绪，并执行所有待处理回调
-          setTimeout(() => {
-            modelFullyReady = true;
-            isLoadingModel = false; // 移到这里，与 modelFullyReady 同步
-            console.log('📦 模型完全就绪，执行待处理回调:', modelReadyCallbacks.length);
-            modelReadyCallbacks.forEach(cb => {
-              try { cb(); } catch (e) { console.error('回调执行失败:', e); }
-            });
-            modelReadyCallbacks = [];
-            resolve(true);
-          }, 500); // 额外等待500ms确保渲染完成
-        }, 1000);
+        // 检查某些事件是否可能已经同步发生或已完成
+        const pendingPromises = [];
         
-        // 注意：onModelLoaded 会通过事件自动触发
-    }, (errorCode) => {
-        console.error('❌ 模型加载失败:', errorCode, finalPath);
-        isLoadingModel = false;
-        reject(new Error(`模型加载失败: ${errorCode}`));
-    });
+        if (model.isLoadDone && model.isLoadDone()) {
+             console.log('⏩ 几何体已加载 (同步或缓存)');
+        } else {
+             console.log('⏳ 等待几何体加载...');
+             pendingPromises.push(geometryPromise);
+        }
+
+        if (model.getInstanceTree && model.getInstanceTree()) {
+             console.log('⏩ 对象树已构建 (同步或缓存)');
+        } else {
+             console.log('⏳ 等待对象树构建...');
+             pendingPromises.push(treePromise);
+        }
+
+        // 等待所有条件满足
+        Promise.all(pendingPromises).then(() => {
+             console.log('🎉 模型几何体与对象树均已就绪');
+             
+             // 额外的稳定时间，确保渲染帧完成且 Viewer 内部状态同步
+             setTimeout(() => {
+                modelFullyReady = true;
+                isLoadingModel = false;
+                console.log('📦 模型完全交互就绪，执行回调:', modelReadyCallbacks.length);
+                
+                // 再次确保 WorldUpVector 正确
+                if (viewer.navigation && viewer.navigation.setWorldUpVector) {
+                   viewer.navigation.setWorldUpVector(new window.THREE.Vector3(0, 0, 1));
+                }
+
+                modelReadyCallbacks.forEach(cb => {
+                  try { cb(); } catch (e) { console.error('回调执行失败:', e); }
+                });
+                modelReadyCallbacks = [];
+                resolve(true);
+             }, 500);
+        });
+
+    }, onLoadError);
   });
 };
 
@@ -2098,8 +2162,8 @@ const refreshTimeSeriesData = async () => {
   }
 };
 
-// 12. 根据 GUID 和 RefCode 高亮构件
-const highlightBimObjects = (guids, refCodes) => {
+// 12. 根据 GUID 和 搜索目标 (RefCodes 或 高级查询) 高亮构件
+const highlightBimObjects = (guids, searchTarget) => {
   if (!viewer || !viewer.model) return;
 
   const targetDbIds = new Set();
@@ -2115,53 +2179,70 @@ const highlightBimObjects = (guids, refCodes) => {
     }
   };
 
-  // 1. 处理 GUIDs
-  if (guids && guids.length > 0) {
-    viewer.model.getExternalIdMapping((mapping) => {
-      guids.forEach(guid => {
-        if (mapping[guid]) targetDbIds.add(mapping[guid]);
-      });
-      processRefCodes();
-    }, (err) => {
-       console.error('获取 ExternalIdMapping 失败', err);
-       processRefCodes();
-    });
-  } else {
-      processRefCodes();
-  }
-
-  // 2. 处理 RefCodes
-  function processRefCodes() {
-    if (!refCodes || refCodes.length === 0) {
-      finalize();
-      return;
-    }
-
-    // 为了提高效率，只搜索特定属性
-    const searchAttributes = ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number'];
+  // 核心搜索逻辑
+  const executeSearch = (codes, attributes) => {
+    if (!codes || codes.length === 0) return Promise.resolve();
     
     // 如果 refCodes 数量过多，只取前 50 个避免卡顿
-    const codesToSearch = refCodes.length > 50 ? refCodes.slice(0, 50) : refCodes;
-    if (refCodes.length > 50) {
-       ElMessage.info(`选中项过多，仅搜索前 50 个构件`);
+    const codesToSearch = codes.length > 50 ? codes.slice(0, 50) : codes;
+    if (codes.length > 50) {
+       // 使用防抖或仅提示一次
+       console.log(`选中项过多(${codes.length})，仅搜索前 50 个`);
     }
 
-    const searchPromises = codesToSearch.map(code => {
+    const promises = codesToSearch.map(code => {
       return new Promise((resolve) => {
+        // search(value, onSuccess, onError, attributeNames)
         viewer.search(code, (dbIds) => {
            dbIds.forEach(id => targetDbIds.add(id));
            resolve();
         }, (err) => {
-           // console.warn(`搜索编码 ${code} 失败`, err);
            resolve();
-        }, searchAttributes);
+        }, attributes);
       });
     });
+    
+    return Promise.all(promises);
+  };
 
-    Promise.all(searchPromises).then(() => {
-      finalize();
+  // 1. 处理 GUIDs (优先处理，因为最快且准确)
+  const processGuids = () => {
+    return new Promise((resolve) => {
+      if (guids && guids.length > 0) {
+        viewer.model.getExternalIdMapping((mapping) => {
+          guids.forEach(guid => {
+            if (mapping[guid]) targetDbIds.add(mapping[guid]);
+          });
+          resolve();
+        }, (err) => {
+           console.error('获取 ExternalIdMapping 失败', err);
+           resolve();
+        });
+      } else {
+        resolve();
+      }
     });
-  }
+  };
+
+  // 2. 执行流程
+  processGuids().then(() => {
+    // 处理 searchTarget
+    if (Array.isArray(searchTarget)) {
+       // 兼容旧模式：searchTarget 是 refCodes 数组
+       // 为了提高效率，只搜索特定属性
+       const defaultAttributes = ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number'];
+       executeSearch(searchTarget, defaultAttributes).then(finalize);
+    } 
+    else if (searchTarget && searchTarget.queries) {
+       // 新模式：高级查询对象 { queries: [{ values: [], attributes: [] }] }
+       const queryPromises = searchTarget.queries.map(q => executeSearch(q.values, q.attributes));
+       Promise.all(queryPromises).then(finalize);
+    } 
+    else {
+       // 只有 GUID 或无数据
+       finalize();
+    }
+  });
 };
 
 // 暴露方法给父组件

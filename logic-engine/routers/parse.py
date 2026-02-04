@@ -148,14 +148,17 @@ async def import_excel(file: UploadFile = File(...)):
                 for col_name, aspect_type in column_mapping.items():
                     code = row.get(col_name, '')
                     if pd.notna(code) and str(code).strip():
-                        hierarchy = parser.expand_hierarchy(str(code))
-                        for h in hierarchy:
+                        # Fix: Use parse_code instead of expand_hierarchy to avoid creating duplicate
+                        # aspect entries for parent levels when they are not explicitly defined as objects.
+                        # Each object should only claim the specific code defined in its row.
+                        parsed = parser.parse_code(str(code))
+                        if parsed:
                             obj.aspects.append(AspectInfo(
-                                full_code=h.full_code,
-                                prefix=h.prefix,
-                                aspect_type=h.aspect_type,
-                                hierarchy_level=h.hierarchy_level,
-                                parent_code=h.parent_code
+                                full_code=parsed.full_code,
+                                prefix=parsed.prefix,
+                                aspect_type=parsed.aspect_type,
+                                hierarchy_level=parsed.hierarchy_level,
+                                parent_code=parsed.parent_code
                             ))
                 
                 results.parsed_objects.append(obj)

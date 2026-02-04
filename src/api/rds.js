@@ -161,9 +161,9 @@ export const RelationType = {
  */
 export async function traceTopology(objectId, direction = TraceDirection.UPSTREAM, relationType = RelationType.FEEDS_POWER_TO) {
     return request.post(`${RDS_BASE}/topology/trace`, {
-        objectId,
+        object_id: objectId,
         direction,
-        relationType
+        relation_type: relationType
     })
 }
 

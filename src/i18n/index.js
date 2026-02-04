@@ -555,7 +555,11 @@ const messages = {
       fullCode: '完整编码',
       serviceStatus: '服务状态',
       logicEngineOnline: 'Logic Engine 在线',
-      logicEngineOffline: 'Logic Engine 离线'
+      logicEngineOffline: 'Logic Engine 离线',
+      selectOneToTrace: '请选择一个节点进行追溯',
+      noUpstreamFound: '未找到上游节点',
+      traceSuccess: '追溯成功，找到 {count} 个上游节点',
+      linkedToModel: '已关联 BIM 模型'
     }
   },
   en: {
@@ -1116,7 +1120,11 @@ const messages = {
       fullCode: 'Full Code',
       serviceStatus: 'Service Status',
       logicEngineOnline: 'Logic Engine Online',
-      logicEngineOffline: 'Logic Engine Offline'
+      logicEngineOffline: 'Logic Engine Offline',
+      selectOneToTrace: 'Please select a node to trace',
+      noUpstreamFound: 'No upstream nodes found',
+      traceSuccess: 'Trace successful, found {count} upstream nodes',
+      linkedToModel: 'Associated with BIM Model'
     }
   }
 }

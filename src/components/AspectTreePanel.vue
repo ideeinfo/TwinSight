@@ -85,14 +85,10 @@
       <span class="selection-count">
         {{ t('common.selected', { count: selectedCodes.length }) }}
       </span>
-      <el-button 
-        type="primary" 
-        size="small"
-        @click="highlightInViewer"
-      >
-        <el-icon><View /></el-icon>
-        {{ t('rds.highlightInModel') }}
-      </el-button>
+      <span class="selection-count">
+        {{ t('common.selected', { count: selectedCodes.length }) }}
+      </span>
+      <!-- 按钮已移除，改为自动高亮 -->
       <el-button 
         text 
         size="small"
@@ -307,6 +303,9 @@ function handleCheckChange() {
   }
   
   emit('codes-selected', selectedCodes.value);
+
+  // 立即触发高亮 (支持多选叠加)
+  highlightInViewer();
 }
 
 /**
@@ -328,7 +327,12 @@ function handleNodeClick(data) {
  * 在模型中高亮选中的编码
  */
 async function highlightInViewer() {
-  if (selectedCodes.value.length === 0) return;
+  if (selectedCodes.value.length === 0) {
+    // 如果没有选中项，发送空事件以清除高亮
+    console.log('🧹 [AspectTree] 没有选中项，发送清除高亮请求');
+    emit('highlight-guids', { guids: [], refCodes: [], searchQueries: [] });
+    return;
+  }
   
   console.log('🔍 [AspectTree] 开始执行高亮查找 (基于 ID)...');
   
@@ -583,22 +587,29 @@ function selectByMcCodes(mcCodes) {
   if (matchedUiTreeIds.length > 0) {
     console.log(`🔗 [AspectTree] 根据 MC 编码联动选中 ${matchedUiTreeIds.length} 个节点`);
     
-    // 1. 展开父节点
-    if (treeRef.value?.setExpandedKeys) {
-      treeRef.value.setExpandedKeys(Array.from(expandedUiTreeIds));
+    if (treeRef.value) {
+      // 使用 nextTick 确保组件状态同步，并添加 try-catch 防止内部错误崩溃
+      import('vue').then(({ nextTick }) => {
+        nextTick(() => {
+          try {
+            // 1. 展开父节点
+            if (treeRef.value?.setExpandedKeys) {
+               console.log(`📂 [AspectTree] 展开 ${expandedUiTreeIds.size} 个父节点`);
+               treeRef.value.setExpandedKeys(Array.from(expandedUiTreeIds));
+            }
+            
+            // 2. 选中目标节点
+            selectedCodes.value = matchedUiTreeIds;
+            if (treeRef.value?.setCheckedKeys) {
+               console.log(`☑️ [AspectTree] 勾选 ${matchedUiTreeIds.length} 个目标节点`);
+               treeRef.value.setCheckedKeys(matchedUiTreeIds);
+            }
+          } catch (err) {
+            console.error('❌ [AspectTree] 联动选中失败 (el-tree-v2 内部错误):', err);
+          }
+        });
+      });
     }
-    
-    // 2. 选中目标节点 (根据需求，可能要清除旧的选择?)
-    // 这里我们假设是替换选择
-    selectedCodes.value = matchedUiTreeIds;
-    treeRef.value?.setCheckedKeys(matchedUiTreeIds);
-    
-    // 3. 滚动到第一个匹配节点 (可选)
-    if (treeRef.value?.scrollToNode) {
-       // treeRef.value.scrollToNode(matchedUiTreeIds[0]);
-    }
-    
-    // 注意：这里更新了选中状态，通常不应当反向再次触发 highlightInViewer，避免死循环
     // 但我们需要 update selectedCodes 以便 Trace 功能可用
   } else {
     console.log('ℹ️ [AspectTree] 未找到匹配的 MC 编码节点');

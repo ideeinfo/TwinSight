@@ -42,6 +42,7 @@ router.get('/tree/:fileId', async (req, res) => {
     try {
         let query = `
             SELECT DISTINCT 
+                o.id,
                 a.full_code as code,
                 a.parent_code,
                 a.aspect_type,
@@ -103,6 +104,7 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
         // 方案 B: 查询所有节点，在内存中构建树（避免 SQL 递归性能问题）
         const query = `
             SELECT 
+                o.id,
                 a.full_code as code,
                 a.parent_code,
                 a.aspect_type,
@@ -145,6 +147,7 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
 
         // 3. 格式化输出
         const formatNode = (node) => ({
+            id: node.id,
             code: node.code,
             name: node.name,
             level: node.level,

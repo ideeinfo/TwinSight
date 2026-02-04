@@ -1,16 +1,39 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <!-- 在 <head> 中添加 -->
-    <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css" type="text/css">
-    <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>twinsight</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    (function () {
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.type = 'image/png';
+
+      function updateFavicon(e) {
+        const isDark = e.matches;
+        // 深色模式 -> 用亮色图标
+        // 浅色模式 -> 用深色图标
+        link.href = isDark ? '/TS_light_appstore_1024.png' : '/TS_dark_appstore_1024.png';
+      }
+
+      const matcher = window.matchMedia('(prefers-color-scheme: dark)');
+      updateFavicon(matcher);
+      matcher.addEventListener('change', updateFavicon);
+
+      document.head.appendChild(link);
+    })();
+  </script>
+  <!-- 在 <head> 中添加 -->
+  <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css"
+    type="text/css">
+  <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TwinSight</title>
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
 </html>

@@ -1651,7 +1651,14 @@ const onHighlightGuids = async (payload) => {
       searchQueries = payload.searchQueries || [];
   }
   
-  if (guids.length === 0 && refCodes.length === 0 && searchQueries.length === 0) return;
+  if (guids.length === 0 && refCodes.length === 0 && searchQueries.length === 0) {
+    // 🔴 如果没有任何选中项，清除高亮并恢复显示所有资产
+    if (mainViewRef.value && mainViewRef.value.showAllAssets) {
+      console.log('🧹 [RDS] 清除高亮，显示所有资产');
+      mainViewRef.value.showAllAssets();
+    }
+    return;
+  }
   
   console.log(`🔍 [RDS] 高亮请求: ${guids.length} GUIDs, ${refCodes.length} RefCodes, ${searchQueries.length} Queries`);
   

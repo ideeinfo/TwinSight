@@ -22,9 +22,14 @@ async function run() {
         const resFiles = await client.query('SELECT DISTINCT file_id, count(*) FROM rds_objects GROUP BY file_id');
         console.log('File IDs present:', resFiles.rows);
 
-        const fileId = 6; // Keep 6 for now, but look at output
+        const fileId = 6; // Keep 6 for now
 
-        console.log('Total Objects:', resObj.rows[0].count);
+        // 1. Check mc_code stats
+        const resMc = await client.query('SELECT count(*) FROM rds_objects WHERE file_id = $1 AND mc_code IS NOT NULL AND mc_code != \'\'', [fileId]);
+        console.log('Objects with valid mc_code:', resMc.rows[0].count);
+
+        const resTotal = await client.query('SELECT count(*) FROM rds_objects WHERE file_id = $1', [fileId]);
+        console.log('Total Objects:', resTotal.rows[0].count);
 
         const resAsp = await client.query(`
             SELECT count(*) FROM rds_aspects a 
