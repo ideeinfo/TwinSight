@@ -1,39 +1,39 @@
-# Duplicate Aspect Fix Walkthrough
+# 缺失父节点/树结构断裂修复演示
 
-## Changes Implemented
-I have modified the Logic Engine's Excel import parser to prevent duplicate aspect entries.
+## 问题描述
+在初步修复“AH5”节点重复问题后，发现父节点（如“10KV出线...”）丢失了。
+这是因为移除了 `expand_hierarchy`（层级展开）逻辑，导致无法创建 **容器方面**（即以 `.` 结尾的节点，例如 `===A.`）。在 RDS 结构中，子节点必须链接到这些容器节点才能形成树状结构。
 
-### Backend Logic
-- **File**: `logic-engine/routers/parse.py`
-- **Change**: Replaced `expand_hierarchy` with `parse_code` during object import.
-- **Effect**: Now, when an object is imported from Excel, it is ONLY assigned the specific aspect code defined in the cell (e.g., `===OY1.AH1.H01`), rather than generating and assigning all its parent codes (e.g., `===OY1.AH1`) to the same object ID.
+## 实施的更改
+我优化了 `logic-engine/routers/parse.py` 中的导入逻辑：
 
-## Verification Steps
+- **实体创建 (Entity Creation)**：保持不变，为对象创建特定的实体方面（例如 `===A`）。
+- **容器创建 (Container Creation)**：新增逻辑，如果对象是实体，会**显式创建**对应的容器方面（例如 `===A.`）。
+- **结果**：对象 A 现在同时拥有 `===A`（自身）和 `===A.`（作为容器）。子节点 B（位于 `===A.B`）现在可以成功链接到 `===A.`（归属于 A），从而恢复正确的树形结构。
+- **防止重复**：我们仍然**不**递归生成所有祖先节点（如 `===` 或 A 的上级），从而避免了最初的重复节点问题。
 
-### 1. Re-import Excel Data (Required)
-The fix only applies to *new* imports. You must re-import your data to clean up the existing duplicates.
-1. Go to the **Model Management** or **Data Import** page in your application.
-2. Select the file, e.g., `@MC数据20230620_NEW.xlsx`.
-3. Ensure the option **Clear Existing Data** (or similar) is checked.
-4. Click **Import**.
+## 验证步骤
 
-### 2. Verify in UI
-1. Open the **Reference Designation System (RDS)** panel.
-2. Switch to the **Power** (===) view.
-3. Search for "AH5".
-4. **Success Criteria**: "AH5柜出线" should appear **only once** in the tree structure.
+### 1. 重新导入 Excel 数据（关键步骤）
+您必须重新导入数据才能应用此修复。
+1. **重建 Logic Engine**：运行命令 `docker-compose up -d --build logic-engine`
+2. **导入**：重新导入 `@MC数据20230620_NEW.xlsx`，并务必勾选“清除现有数据”。
 
-### 3. Verify in Database (Optional)
-I have created a debug script to verify the data in the database.
+### 2. 在界面中验证
+1. 打开 **RDS (Reference Designation System)** 面板。
+2. 切换到 **电源 (Power, ===)** 视图。
+3. **检查父节点**：确保“10KV出线1 AH5”等顶层节点现在可见。
+4. **检查子节点**：确保“AH5柜出线”出现在正确的父节点下方，且**仅出现一次**。
 
-Run the following command in your terminal:
+### 3. 在数据库验证
+运行提供的调试脚本：
 ```bash
 node server/scripts/debug_ah5.js
 ```
 
-**Expected Output (After Re-import):**
-- **Objects**: Should find 1 object for "AH5柜出线".
-- **Aspects**: Should verify that the object has only *one* Power aspect (e.g., `===DY1.AH1.H01`), and potentially one Location aspect, but *not* multiple Power aspects representing the parent hierarchy.
-
-> [!NOTE]
-> If you run the script *before* re-importing, you will still see the duplicate aspects (multiple 'power' rows for the same object ID).
+**预期输出：**
+- **对象 (Objects)**：应找到 1 个“AH5...”对象，1 个“10KV...”对象。
+- **方面 (Aspects)**：
+    - “10KV...”对象应拥有 `===OY1.AH1` 和 `===OY1.AH1.` (容器)。
+    - “AH5...”对象应拥有 `===OY1.AH1.H01` 和 `===OY1.AH1.H01.` (容器)。
+    - “AH5...”的 `parent_code` 字段应指向 `===OY1.AH1.` (该节点现在已存在)。
