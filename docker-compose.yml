@@ -111,7 +111,7 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - twinsight-lan_twinsight-network
+      - twinsight-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
