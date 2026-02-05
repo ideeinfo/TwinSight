@@ -437,8 +437,11 @@ def _create_power_graph_data(
             if is_leaf:
                 if aspect.get('asset_code'):
                     object_id = object_id_map.get(aspect['asset_code'])
-                if aspect.get('name'):
-                    label = aspect['name']
+                
+                # 只有当名称有效且不像是编码时才使用
+                candidate_name = aspect.get('name')
+                if candidate_name and not candidate_name.strip().startswith('='):
+                    label = candidate_name
             
             # 确定节点类型
             node_type = 'device'
