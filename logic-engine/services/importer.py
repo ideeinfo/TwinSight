@@ -418,40 +418,44 @@ def _create_power_graph_data(
             else:
                 current_full_code = current_full_code + '.' + part
             
-            # 检查节点是否已存在
+            # 检查节点是否已存在 (仅用于获取父ID，不跳过更新)
             if current_full_code in created_nodes:
-                parent_node_id = created_nodes[current_full_code]
-                continue
+                # 即使已存在，也继续执行以触发 UPDATE (更新 label/object_id)
+                pass
             
             # 生成确定性 UUID (基于 full_code)
             node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_NODE_{file_id}_{current_full_code}"))
             
-            # 判断是否是叶子节点（末端设备）
+            # 判断是否是当前 aspect 的末端
             is_leaf = (i == len(parts) - 1)
             
-            # 叶子节点关联 rds_objects
+            # 只有当它是当前处理行的末端，且有名称时，才使用名称作为 label
+            # 否则暂时使用 short_code
             object_id = None
-            label = part
-            if is_leaf and aspect.get('asset_code'):
-                object_id = object_id_map.get(aspect['asset_code'])
+            label = part  # 默认 label 为短码
+            
+            if is_leaf:
+                if aspect.get('asset_code'):
+                    object_id = object_id_map.get(aspect['asset_code'])
                 if aspect.get('name'):
-                    label = f"{aspect['name']}"
+                    label = aspect['name']
             
             # 确定节点类型
             node_type = 'device'
             if level == 1:
-                node_type = 'source'  # 顶层通常是电源/变电站
+                node_type = 'source'
             elif level == 2:
-                node_type = 'bus'     # 第二层通常是母线
+                node_type = 'bus'
             elif not is_leaf:
-                node_type = 'feeder'  # 中间层是馈线柜
+                node_type = 'feeder'
             
             # 父级编码
             parent_code = None
             if i > 0:
                 parent_code = prefix + '.'.join(parts[:i])
             
-            # 插入节点
+            # 插入节点 (UPSERT)
+            # 如果新 label 与 short_code 不同 (说明是真名)，则更新它
             insert_node = text("""
                 INSERT INTO rds_power_nodes (
                     id, file_id, object_id, full_code, short_code, parent_code, label, level, node_type
@@ -460,8 +464,12 @@ def _create_power_graph_data(
                     :id, :file_id, :object_id, :full_code, :short_code, :parent_code, :label, :level, :node_type
                 )
                 ON CONFLICT (file_id, full_code) DO UPDATE SET
-                    label = COALESCE(EXCLUDED.label, rds_power_nodes.label),
-                    object_id = COALESCE(EXCLUDED.object_id, rds_power_nodes.object_id)
+                    label = CASE 
+                        WHEN EXCLUDED.label != EXCLUDED.short_code THEN EXCLUDED.label 
+                        ELSE rds_power_nodes.label 
+                    END,
+                    object_id = COALESCE(EXCLUDED.object_id, rds_power_nodes.object_id),
+                    node_type = EXCLUDED.node_type -- 更新类型以防之前判断不准
             """)
             
             session.execute(insert_node, {
