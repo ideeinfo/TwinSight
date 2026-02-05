@@ -39,8 +39,9 @@
 
     <!-- 树形列表 -->
     <div ref="treeContainer" class="tree-content">
+      <!-- 只有非电源或强制显示树时才渲染树 -->
       <el-tree-v2
-        v-if="containerHeight > 0"
+        v-if="activeAspect !== 'power' && containerHeight > 0"
         ref="treeRef"
         :data="filteredTreeData"
         :props="treeProps"
@@ -67,6 +68,13 @@
           </div>
         </template>
       </el-tree-v2>
+
+      <!-- 电源网络图 -->
+      <PowerNetworkGraph
+        v-if="activeAspect === 'power'"
+        :file-id="fileId"
+        @node-click="handleGraphNodeClick"
+      />
 
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-state">
@@ -116,6 +124,7 @@ import {
   AspectTypePrefixes,
   TraceDirection
 } from '../api/rds.js';
+import PowerNetworkGraph from './PowerNetworkGraph.vue';
 
 const { t } = useI18n();
 
@@ -613,6 +622,38 @@ function selectByMcCodes(mcCodes) {
     // 但我们需要 update selectedCodes 以便 Trace 功能可用
   } else {
     console.log('ℹ️ [AspectTree] 未找到匹配的 MC 编码节点');
+  }
+}
+
+/**
+ * 处理电源图节点点击
+ */
+function handleGraphNodeClick(nodeData) {
+  console.log('⚡️ [AspectTree] 电源图节点点击:', nodeData);
+  
+  if (!nodeData) return;
+  
+  // 1. 高亮 BIM 模型
+  const guids = [];
+  const searchQueries = [];
+  
+  if (nodeData.bimGuid) {
+    guids.push(nodeData.bimGuid);
+  }
+  
+  if (nodeData.mcCode) {
+    searchQueries.push({
+      values: [nodeData.mcCode],
+      attributes: ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number']
+    });
+  }
+  
+  if (guids.length > 0 || searchQueries.length > 0) {
+    emit('highlight-guids', {
+      guids,
+      refCodes: nodeData.mcCode ? [nodeData.mcCode] : [],
+      searchQueries
+    });
   }
 }
 
