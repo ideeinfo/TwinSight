@@ -39,7 +39,7 @@ if (process.env.DATABASE_URL) {
         port: parseInt(process.env.DB_PORT || '5432'),
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'password',
-        database: process.env.DB_NAME || 'tandem',
+        database: process.env.DB_NAME || 'twinsight',
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
