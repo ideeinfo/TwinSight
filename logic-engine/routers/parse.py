@@ -148,6 +148,10 @@ async def import_excel(file: UploadFile = File(...)):
                 for col_name, aspect_type in column_mapping.items():
                     code = row.get(col_name, '')
                     if pd.notna(code) and str(code).strip():
+                        # Debug: Log what we are finding for specific items
+                        if '1回路' in obj.name or 'AH1' in obj.name:
+                            print(f"[DEBUG] Row {idx} ({obj.name}): Found code '{code}' in column '{col_name}'")
+
                         # Fix: Use parse_code instead of expand_hierarchy to avoid creating duplicate
                         # aspect entries for parent levels when they are not explicitly defined as objects.
                         # Each object should only claim the specific code defined in its row.

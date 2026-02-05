@@ -128,22 +128,57 @@ router.get('/tree/:fileId/hierarchy', async (req, res) => {
         const nodeMap = new Map();
         const rootNodes = [];
 
-        // 1. 初始化所有节点
-        allNodes.forEach(node => {
-            node.children = [];
-            nodeMap.set(node.code, node);
+        // 1. 构建哈希映射 (Code -> [Node list])
+        // Fix: Store array of nodes for each code to handle duplicates (e.g., multiple objects claiming '===DY1.')
+        allNodes.forEach(row => {
+            const node = {
+                id: row.id,
+                label: row.name, // Keep for backward compat if any
+                name: row.name, // Required by formatNode
+                code: row.code,
+                full_code: row.code,
+                parent_code: row.parent_code,
+                level: row.hierarchy_level,
+                aspect_type: row.aspect_type, // Required by formatNode
+                bim_guid: row.bim_guid,
+                mc_code: row.mc_code, // Required
+                ref_code: row.ref_code, // Required
+                children: [],
+                is_duplicate: false
+            };
+
+            if (!nodeMap.has(row.code)) {
+                nodeMap.set(row.code, []);
+            }
+            nodeMap.get(row.code).push(node);
         });
 
-        // 2. 建立父子关系
-        allNodes.forEach(node => {
-            if (node.parent_code && nodeMap.has(node.parent_code)) {
-                const parent = nodeMap.get(node.parent_code);
-                parent.children.push(node);
-            } else {
-                // 没有父节点，或者父节点不在当前查询结果中
-                rootNodes.push(node);
-            }
-        });
+        // 2. 组装树结构
+        // Iterate through every node in the map arrays
+        for (const [code, nodes] of nodeMap.entries()) {
+            nodes.forEach(node => {
+                const parentCode = node.parent_code;
+
+                if (parentCode && nodeMap.has(parentCode)) {
+                    const potentialParents = nodeMap.get(parentCode);
+
+                    // Add to ALL matching parents
+                    potentialParents.forEach((parent, index) => {
+                        if (index === 0) {
+                            // First parent: standard add
+                            parent.children.push(node);
+                        } else {
+                            // Secondary parents: Clone node to avoid ID collision in UI
+                            const clone = { ...node, id: `${node.id}_dup_${index}` };
+                            parent.children.push(clone);
+                        }
+                    });
+                } else {
+                    // No parent found in map -> Root node
+                    rootNodes.push(node);
+                }
+            });
+        }
 
         // 3. 格式化输出
         const formatNode = (node) => ({

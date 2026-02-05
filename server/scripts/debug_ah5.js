@@ -50,10 +50,35 @@ async function debugData() {
                 LEFT JOIN rds_objects o ON a.object_id = o.id
                 WHERE a.full_code LIKE '%===OY1.AH1%'
             `);
-            console.log(`Aspects matching "%===OY1.AH1%": ${resParentCode.rowCount}`);
-            console.table(resParentCode.rows);
+            // --- Investigate Power Tree Collisions ---
+            console.log('\n--- Investigating Power Tree Collisions (10KV, 1回路, AH2) ---');
 
+            // Search for objects by name pattern
+            const resPowerObjs = await client.query(`
+                SELECT id, name, file_id 
+                FROM rds_objects 
+                WHERE name LIKE '%10KV%AH1%' OR name LIKE '%1回路%AH1%' OR name LIKE '%AH2柜出线%'
+            `);
+            console.table(resPowerObjs.rows);
 
+            const pIds = resPowerObjs.rows.map(r => r.id);
+            if (pIds.length > 0) {
+                const resPowerAspects = await client.query(`
+                    SELECT object_id, aspect_type, full_code, parent_code 
+                    FROM rds_aspects 
+                    WHERE object_id = ANY($1) AND aspect_type = 'power'
+                    ORDER BY full_code
+                `, [pIds]);
+                console.table(resPowerAspects.rows);
+
+                // Check if multiple objects claim the same full_code?
+                const codeCounts = {};
+                resPowerAspects.rows.forEach(r => {
+                    codeCounts[r.full_code] = (codeCounts[r.full_code] || 0) + 1;
+                });
+                console.log('Duplicate Codes:', Object.entries(codeCounts).filter(([k, v]) => v > 1));
+            }
+            // Same as before just ensure proper closure
         } finally {
             client.release();
         }
@@ -63,5 +88,7 @@ async function debugData() {
         await closePool();
     }
 }
+
+
 
 debugData();
