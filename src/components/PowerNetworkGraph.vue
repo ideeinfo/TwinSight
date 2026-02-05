@@ -126,55 +126,46 @@ const initGraph = () => {
     
     node: {
       style: {
-        // 基础形状
+        // 矩形卡片样式
         fill: '#1f1f1f',
         stroke: (d) => getNodeColor(d.nodeType),
-        lineWidth: 2,
+        lineWidth: 1,
         shadowColor: (d) => getNodeColor(d.nodeType),
-        shadowBlur: 10,
+        shadowBlur: 4,
         radius: 4,
         
-        // 标签样式 - 显示完整名称
-        labelText: (d) => {
-          // 优先显示 label (描述名称)，如果没有则显示 label (目前后端逻辑 label=name or code)
-          // 如果想同时显示: return `${d.label}\n${d.shortCode}`;
-          return d.label || d.shortCode || 'Unknown';
-        },
-        labelFill: '#e0e0e0',
-        labelFontSize: 12,
-        labelPlacement: 'bottom', // 标签在下方，避免遮挡
-        labelBackground: true,
-        labelBackgroundFill: 'rgba(0,0,0,0.6)',
-        labelBackgroundRadius: 2,
-        labelBackgroundPadding: [2, 4],
+        // 尺寸: 宽矩形以容纳文字
+        size: [180, 42],
         
-        // 图标/徽章
-        badge: true,
-        badgeText: (d) => NODE_ICONS[d.nodeType] || '',
-        badgePlacement: 'right-top',
-        badgeFill: 'transparent',
-        badgeColor: (d) => getNodeColor(d.nodeType),
-        badgeFontSize: 16,
-
-        // 尺寸动态化
-        size: (d) => d.nodeType === 'source' ? [50, 50] : [40, 40],
-        iconText: (d) => NODE_ICONS[d.nodeType] || '', // 中心图标
-        iconFontSize: 18,
-        iconFill: (d) => getNodeColor(d.nodeType),
+        // 标签: 图标 + 文字，居中显示
+        labelText: (d) => {
+          const icon = NODE_ICONS[d.nodeType] || '';
+          const text = d.label || d.shortCode || 'Unknown';
+          return `${icon}  ${text}`;
+        },
+        labelFill: '#f0f0f0',
+        labelFontSize: 13,
+        labelPlacement: 'center',
+        background: false, // 是否需要文字背景？矩形内不需要
+        
+        // 移除原来的中心大图标配置，改用 text 组合
+        iconText: '', 
+        
+        // 徽章 (可选: 显示层级或其他状态)
+        badge: false,
       },
       state: {
         selected: {
           stroke: '#ffffff',
-          lineWidth: 3,
-          shadowBlur: 20,
-          shadowColor: '#ffffff',
+          lineWidth: 2,
+          fill: '#2a2a2a',
+          shadowBlur: 10,
         },
         active: {
-          fill: '#2a2a2a',
-          shadowBlur: 15,
+          fill: '#333333',
         },
         inactive: {
-          opacity: 0.2,
+          opacity: 0.3,
         }
       },
       palette: {
@@ -184,35 +175,28 @@ const initGraph = () => {
     },
     
     edge: {
-      type: 'cubic-horizontal', // 曲线连接，更现代
+      type: 'cubic-horizontal',
       style: {
-        stroke: '#444444',
-        lineWidth: 2,
+        stroke: '#555',
+        lineWidth: 1.5,
         opacity: 0.8,
         endArrow: true,
         endArrowType: 'vee',
-        endArrowSize: 10,
-        endArrowFill: '#444444',
+        endArrowSize: 8,
+        endArrowFill: '#555',
       },
       state: {
         selected: {
           stroke: '#1890FF',
-          lineWidth: 3,
+          lineWidth: 2,
           shadowBlur: 5,
           shadowColor: '#1890FF',
         },
-        active: {
-          stroke: '#40a9ff',
-          lineWidth: 2,
-        },
-        inactive: {
-          opacity: 0.1,
-        }
       },
     },
     
     plugins: [
-        { type: 'grid-line', size: 30, stroke: '#222', lineWidth: 1 }, // 这里的插件需要在 new Graph 时根据 G6 v5 API 使用，暂时简化
+        { type: 'grid-line', size: 30, stroke: '#222', lineWidth: 1 }, 
     ],
 
     behaviors: [
@@ -221,26 +205,17 @@ const initGraph = () => {
         'click-select',
         {
             type: 'hover-activate',
-            degree: 1, // 高亮相邻节点
+            degree: 1, 
         }
     ],
   });
 
   // 事件监听
   graph.on('node:click', (evt) => {
-    const { id } = evt.target;
-    // G6 v5 事件结构可能不同，确保获取数据
-    // 这里的 evt.target.id 可能是图形 ID，需要通过 graph.getNodeData 获取
-    // 简单起见，使用 click-select 行为后的 selection change 或者直接拿数据
-    
-    // 尝试获取点击的节点 ID (在 v5 中，evt.id 可能直接是节点 ID，或者 evt.target.id)
-    // 调试发现 v5 事件对象结构：evt.target 是 shape，evt.id 是 item id
-    
-    // 最可靠的方式：使用 getElementType 和 id
-    // 或者利用 behavior 的 selection
+    // ...
   });
   
-  // 补充：手动处理点击，因为 v5 behavior 主要是视觉
+  // 补充：手动处理点击
   graph.on('click', (evt) => {
       if (evt.targetType === 'node') {
           const nodeData = graph.getNodeData(evt.target.id);
@@ -249,17 +224,14 @@ const initGraph = () => {
               if (props.onNodeClick) props.onNodeClick(nodeData);
           }
       } else if (evt.targetType === 'canvas') {
-          // 点击空白处
           tooltip.value.show = false;
       }
   });
 
-  // 悬浮提示 (Tooltip)
+  // 悬浮提示
   graph.on('node:pointerenter', (evt) => {
     const nodeData = graph.getNodeData(evt.target.id);
     if (nodeData) {
-        // 计算位置 (相对于画布容器)
-        // G6 v5 clientXY
         const { clientX, clientY } = evt; 
         const containerRect = graphContainer.value.getBoundingClientRect();
         
@@ -287,24 +259,22 @@ const getLayoutConfig = (type) => {
         type: 'dagre',
         rankdir: 'LR',
         align: 'UL',
-        nodesep: 40,
-        ranksep: 80,
+        nodesep: 40,      // 垂直间距
+        ranksep: 120,     // 水平间距 (加大以容纳宽节点)
         controlPoints: true, 
       };
     case 'force':
       return {
-        type: 'd3-force', // G6 v5 内置 d3-force
+        type: 'd3-force',
         preventOverlap: true,
-        nodeSize: 30,
-        linkDistance: 100,
-        manyBodyStrength: -500,
+        nodeSize: [180, 42],
+        linkDistance: 200,
+        manyBodyStrength: -800,
       };
     case 'circular':
       return { type: 'circular' };
     case 'compactBox':
-      // G6 v5 树图布局需要特定 tree 数据结构，这里是 graph data，可能需要转换
-      // 暂时回退到 dagre 作为默认层级布局
-      return { type: 'dagre', rankdir: 'TB', nodesep: 30, ranksep: 60 };
+      return { type: 'dagre', rankdir: 'TB', nodesep: 40, ranksep: 100 };
     default:
       return { type: 'dagre', rankdir: 'LR' };
   }
