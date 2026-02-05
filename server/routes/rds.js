@@ -502,4 +502,261 @@ router.get('/import/:fileId/stats', async (req, res) => {
     }
 });
 
+
+// ==================== 电源网络图接口 ====================
+
+/**
+ * GET /api/rds/power-graph/:fileId
+ * 获取电源网络图数据 (AntV G6 格式)
+ * 
+ * Query params:
+ * - nodeType: 过滤节点类型 (source/bus/feeder/device)
+ * - maxLevel: 最大层级深度
+ * 
+ * Returns: { nodes: [...], edges: [...] }
+ */
+router.get('/power-graph/:fileId', async (req, res) => {
+    const { fileId } = req.params;
+    const { nodeType, maxLevel } = req.query;
+
+    try {
+        // 查询节点
+        let nodeQuery = `
+            SELECT 
+                pn.id,
+                pn.full_code as code,
+                pn.short_code,
+                pn.parent_code,
+                pn.label,
+                pn.level,
+                pn.node_type as type,
+                pn.object_id,
+                o.bim_guid,
+                o.ref_code as mc_code
+            FROM rds_power_nodes pn
+            LEFT JOIN rds_objects o ON pn.object_id = o.id
+            WHERE pn.file_id = $1
+        `;
+        const nodeParams = [fileId];
+        let paramIndex = 2;
+
+        if (nodeType) {
+            nodeQuery += ` AND pn.node_type = $${paramIndex}`;
+            nodeParams.push(nodeType);
+            paramIndex++;
+        }
+
+        if (maxLevel) {
+            nodeQuery += ` AND pn.level <= $${paramIndex}`;
+            nodeParams.push(parseInt(maxLevel));
+            paramIndex++;
+        }
+
+        nodeQuery += ' ORDER BY pn.level, pn.full_code';
+
+        const nodeResult = await db.query(nodeQuery, nodeParams);
+
+        // 查询边
+        const edgeQuery = `
+            SELECT 
+                pe.id,
+                pe.source_node_id as source,
+                pe.target_node_id as target,
+                pe.relation_type as type,
+                pe.properties
+            FROM rds_power_edges pe
+            WHERE pe.file_id = $1
+            ORDER BY pe.relation_type
+        `;
+        const edgeResult = await db.query(edgeQuery, [fileId]);
+
+        // 格式化为 G6 格式
+        const nodes = nodeResult.rows.map(row => ({
+            id: row.id,
+            label: row.label || row.short_code,
+            code: row.code,
+            shortCode: row.short_code,
+            parentCode: row.parent_code,
+            level: row.level,
+            nodeType: row.type,
+            objectId: row.object_id,
+            bimGuid: row.bim_guid,
+            mcCode: row.mc_code,
+            // G6 特有属性
+            style: {
+                fill: getNodeColor(row.type),
+            }
+        }));
+
+        const edges = edgeResult.rows.map(row => ({
+            id: row.id,
+            source: row.source,
+            target: row.target,
+            type: row.type,
+            properties: row.properties
+        }));
+
+        res.json({
+            success: true,
+            nodes,
+            edges,
+            stats: {
+                totalNodes: nodes.length,
+                totalEdges: edges.length
+            }
+        });
+
+    } catch (error) {
+        console.error('获取电源图失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 辅助函数：根据节点类型返回颜色
+function getNodeColor(nodeType) {
+    switch (nodeType) {
+        case 'source': return '#ff6b6b';  // 红色 - 电源
+        case 'bus': return '#ffa94d';      // 橙色 - 母线
+        case 'feeder': return '#69db7c';   // 绿色 - 馈线柜
+        case 'device': return '#74c0fc';   // 蓝色 - 设备
+        default: return '#adb5bd';         // 灰色 - 未知
+    }
+}
+
+
+/**
+ * GET /api/rds/power-trace/:fileId/:nodeCode
+ * 追溯电源路径 (上游或下游)
+ * 
+ * Query params:
+ * - direction: 'upstream' (追溯供电来源) 或 'downstream' (追溯供电目标)
+ * - maxDepth: 最大追溯深度 (默认 10)
+ * 
+ * Returns: { path: [...nodeIds], nodes: [...], edges: [...] }
+ */
+router.get('/power-trace/:fileId/:nodeCode', async (req, res) => {
+    const { fileId, nodeCode } = req.params;
+    const { direction = 'upstream', maxDepth = 10 } = req.query;
+
+    try {
+        // 先找到起始节点
+        const startNodeResult = await db.query(`
+            SELECT id, full_code, label FROM rds_power_nodes
+            WHERE file_id = $1 AND full_code = $2
+        `, [fileId, decodeURIComponent(nodeCode)]);
+
+        if (startNodeResult.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                error: `未找到节点: ${nodeCode}`
+            });
+        }
+
+        const startNodeId = startNodeResult.rows[0].id;
+
+        // 使用递归 CTE 追溯路径
+        const traceQuery = direction === 'upstream' ? `
+            WITH RECURSIVE trace AS (
+                -- 起始节点
+                SELECT 
+                    target_node_id as node_id,
+                    source_node_id as next_node_id,
+                    1 as depth,
+                    ARRAY[target_node_id] as path
+                FROM rds_power_edges
+                WHERE target_node_id = $1 AND relation_type = 'hierarchy'
+
+                UNION ALL
+
+                -- 递归向上
+                SELECT 
+                    e.target_node_id,
+                    e.source_node_id,
+                    t.depth + 1,
+                    t.path || e.source_node_id
+                FROM rds_power_edges e
+                JOIN trace t ON e.target_node_id = t.next_node_id
+                WHERE t.depth < $2 AND relation_type = 'hierarchy'
+                    AND NOT (e.source_node_id = ANY(t.path))  -- 防止环
+            )
+            SELECT DISTINCT node_id, next_node_id, depth, path FROM trace
+            ORDER BY depth
+        ` : `
+            WITH RECURSIVE trace AS (
+                -- 起始节点
+                SELECT 
+                    source_node_id as node_id,
+                    target_node_id as next_node_id,
+                    1 as depth,
+                    ARRAY[source_node_id] as path
+                FROM rds_power_edges
+                WHERE source_node_id = $1 AND relation_type = 'hierarchy'
+
+                UNION ALL
+
+                -- 递归向下
+                SELECT 
+                    e.source_node_id,
+                    e.target_node_id,
+                    t.depth + 1,
+                    t.path || e.target_node_id
+                FROM rds_power_edges e
+                JOIN trace t ON e.source_node_id = t.next_node_id
+                WHERE t.depth < $2 AND relation_type = 'hierarchy'
+                    AND NOT (e.target_node_id = ANY(t.path))  -- 防止环
+            )
+            SELECT DISTINCT node_id, next_node_id, depth, path FROM trace
+            ORDER BY depth
+        `;
+
+        const traceResult = await db.query(traceQuery, [startNodeId, parseInt(maxDepth)]);
+
+        // 收集所有涉及的节点ID
+        const nodeIds = new Set([startNodeId]);
+        traceResult.rows.forEach(row => {
+            if (row.node_id) nodeIds.add(row.node_id);
+            if (row.next_node_id) nodeIds.add(row.next_node_id);
+        });
+
+        // 查询这些节点的详细信息
+        const nodeIdsArray = Array.from(nodeIds);
+        const nodesResult = await db.query(`
+            SELECT 
+                pn.id, pn.full_code as code, pn.label, pn.level, pn.node_type as type,
+                o.bim_guid
+            FROM rds_power_nodes pn
+            LEFT JOIN rds_objects o ON pn.object_id = o.id
+            WHERE pn.id = ANY($1)
+        `, [nodeIdsArray]);
+
+        // 查询这些节点之间的边
+        const edgesResult = await db.query(`
+            SELECT id, source_node_id as source, target_node_id as target, relation_type as type
+            FROM rds_power_edges
+            WHERE source_node_id = ANY($1) AND target_node_id = ANY($1)
+        `, [nodeIdsArray]);
+
+        res.json({
+            success: true,
+            startNode: startNodeResult.rows[0],
+            direction,
+            path: nodeIdsArray,
+            nodes: nodesResult.rows,
+            edges: edgesResult.rows
+        });
+
+    } catch (error) {
+        console.error('电源路径追溯失败:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+
 export default router;
+

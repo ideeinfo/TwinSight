@@ -246,6 +246,51 @@ export async function importExcelToDb(fileId, file, clearExisting = true) {
     return request.post(url, formData)
 }
 
+// ==================== 电源网络图 ====================
+
+/**
+ * 获取电源网络图数据 (G6 格式)
+ * 
+ * @param {number} fileId - 模型文件 ID
+ * @param {object} options - 查询选项
+ * @param {string} options.nodeType - 节点类型过滤 (source/bus/feeder/device)
+ * @param {number} options.maxLevel - 最大层级深度
+ * @returns {Promise<{success: boolean, nodes: Array, edges: Array, stats: object}>}
+ */
+export async function getPowerGraph(fileId, options = {}) {
+    const params = new URLSearchParams()
+    if (options.nodeType) params.append('nodeType', options.nodeType)
+    if (options.maxLevel) params.append('maxLevel', options.maxLevel)
+
+    const queryString = params.toString()
+    const url = `${RDS_BASE}/power-graph/${fileId}${queryString ? '?' + queryString : ''}`
+
+    return request.get(url)
+}
+
+/**
+ * 追溯电源路径
+ * 
+ * @param {number} fileId - 模型文件 ID
+ * @param {string} nodeCode - 节点编码 (full_code)
+ * @param {object} options - 追溯选项
+ * @param {string} options.direction - 'upstream' 或 'downstream'
+ * @param {number} options.maxDepth - 最大追溯深度
+ * @returns {Promise<{success: boolean, path: Array, nodes: Array, edges: Array}>}
+ */
+export async function tracePowerPath(fileId, nodeCode, options = {}) {
+    const params = new URLSearchParams()
+    if (options.direction) params.append('direction', options.direction)
+    if (options.maxDepth) params.append('maxDepth', options.maxDepth)
+
+    const queryString = params.toString()
+    const encodedCode = encodeURIComponent(nodeCode)
+    const url = `${RDS_BASE}/power-trace/${fileId}/${encodedCode}${queryString ? '?' + queryString : ''}`
+
+    return request.get(url)
+}
+
+
 export default {
     AspectType,
     AspectTypeLabels,
@@ -261,5 +306,10 @@ export default {
     getBimGuidsByCode,
     checkHealth,
     importExcel,
-    importExcelToDb
+    importExcelToDb,
+    // 新增电源图 API
+    getPowerGraph,
+    tracePowerPath
 }
+
+
