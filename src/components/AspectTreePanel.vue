@@ -187,10 +187,11 @@ const handleSearch = () => {
   // 如果是电源图，searchText 变化会自动触发 Graph 组件的 watch
 };
 
-// 监听 activeAspect 变化，切换时清空搜索
+// 监听 activeAspect 变化，切换时清空搜索和展开状态
 watch(activeAspect, () => {
   inputValue.value = '';
   searchText.value = '';
+  expandedKeys.value = []; // 重置展开状态，避免跨 Aspect 干扰
 });
 
 // 计算属性：过滤后的树数据
