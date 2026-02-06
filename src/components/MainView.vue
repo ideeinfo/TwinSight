@@ -2302,48 +2302,64 @@ const getBoxIntersection = (center, target, box) => {
   return point;
 };
 
+// 共享几何体和材质以优化性能
+let _arrowShaftGeo, _arrowHeadGeo, _arrowMat;
+const getArrowAssets = (THREE, color) => {
+   if (!_arrowShaftGeo) {
+     // 建立单位高度的圆柱和圆锥，之后通过 scale 调整
+     // 默认高度 1，中心在原点 -> 需要调整 pivot?
+     // CylinderGeometry(radiusTop, radiusBottom, height)
+     // Pivot default is center.
+     _arrowShaftGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1);
+     // Shift pivot to bottom: translate y by 0.5
+     _arrowShaftGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, 0.5, 0));
+     
+     _arrowHeadGeo = new THREE.CylinderGeometry(0, 1, 1, 16, 1);
+     _arrowHeadGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, 0.5, 0));
+   }
+   // 材质每次可能颜色不同，或者可以复用
+   if (!_arrowMat || _arrowMat.color.getHex() !== color) {
+     _arrowMat = new THREE.MeshPhongMaterial({ color: color, ambient: color, specular: 0x111111, shininess: 200 });
+   }
+   return { shaftGeo: _arrowShaftGeo, headGeo: _arrowHeadGeo, mat: _arrowMat };
+};
+
 /**
- * 创建更加明显的 3D 箭头（圆柱杆 + 圆锥头）
+ * 创建更加明显的 3D 箭头（圆柱杆 + 圆锥头）- 性能优化版
  */
 const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) => {
   const THREE = window.THREE;
+  const { shaftGeo, headGeo, mat } = getArrowAssets(THREE, color);
   
   const direction = endPos.clone().sub(startPos);
   const length = direction.length();
   
   // 箭头头部长度和宽度
-  const headLength = Math.min(length * 0.3, 5); // 头部最长 5 单位
-  const headWidth = Math.max(thickness * 2.5, 1.5);   // 头部宽度
+  const headLength = Math.min(length * 0.3, 5); 
+  const headWidth = Math.max(thickness * 2.5, 1.5);
   const shaftLength = length - headLength;
   
-  // 如果太短，直接画个简单的
-  if (shaftLength <= 0) return createArrowLine(startPos, endPos, color);
+  // 如果太短，不画或者画微小的
+  if (length < 0.1) return null;
   
-  const arrowGroup = new THREE.Object3D(); // 使用 Object3D 或 Group
+  const arrowGroup = new THREE.Object3D();
   
-  // 1. 箭杆 (Cylinder)
-  // CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
-  // 默认是沿 Y 轴中心对称的
-  const shaftGeo = new THREE.CylinderGeometry(thickness, thickness, shaftLength, 8, 1);
-  // 将旋转中心移动到底部：默认中心在 (0, height/2, 0) ? 不，默认中心在 (0,0,0)，高度从 -h/2 到 h/2
-  // 我们需要它从 0 到 shaftLength
-  const shaftMat = new THREE.MeshPhongMaterial({ color: color, ambient: color, specular: 0x111111, shininess: 200 });
-  const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-  shaft.position.y = shaftLength / 2;
-  arrowGroup.add(shaft);
+  // 1. 箭杆
+  if (shaftLength > 0) {
+    const shaft = new THREE.Mesh(shaftGeo, mat);
+    // Scale: x=thickness, y=shaftLength, z=thickness
+    shaft.scale.set(thickness, shaftLength, thickness);
+    // Shaft position is local 0,0,0 because pivot is at bottom
+    arrowGroup.add(shaft);
+  }
   
-  // 2. 箭头 (Cone)
-  // ConeGeometry(radius, height, radialSegments)
-  const headGeo = new THREE.CylinderGeometry(0, headWidth, headLength, 16, 1); // Top radius 0 makes it a cone
-  const headMat = new THREE.MeshPhongMaterial({ color: color, ambient: color, specular: 0x111111, shininess: 200 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = shaftLength + headLength / 2;
+  // 2. 箭头
+  const head = new THREE.Mesh(headGeo, mat);
+  head.scale.set(headWidth, headLength, headWidth);
+  head.position.y = shaftLength; // 头部放在杆子顶端
   arrowGroup.add(head);
   
   // 3. 对齐方向
-  // 此时 arrowGroup 的内容是沿着 +Y 轴生长的 (0 -> length)
-  // 我们需要将 arrowGroup 的 +Y 轴对齐到 target 方向
-    // 3. 对齐方向
   const axisY = new THREE.Vector3(0, 1, 0);
   const quaternion = new THREE.Quaternion().setFromUnitVectors(axisY, direction.normalize());
   arrowGroup.setRotationFromQuaternion(quaternion);
@@ -2355,42 +2371,36 @@ const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) =
 };
 
 /**
- * 创建垂直指示箭头（指向特定位置）
- * 用于标记追溯起点
+ * 创建垂直指示箭头
  */
 const createPointerArrow = (position, color = 0x00AAFF) => {
   const THREE = window.THREE;
-  const height = 15; // 箭头总高度
+  const height = 15;
   const headHeight = 5;
-  const radius = 2; // 箭杆粗细
+  const radius = 2;
   
+  // 复用几何体逻辑，或者简单创建
   const group = new THREE.Object3D();
   
-  // 1. 箭头主体 (圆锥)
+  // 简单创建 Mesh (少量使用无所谓)
   const coneGeo = new THREE.CylinderGeometry(0, radius * 2, headHeight, 16, 1);
+  coneGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, -headHeight/2, 0)); // Pivot at top to rotate easier? Or just keep standard
   const coneMat = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
   const cone = new THREE.Mesh(coneGeo, coneMat);
-  cone.position.y = height - headHeight / 2;
-  // 旋转以向下指
-  cone.rotation.x = Math.PI; 
+  cone.position.y = height; 
+  cone.rotation.x = Math.PI; // Point down
   group.add(cone);
   
-  // 2. 箭杆 (圆柱) - 如果需要更像"大头针"，可以加个杆或者球
-  // 这里做一个简单的悬浮倒锥体，或者上下浮动的箭头
-  // 为了显眼，再加一个倒置的长圆锥作为身体
-  const bodyGeo = new THREE.CylinderGeometry(radius * 1.5, 0, height - headHeight, 8, 1);
+  // 杆
+  const bodyGeo = new THREE.CylinderGeometry(radius, 0, height - headHeight, 8, 1);
+  bodyGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, (height - headHeight)/2, 0));
   const bodyMat = new THREE.MeshPhongMaterial({ color: color, opacity: 0.8, transparent: true });
   const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = (height - headHeight) / 2 + headHeight; // 在箭头上方
-  // group.add(body); 
+  body.position.y = headHeight; // 
+  // group.add(body); // 简化，只显示箭头头 或 浮动箭头
   
-  // 没必要太复杂，直接用内置 ArrowHelper 做一个巨大的向下箭头
-  // const dir = new THREE.Vector3(0, -1, 0);
-  // const arrowHelper = new THREE.ArrowHelper(dir, position.clone().add(new THREE.Vector3(0, 10, 0)), 10, color, 4, 3);
-  // return arrowHelper;
-  
-  // 自定义几何体组
-  group.position.copy(position).add(new THREE.Vector3(0, 5, 0)); // 悬浮在物体上方
+  group.add(cone);
+  group.position.copy(position).add(new THREE.Vector3(0, 5, 0));
   return group;
 };
 
@@ -2405,35 +2415,18 @@ const isConduit = (dbId) => {
         resolve(false);
         return;
       }
-      // 检查 Category 属性
       const isConduit = result.properties.some(prop => {
         const name = prop.displayName || prop.attributeName;
         const val = String(prop.displayValue);
-        
-        // 检查属性名是否是"类别"
-        if (name === '类别' || name === 'Category') {
-           return val.includes('线管') || val.includes('Conduit');
-        }
-        return false;
+        return (name === '类别' || name === 'Category') && (val.includes('线管') || val.includes('Conduit') || val.includes('Cable'));
       });
       resolve(isConduit);
     }, () => resolve(false));
   });
 };
 
-// 保留旧的辅助线方法作为降级
-const createArrowLine = (startPos, endPos, color = 0xff0000) => {
-  const THREE = window.THREE;
-  const direction = endPos.clone().sub(startPos);
-  const distance = direction.length();
-  return new THREE.ArrowHelper(direction.normalize(), startPos, distance, color, distance * 0.2, distance * 0.08);
-};
-
 /**
  * 显示电源追溯覆盖层
- * 1. 隔离显示相关 BIM 构件（排除线管）
- * 2. 在构件之间绘制 3D 箭头表示供电方向
- * 3. 标记起点
  */
 const showPowerTraceOverlay = async (traceData) => {
   if (!viewer || !traceData) return;
@@ -2441,25 +2434,20 @@ const showPowerTraceOverlay = async (traceData) => {
   console.log('⚡ [MainView] 显示电源追溯覆盖层:', traceData);
   
   // 1. 收集所有节点的 dbId
-  const nodeDbIdMap = new Map(); // nodeId -> dbId
-  const allDbIds = [];
+  const nodeDbIdMap = new Map();
+  const isolateDbIds = []; // 只隔离显示的构件（排除线管）
   let startNodeDbId = null;
   
-  // 查询 dbId (保留之前的增强查找逻辑)
   for (const node of traceData.nodes) {
     let dbId = null;
     
-    // 方法1: 通过 bimGuid (External ID) 查找
+    // 查找 dbId 逻辑 (保留之前的)
     if (node.bimGuid && viewer.model) {
       try {
         dbId = await new Promise((resolve) => {
           viewer.model.getExternalIdMapping((mapping) => {
-            // 反向查找
             for (const [id, extId] of Object.entries(mapping)) {
-              if (extId === node.bimGuid) {
-                resolve(parseInt(id));
-                return;
-              }
+              if (extId === node.bimGuid) { resolve(parseInt(id)); return; }
             }
             resolve(null);
           });
@@ -2467,56 +2455,49 @@ const showPowerTraceOverlay = async (traceData) => {
       } catch (e) {}
     }
     
-    // 方法2: MC Code 搜索
     if (!dbId && node.mcCode && viewer.model) {
       try {
         const searchAttributes = [
           'MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number', 
-          'Name', '名称', 'Mark', '标记', 'Number', '编号', 
-          'Comments', '备注', 'Label', '标签'
+          'Name', '名称', 'Mark', '标记', 'Number', '编号', 'Label', '标签'
         ];
-        
         dbId = await new Promise((resolve) => {
           viewer.search(node.mcCode, (dbIds) => {
             resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
           }, () => resolve(null), searchAttributes);
         });
-        
-        // 全局搜索回退
         if (!dbId) {
           const globalId = await new Promise((resolve) => {
-             viewer.search(node.mcCode, (dbIds) => {
-               resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
-             }, () => resolve(null));
+             viewer.search(node.mcCode, (dbIds) => resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null), () => resolve(null));
           });
           if (globalId) dbId = globalId;
         }
       } catch (e) {}
     }
     
-    // 检查是否为线管，如果是则跳过
     if (dbId) {
+      // 这里的关键修改：不跳过线管，而是将其排除在 isolation list 之外
+      // 这样线管依然在 map 中，可以用于计算连线端点
+      nodeDbIdMap.set(node.id, dbId);
+      
       const isCond = await isConduit(dbId);
-      if (isCond) {
-        console.log(`  🚫 排除线管构件: ${node.label} (dbId: ${dbId})`);
-        continue;
+      if (!isCond) {
+        isolateDbIds.push(dbId);
+      } else {
+        console.log(`  👻 线管构件隐身: ${node.label} (dbId: ${dbId})`);
       }
       
-      nodeDbIdMap.set(node.id, dbId);
-      allDbIds.push(dbId);
-      
-      // 记录起点 dbId
       if (traceData.startNodeId && node.id === traceData.startNodeId) {
         startNodeDbId = dbId;
       }
     }
   }
   
-  // 2. 隔离显示
-  if (allDbIds.length > 0) {
+  // 2. 隔离显示 (只显示非线管设备，线管将变为半透明或隐藏)
+  if (isolateDbIds.length > 0) {
     setManualSelection();
-    viewer.isolate(allDbIds);
-    viewer.fitToView(allDbIds);
+    viewer.isolate(isolateDbIds);
+    viewer.fitToView(isolateDbIds);
   }
   
   // 3. 绘制 3D 箭头连线
@@ -2528,9 +2509,9 @@ const showPowerTraceOverlay = async (traceData) => {
   }
   
   const THREE = window.THREE;
-  
-  // 预先计算所有节点的包围盒
   const nodeBoundsMap = new Map();
+  
+  // 预计算包围盒
   nodeDbIdMap.forEach((dbId, nodeId) => {
     const bounds = getComponentBounds(dbId);
     if (bounds) nodeBoundsMap.set(nodeId, bounds);
@@ -2542,42 +2523,23 @@ const showPowerTraceOverlay = async (traceData) => {
     const sourceBounds = nodeBoundsMap.get(edge.source);
     const targetBounds = nodeBoundsMap.get(edge.target);
     
-    // 如果任意一端被过滤掉（如线管），则不画线
     if (!sourceDbId || !targetDbId || !sourceBounds || !targetBounds) continue;
     
     const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
     const targetCenter = targetBounds.getCenter(new THREE.Vector3());
     
-    // 关键优化：计算从源表面到目标表面的点
-    // 简单的 Center-to-Center 往往会埋在物体内部
-    // 我们计算中心连线与包围盒的交点
-    
-    // 1. 计算方向
+    // 计算端点
     const dir = targetCenter.clone().sub(sourceCenter).normalize();
-    
-    // 2. 计算源物体的"出射点"
-    // 从中心沿着方向发射射线，求与源包围盒的交点
     const rayOut = new THREE.Ray(sourceCenter, dir);
-    // intersectBox 文档说如果不相交返回 null，如果起点在盒内？通常返回离开点或 null
-    // 我们使用 clampPoint 来找边界点的一种近似方法：
-    // 但 clampPoint 是找最近点。
-    // 使用 intersectBox 应该是正解，如果 THREE 版本支持 inside 判定
-    // 简单粗暴法：intersectBox 应该能返回 "离开点" 如果 ray start inside
     let startPoint = rayOut.intersectBox(sourceBounds);
     
-    // 如果 intersectBox 返回 null (某些旧版 THREE 当起点在内部时可能不返回交点)，这里做个保护
-    // 保护策略：取包围盒边界上离目标最近的点？或者简单的中心点
     if (!startPoint) {
-      // 降级：使用中心点
       startPoint = sourceCenter.clone(); 
-      // 稍微推出来一点，避免重叠
       const size = sourceBounds.getSize(new THREE.Vector3());
       const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.4); 
       startPoint.add(offset);
     }
     
-    // 3. 计算目标物体的"入射点"
-    // 从目标中心反向发射射线，求与目标包围盒的交点
     const dirIn = sourceCenter.clone().sub(targetCenter).normalize();
     const rayIn = new THREE.Ray(targetCenter, dirIn);
     let endPoint = rayIn.intersectBox(targetBounds);
@@ -2589,31 +2551,26 @@ const showPowerTraceOverlay = async (traceData) => {
       endPoint.add(offset);
     }
     
-    // 绘制粗箭头
-    // 颜色使用亮红色或橙红色
-    const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.4); // 半径 0.4 (即直径 0.8)
+    const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.4);
     
-    if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+    if (arrow && viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
       viewer.impl.addOverlay(overlayName, arrow);
       powerTraceOverlayObjects.push({ name: overlayName, object: arrow });
     }
   }
   
-  // 4. 为起点添加特殊标记 (垂直大箭头)
+  // 4. 起点标记
   if (startNodeDbId) {
     const bounds = nodeBoundsMap.get(traceData.startNodeId);
     if (bounds) {
        const center = bounds.getCenter(new THREE.Vector3());
        const size = bounds.getSize(new THREE.Vector3());
-       const height = size.y;
        
-       // 在物体正上方悬浮一个箭头
-       const markerPos = center.clone().add(new THREE.Vector3(0, height * 0.5 + 2, 0));
-       const dir = new THREE.Vector3(0, -1, 0); // 向下指
+       // 使用优化后的 createPointerArrow 或直接 ArrowHelper
+       const markerPos = center.clone().add(new THREE.Vector3(0, size.y * 0.5 + 2, 0));
+       const dir = new THREE.Vector3(0, -1, 0);
        
-       // 使用 ArrowHelper 作为指示器 (长度 8, 红色)
        const markerArrow = new THREE.ArrowHelper(dir, markerPos.clone().add(new THREE.Vector3(0, 8, 0)), 8, 0x00AAFF, 3, 2);
-       
        if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
          viewer.impl.addOverlay(overlayName, markerArrow);
          powerTraceOverlayObjects.push({ name: overlayName, object: markerArrow });
@@ -2621,8 +2578,7 @@ const showPowerTraceOverlay = async (traceData) => {
     }
   }
   
-  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象 (箭头+标记)`);
-  
+  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象`);
   viewer.impl.invalidate(true, true, true);
 };
 
