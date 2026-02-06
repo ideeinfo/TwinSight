@@ -2334,11 +2334,41 @@ const showPowerTraceOverlay = async (traceData) => {
     // 方法2: 通过 mcCode 属性搜索
     if (!dbId && node.mcCode && viewer.model) {
       try {
+        // 扩展搜索属性列表
+        const searchAttributes = [
+          'MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number', 
+          'Name', '名称', 'Mark', '标记', 'Number', '编号', 
+          'Comments', '备注', 'Label', '标签'
+        ];
+        
         dbId = await new Promise((resolve) => {
           viewer.search(node.mcCode, (dbIds) => {
             resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
-          }, () => resolve(null), ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number']);
+          }, () => resolve(null), searchAttributes);
         });
+        
+        // 如果指定属性未找到，尝试全局搜索（仅用于调试和回退）
+        if (!dbId) {
+          console.log(`  🔄 ${node.label} (${node.mcCode}) 指定属性未找到，尝试全局搜索...`);
+          const globalId = await new Promise((resolve) => {
+             viewer.search(node.mcCode, (dbIds) => {
+               resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
+             }, () => resolve(null));
+          });
+          
+          if (globalId) {
+             console.warn(`  ✨ 全局搜索找到 ${node.mcCode} -> dbId: ${globalId}。请检查该构件的属性名称，以便添加到搜索列表中。`);
+             dbId = globalId;
+             
+             // 尝试获取该构件的所有属性并打印，帮助定位
+             viewer.getProperties(globalId, (props) => {
+                if (props && props.properties) {
+                   const matchProps = props.properties.filter(p => String(p.displayValue).includes(node.mcCode));
+                   console.log(`  🔍 匹配的属性:`, matchProps.map(p => `${p.displayName} [${p.attributeName}]: ${p.displayValue}`));
+                }
+             });
+          }
+        }
       } catch (e) {
         console.warn('搜索 mcCode 失败:', node.mcCode);
       }
@@ -2349,7 +2379,7 @@ const showPowerTraceOverlay = async (traceData) => {
       allDbIds.push(dbId);
       console.log(`  ✅ ${node.label || node.id} (GUID: ${node.bimGuid}, MC: ${node.mcCode}) → dbId: ${dbId}`);
     } else {
-      console.warn(`  ⚠️ ${node.label || node.id} (GUID: ${node.bimGuid}, MC: ${node.mcCode}) → 未找到 BIM 构件。尝试搜索属性: MC编码, MC Code, DeviceCode, 设备编码, Tag Number`);
+      console.warn(`  ⚠️ ${node.label || node.id} (GUID: ${node.bimGuid}, MC: ${node.mcCode}) → 彻底未找到 BIM 构件`);
     }
   }
   
