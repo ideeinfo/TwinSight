@@ -2481,17 +2481,21 @@ const showPowerTraceOverlay = async (traceData) => {
       nodeDbIdMap.set(node.id, dbId);
       
       const isCond = await isConduit(dbId);
-      nodeIsConduitMap.set(node.id, isCond);
+      // 也可以根据 nodeType 辅助判断
+      const isCableType = node.nodeType === 'Cable' || (node.label && (node.label.includes('电缆') || node.label.includes('线')));
+      nodeIsConduitMap.set(node.id, isCond || isCableType);
       
-      if (!isCond) {
+      if (!isCond && !isCableType) {
         isolateDbIds.push(dbId);
       } else {
-        console.log(`  👻 识别到线管: ${node.label} (dbId: ${dbId})，将在逻辑连接中跳过`);
+        console.log(`  👻 识别到线管/电缆: ${node.label} (dbId: ${dbId})，将在逻辑连接中跳过`);
       }
       
       if (traceData.startNodeId && node.id === traceData.startNodeId) {
         startNodeDbId = dbId;
       }
+    } else {
+      console.warn(`  ⚠️ 未找到 BIM 构件: ${node.label} (MC: ${node.mcCode}) - 将作为虚拟节点处理 (跳过但传递连接)`);
     }
   }));
   
@@ -2502,7 +2506,7 @@ const showPowerTraceOverlay = async (traceData) => {
     viewer.fitToView(isolateDbIds);
   }
   
-  // 3. 绘制逻辑连线 (跳过线管，Device -> Device)
+  // 3. 绘制逻辑连线 (跳过 线管 OR 未找到模型的节点 -> 直连 Device)
   clearPowerTraceOverlay();
   
   const overlayName = 'power-trace-overlay';
@@ -2517,15 +2521,16 @@ const showPowerTraceOverlay = async (traceData) => {
     if (bounds) nodeBoundsMap.set(nodeId, bounds);
   });
 
-  // 构建邻接表用于遍历
+  // 构建邻接表用于遍历 (基于所有 traceData edge，不管是否有 BIM)
   const adj = new Map(); // nodeId -> [childNodeIds]
   traceData.edges.forEach(edge => {
     if (!adj.has(edge.source)) adj.set(edge.source, []);
     adj.get(edge.source).push(edge.target);
   });
 
-  // 辅助函数：查找下游的第一个非线管设备
-  const findDownstreamDevices = (nodeId, visited = new Set()) => {
+  // 辅助函数：查找下游的第一个可见设备 (有 BIM 且非线管)
+  // 如果遇到 无BIM 或 是线管 的节点，则继续向下递归
+  const findVisibleTargetDevices = (nodeId, visited = new Set()) => {
     if (visited.has(nodeId)) return [];
     visited.add(nodeId);
     
@@ -2533,27 +2538,28 @@ const showPowerTraceOverlay = async (traceData) => {
     let devices = [];
     
     for (const childId of children) {
-      // 检查子节点是否存在（可能没有对应 BIM）
-      if (!nodeDbIdMap.has(childId)) continue;
-      
-      if (nodeIsConduitMap.get(childId)) {
-        // 如果是线管，递归查找
-        devices = devices.concat(findDownstreamDevices(childId, visited));
-      } else {
-        // 如果是设备，这是一个目标
-        devices.push(childId);
-      }
+       // 判断 child 是否为"可见设备"
+       const hasBim = nodeDbIdMap.has(childId);
+       const isCond = nodeIsConduitMap.get(childId);
+       
+       if (hasBim && !isCond) {
+         // 找到目标：是可见的，且不是线管
+         devices.push(childId);
+       } else {
+         // 不是目标（是线管 或 无BIM），则作为中间节点，继续穿透查找
+         devices = devices.concat(findVisibleTargetDevices(childId, visited));
+       }
     }
     return devices;
   };
   
-  // 遍历所有非线管节点，寻找其逻辑下游
+  // 遍历所有"可见设备"作为起点
   for (const [nodeId, dbId] of nodeDbIdMap.entries()) {
-    // 只从设备出发
+    // 如果起点本身是线管，则不能作为箭头的起始端 (它只是中间路径)
     if (nodeIsConduitMap.get(nodeId)) continue;
     
-    // 查找所有逻辑下游设备
-    const targets = findDownstreamDevices(nodeId, new Set()); // 新的 visited set 避免单次搜索环路
+    // 查找所有逻辑下游可见设备
+    const targets = findVisibleTargetDevices(nodeId, new Set()); 
     
     for (const targetId of targets) {
       const targetDbId = nodeDbIdMap.get(targetId);
@@ -2573,7 +2579,7 @@ const showPowerTraceOverlay = async (traceData) => {
       if (!startPoint) {
         startPoint = sourceCenter.clone(); 
         const size = sourceBounds.getSize(new THREE.Vector3());
-        const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45); // 稍微推出一点
+        const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45); 
         startPoint.add(offset);
       }
       
