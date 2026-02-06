@@ -377,6 +377,9 @@ def _create_power_graph_data(
     """
     将电源编码数据导入到 rds_power_nodes 和 rds_power_edges 表
     
+    支持双电源设备：同一 asset_code 的设备只创建一个节点，
+    但会从多个不同的电源路径创建边指向它。
+    
     Args:
         session: 数据库会话
         file_id: 模型文件 ID
@@ -391,13 +394,22 @@ def _create_power_graph_data(
     nodes_created = 0
     edges_created = 0
     
-    # 用于追踪已创建的节点 (full_code -> node_id)
+    # 用于追踪已创建的节点 (full_code -> node_id) - 用于层级节点
     created_nodes: Dict[str, str] = {}
+    
+    # 用于追踪设备节点 (asset_code -> node_id) - 用于末端设备节点去重
+    device_nodes: Dict[str, str] = {}
+    
+    # 收集所有需要创建的设备边 (parent_node_id, device_node_id, relation_type)
+    device_edges_to_create: List[tuple] = []
     
     for aspect in power_aspects:
         full_code = aspect.get('full_code', '')
         if not full_code or not full_code.startswith('==='):
             continue
+        
+        asset_code = aspect.get('asset_code', '')
+        device_name = aspect.get('name', '')
         
         # 解析层级：===DY1.AH1.H01 -> ['DY1', 'AH1', 'H01']
         prefix = '==='
@@ -407,78 +419,69 @@ def _create_power_graph_data(
             body = body[:-1]
         parts = [p for p in body.split('.') if p]
         
-        # 为每一层创建节点
+        if not parts:
+            continue
+        
+        # ========== 阶段 1: 创建层级路径上的所有中间节点 ==========
         current_full_code = prefix
         parent_node_id = None
+        last_hierarchy_node_id = None  # 最后一个层级节点 (设备的直接父节点)
         
         for i, part in enumerate(parts):
             level = i + 1
+            is_last_part = (i == len(parts) - 1)
+            
             if i == 0:
                 current_full_code = prefix + part
             else:
                 current_full_code = current_full_code + '.' + part
             
-            # 检查节点是否已存在 (仅用于获取父ID，不跳过更新)
+            # 如果是最后一段且有 asset_code，这是一个设备节点，稍后处理
+            if is_last_part and asset_code:
+                last_hierarchy_node_id = parent_node_id
+                break
+            
+            # 检查层级节点是否已存在
             if current_full_code in created_nodes:
-                # 即使已存在，也继续执行以触发 UPDATE (更新 label/object_id)
-                pass
+                parent_node_id = created_nodes[current_full_code]
+                continue
             
             # 生成确定性 UUID (基于 full_code)
             node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_NODE_{file_id}_{current_full_code}"))
             
-            # 判断是否是当前 aspect 的末端
-            is_leaf = (i == len(parts) - 1)
-            
-            # 只有当它是当前处理行的末端，且有名称时，才使用名称作为 label
-            # 否则暂时使用 short_code
-            object_id = None
-            label = part  # 默认 label 为短码
-            
-            if is_leaf:
-                if aspect.get('asset_code'):
-                    object_id = object_id_map.get(aspect['asset_code'])
-                
-                # 只有当名称有效且不像是编码时才使用
-                candidate_name = aspect.get('name')
-                if candidate_name and not candidate_name.strip().startswith('='):
-                    label = candidate_name
-            
             # 确定节点类型
-            node_type = 'device'
+            node_type = 'feeder'
             if level == 1:
                 node_type = 'source'
             elif level == 2:
                 node_type = 'bus'
-            elif not is_leaf:
-                node_type = 'feeder'
+            
+            # 对于中间节点，label 使用短码
+            label = part
             
             # 父级编码
             parent_code = None
             if i > 0:
                 parent_code = prefix + '.'.join(parts[:i])
             
-            # 插入节点 (UPSERT)
-            # 如果新 label 与 short_code 不同 (说明是真名)，则更新它
+            # 插入层级节点
             insert_node = text("""
                 INSERT INTO rds_power_nodes (
                     id, file_id, object_id, full_code, short_code, parent_code, label, level, node_type
                 )
                 VALUES (
-                    :id, :file_id, :object_id, :full_code, :short_code, :parent_code, :label, :level, :node_type
+                    :id, :file_id, NULL, :full_code, :short_code, :parent_code, :label, :level, :node_type
                 )
                 ON CONFLICT (file_id, full_code) DO UPDATE SET
                     label = CASE 
                         WHEN EXCLUDED.label != EXCLUDED.short_code THEN EXCLUDED.label 
                         ELSE rds_power_nodes.label 
-                    END,
-                    object_id = COALESCE(EXCLUDED.object_id, rds_power_nodes.object_id),
-                    node_type = EXCLUDED.node_type -- 更新类型以防之前判断不准
+                    END
             """)
             
             session.execute(insert_node, {
                 'id': node_id,
                 'file_id': file_id,
-                'object_id': object_id,
                 'full_code': current_full_code,
                 'short_code': part,
                 'parent_code': parent_code,
@@ -489,7 +492,7 @@ def _create_power_graph_data(
             nodes_created += 1
             created_nodes[current_full_code] = node_id
             
-            # 创建层级边 (hierarchy)
+            # 创建层级边
             if parent_node_id:
                 edge_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_EDGE_{parent_node_id}_{node_id}_hierarchy"))
                 insert_edge = text("""
@@ -510,6 +513,74 @@ def _create_power_graph_data(
                 edges_created += 1
             
             parent_node_id = node_id
+            last_hierarchy_node_id = node_id
+        
+        # ========== 阶段 2: 创建设备节点（基于 asset_code 去重） ==========
+        if asset_code:
+            # 检查设备节点是否已存在
+            if asset_code not in device_nodes:
+                # 基于 asset_code 生成确定性 UUID
+                device_node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_DEVICE_{file_id}_{asset_code}"))
+                
+                # 设备标签优先使用名称
+                device_label = device_name if device_name and not device_name.strip().startswith('=') else asset_code
+                
+                # 获取关联的 object_id
+                object_id = object_id_map.get(asset_code)
+                
+                # 插入设备节点 (full_code 使用 asset_code 作为标识)
+                insert_device = text("""
+                    INSERT INTO rds_power_nodes (
+                        id, file_id, object_id, full_code, short_code, parent_code, label, level, node_type
+                    )
+                    VALUES (
+                        :id, :file_id, :object_id, :full_code, :short_code, NULL, :label, 99, 'device'
+                    )
+                    ON CONFLICT (file_id, full_code) DO UPDATE SET
+                        label = CASE 
+                            WHEN EXCLUDED.label != EXCLUDED.short_code THEN EXCLUDED.label 
+                            ELSE rds_power_nodes.label 
+                        END,
+                        object_id = COALESCE(EXCLUDED.object_id, rds_power_nodes.object_id)
+                """)
+                
+                session.execute(insert_device, {
+                    'id': device_node_id,
+                    'file_id': file_id,
+                    'object_id': object_id,
+                    'full_code': f"DEVICE:{asset_code}",  # 使用特殊前缀区分设备节点
+                    'short_code': asset_code,
+                    'label': device_label
+                })
+                nodes_created += 1
+                device_nodes[asset_code] = device_node_id
+            else:
+                device_node_id = device_nodes[asset_code]
+            
+            # 记录需要创建的边 (从父馈线柜到设备)
+            if last_hierarchy_node_id:
+                device_edges_to_create.append((last_hierarchy_node_id, device_node_id, 'power_supply'))
+    
+    # ========== 阶段 3: 创建设备边（支持多电源） ==========
+    for source_id, target_id, rel_type in device_edges_to_create:
+        edge_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_EDGE_{source_id}_{target_id}_{rel_type}"))
+        insert_edge = text("""
+            INSERT INTO rds_power_edges (
+                id, file_id, source_node_id, target_node_id, relation_type
+            )
+            VALUES (
+                :id, :file_id, :source_id, :target_id, :rel_type
+            )
+            ON CONFLICT (source_node_id, target_node_id, relation_type) DO NOTHING
+        """)
+        session.execute(insert_edge, {
+            'id': edge_id,
+            'file_id': file_id,
+            'source_id': source_id,
+            'target_id': target_id,
+            'rel_type': rel_type
+        })
+        edges_created += 1
     
     return {
         'nodes_created': nodes_created,
