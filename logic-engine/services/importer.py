@@ -400,6 +400,11 @@ def _create_power_graph_data(
     # 用于追踪设备节点 (asset_code -> node_id) - 用于末端设备节点去重
     device_nodes: Dict[str, str] = {}
     
+    # 追踪逻辑节点到实体引用节点的映射 (logic_code -> entity_node_id)
+    # 例如：===...1.1 -> 5#雨水泵按钮箱 GK5 的设备节点 ID
+    # 这样当 ===...1.1.1 需要连接到父节点时，会优先连接到实体引用节点
+    entity_reference_map: Dict[str, str] = {}
+    
     # 收集所有需要创建的设备边 (parent_node_id, device_node_id, relation_type)
     device_edges_to_create: List[tuple] = []
     
@@ -551,8 +556,16 @@ def _create_power_graph_data(
             created_nodes[current_full_code] = node_id
             
             # 创建层级边
+            # 关键逻辑：如果父节点有对应的实体引用节点，优先连接到实体引用节点
+            # 例如：===...1.1.1 应该从 ===...1.1. 的实体设备供电，而不是从 ===...1.1 的逻辑节点
             if parent_node_id:
-                edge_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_EDGE_{parent_node_id}_{node_id}_hierarchy"))
+                # 检查父节点对应的逻辑编码是否有实体引用
+                if parent_code and parent_code in entity_reference_map:
+                    actual_parent_id = entity_reference_map[parent_code]
+                else:
+                    actual_parent_id = parent_node_id
+                
+                edge_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_EDGE_{actual_parent_id}_{node_id}_hierarchy"))
                 insert_edge = text("""
                     INSERT INTO rds_power_edges (
                         id, file_id, source_node_id, target_node_id, relation_type
@@ -565,7 +578,7 @@ def _create_power_graph_data(
                 session.execute(insert_edge, {
                     'id': edge_id,
                     'file_id': file_id,
-                    'source_id': parent_node_id,
+                    'source_id': actual_parent_id,
                     'target_id': node_id
                 })
                 edges_created += 1
@@ -623,6 +636,13 @@ def _create_power_graph_data(
                 })
                 nodes_created += 1
                 device_nodes[asset_code] = device_node_id
+                
+                # 如果这是一个实体引用（有末尾点），注册到 entity_reference_map
+                # 这样后续层级节点（如 ===...1.1.1）会连接到这个实体设备而不是逻辑节点
+                if has_trailing_dot:
+                    # 逻辑编码 = 当前编码去掉末尾点
+                    logic_code = prefix + body_without_dot
+                    entity_reference_map[logic_code] = device_node_id
             else:
                 device_node_id = device_nodes[asset_code]
             

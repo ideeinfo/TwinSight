@@ -1,81 +1,69 @@
 
 import pandas as pd
-import os
+import sys
 
-file_path = "/Volumes/DATA/antigravity/TwinSight/todo/RDS实施计划_20260131/MC数据20230620_完整.xlsx"
-
-if not os.path.exists(file_path):
-    print(f"File not found: {file_path}")
-    exit(1)
-
-print(f"Analyzing {file_path}...")
-
-try:
-    df = pd.read_excel(file_path)
-    print(f"Total rows: {len(df)}")
-    print("Columns:", df.columns.tolist())
+def analyze():
+    file_path = "todo/RDS实施计划_20260131/MC数据20230620_NEW.xlsx"
+    print(f"Reading file: {file_path}")
     
-    # Inspect specific row 814 (adjust for 0-index: 812 or 813?)
-    # iloc is 0-indexed. Row 814 in metadata usually means 0-indexed if I saved idx.
-    # Let's check a range around 814.
-    print("\n--- Inspecting Row 814 ---")
-    if len(df) > 814:
-        print(df.iloc[814])
+    try:
+        # Load Excel
+        dfs = pd.read_excel(file_path, sheet_name=None)
+    except FileNotFoundError:
+        # Try alternate path if running from root vs server
+        file_path = "../" + file_path
+        try:
+             dfs = pd.read_excel(file_path, sheet_name=None)
+        except Exception as e:
+            print(f"Error loading file: {e}")
+            return
 
-    func_col = next((c for c in df.columns if '工艺功能' in str(c) or 'Process' in str(c) or 'Function' in str(c)), None)
+    column_mapping = {
+        '工艺功能': 'function',
+        '位置': 'location', 
+        '电源功能': 'power',
+        'ProcessFunction': 'function',
+        'Location': 'location',
+        'PowerFunction': 'power'
+    }
+
+    print("\n--- Analzying '1回路' and 'AH1' for Multi-Column Data ---")
     
-    if name_col and func_col:
-        switches = df[df[name_col].astype(str).str.contains("一位单控暗开关", na=False)]
-        print(f"\nFound {len(switches)} switches.")
-        print("Sample Data (Name | Function | DeviceCode):")
-        # Ensure columns exist
-        cols = [name_col, func_col]
-        dev_col = next((c for c in df.columns if '设备编码' in str(c) or 'Device' in str(c)), None)
-        if dev_col: cols.append(dev_col)
-        print(switches[cols].head(10))
+    for sheet_name, df in dfs.items():
+        print(f"\nSheet: {sheet_name}")
+        # Normalize columns (strip whitespace)
+        df.columns = df.columns.str.strip()
         
-        # Check if codes are actually short
-        short_codes = switches[switches[func_col].astype(str).str.strip() == '=TA001.EY01']
-        print(f"\nSwitches with EXACT code '=TA001.EY01': {len(short_codes)}")
-    
-    # 3. Analyze potential RefCode collisions
-    print("\nRefCode Analysis:")
-    # Replicate logic
-    ref_codes = []
-    
-    for idx, row in df.iterrows():
-        # raw value logic simulation
-        def clean(val):
-            return str(val).strip() if pd.notna(val) else ""
-
-        name = clean(row.get('名称', ''))
-        code = clean(row.get('设备编码', ''))
+        # Filter for target rows
+        # Assumes Name column is '名称' or 'Name'
+        name_col = '名称' if '名称' in df.columns else 'Name'
+        if name_col not in df.columns:
+            print(f"Skipping (No Name column found). Columns: {pd.Series(df.columns).tolist()}")
+            continue
+            
+        target_rows = df[df[name_col].astype(str).str.contains('1回路|AH1', na=False)]
         
-        if code.lower() == 'nan': code = ""
-        if name.lower() == 'nan': name = ""
-        
-        if code:
-            ref = code
-        elif name:
-            ref = f"{name}_Sheet1_{idx}"
-        else:
-            ref = None
+        if target_rows.empty:
+            print("No matching rows found.")
+            continue
             
-        if ref:
-            ref_codes.append(ref)
+        for idx, row in target_rows.iterrows():
+            print(f"\nRow {idx} [{row[name_col]}]:")
+            found_codes = []
+            for col, type_ in column_mapping.items():
+                if col in df.columns:
+                    val = row[col]
+                    if pd.notna(val) and str(val).strip():
+                        print(f"  - Column '{col}' (Type: {type_}) = '{val}'")
+                        found_codes.append((col, type_, str(val)))
             
-    print(f"Total processed refs: {len(ref_codes)}")
-    unique_refs = set(ref_codes)
-    print(f"Unique refs: {len(unique_refs)}")
-    if len(ref_codes) - len(unique_refs) > 0:
-        from collections import Counter
-        print(f"Total Duplicate count: {len(ref_codes) - len(unique_refs)}")
-        c = Counter(ref_codes)
-        print("Duplicate details (Code: Count):")
-        for k, v in c.items():
-            if v > 1:
-                print(f"  {k}: {v}")
+            # Check for duplicates per type
+            power_codes = [c for c in found_codes if c[1] == 'power']
+            if len(power_codes) > 1:
+                 print(f"  [ALERT] MULTIPLE POWER CODES FOUND! -> {power_codes}")
 
-            
-except Exception as e:
-    print(f"Error: {e}")
+if __name__ == "__main__":
+    try:
+        analyze()
+    except Exception as e:
+        print(f"Fatal Error: {e}")
