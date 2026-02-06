@@ -18,13 +18,9 @@
         <el-tooltip content="缩小">
           <el-button @click="zoomOut" circle size="small" :icon="ZoomOut" />
         </el-tooltip>
-        <el-divider direction="vertical" />
-        <el-select v-model="layoutType" size="small" style="width: 110px" class="layout-select">
-          <el-option label="逻辑层级" value="dagre" />
-          <el-option label="力导向" value="force" />
-          <el-option label="紧凑树" value="compactBox" />
-          <el-option label="环形" value="circular" />
-        </el-select>
+        <el-tooltip content="缩小">
+          <el-button @click="zoomOut" circle size="small" :icon="ZoomOut" />
+        </el-tooltip>
       </div>
     </div>
     
@@ -274,31 +270,15 @@ const initGraph = () => {
 
 // 获取布局配置
 const getLayoutConfig = (type) => {
-  switch (type) {
-    case 'dagre':
-      return {
-        type: 'dagre',
-        rankdir: 'LR',
-        align: 'UL',
-        nodesep: 40,      // 垂直间距
-        ranksep: 120,     // 水平间距 (加大以容纳宽节点)
-        controlPoints: true, 
-      };
-    case 'force':
-      return {
-        type: 'd3-force',
-        preventOverlap: true,
-        nodeSize: [180, 42],
-        linkDistance: 200,
-        manyBodyStrength: -800,
-      };
-    case 'circular':
-      return { type: 'circular' };
-    case 'compactBox':
-      return { type: 'dagre', rankdir: 'TB', nodesep: 40, ranksep: 100 };
-    default:
-      return { type: 'dagre', rankdir: 'LR' };
-  }
+  // 强制使用优化后的 dagre 布局
+  return {
+    type: 'dagre',
+    rankdir: 'LR',
+    align: 'UL',
+    nodesep: 60,      // 垂直间距 (增加以避免拥挤)
+    ranksep: 250,     // 水平间距 (节点宽180 + 箭头空间，设大一些防止重叠)
+    controlPoints: true, 
+  };
 };
 
 const getNodeColor = (type) => {

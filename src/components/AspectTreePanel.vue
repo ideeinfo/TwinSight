@@ -29,11 +29,13 @@
     <!-- 搜索栏 -->
     <div class="search-row">
       <el-input
-        v-model="searchText"
+        v-model="inputValue"
         :placeholder="t('common.search')"
         :prefix-icon="Search"
         clearable
         size="small"
+        @keyup.enter="handleSearch"
+        @clear="handleSearch"
       />
     </div>
 
@@ -150,7 +152,7 @@ const aspectLabels = AspectTypeLabels;
 const aspectPrefixes = AspectTypePrefixes;
 
 // 搜索文本
-const searchText = ref('');
+// const searchText = ref(''); // (已移动到下方与 inputValue 一起管理)
 
 // 加载状态
 const loading = ref(false);
@@ -173,41 +175,90 @@ const treeProps = {
   children: 'children'
 };
 
-// ==================== 计算属性 ====================
+// ==================== 计算属性
+// 搜索相关
+const inputValue = ref(''); // 输入框的值
+const searchText = ref(''); // 实际生效的搜索词 (Enter 后更新)
 
-// 过滤后的树数据
+const handleSearch = () => {
+  searchText.value = inputValue.value;
+  // 如果是电源图，searchText 变化会自动触发 Graph 组件的 watch
+};
+
+// 监听 activeAspect 变化，切换时清空搜索
+watch(activeAspect, () => {
+  inputValue.value = '';
+  searchText.value = '';
+});
+
+// 计算属性：过滤后的树数据
 const filteredTreeData = computed(() => {
   if (!searchText.value) return treeData.value;
-  
+
   const search = searchText.value.toLowerCase();
   
-  const filterNode = (node) => {
-    const nameMatch = (node.name || '').toLowerCase().includes(search);
-    const codeMatch = (node.code || '').toLowerCase().includes(search);
-    // 搜索时也可以匹配 ID，方便调试
-    const idMatch = String(node.id || '').includes(search);
+  const filterNode = (nodes) => {
+    let hasMatch = false;
+    const result = [];
     
-    if (nameMatch || codeMatch || idMatch) {
-      return { ...node };
-    }
-    
-    if (node.children) {
-      const filteredChildren = node.children
-        .map(filterNode)
-        .filter(Boolean);
+    for (const node of nodes) {
+      const name = (node.name || '').toLowerCase();
+      const code = (node.code || '').toLowerCase();
+      const isMatch = name.includes(search) || code.includes(search);
       
-      if (filteredChildren.length > 0) {
-        return { ...node, children: filteredChildren };
+      let childrenMatch = false;
+      let filteredChildren = [];
+      
+      if (node.children && node.children.length > 0) {
+        const childResult = filterNode(node.children);
+        filteredChildren = childResult.nodes;
+        childrenMatch = childResult.hasMatch;
+      }
+      
+      if (isMatch || childrenMatch) {
+         hasMatch = true;
+         // 如果子节点有匹配，或者自己匹配，都保留
+         // 如果只是自己匹配但没有子节点匹配，保留自己 (children 为空)
+         // 如果自己不匹配但子节点匹配，保留自己和匹配的子节点
+         result.push({
+           ...node,
+           children: filteredChildren,
+           // 在 el-tree-v2 中，默认展开通常需要 expandedKeys，
+           // 但这里我们构造一个新的过滤后的树，所有保留下来的父节点都应该默认展开吗？
+           // el-tree-v2 没有直接的 default-expand-all 属性用于动态数据。
+           // 但可以通过 ref 设置 expandedKeys。
+         });
       }
     }
-    
-    return null;
+    return { nodes: result, hasMatch };
   };
+
+  const { nodes } = filterNode(treeData.value);
   
-  return treeData.value
-    .map(filterNode)
-    .filter(Boolean);
+  // 副作用：设置展开键
+  nextTick(() => {
+      expandAllNodes(nodes);
+  });
+  
+  return nodes;
 });
+
+// 辅助函数：收集所有需要展开的节点 ID
+const expandAllNodes = (nodes) => {
+    if (!treeRef.value) return;
+    const keys = [];
+    const traverse = (list) => {
+        for (const node of list) {
+            if (node.children && node.children.length > 0) {
+                keys.push(node.uitreeId);
+                traverse(node.children);
+            }
+        }
+    };
+    traverse(nodes);
+    // el-tree-v2 设置展开的方法
+    treeRef.value.setExpandedKeys(keys);
+};    
 
 // ==================== 生命周期 ====================
 
