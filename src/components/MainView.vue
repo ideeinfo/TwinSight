@@ -2245,6 +2245,180 @@ const highlightBimObjects = (guids, searchTarget) => {
   });
 };
 
+// ==================== 电源追溯 3D 可视化 ====================
+
+// 存储 3D 覆盖层对象，用于清除时移除
+let powerTraceOverlayObjects = [];
+
+/**
+ * 获取 BIM 构件的包围盒中心点
+ */
+const getComponentCenter = (dbId) => {
+  if (!viewer || !viewer.model) return null;
+  
+  const fragList = viewer.model.getFragmentList();
+  const instanceTree = viewer.model.getInstanceTree();
+  
+  const bounds = new window.THREE.Box3();
+  
+  instanceTree.enumNodeFragments(dbId, (fragId) => {
+    const box = new window.THREE.Box3();
+    fragList.getWorldBounds(fragId, box);
+    bounds.union(box);
+  });
+  
+  if (bounds.isEmpty()) return null;
+  
+  return bounds.getCenter(new window.THREE.Vector3());
+};
+
+/**
+ * 创建 3D 箭头线（使用 Forge Viewer overlay）
+ */
+const createArrowLine = (startPos, endPos, color = 0xff0000) => {
+  const THREE = window.THREE;
+  
+  // 计算方向和距离
+  const direction = endPos.clone().sub(startPos);
+  const distance = direction.length();
+  const arrowHelper = new THREE.ArrowHelper(
+    direction.normalize(),
+    startPos,
+    distance,
+    color,
+    distance * 0.15,  // 箭头头部长度
+    distance * 0.08   // 箭头头部宽度
+  );
+  
+  return arrowHelper;
+};
+
+/**
+ * 显示电源追溯覆盖层
+ * 1. 隔离显示相关 BIM 构件
+ * 2. 在构件之间绘制 3D 箭头表示供电方向
+ */
+const showPowerTraceOverlay = async (traceData) => {
+  if (!viewer || !traceData) return;
+  
+  console.log('⚡ [MainView] 显示电源追溯覆盖层:', traceData);
+  
+  // 1. 收集所有节点的 dbId
+  const nodeDbIdMap = new Map(); // nodeId -> dbId
+  const allDbIds = [];
+  
+  // 首先，根据节点的 mcCode 或 bimGuid 查找 dbId
+  for (const node of traceData.nodes) {
+    let dbId = null;
+    
+    // 方法1: 通过 bimGuid (External ID) 查找
+    if (node.bimGuid && viewer.model) {
+      try {
+        dbId = await new Promise((resolve) => {
+          viewer.model.getExternalIdMapping((mapping) => {
+            // 反向查找：从 externalId 找 dbId
+            for (const [id, extId] of Object.entries(mapping)) {
+              if (extId === node.bimGuid) {
+                resolve(parseInt(id));
+                return;
+              }
+            }
+            resolve(null);
+          });
+        });
+      } catch (e) {
+        console.warn('查找 bimGuid 失败:', node.bimGuid);
+      }
+    }
+    
+    // 方法2: 通过 mcCode 属性搜索
+    if (!dbId && node.mcCode && viewer.model) {
+      try {
+        dbId = await new Promise((resolve) => {
+          viewer.search(node.mcCode, (dbIds) => {
+            resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
+          }, () => resolve(null), ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number']);
+        });
+      } catch (e) {
+        console.warn('搜索 mcCode 失败:', node.mcCode);
+      }
+    }
+    
+    if (dbId) {
+      nodeDbIdMap.set(node.id, dbId);
+      allDbIds.push(dbId);
+      console.log(`  ✅ ${node.label || node.id} → dbId: ${dbId}`);
+    } else {
+      console.log(`  ⚠️ ${node.label || node.id} → 未找到 BIM 构件`);
+    }
+  }
+  
+  // 2. 隔离显示这些构件
+  if (allDbIds.length > 0) {
+    setManualSelection();
+    viewer.isolate(allDbIds);
+    viewer.fitToView(allDbIds);
+    console.log(`  📦 隔离 ${allDbIds.length} 个 BIM 构件`);
+  }
+  
+  // 3. 绘制 3D 箭头连线
+  // 先清除之前的覆盖层
+  clearPowerTraceOverlay();
+  
+  // 创建覆盖层场景（如果 Viewer 支持 overlay）
+  const overlayName = 'power-trace-overlay';
+  if (viewer.impl.overlayScenes && !viewer.impl.overlayScenes[overlayName]) {
+    viewer.impl.createOverlayScene(overlayName);
+  }
+  
+  for (const edge of traceData.edges) {
+    const sourceDbId = nodeDbIdMap.get(edge.source);
+    const targetDbId = nodeDbIdMap.get(edge.target);
+    
+    if (!sourceDbId || !targetDbId) continue;
+    
+    const sourceCenter = getComponentCenter(sourceDbId);
+    const targetCenter = getComponentCenter(targetDbId);
+    
+    if (!sourceCenter || !targetCenter) continue;
+    
+    // 创建箭头（从 source 指向 target，表示供电方向）
+    const arrow = createArrowLine(sourceCenter, targetCenter, 0xff3333);
+    
+    // 添加到覆盖层场景
+    if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+      viewer.impl.addOverlay(overlayName, arrow);
+      powerTraceOverlayObjects.push({ name: overlayName, object: arrow });
+    }
+  }
+  
+  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 条电源连线`);
+  
+  // 刷新渲染
+  viewer.impl.invalidate(true, true, true);
+};
+
+/**
+ * 清除电源追溯覆盖层
+ */
+const clearPowerTraceOverlay = () => {
+  if (!viewer) return;
+  
+  // 移除所有覆盖层对象
+  for (const item of powerTraceOverlayObjects) {
+    if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[item.name]) {
+      viewer.impl.removeOverlay(item.name, item.object);
+    }
+  }
+  
+  powerTraceOverlayObjects = [];
+  
+  // 刷新渲染
+  viewer.impl.invalidate(true, true, true);
+  
+  console.log('🧹 [MainView] 电源追溯覆盖层已清除');
+};
+
 // 暴露方法给父组件
 defineExpose({
   highlightBimObjects,
@@ -2267,6 +2441,8 @@ defineExpose({
   isolateAndFocusRooms,
   getAssetProperties,
   getRoomProperties,
+  showPowerTraceOverlay,
+  clearPowerTraceOverlay,
   getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
   getAssetPropertyList,
   getSpacePropertyList,

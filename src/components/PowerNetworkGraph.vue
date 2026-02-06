@@ -81,7 +81,7 @@ const props = defineProps({
 });
 
 // Emits
-const emit = defineEmits(['node-click', 'node-select']);
+const emit = defineEmits(['node-click', 'node-select', 'trace-complete', 'trace-clear']);
 
 // Refs
 const graphContainer = ref(null);
@@ -395,6 +395,22 @@ const traceUpstream = async () => {
                 await graphInstance.value.render();
                 graphInstance.value.fitView();
             }
+            
+            // 发送追溯完成事件，供父组件进行 BIM 可视化
+            emit('trace-complete', {
+                startNodeId: selectedNode.value.id,
+                nodes: filteredNodes.map(n => ({
+                    id: n.id,
+                    bimGuid: n.bimGuid,
+                    mcCode: n.mcCode || n.shortCode,
+                    nodeType: n.nodeType,
+                    label: n.label
+                })),
+                edges: filteredEdges.map(e => ({
+                    source: e.source,
+                    target: e.target
+                }))
+            });
         }
     } catch (err) {
         console.error('追溯上游电源失败:', err);
@@ -423,6 +439,9 @@ const clearTrace = async () => {
         await graphInstance.value.render();
         graphInstance.value.fitView();
     }
+    
+    // 发送追溯清除事件
+    emit('trace-clear');
 };
 
 // 工具方法

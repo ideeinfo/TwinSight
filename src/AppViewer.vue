@@ -65,6 +65,8 @@
               :file-id="activeFileId"
               @highlight-guids="onHighlightGuids"
               @trace-result="onTraceResult"
+              @trace-complete="onTraceComplete"
+              @trace-clear="onTraceClear"
             />
           </div>
         </div>
@@ -1693,6 +1695,60 @@ const onTraceResult = (nodes) => {
   
   if (allGuids.length > 0) {
     onHighlightGuids(allGuids);
+  }
+};
+
+/**
+ * 处理电源追溯完成事件
+ * 在 BIM 模型中隔离显示相关构件并绘制 3D 电源连线
+ */
+const onTraceComplete = async (traceData) => {
+  console.log('⚡ [RDS] 电源追溯 BIM 可视化:', traceData);
+  
+  if (!mainViewRef.value || !traceData) return;
+  
+  // 调用 MainView 的电源追溯可视化方法
+  if (mainViewRef.value.showPowerTraceOverlay) {
+    mainViewRef.value.showPowerTraceOverlay(traceData);
+  } else {
+    // 降级方案：仅高亮节点
+    const allGuids = traceData.nodes
+      .filter(n => n.bimGuid)
+      .map(n => n.bimGuid);
+    
+    const mcCodes = traceData.nodes
+      .filter(n => n.mcCode)
+      .map(n => n.mcCode);
+    
+    if (allGuids.length > 0 || mcCodes.length > 0) {
+      onHighlightGuids({
+        guids: allGuids,
+        refCodes: mcCodes,
+        searchQueries: mcCodes.length > 0 ? [{
+          values: mcCodes,
+          attributes: ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number']
+        }] : []
+      });
+    }
+  }
+};
+
+/**
+ * 处理电源追溯清除事件
+ * 清除 3D 覆盖层并恢复正常显示
+ */
+const onTraceClear = () => {
+  console.log('🧹 [RDS] 清除电源追溯覆盖层');
+  
+  if (mainViewRef.value) {
+    // 调用 MainView 清除覆盖层
+    if (mainViewRef.value.clearPowerTraceOverlay) {
+      mainViewRef.value.clearPowerTraceOverlay();
+    }
+    // 恢复显示所有资产
+    if (mainViewRef.value.showAllAssets) {
+      mainViewRef.value.showAllAssets();
+    }
   }
 };
 

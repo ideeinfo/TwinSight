@@ -79,6 +79,8 @@
         :file-id="fileId"
         :search-text="searchText"
         @node-click="handleGraphNodeClick"
+        @trace-complete="handleTraceComplete"
+        @trace-clear="handleTraceClear"
       />
 
       <!-- 加载状态 -->
@@ -141,7 +143,9 @@ const props = defineProps({
 const emit = defineEmits([
   'codes-selected',
   'highlight-guids',
-  'trace-result'
+  'trace-result',
+  'trace-complete',
+  'trace-clear'
 ]);
 
 // ==================== 状态 ====================
@@ -720,6 +724,24 @@ function handleGraphNodeClick(nodeData) {
       searchQueries
     });
   }
+}
+
+/**
+ * 处理电源追溯完成事件
+ */
+function handleTraceComplete(traceData) {
+  console.log('⚡️ [AspectTree] 电源追溯完成:', traceData);
+  // 转发给 MainView 进行 BIM 可视化
+  emit('trace-complete', traceData);
+}
+
+/**
+ * 处理电源追溯清除事件
+ */
+function handleTraceClear() {
+  console.log('⚡️ [AspectTree] 电源追溯清除');
+  // 转发给 MainView 清除覆盖层
+  emit('trace-clear');
 }
 
 // 暴露方法给父组件
