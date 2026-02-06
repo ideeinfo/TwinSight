@@ -5,7 +5,6 @@
       <div class="toolbar-left">
         <span class="toolbar-title">电源拓扑网络</span>
         <el-tag size="small" effect="dark" type="success" v-if="stats.nodes">{{ stats.nodes }} 节点</el-tag>
-        <el-tag size="small" effect="dark" type="warning" v-if="isTracing">追溯模式</el-tag>
       </div>
       
       <div class="toolbar-actions">

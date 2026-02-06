@@ -52,6 +52,7 @@
         node-key="uitreeId"
         show-checkbox
         :expand-on-click-node="false"
+        :expanded-keys="expandedKeys"
         @check-change="handleCheckChange"
         @node-click="handleNodeClick"
       >
@@ -167,6 +168,7 @@ const selectedCodes = ref([]);
 const treeRef = ref(null);
 const treeContainer = ref(null);
 const containerHeight = ref(0);
+const expandedKeys = ref([]); // 展开的节点 keys
 
 // 树组件配置
 const treeProps = {
@@ -240,46 +242,27 @@ const filteredTreeData = computed(() => {
 watch(filteredTreeData, (newData) => {
     if (searchText.value && newData.length > 0) {
         console.log(`📂 [AspectTree] 搜索结果更新，准备展开 ${newData.length} 个节点`);
-        // 使用 setTimeout 给 el-tree-v2 一点渲染时间，比 nextTick 更稳健
-        setTimeout(() => {
-            expandAllNodes(newData);
-        }, 100);
+        // 收集所有需要展开的节点 keys
+        const keys = [];
+        const traverse = (list) => {
+            for (const node of list) {
+                if (node.children && node.children.length > 0) {
+                    keys.push(node.uitreeId);
+                    traverse(node.children);
+                }
+            }
+        };
+        traverse(newData);
+        // 直接更新 expandedKeys ref，让 Vue 响应式系统处理
+        expandedKeys.value = keys;
+        console.log(`📂 [AspectTree] 设置展开 keys: ${keys.length} 个`);
+    } else if (!searchText.value) {
+        // 清空搜索时，折叠所有节点
+        expandedKeys.value = [];
     }
 });
 
-// 辅助函数：收集所有需要展开的节点 ID
-const expandAllNodes = (nodes, retryCount = 0) => {
-    if (!treeRef.value) {
-        if (retryCount < 3) {
-             console.log(`⏳ [AspectTree] treeRef 未就绪，重试 (${retryCount + 1}/3)...`);
-             setTimeout(() => expandAllNodes(nodes, retryCount + 1), 200);
-        } else {
-             console.warn('⚠️ [AspectTree] treeRef 仍未就绪，放弃展开');
-        }
-        return;
-    }
-    
-    const keys = [];
-    const traverse = (list) => {
-        for (const node of list) {
-            // 只要有子节点就需要展开
-            if (node.children && node.children.length > 0) {
-                keys.push(node.uitreeId);
-                traverse(node.children);
-            }
-        }
-    };
-    traverse(nodes);
-    
-    if (keys.length > 0) {
-        // console.log(`📂 [AspectTree] 设置展开 keys: ${keys.length} 个`);
-        try {
-            treeRef.value.setExpandedKeys(keys);
-        } catch (e) {
-            console.error('❌ [AspectTree] 设置展开失败:', e);
-        }
-    }
-};    
+// (expandAllNodes 函数不再需要，改用响应式 prop 绑定)    
 
 // ==================== 生命周期 ====================
 
