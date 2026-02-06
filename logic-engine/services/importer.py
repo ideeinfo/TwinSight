@@ -403,7 +403,24 @@ def _create_power_graph_data(
     # 收集所有需要创建的设备边 (parent_node_id, device_node_id, relation_type)
     device_edges_to_create: List[tuple] = []
     
-    for aspect in power_aspects:
+    # ========== 预处理：对电源编码排序 ==========
+    # 
+    # 同一个 asset_code 可能有多个电源编码（如逻辑节点和实体引用）。
+    # 确保逻辑节点（无末尾点）在实体引用（有末尾点）之前处理，
+    # 这样当处理实体引用时，它的父逻辑节点已经存在。
+    #
+    # 排序规则：
+    # 1. 按编码长度升序（层级浅的优先）
+    # 2. 无末尾点的优先于有末尾点的（逻辑节点优先于实体引用）
+    #
+    def sort_key(aspect):
+        code = aspect.get('full_code', '')
+        has_dot = code.endswith('.')
+        return (len(code), has_dot)
+    
+    sorted_power_aspects = sorted(power_aspects, key=sort_key)
+    
+    for aspect in sorted_power_aspects:
         full_code = aspect.get('full_code', '')
         if not full_code or not full_code.startswith('==='):
             continue
@@ -412,17 +429,33 @@ def _create_power_graph_data(
         device_name = aspect.get('name', '')
         
         # 解析层级：===DY1.AH1.H01 -> ['DY1', 'AH1', 'H01']
+        # 
+        # 末尾点号的语义 (IEC 81346-12):
+        # - 不带末尾点 (===DY2...DP9O.1.1) = 逻辑节点，仅存在于电源功能维度
+        # - 带末尾点 (===DY2...DP9O.1.1.) = 实体对象，引用上述逻辑节点
+        # 
+        # 因此：===DY2...DP9O.1.1. 的父节点是 ===DY2...DP9O.1.1
+        #
         prefix = '==='
         body = full_code[len(prefix):]
-        # 处理末尾的点号
-        if body.endswith('.'):
-            body = body[:-1]
-        parts = [p for p in body.split('.') if p]
+        
+        # 检测是否有末尾点号 (表示实体引用)
+        has_trailing_dot = body.endswith('.')
+        if has_trailing_dot:
+            body_without_dot = body[:-1]
+        else:
+            body_without_dot = body
+        
+        parts = [p for p in body_without_dot.split('.') if p]
         
         if not parts:
             continue
         
-        # ========== 阶段 1: 创建层级路径上的所有节点 ==========
+        # ========== 阶段 1: 创建层级路径上的所有逻辑节点 ==========
+        # 
+        # 首先创建整个层级路径上的逻辑节点 (不带末尾点)
+        # 例如：===DY1, ===DY1.AH1, ===DY1.AH1.H01 ...
+        #
         current_full_code = prefix
         parent_node_id = None
         last_hierarchy_node_id = None  # 最后一个层级节点 (设备的直接父节点)
@@ -440,13 +473,17 @@ def _create_power_graph_data(
                 current_full_code = current_full_code + '.' + part
             
             # 如果是最后一段且有 asset_code，这是一个设备节点，稍后单独处理
-            if is_last_part and create_separate_device:
+            # 但如果有末尾点号，需要先创建逻辑父节点
+            if is_last_part and create_separate_device and not has_trailing_dot:
                 last_hierarchy_node_id = parent_node_id
                 break
             
             # 检查层级节点是否已存在
             if current_full_code in created_nodes:
                 parent_node_id = created_nodes[current_full_code]
+                # 更新 last_hierarchy_node_id（用于后续设备节点连接）
+                if is_last_part:
+                    last_hierarchy_node_id = parent_node_id
                 # 如果是最后一段且有名称，尝试更新这个已存在节点的 label
                 if is_last_part and device_name and not device_name.strip().startswith('='):
                     update_label = text("""
@@ -535,6 +572,17 @@ def _create_power_graph_data(
             
             parent_node_id = node_id
             last_hierarchy_node_id = node_id
+        
+        # ========== 特殊处理：末尾点号的实体引用 ==========
+        # 
+        # 如果编码有末尾点号 (如 ===DY2...DP9O.1.1.)，表示这是一个实体对象，
+        # 它引用了逻辑节点 (===DY2...DP9O.1.1)。
+        # 此时 last_hierarchy_node_id 应该是完整逻辑路径的最后一个节点。
+        #
+        if has_trailing_dot and last_hierarchy_node_id is None:
+            # 如果循环结束后 last_hierarchy_node_id 仍为 None，
+            # 说明所有层级节点都已创建，最后一个就是父节点
+            last_hierarchy_node_id = parent_node_id
         
         # ========== 阶段 2: 创建设备节点（基于 asset_code 去重） ==========
         if asset_code:

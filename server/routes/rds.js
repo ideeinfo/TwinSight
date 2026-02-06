@@ -520,7 +520,7 @@ router.get('/power-graph/:fileId', async (req, res) => {
     const { nodeType, maxLevel } = req.query;
 
     try {
-        // 查询节点
+        // 查询节点（包含关联对象的所有方面编码）
         let nodeQuery = `
             SELECT 
                 pn.id,
@@ -532,7 +532,19 @@ router.get('/power-graph/:fileId', async (req, res) => {
                 pn.node_type as type,
                 pn.object_id,
                 o.bim_guid,
-                o.ref_code as mc_code
+                o.ref_code as mc_code,
+                o.name as object_name,
+                -- 查询关联对象的所有方面编码
+                (
+                    SELECT json_agg(json_build_object(
+                        'aspectType', a.aspect_type,
+                        'fullCode', a.full_code,
+                        'prefix', a.prefix,
+                        'level', a.hierarchy_level
+                    ) ORDER BY a.aspect_type, a.hierarchy_level DESC)
+                    FROM rds_aspects a 
+                    WHERE a.object_id = pn.object_id
+                ) as aspects
             FROM rds_power_nodes pn
             LEFT JOIN rds_objects o ON pn.object_id = o.id
             WHERE pn.file_id = $1
@@ -582,6 +594,9 @@ router.get('/power-graph/:fileId', async (req, res) => {
             objectId: row.object_id,
             bimGuid: row.bim_guid,
             mcCode: row.mc_code,
+            objectName: row.object_name,
+            // 方面编码数组（用于悬浮面板显示）
+            aspects: row.aspects || [],
             // G6 特有属性
             style: {
                 fill: getNodeColor(row.type),

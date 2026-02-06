@@ -27,9 +27,35 @@
     <div ref="graphContainer" class="graph-container">
       <!-- 悬浮提示 -->
       <div v-show="tooltip.show" class="graph-tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
-        <div class="tooltip-title">{{ tooltip.data?.label || tooltip.data?.shortCode }}</div>
-        <div class="tooltip-row" v-if="tooltip.data?.fullCode"><span class="label">编码:</span> {{ tooltip.data.fullCode }}</div>
-        <div class="tooltip-row" v-if="tooltip.data?.nodeType"><span class="label">类型:</span> {{ getNodeTypeLabel(tooltip.data.nodeType) }}</div>
+        <div class="tooltip-header">
+          <span class="tooltip-icon">{{ getNodeIcon(tooltip.data?.nodeType) }}</span>
+          <span class="tooltip-title">{{ tooltip.data?.label || tooltip.data?.shortCode }}</span>
+        </div>
+        
+        <div class="tooltip-section">
+          <div class="tooltip-row" v-if="tooltip.data?.nodeType">
+            <span class="label">类型:</span> {{ getNodeTypeLabel(tooltip.data.nodeType) }}
+          </div>
+          <div class="tooltip-row" v-if="tooltip.data?.mcCode">
+            <span class="label">设备编码:</span> {{ tooltip.data.mcCode }}
+          </div>
+        </div>
+        
+        <!-- 方面编码区域 -->
+        <div class="tooltip-section aspects" v-if="tooltip.data?.aspects?.length">
+          <div class="section-title">方面编码</div>
+          <div class="tooltip-row aspect-row" v-for="aspect in getGroupedAspects(tooltip.data.aspects)" :key="aspect.fullCode">
+            <span class="aspect-prefix" :class="aspect.aspectType">{{ aspect.prefix }}</span>
+            <span class="aspect-code">{{ aspect.fullCode }}</span>
+          </div>
+        </div>
+        
+        <!-- 如果没有方面编码但有电源编码，显示电源编码 -->
+        <div class="tooltip-section" v-else-if="tooltip.data?.code">
+          <div class="tooltip-row">
+            <span class="label">电源编码:</span> {{ tooltip.data.code }}
+          </div>
+        </div>
       </div>
       
       <!-- 右下角追溯操作按钮 -->
@@ -293,6 +319,31 @@ const getNodeTypeLabel = (type) => {
         'device': '设备'
     };
     return map[type] || type;
+};
+
+// 获取节点图标
+const getNodeIcon = (type) => {
+    return NODE_ICONS[type] || NODE_ICONS.default;
+};
+
+// 获取分组后的方面编码（每种类型只取最具体的一个）
+const getGroupedAspects = (aspects) => {
+    if (!aspects || !Array.isArray(aspects)) return [];
+    
+    // 按 aspectType 分组，每组取 hierarchy_level 最高的（最具体的）
+    const grouped = {};
+    aspects.forEach(a => {
+        const type = a.aspectType;
+        if (!grouped[type] || a.level > grouped[type].level) {
+            grouped[type] = a;
+        }
+    });
+    
+    // 按固定顺序返回：function, location, power
+    const order = ['function', 'location', 'power'];
+    return order
+        .filter(t => grouped[t])
+        .map(t => grouped[t]);
 };
 
 // 数据加载
@@ -576,33 +627,109 @@ defineExpose({ refresh: loadData });
 
 .graph-tooltip {
     position: absolute;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.9);
     border: 1px solid #444;
-    border-radius: 4px;
-    padding: 8px 12px;
+    border-radius: 6px;
+    padding: 10px 14px;
     color: #fff;
     font-size: 12px;
     z-index: 100;
     pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    min-width: 180px;
+    max-width: 320px;
+}
+
+/* 增强 Tooltip 样式 */
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #444;
+}
+
+.tooltip-icon {
+    font-size: 16px;
 }
 
 .tooltip-title {
     font-weight: bold;
-    margin-bottom: 4px;
     color: #40a9ff;
-    border-bottom: 1px solid #444;
-    padding-bottom: 4px;
+    font-size: 13px;
+}
+
+.tooltip-section {
+    margin-top: 6px;
+}
+
+.tooltip-section.aspects {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #333;
+}
+
+.section-title {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .tooltip-row {
-    margin: 2px 0;
+    margin: 3px 0;
     color: #ccc;
 }
+
 .tooltip-row .label {
     color: #888;
     margin-right: 4px;
+}
+
+.aspect-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0;
+}
+
+.aspect-prefix {
+    font-family: monospace;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    min-width: 32px;
+    text-align: center;
+}
+
+.aspect-prefix.function {
+    background: rgba(82, 196, 26, 0.2);
+    color: #52C41A;
+}
+
+.aspect-prefix.location {
+    background: rgba(250, 173, 20, 0.2);
+    color: #FAAD14;
+}
+
+.aspect-prefix.power {
+    background: rgba(255, 77, 79, 0.2);
+    color: #FF4D4F;
+}
+
+.aspect-code {
+    font-family: monospace;
+    color: #ddd;
+    font-size: 12px;
+    /* 过长时截断 */
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 覆盖 Element UI 样式适配暗黑主题 */
