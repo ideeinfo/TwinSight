@@ -135,7 +135,7 @@ const initGraph = () => {
     autoFit: 'view',
     background: '#121212', // 深色背景
     
-    layout: getLayoutConfig(layoutType.value),
+    layout: getLayoutConfig('LR'), // 默认水平布局
     
     node: {
       style: {
@@ -432,13 +432,7 @@ const zoomOut = () => graphInstance.value?.zoomBy(0.8);
 
 // 监听
 watch(() => props.fileId, loadData);
-watch(layoutType, async (newType) => {
-    if (graphInstance.value) {
-        graphInstance.value.setLayout(getLayoutConfig(newType));
-        await graphInstance.value.layout();
-        await graphInstance.value.fitView();
-    }
-});
+// layoutType watch 已移除，布局在追溯时动态切换
 
 // 监听搜索词变化，过滤显示匹配节点
 watch(() => props.searchText, async (searchText) => {

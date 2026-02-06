@@ -241,7 +241,7 @@ const filteredTreeData = computed(() => {
 // 监听过滤后的数据变化，如果是由搜索触发的，则自动展开
 watch(filteredTreeData, (newData) => {
     if (searchText.value && newData.length > 0) {
-        console.log(`📂 [AspectTree] 搜索结果更新，准备展开 ${newData.length} 个节点`);
+        console.log(`📂 [AspectTree] 搜索结果更新，准备展开 ${newData.length} 个顶级节点`);
         // 收集所有需要展开的节点 keys
         const keys = [];
         const traverse = (list) => {
@@ -253,16 +253,23 @@ watch(filteredTreeData, (newData) => {
             }
         };
         traverse(newData);
-        // 直接更新 expandedKeys ref，让 Vue 响应式系统处理
+        console.log(`📂 [AspectTree] 收集到 ${keys.length} 个需要展开的节点`);
+        
+        // 方法1: 更新 expandedKeys ref (响应式绑定)
         expandedKeys.value = keys;
-        console.log(`📂 [AspectTree] 设置展开 keys: ${keys.length} 个`);
+        
+        // 方法2: 使用 setTimeout + setExpandedKeys (作为补充)
+        setTimeout(() => {
+            if (treeRef.value && treeRef.value.setExpandedKeys) {
+                console.log(`📂 [AspectTree] 调用 setExpandedKeys 展开 ${keys.length} 个节点`);
+                treeRef.value.setExpandedKeys(keys);
+            }
+        }, 300);
     } else if (!searchText.value) {
         // 清空搜索时，折叠所有节点
         expandedKeys.value = [];
     }
-});
-
-// (expandAllNodes 函数不再需要，改用响应式 prop 绑定)    
+});    
 
 // ==================== 生命周期 ====================
 
