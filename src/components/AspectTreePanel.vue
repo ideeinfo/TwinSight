@@ -44,6 +44,7 @@
       <!-- 只有非电源或强制显示树时才渲染树 -->
       <el-tree-v2
         v-if="activeAspect !== 'power' && containerHeight > 0"
+        :key="activeAspect"
         ref="treeRef"
         :data="filteredTreeData"
         :props="treeProps"
