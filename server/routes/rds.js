@@ -658,16 +658,17 @@ router.get('/power-trace/:fileId/:nodeCode', async (req, res) => {
         const startNodeId = startNodeResult.rows[0].id;
 
         // 使用递归 CTE 追溯路径
+        // 注意：设备节点通过 'power_supply' 边连接，层级节点通过 'hierarchy' 边连接
         const traceQuery = direction === 'upstream' ? `
             WITH RECURSIVE trace AS (
-                -- 起始节点
+                -- 起始节点 (包括 hierarchy 和 power_supply 边)
                 SELECT 
                     target_node_id as node_id,
                     source_node_id as next_node_id,
                     1 as depth,
                     ARRAY[target_node_id] as path
                 FROM rds_power_edges
-                WHERE target_node_id = $1 AND relation_type = 'hierarchy'
+                WHERE target_node_id = $1 AND relation_type IN ('hierarchy', 'power_supply')
 
                 UNION ALL
 
@@ -679,7 +680,7 @@ router.get('/power-trace/:fileId/:nodeCode', async (req, res) => {
                     t.path || e.source_node_id
                 FROM rds_power_edges e
                 JOIN trace t ON e.target_node_id = t.next_node_id
-                WHERE t.depth < $2 AND relation_type = 'hierarchy'
+                WHERE t.depth < $2 AND relation_type IN ('hierarchy', 'power_supply')
                     AND NOT (e.source_node_id = ANY(t.path))  -- 防止环
             )
             SELECT DISTINCT node_id, next_node_id, depth, path FROM trace
