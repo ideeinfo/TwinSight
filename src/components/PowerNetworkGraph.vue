@@ -9,15 +9,6 @@
       </div>
       
       <div class="toolbar-actions">
-        <!-- 追溯操作按钮 -->
-        <el-button-group v-if="selectedNode">
-          <el-tooltip content="追溯上游电源">
-            <el-button @click="traceUpstream" size="small" type="primary" :icon="Top">上游</el-button>
-          </el-tooltip>
-        </el-button-group>
-        <el-button v-if="isTracing" @click="clearTrace" size="small" type="warning">清除追溯</el-button>
-        <el-divider direction="vertical" v-if="selectedNode || isTracing" />
-        
         <el-tooltip content="自适应视图">
           <el-button @click="fitView" circle size="small" :icon="FullScreen" />
         </el-tooltip>
@@ -44,6 +35,16 @@
         <div class="tooltip-title">{{ tooltip.data?.label || tooltip.data?.shortCode }}</div>
         <div class="tooltip-row" v-if="tooltip.data?.fullCode"><span class="label">编码:</span> {{ tooltip.data.fullCode }}</div>
         <div class="tooltip-row" v-if="tooltip.data?.nodeType"><span class="label">类型:</span> {{ getNodeTypeLabel(tooltip.data.nodeType) }}</div>
+      </div>
+      
+      <!-- 右下角追溯操作按钮 -->
+      <div class="floating-actions" v-if="selectedNode || isTracing">
+        <el-button v-if="selectedNode && !isTracing" @click="traceUpstream" type="primary" size="small">
+          <el-icon><Top /></el-icon>追溯上游
+        </el-button>
+        <el-button v-if="isTracing" @click="clearTrace" type="warning" size="small">
+          取消追溯
+        </el-button>
       </div>
     </div>
     
@@ -73,6 +74,10 @@ const props = defineProps({
   fileId: {
     type: [Number, String],
     required: true
+  },
+  searchText: {
+    type: String,
+    default: ''
   },
   onNodeClick: {
     type: Function,
@@ -451,6 +456,34 @@ watch(layoutType, async (newType) => {
     }
 });
 
+// 监听搜索词变化，高亮匹配节点
+watch(() => props.searchText, (searchText) => {
+    if (!graphInstance.value || !fullGraphData.value.nodes.length) return;
+    
+    const search = (searchText || '').toLowerCase().trim();
+    
+    if (!search) {
+        // 清除所有搜索状态
+        fullGraphData.value.nodes.forEach(node => {
+            graphInstance.value.setElementState(node.id, []);
+        });
+        return;
+    }
+    
+    // 设置匹配/不匹配状态
+    fullGraphData.value.nodes.forEach(node => {
+        const label = (node.label || '').toLowerCase();
+        const code = (node.shortCode || node.fullCode || '').toLowerCase();
+        const isMatch = label.includes(search) || code.includes(search);
+        
+        if (isMatch) {
+            graphInstance.value.setElementState(node.id, ['selected']);
+        } else {
+            graphInstance.value.setElementState(node.id, ['inactive']);
+        }
+    });
+});
+
 // 生命周期
 onMounted(async () => {
     await nextTick();
@@ -586,5 +619,19 @@ defineExpose({ refresh: loadData });
     align-items: center;
     justify-content: center;
     height: 100%;
+}
+
+/* 右下角悬浮操作按钮 */
+.floating-actions {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+}
+
+.floating-actions .el-button {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 </style>

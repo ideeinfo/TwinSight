@@ -73,6 +73,7 @@
       <PowerNetworkGraph
         v-if="activeAspect === 'power'"
         :file-id="fileId"
+        :search-text="searchText"
         @node-click="handleGraphNodeClick"
       />
 
