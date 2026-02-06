@@ -456,32 +456,54 @@ watch(layoutType, async (newType) => {
     }
 });
 
-// 监听搜索词变化，高亮匹配节点
-watch(() => props.searchText, (searchText) => {
+// 监听搜索词变化，过滤显示匹配节点
+watch(() => props.searchText, async (searchText) => {
     if (!graphInstance.value || !fullGraphData.value.nodes.length) return;
     
     const search = (searchText || '').toLowerCase().trim();
     
     if (!search) {
-        // 清除所有搜索状态
-        fullGraphData.value.nodes.forEach(node => {
-            graphInstance.value.setElementState(node.id, []);
-        });
+        // 清除搜索，恢复完整图
+        if (graphData.value.nodes.length !== fullGraphData.value.nodes.length) {
+            graphData.value = JSON.parse(JSON.stringify(fullGraphData.value));
+            stats.value = {
+                nodes: graphData.value.nodes.length,
+                edges: graphData.value.edges.length
+            };
+            graphInstance.value.setData(graphData.value);
+            await graphInstance.value.render();
+            graphInstance.value.fitView();
+        }
         return;
     }
     
-    // 设置匹配/不匹配状态
-    fullGraphData.value.nodes.forEach(node => {
+    // 过滤匹配的节点
+    const matchedNodes = fullGraphData.value.nodes.filter(node => {
         const label = (node.label || '').toLowerCase();
         const code = (node.shortCode || node.fullCode || '').toLowerCase();
-        const isMatch = label.includes(search) || code.includes(search);
-        
-        if (isMatch) {
-            graphInstance.value.setElementState(node.id, ['selected']);
-        } else {
-            graphInstance.value.setElementState(node.id, ['inactive']);
-        }
+        return label.includes(search) || code.includes(search);
     });
+    
+    const matchedNodeIds = new Set(matchedNodes.map(n => n.id));
+    
+    // 只保留匹配节点之间的边
+    const matchedEdges = fullGraphData.value.edges.filter(e => 
+        matchedNodeIds.has(e.source) && matchedNodeIds.has(e.target)
+    );
+    
+    graphData.value = {
+        nodes: matchedNodes,
+        edges: matchedEdges
+    };
+    
+    stats.value = {
+        nodes: matchedNodes.length,
+        edges: matchedEdges.length
+    };
+    
+    graphInstance.value.setData(graphData.value);
+    await graphInstance.value.render();
+    graphInstance.value.fitView();
 });
 
 // 生命周期
