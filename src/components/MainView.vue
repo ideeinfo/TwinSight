@@ -2347,9 +2347,9 @@ const showPowerTraceOverlay = async (traceData) => {
     if (dbId) {
       nodeDbIdMap.set(node.id, dbId);
       allDbIds.push(dbId);
-      console.log(`  ✅ ${node.label || node.id} → dbId: ${dbId}`);
+      console.log(`  ✅ ${node.label || node.id} (GUID: ${node.bimGuid}, MC: ${node.mcCode}) → dbId: ${dbId}`);
     } else {
-      console.log(`  ⚠️ ${node.label || node.id} → 未找到 BIM 构件`);
+      console.warn(`  ⚠️ ${node.label || node.id} (GUID: ${node.bimGuid}, MC: ${node.mcCode}) → 未找到 BIM 构件。尝试搜索属性: MC编码, MC Code, DeviceCode, 设备编码, Tag Number`);
     }
   }
   
@@ -2365,6 +2365,7 @@ const showPowerTraceOverlay = async (traceData) => {
   // 先清除之前的覆盖层
   clearPowerTraceOverlay();
   
+  /* 暂时注释掉箭头绘制逻辑，先专注于解决 BIM 构件查找问题
   // 创建覆盖层场景（如果 Viewer 支持 overlay）
   const overlayName = 'power-trace-overlay';
   if (viewer.impl.overlayScenes && !viewer.impl.overlayScenes[overlayName]) {
@@ -2393,6 +2394,7 @@ const showPowerTraceOverlay = async (traceData) => {
   }
   
   console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 条电源连线`);
+  */
   
   // 刷新渲染
   viewer.impl.invalidate(true, true, true);
