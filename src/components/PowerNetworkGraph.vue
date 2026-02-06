@@ -134,7 +134,7 @@ const initGraph = () => {
         shadowBlur: 4,
         radius: 4,
         
-        // 尺寸: 宽矩形以容纳文字
+        // 尺寸: 统一为宽矩形
         size: [180, 42],
         
         // 标签: 图标 + 文字，居中显示
@@ -146,12 +146,12 @@ const initGraph = () => {
         labelFill: '#f0f0f0',
         labelFontSize: 13,
         labelPlacement: 'center',
-        background: false, // 是否需要文字背景？矩形内不需要
+        background: false, 
         
-        // 移除原来的中心大图标配置，改用 text 组合
+        // 移除原来的中心大图标配置
         iconText: '', 
         
-        // 徽章 (可选: 显示层级或其他状态)
+        // 徽章
         badge: false,
       },
       state: {
