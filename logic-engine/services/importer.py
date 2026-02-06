@@ -485,10 +485,47 @@ def _create_power_graph_data(
             
             # 检查层级节点是否已存在
             if current_full_code in created_nodes:
-                parent_node_id = created_nodes[current_full_code]
+                existing_node_id = created_nodes[current_full_code]
+                
+                # 即使节点已存在，也需要确保与父节点之间的边存在
+                # 这修复了当不同层级深度的编码处理时，中间层级边被跳过的问题
+                if parent_node_id:
+                    # 计算父编码
+                    parent_code_for_edge = None
+                    if i > 0:
+                        parent_code_for_edge = prefix + '.'.join(parts[:i])
+                    
+                    # 检查是否需要连接到实体引用节点
+                    if parent_code_for_edge and parent_code_for_edge in entity_reference_map:
+                        actual_parent_for_edge = entity_reference_map[parent_code_for_edge]
+                    else:
+                        actual_parent_for_edge = parent_node_id
+                    
+                    # 创建边（如果不存在）
+                    edge_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_EDGE_{actual_parent_for_edge}_{existing_node_id}_hierarchy"))
+                    insert_edge = text("""
+                        INSERT INTO rds_power_edges (
+                            id, file_id, source_node_id, target_node_id, relation_type
+                        )
+                        VALUES (
+                            :id, :file_id, :source_id, :target_id, 'hierarchy'
+                        )
+                        ON CONFLICT (source_node_id, target_node_id, relation_type) DO NOTHING
+                    """)
+                    session.execute(insert_edge, {
+                        'id': edge_id,
+                        'file_id': file_id,
+                        'source_id': actual_parent_for_edge,
+                        'target_id': existing_node_id
+                    })
+                
+                # 更新 parent_node_id 为当前节点，供下一层使用
+                parent_node_id = existing_node_id
+                
                 # 更新 last_hierarchy_node_id（用于后续设备节点连接）
                 if is_last_part:
-                    last_hierarchy_node_id = parent_node_id
+                    last_hierarchy_node_id = existing_node_id
+                    
                 # 如果是最后一段且有名称，尝试更新这个已存在节点的 label
                 if is_last_part and device_name and not device_name.strip().startswith('='):
                     update_label = text("""
