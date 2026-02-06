@@ -269,11 +269,12 @@ const initGraph = () => {
 };
 
 // 获取布局配置
-const getLayoutConfig = (type) => {
+const getLayoutConfig = (direction = 'LR') => {
   // 强制使用优化后的 dagre 布局
+  // direction: 'LR' (Left-to-Right) or 'TB' (Top-to-Bottom)
   return {
     type: 'dagre',
-    rankdir: 'LR',
+    rankdir: direction,
     align: 'UL',
     nodesep: 60,      // 垂直间距 (增加以避免拥挤)
     ranksep: 250,     // 水平间距 (节点宽180 + 箭头空间，设大一些防止重叠)
@@ -389,6 +390,8 @@ const traceUpstream = async () => {
             };
             
             if (graphInstance.value) {
+                // 切换为垂直布局 (上游在上，下游在下)
+                graphInstance.value.setLayout(getLayoutConfig('TB'));
                 graphInstance.value.setData(graphData.value);
                 await graphInstance.value.render();
                 graphInstance.value.fitView();
@@ -415,6 +418,8 @@ const clearTrace = async () => {
     };
     
     if (graphInstance.value) {
+        // 恢复水平布局
+        graphInstance.value.setLayout(getLayoutConfig('LR'));
         graphInstance.value.setData(graphData.value);
         await graphInstance.value.render();
         graphInstance.value.fitView();
