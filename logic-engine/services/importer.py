@@ -422,10 +422,13 @@ def _create_power_graph_data(
         if not parts:
             continue
         
-        # ========== 阶段 1: 创建层级路径上的所有中间节点 ==========
+        # ========== 阶段 1: 创建层级路径上的所有节点 ==========
         current_full_code = prefix
         parent_node_id = None
         last_hierarchy_node_id = None  # 最后一个层级节点 (设备的直接父节点)
+        
+        # 判断是否需要单独创建设备节点 (有 asset_code 的才创建独立设备节点)
+        create_separate_device = bool(asset_code)
         
         for i, part in enumerate(parts):
             level = i + 1
@@ -436,14 +439,27 @@ def _create_power_graph_data(
             else:
                 current_full_code = current_full_code + '.' + part
             
-            # 如果是最后一段且有 asset_code，这是一个设备节点，稍后处理
-            if is_last_part and asset_code:
+            # 如果是最后一段且有 asset_code，这是一个设备节点，稍后单独处理
+            if is_last_part and create_separate_device:
                 last_hierarchy_node_id = parent_node_id
                 break
             
             # 检查层级节点是否已存在
             if current_full_code in created_nodes:
                 parent_node_id = created_nodes[current_full_code]
+                # 如果是最后一段且有名称，尝试更新这个已存在节点的 label
+                if is_last_part and device_name and not device_name.strip().startswith('='):
+                    update_label = text("""
+                        UPDATE rds_power_nodes 
+                        SET label = :label 
+                        WHERE file_id = :file_id AND full_code = :full_code 
+                        AND (label = short_code OR label IS NULL OR label = '')
+                    """)
+                    session.execute(update_label, {
+                        'label': device_name,
+                        'file_id': file_id,
+                        'full_code': current_full_code
+                    })
                 continue
             
             # 生成确定性 UUID (基于 full_code)
@@ -455,9 +471,14 @@ def _create_power_graph_data(
                 node_type = 'source'
             elif level == 2:
                 node_type = 'bus'
+            elif is_last_part:
+                node_type = 'device'  # 末端且没有 asset_code，仍然是设备类型
             
-            # 对于中间节点，label 使用短码
-            label = part
+            # 对于末端节点，使用名称作为 label；中间节点使用短码
+            if is_last_part and device_name and not device_name.strip().startswith('='):
+                label = device_name
+            else:
+                label = part
             
             # 父级编码
             parent_code = None
