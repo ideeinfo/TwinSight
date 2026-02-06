@@ -5,9 +5,19 @@
       <div class="toolbar-left">
         <span class="toolbar-title">电源拓扑网络</span>
         <el-tag size="small" effect="dark" type="success" v-if="stats.nodes">{{ stats.nodes }} 节点</el-tag>
+        <el-tag size="small" effect="dark" type="warning" v-if="isTracing">追溯模式</el-tag>
       </div>
       
       <div class="toolbar-actions">
+        <!-- 追溯操作按钮 -->
+        <el-button-group v-if="selectedNode">
+          <el-tooltip content="追溯上游电源">
+            <el-button @click="traceUpstream" size="small" type="primary" :icon="Top">上游</el-button>
+          </el-tooltip>
+        </el-button-group>
+        <el-button v-if="isTracing" @click="clearTrace" size="small" type="warning">清除追溯</el-button>
+        <el-divider direction="vertical" v-if="selectedNode || isTracing" />
+        
         <el-tooltip content="自适应视图">
           <el-button @click="fitView" circle size="small" :icon="FullScreen" />
         </el-tooltip>
@@ -55,8 +65,8 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick, shallowRef } from 'vue';
 import { Graph } from '@antv/g6';
-import { FullScreen, ZoomIn, ZoomOut, Loading } from '@element-plus/icons-vue';
-import { getPowerGraph } from '@/api/rds';
+import { FullScreen, ZoomIn, ZoomOut, Loading, Top } from '@element-plus/icons-vue';
+import { getPowerGraph, tracePowerPath } from '@/api/rds';
 
 // Props
 const props = defineProps({
@@ -77,9 +87,12 @@ const emit = defineEmits(['node-click', 'node-select']);
 const graphContainer = ref(null);
 const loading = ref(false);
 const graphData = ref({ nodes: [], edges: [] });
+const fullGraphData = ref({ nodes: [], edges: [] }); // 完整数据备份
 const stats = ref({ nodes: 0, edges: 0 });
 const layoutType = ref('dagre');
 const tooltip = ref({ show: false, x: 0, y: 0, data: null });
+const selectedNode = ref(null); // 当前选中的节点
+const isTracing = ref(false); // 是否处于追溯模式
 
 // Graph instance (use shallowRef to avoid deep reactivity overhead for complex G6 instance)
 const graphInstance = shallowRef(null);
@@ -210,9 +223,9 @@ const initGraph = () => {
     ],
   });
 
-  // 事件监听
+  // 事件监听: 节点点击
   graph.on('node:click', (evt) => {
-    // ...
+    // 空实现 - 使用下面的 click 事件处理
   });
   
   // 补充：手动处理点击
@@ -220,11 +233,14 @@ const initGraph = () => {
       if (evt.targetType === 'node') {
           const nodeData = graph.getNodeData(evt.target.id);
           if (nodeData) {
+              // 设置选中节点
+              selectedNode.value = nodeData;
               emit('node-click', nodeData);
               if (props.onNodeClick) props.onNodeClick(nodeData);
           }
       } else if (evt.targetType === 'canvas') {
           tooltip.value.show = false;
+          selectedNode.value = null; // 点击画布时取消选中
       }
   });
 
@@ -299,10 +315,13 @@ const loadData = async () => {
     if (!props.fileId) return;
     
     loading.value = true;
+    isTracing.value = false; // 重新加载时清除追溯模式
+    selectedNode.value = null;
+    
     try {
         const res = await getPowerGraph(props.fileId);
         if (res && res.nodes) {
-            graphData.value = {
+            const processedData = {
                 nodes: res.nodes.map(n => ({
                     ...n,
                     id: String(n.id), // 确保 ID 为字符串
@@ -318,6 +337,9 @@ const loadData = async () => {
                     id: String(e.id)
                 }))
             };
+            
+            graphData.value = processedData;
+            fullGraphData.value = JSON.parse(JSON.stringify(processedData)); // 备份完整数据
             
             stats.value = {
                 nodes: res.nodes.length,
@@ -342,6 +364,76 @@ const getTypeFill = (type) => {
     const color = getNodeColor(type);
     // 这里简单处理，实际可用 tinycolor 变暗
     return '#1f1f1f'; 
+};
+
+// ==================== 追溯功能 ====================
+
+// 追溯上游电源
+const traceUpstream = async () => {
+    if (!selectedNode.value || !props.fileId) return;
+    
+    loading.value = true;
+    try {
+        // 获取节点的 full_code
+        const nodeCode = selectedNode.value.fullCode || selectedNode.value.code || selectedNode.value.id;
+        
+        const res = await tracePowerPath(props.fileId, nodeCode, { direction: 'upstream' });
+        
+        if (res && res.nodes) {
+            // 构建追溯结果的节点和边
+            const traceNodeIds = new Set(res.nodes.map(n => String(n.id)));
+            
+            // 保留起始节点
+            traceNodeIds.add(String(selectedNode.value.id));
+            
+            // 过滤数据
+            const filteredNodes = fullGraphData.value.nodes.filter(n => traceNodeIds.has(n.id));
+            const filteredEdges = fullGraphData.value.edges.filter(e => 
+                traceNodeIds.has(e.source) && traceNodeIds.has(e.target)
+            );
+            
+            graphData.value = {
+                nodes: filteredNodes,
+                edges: filteredEdges
+            };
+            
+            isTracing.value = true;
+            stats.value = {
+                nodes: filteredNodes.length,
+                edges: filteredEdges.length
+            };
+            
+            if (graphInstance.value) {
+                graphInstance.value.setData(graphData.value);
+                await graphInstance.value.render();
+                graphInstance.value.fitView();
+            }
+        }
+    } catch (err) {
+        console.error('追溯上游电源失败:', err);
+    } finally {
+        loading.value = false;
+    }
+};
+
+// 清除追溯，恢复完整图
+const clearTrace = async () => {
+    if (!fullGraphData.value.nodes.length) return;
+    
+    graphData.value = JSON.parse(JSON.stringify(fullGraphData.value));
+    isTracing.value = false;
+    selectedNode.value = null;
+    
+    stats.value = {
+        nodes: graphData.value.nodes.length,
+        edges: graphData.value.edges.length
+    };
+    
+    if (graphInstance.value) {
+        graphInstance.value.setData(graphData.value);
+        await graphInstance.value.render();
+        graphInstance.value.fitView();
+    }
 };
 
 // 工具方法
