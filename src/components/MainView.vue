@@ -2433,15 +2433,17 @@ const showPowerTraceOverlay = async (traceData) => {
   
   console.log('⚡ [MainView] 显示电源追溯覆盖层:', traceData);
   
-  // 1. 收集所有节点的 dbId
+  // 1. 收集所有节点的 dbId 和类型信息
   const nodeDbIdMap = new Map();
-  const isolateDbIds = []; // 只隔离显示的构件（排除线管）
+  const nodeIsConduitMap = new Map(); // nodeId -> boolean
+  const isolateDbIds = []; 
   let startNodeDbId = null;
   
-  for (const node of traceData.nodes) {
+  // 并行处理所有节点以提高速度
+  await Promise.all(traceData.nodes.map(async (node) => {
     let dbId = null;
     
-    // 查找 dbId 逻辑 (保留之前的)
+    // 查找 dbId
     if (node.bimGuid && viewer.model) {
       try {
         dbId = await new Promise((resolve) => {
@@ -2476,31 +2478,31 @@ const showPowerTraceOverlay = async (traceData) => {
     }
     
     if (dbId) {
-      // 这里的关键修改：不跳过线管，而是将其排除在 isolation list 之外
-      // 这样线管依然在 map 中，可以用于计算连线端点
       nodeDbIdMap.set(node.id, dbId);
       
       const isCond = await isConduit(dbId);
+      nodeIsConduitMap.set(node.id, isCond);
+      
       if (!isCond) {
         isolateDbIds.push(dbId);
       } else {
-        console.log(`  👻 线管构件隐身: ${node.label} (dbId: ${dbId})`);
+        console.log(`  👻 识别到线管: ${node.label} (dbId: ${dbId})，将在逻辑连接中跳过`);
       }
       
       if (traceData.startNodeId && node.id === traceData.startNodeId) {
         startNodeDbId = dbId;
       }
     }
-  }
+  }));
   
-  // 2. 隔离显示 (只显示非线管设备，线管将变为半透明或隐藏)
+  // 2. 隔离显示 (只显示非线管设备)
   if (isolateDbIds.length > 0) {
     setManualSelection();
     viewer.isolate(isolateDbIds);
     viewer.fitToView(isolateDbIds);
   }
   
-  // 3. 绘制 3D 箭头连线
+  // 3. 绘制逻辑连线 (跳过线管，Device -> Device)
   clearPowerTraceOverlay();
   
   const overlayName = 'power-trace-overlay';
@@ -2510,52 +2512,88 @@ const showPowerTraceOverlay = async (traceData) => {
   
   const THREE = window.THREE;
   const nodeBoundsMap = new Map();
-  
-  // 预计算包围盒
   nodeDbIdMap.forEach((dbId, nodeId) => {
     const bounds = getComponentBounds(dbId);
     if (bounds) nodeBoundsMap.set(nodeId, bounds);
   });
+
+  // 构建邻接表用于遍历
+  const adj = new Map(); // nodeId -> [childNodeIds]
+  traceData.edges.forEach(edge => {
+    if (!adj.has(edge.source)) adj.set(edge.source, []);
+    adj.get(edge.source).push(edge.target);
+  });
+
+  // 辅助函数：查找下游的第一个非线管设备
+  const findDownstreamDevices = (nodeId, visited = new Set()) => {
+    if (visited.has(nodeId)) return [];
+    visited.add(nodeId);
+    
+    const children = adj.get(nodeId) || [];
+    let devices = [];
+    
+    for (const childId of children) {
+      // 检查子节点是否存在（可能没有对应 BIM）
+      if (!nodeDbIdMap.has(childId)) continue;
+      
+      if (nodeIsConduitMap.get(childId)) {
+        // 如果是线管，递归查找
+        devices = devices.concat(findDownstreamDevices(childId, visited));
+      } else {
+        // 如果是设备，这是一个目标
+        devices.push(childId);
+      }
+    }
+    return devices;
+  };
   
-  for (const edge of traceData.edges) {
-    const sourceDbId = nodeDbIdMap.get(edge.source);
-    const targetDbId = nodeDbIdMap.get(edge.target);
-    const sourceBounds = nodeBoundsMap.get(edge.source);
-    const targetBounds = nodeBoundsMap.get(edge.target);
+  // 遍历所有非线管节点，寻找其逻辑下游
+  for (const [nodeId, dbId] of nodeDbIdMap.entries()) {
+    // 只从设备出发
+    if (nodeIsConduitMap.get(nodeId)) continue;
     
-    if (!sourceDbId || !targetDbId || !sourceBounds || !targetBounds) continue;
+    // 查找所有逻辑下游设备
+    const targets = findDownstreamDevices(nodeId, new Set()); // 新的 visited set 避免单次搜索环路
     
-    const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
-    const targetCenter = targetBounds.getCenter(new THREE.Vector3());
-    
-    // 计算端点
-    const dir = targetCenter.clone().sub(sourceCenter).normalize();
-    const rayOut = new THREE.Ray(sourceCenter, dir);
-    let startPoint = rayOut.intersectBox(sourceBounds);
-    
-    if (!startPoint) {
-      startPoint = sourceCenter.clone(); 
-      const size = sourceBounds.getSize(new THREE.Vector3());
-      const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.4); 
-      startPoint.add(offset);
-    }
-    
-    const dirIn = sourceCenter.clone().sub(targetCenter).normalize();
-    const rayIn = new THREE.Ray(targetCenter, dirIn);
-    let endPoint = rayIn.intersectBox(targetBounds);
-    
-    if (!endPoint) {
-      endPoint = targetCenter.clone();
-      const size = targetBounds.getSize(new THREE.Vector3());
-      const offset = dirIn.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.4);
-      endPoint.add(offset);
-    }
-    
-    const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.4);
-    
-    if (arrow && viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
-      viewer.impl.addOverlay(overlayName, arrow);
-      powerTraceOverlayObjects.push({ name: overlayName, object: arrow });
+    for (const targetId of targets) {
+      const targetDbId = nodeDbIdMap.get(targetId);
+      const sourceBounds = nodeBoundsMap.get(nodeId);
+      const targetBounds = nodeBoundsMap.get(targetId);
+      
+      if (!targetDbId || !sourceBounds || !targetBounds) continue;
+      
+      const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
+      const targetCenter = targetBounds.getCenter(new THREE.Vector3());
+      
+      // 计算端点
+      const dir = targetCenter.clone().sub(sourceCenter).normalize();
+      const rayOut = new THREE.Ray(sourceCenter, dir);
+      let startPoint = rayOut.intersectBox(sourceBounds);
+      
+      if (!startPoint) {
+        startPoint = sourceCenter.clone(); 
+        const size = sourceBounds.getSize(new THREE.Vector3());
+        const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45); // 稍微推出一点
+        startPoint.add(offset);
+      }
+      
+      const dirIn = sourceCenter.clone().sub(targetCenter).normalize();
+      const rayIn = new THREE.Ray(targetCenter, dirIn);
+      let endPoint = rayIn.intersectBox(targetBounds);
+      
+      if (!endPoint) {
+        endPoint = targetCenter.clone();
+        const size = targetBounds.getSize(new THREE.Vector3());
+        const offset = dirIn.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45);
+        endPoint.add(offset);
+      }
+      
+      const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.4);
+      
+      if (arrow && viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+        viewer.impl.addOverlay(overlayName, arrow);
+        powerTraceOverlayObjects.push({ name: overlayName, object: arrow });
+      }
     }
   }
   
@@ -2566,7 +2604,6 @@ const showPowerTraceOverlay = async (traceData) => {
        const center = bounds.getCenter(new THREE.Vector3());
        const size = bounds.getSize(new THREE.Vector3());
        
-       // 使用优化后的 createPointerArrow 或直接 ArrowHelper
        const markerPos = center.clone().add(new THREE.Vector3(0, size.y * 0.5 + 2, 0));
        const dir = new THREE.Vector3(0, -1, 0);
        
@@ -2578,7 +2615,7 @@ const showPowerTraceOverlay = async (traceData) => {
     }
   }
   
-  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象`);
+  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象 (逻辑连接)`);
   viewer.impl.invalidate(true, true, true);
 };
 
