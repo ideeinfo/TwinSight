@@ -200,13 +200,16 @@ const filteredTreeData = computed(() => {
   const filterNode = (nodes) => {
     let hasMatch = false;
     const result = [];
+    // console.log(`🔍 [AspectTree] 过滤节点: ${nodes.length} 个, 关键词: ${search}`);
     
     if (!nodes) return { nodes: [], hasMatch: false };
     
     for (const node of nodes) {
       const name = (node.name || '').toLowerCase();
       const code = (node.code || '').toLowerCase();
-      const isMatch = name.includes(search) || code.includes(search);
+      const mcCode = (node.mcCode || '').toLowerCase(); // 增加对关联编码的搜索
+      
+      const isMatch = name.includes(search) || code.includes(search) || mcCode.includes(search);
       
       let childrenMatch = false;
       let filteredChildren = [];
@@ -219,7 +222,6 @@ const filteredTreeData = computed(() => {
       
       if (isMatch || childrenMatch) {
          hasMatch = true;
-         // 如果子节点有匹配，或者自己匹配，都保留
          result.push({
            ...node,
            children: filteredChildren
@@ -230,24 +232,37 @@ const filteredTreeData = computed(() => {
   };
 
   const { nodes } = filterNode(treeData.value);
+  // console.log(`🔍 [AspectTree] 过滤结果: ${nodes.length} 个顶级节点`);
   return nodes;
 });
 
 // 监听过滤后的数据变化，如果是由搜索触发的，则自动展开
 watch(filteredTreeData, (newData) => {
     if (searchText.value && newData.length > 0) {
-        nextTick(() => {
+        console.log(`📂 [AspectTree] 搜索结果更新，准备展开 ${newData.length} 个节点`);
+        // 使用 setTimeout 给 el-tree-v2 一点渲染时间，比 nextTick 更稳健
+        setTimeout(() => {
             expandAllNodes(newData);
-        });
+        }, 100);
     }
 });
 
 // 辅助函数：收集所有需要展开的节点 ID
-const expandAllNodes = (nodes) => {
-    if (!treeRef.value) return;
+const expandAllNodes = (nodes, retryCount = 0) => {
+    if (!treeRef.value) {
+        if (retryCount < 3) {
+             console.log(`⏳ [AspectTree] treeRef 未就绪，重试 (${retryCount + 1}/3)...`);
+             setTimeout(() => expandAllNodes(nodes, retryCount + 1), 200);
+        } else {
+             console.warn('⚠️ [AspectTree] treeRef 仍未就绪，放弃展开');
+        }
+        return;
+    }
+    
     const keys = [];
     const traverse = (list) => {
         for (const node of list) {
+            // 只要有子节点就需要展开
             if (node.children && node.children.length > 0) {
                 keys.push(node.uitreeId);
                 traverse(node.children);
@@ -255,8 +270,15 @@ const expandAllNodes = (nodes) => {
         }
     };
     traverse(nodes);
-    // el-tree-v2 设置展开的方法
-    treeRef.value.setExpandedKeys(keys);
+    
+    if (keys.length > 0) {
+        // console.log(`📂 [AspectTree] 设置展开 keys: ${keys.length} 个`);
+        try {
+            treeRef.value.setExpandedKeys(keys);
+        } catch (e) {
+            console.error('❌ [AspectTree] 设置展开失败:', e);
+        }
+    }
 };    
 
 // ==================== 生命周期 ====================
