@@ -2343,8 +2343,7 @@ const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) =
   // 3. 对齐方向
   // 此时 arrowGroup 的内容是沿着 +Y 轴生长的 (0 -> length)
   // 我们需要将 arrowGroup 的 +Y 轴对齐到 target 方向
-  
-  // 计算旋转轴和角度
+    // 3. 对齐方向
   const axisY = new THREE.Vector3(0, 1, 0);
   const quaternion = new THREE.Quaternion().setFromUnitVectors(axisY, direction.normalize());
   arrowGroup.setRotationFromQuaternion(quaternion);
@@ -2353,6 +2352,73 @@ const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) =
   arrowGroup.position.copy(startPos);
   
   return arrowGroup;
+};
+
+/**
+ * 创建垂直指示箭头（指向特定位置）
+ * 用于标记追溯起点
+ */
+const createPointerArrow = (position, color = 0x00AAFF) => {
+  const THREE = window.THREE;
+  const height = 15; // 箭头总高度
+  const headHeight = 5;
+  const radius = 2; // 箭杆粗细
+  
+  const group = new THREE.Object3D();
+  
+  // 1. 箭头主体 (圆锥)
+  const coneGeo = new THREE.CylinderGeometry(0, radius * 2, headHeight, 16, 1);
+  const coneMat = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.y = height - headHeight / 2;
+  // 旋转以向下指
+  cone.rotation.x = Math.PI; 
+  group.add(cone);
+  
+  // 2. 箭杆 (圆柱) - 如果需要更像"大头针"，可以加个杆或者球
+  // 这里做一个简单的悬浮倒锥体，或者上下浮动的箭头
+  // 为了显眼，再加一个倒置的长圆锥作为身体
+  const bodyGeo = new THREE.CylinderGeometry(radius * 1.5, 0, height - headHeight, 8, 1);
+  const bodyMat = new THREE.MeshPhongMaterial({ color: color, opacity: 0.8, transparent: true });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = (height - headHeight) / 2 + headHeight; // 在箭头上方
+  // group.add(body); 
+  
+  // 没必要太复杂，直接用内置 ArrowHelper 做一个巨大的向下箭头
+  // const dir = new THREE.Vector3(0, -1, 0);
+  // const arrowHelper = new THREE.ArrowHelper(dir, position.clone().add(new THREE.Vector3(0, 10, 0)), 10, color, 4, 3);
+  // return arrowHelper;
+  
+  // 自定义几何体组
+  group.position.copy(position).add(new THREE.Vector3(0, 5, 0)); // 悬浮在物体上方
+  return group;
+};
+
+/**
+ * 检查构件是否属于"线管"类别
+ */
+const isConduit = (dbId) => {
+  if (!viewer) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    viewer.getProperties(dbId, (result) => {
+      if (!result || !result.properties) {
+        resolve(false);
+        return;
+      }
+      // 检查 Category 属性
+      const isConduit = result.properties.some(prop => {
+        const name = prop.displayName || prop.attributeName;
+        const val = String(prop.displayValue);
+        
+        // 检查属性名是否是"类别"
+        if (name === '类别' || name === 'Category') {
+           return val.includes('线管') || val.includes('Conduit');
+        }
+        return false;
+      });
+      resolve(isConduit);
+    }, () => resolve(false));
+  });
 };
 
 // 保留旧的辅助线方法作为降级
@@ -2365,6 +2431,9 @@ const createArrowLine = (startPos, endPos, color = 0xff0000) => {
 
 /**
  * 显示电源追溯覆盖层
+ * 1. 隔离显示相关 BIM 构件（排除线管）
+ * 2. 在构件之间绘制 3D 箭头表示供电方向
+ * 3. 标记起点
  */
 const showPowerTraceOverlay = async (traceData) => {
   if (!viewer || !traceData) return;
@@ -2374,6 +2443,7 @@ const showPowerTraceOverlay = async (traceData) => {
   // 1. 收集所有节点的 dbId
   const nodeDbIdMap = new Map(); // nodeId -> dbId
   const allDbIds = [];
+  let startNodeDbId = null;
   
   // 查询 dbId (保留之前的增强查找逻辑)
   for (const node of traceData.nodes) {
@@ -2424,9 +2494,21 @@ const showPowerTraceOverlay = async (traceData) => {
       } catch (e) {}
     }
     
+    // 检查是否为线管，如果是则跳过
     if (dbId) {
+      const isCond = await isConduit(dbId);
+      if (isCond) {
+        console.log(`  🚫 排除线管构件: ${node.label} (dbId: ${dbId})`);
+        continue;
+      }
+      
       nodeDbIdMap.set(node.id, dbId);
       allDbIds.push(dbId);
+      
+      // 记录起点 dbId
+      if (traceData.startNodeId && node.id === traceData.startNodeId) {
+        startNodeDbId = dbId;
+      }
     }
   }
   
@@ -2460,6 +2542,7 @@ const showPowerTraceOverlay = async (traceData) => {
     const sourceBounds = nodeBoundsMap.get(edge.source);
     const targetBounds = nodeBoundsMap.get(edge.target);
     
+    // 如果任意一端被过滤掉（如线管），则不画线
     if (!sourceDbId || !targetDbId || !sourceBounds || !targetBounds) continue;
     
     const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
@@ -2516,7 +2599,29 @@ const showPowerTraceOverlay = async (traceData) => {
     }
   }
   
-  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 条电源连线`);
+  // 4. 为起点添加特殊标记 (垂直大箭头)
+  if (startNodeDbId) {
+    const bounds = nodeBoundsMap.get(traceData.startNodeId);
+    if (bounds) {
+       const center = bounds.getCenter(new THREE.Vector3());
+       const size = bounds.getSize(new THREE.Vector3());
+       const height = size.y;
+       
+       // 在物体正上方悬浮一个箭头
+       const markerPos = center.clone().add(new THREE.Vector3(0, height * 0.5 + 2, 0));
+       const dir = new THREE.Vector3(0, -1, 0); // 向下指
+       
+       // 使用 ArrowHelper 作为指示器 (长度 8, 红色)
+       const markerArrow = new THREE.ArrowHelper(dir, markerPos.clone().add(new THREE.Vector3(0, 8, 0)), 8, 0x00AAFF, 3, 2);
+       
+       if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+         viewer.impl.addOverlay(overlayName, markerArrow);
+         powerTraceOverlayObjects.push({ name: overlayName, object: markerArrow });
+       }
+    }
+  }
+  
+  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象 (箭头+标记)`);
   
   viewer.impl.invalidate(true, true, true);
 };
