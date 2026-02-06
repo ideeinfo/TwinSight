@@ -201,6 +201,8 @@ const filteredTreeData = computed(() => {
     let hasMatch = false;
     const result = [];
     
+    if (!nodes) return { nodes: [], hasMatch: false };
+    
     for (const node of nodes) {
       const name = (node.name || '').toLowerCase();
       const code = (node.code || '').toLowerCase();
@@ -218,15 +220,9 @@ const filteredTreeData = computed(() => {
       if (isMatch || childrenMatch) {
          hasMatch = true;
          // 如果子节点有匹配，或者自己匹配，都保留
-         // 如果只是自己匹配但没有子节点匹配，保留自己 (children 为空)
-         // 如果自己不匹配但子节点匹配，保留自己和匹配的子节点
          result.push({
            ...node,
-           children: filteredChildren,
-           // 在 el-tree-v2 中，默认展开通常需要 expandedKeys，
-           // 但这里我们构造一个新的过滤后的树，所有保留下来的父节点都应该默认展开吗？
-           // el-tree-v2 没有直接的 default-expand-all 属性用于动态数据。
-           // 但可以通过 ref 设置 expandedKeys。
+           children: filteredChildren
          });
       }
     }
@@ -234,13 +230,16 @@ const filteredTreeData = computed(() => {
   };
 
   const { nodes } = filterNode(treeData.value);
-  
-  // 副作用：设置展开键
-  nextTick(() => {
-      expandAllNodes(nodes);
-  });
-  
   return nodes;
+});
+
+// 监听过滤后的数据变化，如果是由搜索触发的，则自动展开
+watch(filteredTreeData, (newData) => {
+    if (searchText.value && newData.length > 0) {
+        nextTick(() => {
+            expandAllNodes(newData);
+        });
+    }
 });
 
 // 辅助函数：收集所有需要展开的节点 ID
