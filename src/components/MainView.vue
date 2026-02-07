@@ -2334,9 +2334,9 @@ const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) =
   const direction = endPos.clone().sub(startPos);
   const length = direction.length();
   
-  // 箭头头部长度和宽度
+  // 箭头头部长度和宽度 (调整系数以适应更细的线)
   const headLength = Math.min(length * 0.3, 5); 
-  const headWidth = Math.max(thickness * 2.5, 1.5);
+  const headWidth = Math.max(thickness * 3, 0.5);
   const shaftLength = length - headLength;
   
   // 如果太短，不画或者画微小的
@@ -2594,7 +2594,9 @@ const showPowerTraceOverlay = async (traceData) => {
         endPoint.add(offset);
       }
       
-      const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.4);
+      
+      // 这里的厚度从 0.4 调整为 0.15，使连线更细
+      const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.15);
       
       if (arrow && viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
         viewer.impl.addOverlay(overlayName, arrow);

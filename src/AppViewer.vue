@@ -1515,7 +1515,8 @@ const onMouseMove = (event) => {
     const dx = event.clientX - startX;
     if (currentResizeSide === 'left') {
       const newWidth = startWidth + dx;
-      if (newWidth > 200 && newWidth < 600) {
+      const maxWidth = window.innerWidth * 0.6; // 允许最大拖拽至屏幕宽度的 60%
+      if (newWidth > 200 && newWidth < maxWidth) {
         leftWidth.value = newWidth;
       }
     } else if (currentResizeSide === 'right') {

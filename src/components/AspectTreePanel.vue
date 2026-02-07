@@ -298,6 +298,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (resizeObserver) resizeObserver.disconnect();
+  // 切换模块或关闭面板时，强制清除追溯状态（如果存在）
+  emit('trace-clear');
 });
 
 // 监听 fileId 变化

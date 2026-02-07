@@ -682,6 +682,11 @@ onUnmounted(() => {
     if (themeObserver) themeObserver.disconnect();
     if (resizeObserver) resizeObserver.disconnect();
     if (graphInstance.value) graphInstance.value.destroy();
+    
+    // 如果组件卸载时处于追溯模式，通知父组件清除
+    if (isTracing.value) {
+        emit('trace-clear');
+    }
 });
 
 defineExpose({ refresh: loadData });
