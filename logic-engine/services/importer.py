@@ -544,14 +544,27 @@ def _create_power_graph_data(
             # 生成确定性 UUID (基于 full_code)
             node_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"POWER_NODE_{file_id}_{current_full_code}"))
             
-            # 确定节点类型
-            node_type = 'feeder'
-            if level == 1:
+            # 确定节点类型 (基于编码规则增强)
+            # 默认：层级1为Source，其他默认为Feeder或Device
+            # 规则：
+            # - Source: 包含 DY (变压器), TE (变压器)
+            # - Bus: 包含 AH (高压柜), W (母线), GP (柜/盘)
+            # - Feeder: 包含 QF (断路器), QS (隔离开关), FU (熔断器)
+            # - Device: 末端且不符合上述规则
+            
+            upper_part = part.upper()
+            upper_full = current_full_code.upper()
+            
+            if 'DY' in upper_part or 'TE' in upper_part or level == 1:
                 node_type = 'source'
-            elif level == 2:
+            elif 'AH' in upper_part or 'W' in upper_part or 'GP' in upper_part:
                 node_type = 'bus'
+            elif 'QF' in upper_part or 'QS' in upper_part or 'FU' in upper_part:
+                node_type = 'feeder'
             elif is_last_part:
-                node_type = 'device'  # 末端且没有 asset_code，仍然是设备类型
+                node_type = 'device'
+            else:
+                node_type = 'feeder' # 中间节点默认为 feeder/bus 类
             
             # 对于末端节点，使用名称作为 label；中间节点使用短码
             if is_last_part and device_name and not device_name.strip().startswith('='):
@@ -576,7 +589,8 @@ def _create_power_graph_data(
                     label = CASE 
                         WHEN EXCLUDED.label != EXCLUDED.short_code THEN EXCLUDED.label 
                         ELSE rds_power_nodes.label 
-                    END
+                    END,
+                    node_type = EXCLUDED.node_type
             """)
             
             session.execute(insert_node, {

@@ -559,7 +559,12 @@ const messages = {
       selectOneToTrace: '请选择一个节点进行追溯',
       noUpstreamFound: '未找到上游节点',
       traceSuccess: '追溯成功，找到 {count} 个上游节点',
-      linkedToModel: '已关联 BIM 模型'
+      linkedToModel: '已关联 BIM 模型',
+      deviceCode: '设备编码',
+      aspectCode: '方面编码',
+      powerCode: '电源编码',
+      cancelTrace: '取消追溯',
+      loadingPowerData: '加载电源网络数据...'
     }
   },
   en: {
@@ -1124,7 +1129,12 @@ const messages = {
       selectOneToTrace: 'Please select a node to trace',
       noUpstreamFound: 'No upstream nodes found',
       traceSuccess: 'Trace successful, found {count} upstream nodes',
-      linkedToModel: 'Associated with BIM Model'
+      linkedToModel: 'Associated with BIM Model',
+      deviceCode: 'Device Code',
+      aspectCode: 'Aspect Code',
+      powerCode: 'Power Code',
+      cancelTrace: 'Cancel Trace',
+      loadingPowerData: 'Loading Power Network Data...'
     }
   }
 }

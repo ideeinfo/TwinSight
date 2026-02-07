@@ -36,17 +36,20 @@
         </div>
         
         <div class="tooltip-section">
+          <!-- 移除类型显示，避免冗余 -->
+          <!-- 
           <div class="tooltip-row" v-if="tooltip.data?.nodeType">
             <span class="label">类型:</span> {{ getNodeTypeLabel(tooltip.data.nodeType) }}
           </div>
+          -->
           <div class="tooltip-row" v-if="tooltip.data?.mcCode">
-            <span class="label">设备编码:</span> {{ tooltip.data.mcCode }}
+            <span class="label">{{ $t('rds.deviceCode') }}:</span> {{ tooltip.data.mcCode }}
           </div>
         </div>
         
         <!-- 方面编码区域 -->
         <div class="tooltip-section aspects" v-if="tooltip.data?.aspects?.length">
-          <div class="section-title">方面编码</div>
+          <div class="section-title">{{ $t('rds.aspectCode') }}</div>
           <div class="tooltip-row aspect-row" v-for="aspect in getGroupedAspects(tooltip.data.aspects)" :key="aspect.fullCode">
             <span class="aspect-prefix" :class="aspect.aspectType">{{ aspect.prefix }}</span>
             <span class="aspect-code">{{ aspect.fullCode }}</span>
@@ -56,7 +59,7 @@
         <!-- 如果没有方面编码但有电源编码，显示电源编码 -->
         <div class="tooltip-section" v-else-if="tooltip.data?.code">
           <div class="tooltip-row">
-            <span class="label">电源编码:</span> {{ tooltip.data.code }}
+            <span class="label">{{ $t('rds.powerCode') }}:</span> {{ tooltip.data.code }}
           </div>
         </div>
       </div>
@@ -64,10 +67,10 @@
       <!-- 右下角追溯操作按钮 -->
       <div class="floating-actions" v-if="selectedNode || isTracing">
         <el-button v-if="selectedNode && !isTracing" @click="traceUpstream" type="primary" size="small">
-          <el-icon><Top /></el-icon>追溯上游
+          <el-icon><Top /></el-icon>{{ $t('rds.traceUpstream') }}
         </el-button>
         <el-button v-if="isTracing" @click="clearTrace" type="warning" size="small">
-          取消追溯
+          {{ $t('rds.cancelTrace') }}
         </el-button>
       </div>
     </div>
@@ -77,12 +80,12 @@
       <div class="loading-spinner">
         <el-icon class="is-loading"><Loading /></el-icon>
       </div>
-      <span>加载电源网络数据...</span>
+      <span>{{ $t('rds.loadingPowerData') }}</span>
     </div>
     
     <!-- 空状态 -->
     <div v-if="!loading && (!graphData.nodes || graphData.nodes.length === 0)" class="empty-state">
-      <el-empty description="暂无电源网络数据" />
+      <el-empty :description="$t('rds.noData')" />
     </div>
   </div>
 </template>
@@ -388,12 +391,22 @@ const getNodeTextColor = () => {
 
 // 获取节点填充色
 const getNodeFill = (node) => {
-    // 如果有 BIM 关联，使用橙色高亮
+    // 1. 如果有 BIM 关联，优先使用橙色高亮 (用户指定)
     if (node.bimGuid || node.externalId) {
-        return isDarkMode() ? '#E65100' : '#FFF7E6'; // 深色用深橙，浅色用极浅橙
+        // 使用深橙色以区分于普通的黄色(Bus)
+        return '#FF8800'; 
     }
     
-    // 默认填充
+    // 2. 否则使用类型对应的颜色 (恢复多色显示能力)
+    const type = node.nodeType || 'default';
+    if (NODE_COLORS[type]) {
+        // 为了保持文字可读性及深色模式适应性，
+        // 这里可以考虑返回带透明度的颜色，或者特定颜色
+        // 目前恢复为实色以匹配用户"显示不同颜色"的期望
+        return NODE_COLORS[type];
+    }
+    
+    // 3. 默认回退
     return isDarkMode() ? '#1f1f1f' : '#ffffff';
 };
 
@@ -549,48 +562,25 @@ const traceUpstream = async () => {
     }
 };
 
-// 清除追溯，恢复完整图
-const clearTrace = async () => {
-    if (!fullGraphData.value.nodes.length) return;
-    
-    graphData.value = JSON.parse(JSON.stringify(fullGraphData.value));
-    isTracing.value = false;
-    selectedNode.value = null;
-    
-    stats.value = {
-        nodes: graphData.value.nodes.length,
-        edges: graphData.value.edges.length
-    };
-    
-    if (graphInstance.value) {
-        // 恢复水平布局
-        graphInstance.value.setLayout(getLayoutConfig('LR'));
-        graphInstance.value.setData(graphData.value);
-        await graphInstance.value.render();
-        graphInstance.value.fitView();
-    }
-    
-    // 发送追溯清除事件
-    emit('trace-clear');
-};
-
-// 工具方法
-const fitView = () => graphInstance.value?.fitView();
-const zoomIn = () => graphInstance.value?.zoomBy(1.2);
-const zoomOut = () => graphInstance.value?.zoomBy(0.8);
-
-// 监听
-watch(() => props.fileId, loadData);
-// layoutType watch 已移除，布局在追溯时动态切换
-
-// 监听搜索词变化，过滤显示匹配节点
-watch(() => props.searchText, async (searchText) => {
+// 处理搜索
+const handleSearch = async (searchText) => {
     if (!graphInstance.value || !fullGraphData.value.nodes.length) return;
+    
+    // 如果处于追溯模式，不响应搜索（或者退出追溯模式？）
+    // 逻辑上，如果在追溯模式下搜索，应该视为新的全局搜索，需退出追溯
+    if (isTracing.value) {
+        // 追溯模式下搜索，先清除追溯标志，重置布局
+        isTracing.value = false;
+        selectedNode.value = null;
+        emit('trace-clear');
+        graphInstance.value.setLayout(getLayoutConfig('LR'));
+    }
     
     const search = (searchText || '').toLowerCase().trim();
     
     if (!search) {
         // 清除搜索，恢复完整图
+        // 只有当前数据不完整时才恢复，避免重复渲染
         if (graphData.value.nodes.length !== fullGraphData.value.nodes.length) {
             graphData.value = JSON.parse(JSON.stringify(fullGraphData.value));
             stats.value = {
@@ -608,12 +598,20 @@ watch(() => props.searchText, async (searchText) => {
     const matchedNodes = fullGraphData.value.nodes.filter(node => {
         const label = (node.label || '').toLowerCase();
         const code = (node.shortCode || node.fullCode || '').toLowerCase();
-        return label.includes(search) || code.includes(search);
+        // 搜索匹配 BIM ID 或 MC Code
+        const bimGuid = (node.bimGuid || '').toLowerCase();
+        const mcCode = (node.mcCode || '').toLowerCase();
+        
+        return label.includes(search) || 
+               code.includes(search) || 
+               bimGuid.includes(search) || 
+               mcCode.includes(search);
     });
     
     const matchedNodeIds = new Set(matchedNodes.map(n => n.id));
     
     // 只保留匹配节点之间的边
+    // 或者：显示匹配节点及其直接邻居？目前逻辑是只显示匹配子图。
     const matchedEdges = fullGraphData.value.edges.filter(e => 
         matchedNodeIds.has(e.source) && matchedNodeIds.has(e.target)
     );
@@ -631,7 +629,31 @@ watch(() => props.searchText, async (searchText) => {
     graphInstance.value.setData(graphData.value);
     await graphInstance.value.render();
     graphInstance.value.fitView();
-});
+};
+
+// 监听搜索词变化
+watch(() => props.searchText, handleSearch);
+
+// 清除追溯
+const clearTrace = async () => {
+    // 重置追溯状态
+    isTracing.value = false;
+    selectedNode.value = null;
+    emit('trace-clear');
+    
+    if (graphInstance.value) {
+        // 恢复水平布局
+        graphInstance.value.setLayout(getLayoutConfig('LR'));
+        
+        // 重新应用当前的搜索过滤 (如果搜索框有值)
+        await handleSearch(props.searchText);
+        
+        // 如果没有搜索词（handleSearch 内部会处理恢复全图），确保视图适配
+        if (!props.searchText) {
+             // 已经在 handleSearch 处理了
+        }
+    }
+};
 
 // 生命周期
 onMounted(async () => {
