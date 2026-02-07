@@ -1,5 +1,5 @@
 <template>
-  <div class="power-network-graph">
+  <div class="power-network-graph" ref="rootContainer">
     <!-- 工具栏 -->
     <div class="graph-toolbar">
       <div class="toolbar-left">
@@ -9,16 +9,19 @@
       
       <div class="toolbar-actions">
         <el-tooltip content="自适应视图">
-          <el-button @click="fitView" circle size="small" :icon="FullScreen" />
+          <el-button @click="fitView" link class="graph-action-btn">
+            <el-icon :size="16"><FullScreen /></el-icon>
+          </el-button>
         </el-tooltip>
         <el-tooltip content="放大">
-          <el-button @click="zoomIn" circle size="small" :icon="ZoomIn" />
+          <el-button @click="zoomIn" link class="graph-action-btn">
+            <el-icon :size="16"><ZoomIn /></el-icon>
+          </el-button>
         </el-tooltip>
         <el-tooltip content="缩小">
-          <el-button @click="zoomOut" circle size="small" :icon="ZoomOut" />
-        </el-tooltip>
-        <el-tooltip content="缩小">
-          <el-button @click="zoomOut" circle size="small" :icon="ZoomOut" />
+          <el-button @click="zoomOut" link class="graph-action-btn">
+            <el-icon :size="16"><ZoomOut /></el-icon>
+          </el-button>
         </el-tooltip>
       </div>
     </div>
@@ -110,6 +113,7 @@ const props = defineProps({
 const emit = defineEmits(['node-click', 'node-select', 'trace-complete', 'trace-clear']);
 
 // Refs
+const rootContainer = ref(null);
 const graphContainer = ref(null);
 const loading = ref(false);
 const graphData = ref({ nodes: [], edges: [] });
@@ -159,14 +163,15 @@ const initGraph = () => {
     width: clientWidth,
     height: clientHeight,
     autoFit: 'view',
-    background: '#121212', // 深色背景
+    theme: isDarkMode() ? 'dark' : 'light',
+    background: 'transparent', // 让 CSS 控制背景，但设置 theme 影响默认文字颜色等
     
     layout: getLayoutConfig('LR'), // 默认水平布局
     
     node: {
       style: {
         // 矩形卡片样式
-        fill: '#1f1f1f',
+        fill: (d) => getNodeFill(d),
         stroke: (d) => getNodeColor(d.nodeType),
         lineWidth: 1,
         shadowColor: (d) => getNodeColor(d.nodeType),
@@ -182,7 +187,7 @@ const initGraph = () => {
           const text = d.label || d.shortCode || 'Unknown';
           return `${icon}  ${text}`;
         },
-        labelFill: '#f0f0f0',
+        labelFill: () => getNodeTextColor(),
         labelFontSize: 13,
         labelPlacement: 'center',
         background: false, 
@@ -195,13 +200,15 @@ const initGraph = () => {
       },
       state: {
         selected: {
-          stroke: '#ffffff',
+          stroke: isDarkMode() ? '#ffffff' : '#1890FF',
           lineWidth: 2,
-          fill: '#2a2a2a',
+          fill: isDarkMode() ? '#2a2a2a' : '#E6F7FF',
           shadowBlur: 10,
         },
         active: {
-          fill: '#333333',
+          fill: isDarkMode() ? '#333333' : '#f0f7ff',
+          opacity: 1,
+          lineWidth: 2,
         },
         inactive: {
           opacity: 0.3,
@@ -231,12 +238,19 @@ const initGraph = () => {
           shadowBlur: 5,
           shadowColor: '#1890FF',
         },
+        active: {
+          stroke: '#1890FF',
+          lineWidth: 2,
+          opacity: 1,
+        },
+        inactive: {
+          opacity: 0.2,
+          stroke: '#999',
+        }
       },
     },
     
-    plugins: [
-        { type: 'grid-line', size: 30, stroke: '#222', lineWidth: 1 }, 
-    ],
+    plugins: [], // 移除网格线
 
     behaviors: [
         'drag-canvas', 
@@ -291,7 +305,60 @@ const initGraph = () => {
   });
 
   graphInstance.value = graph;
+  
+  // 强制更新容器背景色 (JS 覆盖 CSS 以确保生效)
+  updateThemeStyles();
 };
+
+const updateThemeStyles = () => {
+    if (rootContainer.value) {
+        const isDark = isDarkMode();
+        rootContainer.value.style.backgroundColor = isDark ? '#121212' : '#ffffff';
+        
+        // 更新 CSS 变量 (作为双重保障)
+        rootContainer.value.style.setProperty('--pg-bg', isDark ? '#121212' : '#ffffff');
+        rootContainer.value.style.setProperty('--pg-text-title', isDark ? '#d1d1d1' : '#333333');
+        rootContainer.value.style.setProperty('--pg-toolbar-bg', isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.95)');
+        rootContainer.value.style.setProperty('--pg-border', isDark ? 'rgba(255, 255, 255, 0.1)' : '#e0e0e0');
+        rootContainer.value.style.setProperty('--pg-btn-color', isDark ? '#a0a0a0' : '#606266');
+        
+        // Tooltip Theme Vars
+        rootContainer.value.style.setProperty('--tt-bg', isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(255, 255, 255, 0.95)');
+        rootContainer.value.style.setProperty('--tt-text', isDark ? '#fff' : '#333');
+        rootContainer.value.style.setProperty('--tt-border', isDark ? '#444' : '#ebeef5');
+        rootContainer.value.style.setProperty('--tt-sub', isDark ? '#a0a0a0' : '#606266');
+    }
+};
+
+// 监听主题变化
+const observeThemeChange = () => {
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                updateThemeStyles(); // 立即更新样式
+                
+                // 重新初始化以更新节点样式（文字颜色等）
+                if (graphInstance.value) {
+                   initGraph(); 
+                   // 恢复数据
+                   if (graphData.value && graphData.value.nodes.length) {
+                       graphInstance.value.setData(graphData.value);
+                       graphInstance.value.render();
+                   }
+                }
+            }
+        });
+    });
+    
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class']
+    });
+    
+    return observer;
+};
+
+let themeObserver = null;
 
 // 获取布局配置
 const getLayoutConfig = (direction = 'LR') => {
@@ -310,6 +377,26 @@ const getLayoutConfig = (direction = 'LR') => {
 const getNodeColor = (type) => {
   return NODE_COLORS[type] || NODE_COLORS.default;
 };
+
+// 获取当前是否深色模式
+const isDarkMode = () => document.documentElement.classList.contains('dark');
+
+// 获取节点文字颜色
+const getNodeTextColor = () => {
+    return isDarkMode() ? '#f0f0f0' : '#333333';
+};
+
+// 获取节点填充色
+const getNodeFill = (node) => {
+    // 如果有 BIM 关联，使用橙色高亮
+    if (node.bimGuid || node.externalId) {
+        return isDarkMode() ? '#E65100' : '#FFF7E6'; // 深色用深橙，浅色用极浅橙
+    }
+    
+    // 默认填充
+    return isDarkMode() ? '#1f1f1f' : '#ffffff';
+};
+
 
 const getNodeTypeLabel = (type) => {
     const map = {
@@ -361,11 +448,6 @@ const loadData = async () => {
                 nodes: res.nodes.map(n => ({
                     ...n,
                     id: String(n.id), // 确保 ID 为字符串
-                    // 样式映射
-                    style: {
-                        fill: getTypeFill(n.nodeType),
-                        stroke: getNodeColor(n.nodeType),
-                    }
                 })),
                 edges: res.edges.map(e => ({
                     source: String(e.source),
@@ -396,10 +478,7 @@ const loadData = async () => {
 };
 
 const getTypeFill = (type) => {
-    // 节点填充色：使用对应颜色的暗色调
-    const color = getNodeColor(type);
-    // 这里简单处理，实际可用 tinycolor 变暗
-    return '#1f1f1f'; 
+    return getNodeFill(type);
 };
 
 // ==================== 追溯功能 ====================
@@ -557,6 +636,10 @@ watch(() => props.searchText, async (searchText) => {
 // 生命周期
 onMounted(async () => {
     await nextTick();
+    
+    // 初始化主题监听
+    themeObserver = observeThemeChange();
+    
     initGraph();
     loadData();
     
@@ -574,6 +657,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    if (themeObserver) themeObserver.disconnect();
     if (resizeObserver) resizeObserver.disconnect();
     if (graphInstance.value) graphInstance.value.destroy();
 });
@@ -582,14 +666,37 @@ defineExpose({ refresh: loadData });
 </script>
 
 <style scoped>
+/* CSS Variables for Theming */
 .power-network-graph {
+  /* Default Dark Theme Variables */
+  --pg-bg: #121212;
+  --pg-toolbar-bg: rgba(30, 30, 30, 0.8);
+  --pg-border: rgba(255, 255, 255, 0.1);
+  --pg-text-title: #d1d1d1;
+  --pg-btn-color: #a0a0a0;
+  --pg-btn-hover-bg: rgba(255, 255, 255, 0.1);
+  --pg-btn-hover-color: #fff;
+  
+  /* Container Styles */
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg-sidebar, #121212);
+  background: var(--pg-bg);
   position: relative;
   overflow: hidden;
+  transition: background-color 0.3s ease;
+}
+
+/* Light Theme Overrides */
+:global(html.light) .power-network-graph {
+  --pg-bg: #ffffff;
+  --pg-toolbar-bg: rgba(255, 255, 255, 0.95);
+  --pg-border: #e0e0e0;
+  --pg-text-title: #333333;
+  --pg-btn-color: #606266;
+  --pg-btn-hover-bg: rgba(0, 0, 0, 0.05);
+  --pg-btn-hover-color: var(--el-color-primary, #409EFF);
 }
 
 .graph-toolbar {
@@ -598,23 +705,40 @@ defineExpose({ refresh: loadData });
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  background: rgba(30, 30, 30, 0.8);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--pg-toolbar-bg);
+  border-bottom: 1px solid var(--pg-border);
   backdrop-filter: blur(4px);
   z-index: 10;
+  transition: all 0.3s ease;
 }
 
 .toolbar-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e0e0e0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pg-text-title);
   margin-right: 12px;
 }
 
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+.graph-action-btn {
+  color: var(--pg-btn-color) !important; /* Force override element-plus styles if needed */
+  padding: 4px;
+  height: 28px;
+  width: 28px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  border: none !important;
+  background: transparent !important;
+}
+
+.graph-action-btn:hover {
+  color: var(--pg-btn-hover-color) !important;
+  background-color: var(--pg-btn-hover-bg) !important;
 }
 
 .graph-container {
@@ -627,18 +751,34 @@ defineExpose({ refresh: loadData });
 
 .graph-tooltip {
     position: absolute;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid #444;
+    background: var(--tt-bg, rgba(0, 0, 0, 0.9));
+    border: 1px solid var(--tt-border, #444);
     border-radius: 6px;
     padding: 10px 14px;
-    color: #fff;
+    color: var(--tt-text, #fff);
     font-size: 12px;
     z-index: 100;
     pointer-events: none;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     backdrop-filter: blur(8px);
+    width: auto;
     min-width: 180px;
     max-width: 320px;
+}
+
+/* Tooltip internal elements adapted via vars */
+.tooltip-section,
+.tooltip-row {
+  border-color: var(--tt-border, #444);
+}
+
+.label,
+.aspect-prefix {
+  color: var(--tt-sub, #a0a0a0);
+}
+
+.aspect-code {
+  color: var(--tt-text, #fff);
 }
 
 /* 增强 Tooltip 样式 */
@@ -668,12 +808,12 @@ defineExpose({ refresh: loadData });
 .tooltip-section.aspects {
     margin-top: 8px;
     padding-top: 6px;
-    border-top: 1px dashed #333;
+    border-top: 1px dashed var(--tt-border, #444);
 }
 
 .section-title {
     font-size: 11px;
-    color: #666;
+    color: var(--tt-sub, #666);
     margin-bottom: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -681,11 +821,11 @@ defineExpose({ refresh: loadData });
 
 .tooltip-row {
     margin: 3px 0;
-    color: #ccc;
+    color: var(--tt-text, #ccc);
 }
 
 .tooltip-row .label {
-    color: #888;
+    color: var(--tt-sub, #888);
     margin-right: 4px;
 }
 
@@ -723,7 +863,7 @@ defineExpose({ refresh: loadData });
 
 .aspect-code {
     font-family: monospace;
-    color: #ddd;
+    color: var(--tt-text, #ddd);
     font-size: 12px;
     /* 过长时截断 */
     max-width: 200px;

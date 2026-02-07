@@ -654,7 +654,7 @@ function getNodeColor(nodeType) {
  */
 router.get('/power-trace/:fileId/:nodeCode', async (req, res) => {
     const { fileId, nodeCode } = req.params;
-    const { direction = 'upstream', maxDepth = 10 } = req.query;
+    const { direction = 'upstream', maxDepth = 100 } = req.query;
 
     try {
         // 先找到起始节点
