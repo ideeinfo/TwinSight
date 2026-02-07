@@ -137,7 +137,7 @@
           <RightPanel
             :room-properties="selectedRoomProperties"
             :selected-ids="selectedObjectIds"
-            :view-mode="currentView"
+            :view-mode="rightPanelViewMode"
             @close-properties="closeRightPanel"
             @property-changed="onPropertyChanged"
           />
@@ -183,7 +183,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 import { useAuthStore } from './stores/auth';
 import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
@@ -281,6 +281,15 @@ const selectedRoomProperties = ref(null);
 const selectedObjectIds = ref([]); // 当前选中的对象ID列表（用于批量编辑）
 const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' or 'spaces' - 默认加载资产页面
+// 新增状态：记录当前选中的对象类型（用于跨模块联动）
+const currentSelectionType = ref(null); // 'asset', 'space', or null
+
+// 计算右侧面板的显示模式：优先使用当前选中的对象类型，没有则回退到当前视图模式
+const rightPanelViewMode = computed(() => {
+  if (currentSelectionType.value === 'asset') return 'assets';
+  if (currentSelectionType.value === 'space') return 'spaces';
+  return currentView.value;
+});
 const selectedRoomSeries = ref([]);
 const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
 const savedRoomSelections = ref([]);
@@ -692,6 +701,14 @@ const onRoomsLoaded = (rooms) => {
 
 const onAssetsLoaded = (inputAssets) => {
   console.log('📦 Assets data loaded in App:', inputAssets?.length);
+  
+  // 关键修复：如果模型未返回资产（例如提取失败），但数据库已有数据，则保留数据库数据
+  if ((!inputAssets || inputAssets.length === 0) && assetList.value.length > 0) {
+    console.warn('⚠️ 模型未返回有效资产数据，保留数据库缓存数据');
+    modelAssetDbIds.value = assetList.value.map(a => a.dbId);
+    isModelLoading.value = false;
+    return;
+  }
   
   // Normalize assets to ensure camelCase properties exist
   const assets = (inputAssets || []).map(a => ({
@@ -1360,11 +1377,11 @@ const loadSpaceProperties = (dbIds) => {
       selectedRoomProperties.value = {
         name: space.name,
         code: space.code,
-        floor: space.floor,
+        level: space.floor,
         area: space.area,
         perimeter: space.perimeter,
-        omniClass21Number: space.classificationCode || '',
-        omniClass21Description: space.classificationDesc || ''
+        spaceNumber: space.classificationCode || '',
+        spaceDescription: space.classificationDesc || ''
       };
     }
   } else {
@@ -1383,11 +1400,11 @@ const loadSpaceProperties = (dbIds) => {
       const merged = {
         name: base.name,
         code: base.code,
-        floor: base.floor,
+        level: base.floor,
         area: base.area,
         perimeter: base.perimeter,
-        omniClass21Number: base.classificationCode || '',
-        omniClass21Description: base.classificationDesc || '',
+        spaceNumber: base.classificationCode || '',
+        spaceDescription: base.classificationDesc || '',
         isMultiple: true
       };
       
@@ -1395,11 +1412,11 @@ const loadSpaceProperties = (dbIds) => {
         const p = selectedSpaces[i];
         if (!isSameValue(merged.name, p.name)) merged.name = VARIES_VALUE;
         if (!isSameValue(merged.code, p.code)) merged.code = VARIES_VALUE;
-        if (!isSameValue(merged.floor, p.floor)) merged.floor = VARIES_VALUE;
+        if (!isSameValue(merged.level, p.floor)) merged.level = VARIES_VALUE;
         if (!isSameValue(merged.area, p.area)) merged.area = VARIES_VALUE;
         if (!isSameValue(merged.perimeter, p.perimeter)) merged.perimeter = VARIES_VALUE;
-        if (!isSameValue(merged.omniClass21Number, p.classificationCode)) merged.omniClass21Number = VARIES_VALUE;
-        if (!isSameValue(merged.omniClass21Description, p.classificationDesc)) merged.omniClass21Description = VARIES_VALUE;
+        if (!isSameValue(merged.spaceNumber, p.classificationCode)) merged.spaceNumber = VARIES_VALUE;
+        if (!isSameValue(merged.spaceDescription, p.classificationDesc)) merged.spaceDescription = VARIES_VALUE;
       }
       
       selectedRoomProperties.value = merged;
@@ -1565,71 +1582,85 @@ const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
     .catch(() => {});
 };
 
+
 // 🔑 反向定位：在3D模型中选中构件后，自动更新左侧列表的选中状态
+// update: 增强逻辑，支持跨模块联动（选中什么显示什么属性）
 const onModelSelectionChanged = (dbIds) => {
+  // 先清除所有类型的选中状态，确保状态纯净（Forge Viewer 通常是互斥选择）
+  savedAssetSelections.value = [];
+  savedRoomSelections.value = [];
+  savedSpaceSelections.value = [];
+  
   if (!dbIds || dbIds.length === 0) {
-    // 取消选择：清空列表选中状态
-    if (currentView.value === 'assets') {
-      savedAssetSelections.value = [];
-    } else if (currentView.value === 'connect') {
-      savedRoomSelections.value = [];
-    } else if (currentView.value === 'spaces') {
-      savedSpaceSelections.value = [];
-    }
     selectedRoomProperties.value = null;
+    currentSelectionType.value = null;
     return;
   }
 
-  // 根据当前视图更新对应的选中列表
-  if (currentView.value === 'assets') {
-    // 资产页面：更新资产选中状态
-    savedAssetSelections.value = dbIds.slice();
+  // 识别选中对象的类型
+  // 注意：dbIds 是数字数组，列表中的 dbId 可能也是数字或字符串，需统一类型比较
+  const isAsset = assetList.value.some(a => dbIds.includes(Number(a.dbId)));
+  const isSpace = roomList.value.some(r => dbIds.includes(Number(r.dbId)));
+
+  if (isAsset) {
+    console.log('📦 [Selection] 识别为资产:', dbIds);
+    currentSelectionType.value = 'asset';
+    savedAssetSelections.value = dbIds;
     
-    // 🔑 自动展开分类并滚动到选中的资产（支持多选）
-    if (assetPanelRef.value && dbIds.length > 0) {
+    // 加载资产属性
+    loadAssetProperties(dbIds);
+    
+    // UI 联动：如果在资产模块，滚动列表
+    if (currentView.value === 'assets' && assetPanelRef.value) {
       nextTick(() => {
         assetPanelRef.value.expandAndScrollToAsset(dbIds);
       });
+    } else if (currentView.value === 'rds') {
+      // RDS 模块：尝试在树中选中
+      if (aspectTreePanelRef.value) {
+        const mcCodes = dbIds.map(id => {
+          const asset = assetList.value.find(a => Number(a.dbId) === id);
+          return asset?.mcCode;
+        }).filter(Boolean);
+        
+        if (mcCodes.length > 0) {
+          aspectTreePanelRef.value.selectByMcCodes(mcCodes);
+        }
+      }
     }
     
-    // 🔑 仅加载属性，不触发孤立操作
-    loadAssetProperties(dbIds);
+  } else if (isSpace) {
+    console.log('🏠 [Selection] 识别为空间:', dbIds);
+    currentSelectionType.value = 'space';
     
-  } else if (currentView.value === 'connect') {
-    // 连接页面：更新房间选中状态
-    savedRoomSelections.value = dbIds.slice();
+    // 更新空间相关的选中状态 (connect 和 spaces 视图共用逻辑)
+    savedSpaceSelections.value = dbIds;
+    savedRoomSelections.value = dbIds; 
     
-    // 🔑 仅加载属性，不触发孤立操作
-    loadRoomProperties(dbIds);
-  } else if (currentView.value === 'spaces') {
-    // 空间页面：更新空间选中状态
-    savedSpaceSelections.value = dbIds.slice();
+    // 加载空间属性 (统一使用 SpaceProperties 逻辑)
+    loadSpaceProperties(dbIds);
     
-    // 🔑 自动展开楼层并滚动到选中的空间（支持多选）
-    if (spacePanelRef.value && dbIds.length > 0) {
+    // UI 联动：如果在空间模块，滚动列表
+    if (currentView.value === 'spaces' && spacePanelRef.value) {
       nextTick(() => {
         spacePanelRef.value.expandAndScrollToSpace(dbIds);
       });
     }
     
-    // 🔑 加载空间属性
-    loadSpaceProperties(dbIds);
-  } else if (currentView.value === 'rds') {
-    // RDS 页面：尝试在树中选中对应的构件
+  } else {
+    console.warn('⚠️ [Selection] 未知对象类型，回退到默认视图逻辑:', dbIds);
+    currentSelectionType.value = null;
     
-    // 1. 加载属性面板 (需存在于资产列表中)
-    loadAssetProperties(dbIds);
-    
-    // 2. 在 RDS 树中选中
-    if (aspectTreePanelRef.value && dbIds.length > 0) {
-      const mcCodes = dbIds.map(id => {
-        const asset = assetList.value.find(a => a.dbId === id);
-        return asset?.mcCode;
-      }).filter(Boolean);
-      
-      if (mcCodes.length > 0) {
-        aspectTreePanelRef.value.selectByMcCodes(mcCodes);
-      }
+    // 回退处理：根据当前视图尝试加载属性
+    if (currentView.value === 'assets' || currentView.value === 'rds') {
+        savedAssetSelections.value = dbIds;
+        loadAssetProperties(dbIds);
+    } else if (currentView.value === 'connect') {
+        savedRoomSelections.value = dbIds;
+        loadRoomProperties(dbIds);
+    } else if (currentView.value === 'spaces') {
+        savedSpaceSelections.value = dbIds;
+        loadSpaceProperties(dbIds);
     }
   }
 };
