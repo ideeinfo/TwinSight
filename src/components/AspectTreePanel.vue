@@ -76,6 +76,7 @@
       <!-- 电源网络图 -->
       <PowerNetworkGraph
         v-if="activeAspect === 'power'"
+        ref="powerGraphRef"
         :file-id="fileId"
         :search-text="searchText"
         @node-click="handleGraphNodeClick"
@@ -172,6 +173,7 @@ const selectedCodes = ref([]);
 // 树组件引用
 const treeRef = ref(null);
 const treeContainer = ref(null);
+const powerGraphRef = ref(null); // 新增图组件引用
 const containerHeight = ref(0);
 const expandedKeys = ref([]); // 展开的节点 keys
 
@@ -746,11 +748,31 @@ function handleTraceClear() {
   emit('trace-clear');
 }
 
+/**
+ * 切换到电源方面并执行追溯 (AI)
+ */
+async function switchToPowerAndTrace(mcCode) {
+    if (activeAspect.value !== 'power') {
+        activeAspect.value = 'power';
+        await import('vue').then(v => v.nextTick());
+        // 等待组件挂载和可能的初始加载
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+    }
+    
+    if (powerGraphRef.value && powerGraphRef.value.selectNodeByMcCode) {
+        return await powerGraphRef.value.selectNodeByMcCode(mcCode);
+    } else {
+        console.warn('PowerGraph ref not ready');
+        return false;
+    }
+}
+
 // 暴露方法给父组件
 defineExpose({
   refreshData,
   expandAndScrollToCode,
-  selectByMcCodes
+  selectByMcCodes,
+  switchToPowerAndTrace
 });
 </script>
 

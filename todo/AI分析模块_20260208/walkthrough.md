@@ -75,3 +75,25 @@
 4. 后端生成统计摘要和图表数据。
 5. AI 根据统计摘要生成文本回复。
 6. 前端同时展示文本回复和温度趋势图。
+
+## 6. Phase 3 更新：AI 技能系统与 UI 主题优化
+本次更新显著提升了 AI 的“执行力”以及界面的视觉一致性：
+
+### 6.1 AI 技能系统 (AI Skills)
+- **技能注册机制**：在 `server/skills` 下定义 `.skill.json` 文件（如 `power-trace.skill.json`），实现指令与后端逻辑的解耦。
+- **动作解析与执行**：
+  - 后端通过 `generateSkillPrompt` 将技能注入 AI 系统指令。
+  - AI 输出结构化动作标记 ` ```action ... ``` `。
+  - 前端识别并分发动作，支持：
+    - `navigate_module`: 自动跳转到指定的业务模块（资产、空间、供电等）。
+    - `power_trace_upstream`: 对特定设备执行一键供电拓扑追溯。
+
+### 6.2 UI 主题深度适配
+- **浅色模式回归**：修正了 AI 对话框此前硬编码为深色导致在浅色主题下不协调的问题。
+- **变量化设计**：使用了 CSS 变量 (`--glass-bg`, `--text-primary` 等) 重新定义了面板样式。
+- **动态监测**：在 `AIChatPanel.vue` 中集成 `MutationObserver` 监听全局主题类名 (`.dark`)，实现无缝的深浅色切换及样式热更新。
+
+### 6.3 关键缺陷修复
+- **拓扑图交互修复**：更新了 `PowerNetworkGraph.vue` 中的 `selectNodeByMcCode` 方法，解决了 G6 API 版本不兼容导致的崩溃问题。
+- **选择状态保持**：优化了 `AppViewer.vue` 的视图切换逻辑，确保 AI 引导用户跨模块跳转时，选中的对象属性能够被正确保留而不会被重置。
+- **后端 Prompt 修复**：修复了 `ai-service.js` 中 `systemInstruction` 变量定义为 `const` 导致技能注入时抛出异常的 Bug。

@@ -689,7 +689,83 @@ onUnmounted(() => {
     }
 });
 
-defineExpose({ refresh: loadData });
+
+/**
+ * 根据 MC 编码选中节点并触发追溯 (AI 调用)
+ */
+const selectNodeByMcCode = async (mcCode, autoTrace = true) => {
+    if (!fullGraphData.value || !fullGraphData.value.nodes) return false;
+    
+    // 尝试匹配（全字匹配）
+    const targetNode = fullGraphData.value.nodes.find(n => 
+        n.mcCode === mcCode || 
+        n.code === mcCode ||
+        n.fullCode === mcCode ||
+        (n.label && n.label.includes(mcCode))
+    );
+    
+    if (!targetNode) {
+        console.warn(`[PowerGraph] 未找到节点: ${mcCode}`);
+        return false;
+    }
+    
+    console.log(`[PowerGraph] AI 定位到节点:`, targetNode);
+    selectedNode.value = targetNode;
+    
+    // 视觉定位与选中状态更新
+    if (graphInstance.value) {
+        const nodeId = String(targetNode.id);
+        
+        // 1. 尝试聚焦节点
+        if (typeof graphInstance.value.focusItem === 'function') {
+             try {
+                graphInstance.value.focusItem(nodeId, true, { duration: 500 });
+             } catch (e) {
+                console.warn('[PowerGraph] focusItem failed', e);
+             }
+        } else {
+             // 尝试 v3/v5 API 或回退
+             console.log('[PowerGraph] focusItem API 不可用，跳过自动聚焦');
+        }
+
+        // 2. 更新选中状态样式
+        try {
+            // 清除所有节点的选中状态
+            const allNodes = graphInstance.value.getNodes();
+            allNodes.forEach(node => {
+                graphInstance.value.clearItemStates(node, 'selected');
+            });
+
+            // 设置目标节点选中
+            const item = graphInstance.value.findById(nodeId);
+            if (item) {
+                graphInstance.value.setItemState(item, 'selected', true);
+            }
+        } catch (e) {
+            console.warn('[PowerGraph] 更新选中样式失败', e);
+        }
+    }
+    
+    // 3. 触发选中事件 (替代 handleNodeClick)
+    emit('node-click', targetNode);
+    if (props.onNodeClick) {
+        props.onNodeClick(targetNode);
+    }
+    
+    // 4. 执行自动追溯
+    if (autoTrace) {
+        // 延迟一点以展示定位效果
+        setTimeout(() => traceUpstream(), 300);
+    }
+    
+    return true;
+};
+
+defineExpose({ 
+    refresh: loadData,
+    selectNodeByMcCode,
+    clearTrace
+});
 </script>
 
 <style scoped>

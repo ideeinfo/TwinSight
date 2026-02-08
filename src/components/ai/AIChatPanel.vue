@@ -1,5 +1,5 @@
 <template>
-  <div class="ai-chat-container">
+  <div class="ai-chat-container" :class="{ 'dark-mode-active': isDark }">
     <transition name="fade">
       <div 
         v-if="!isOpen" 
@@ -199,7 +199,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useDraggable } from '@vueuse/core';
 import ChartPanel from '../ChartPanel.vue';
 
@@ -207,7 +207,7 @@ const props = defineProps({
   currentContext: { type: Object, default: null }
 });
 
-const emit = defineEmits(['send-message', 'clear-context', 'open-source']);
+const emit = defineEmits(['send-message', 'clear-context', 'open-source', 'execute-action']);
 
 // State
 const isOpen = ref(false);
@@ -224,6 +224,9 @@ const chartHeaderRef = ref(null);
 
 const messagesContainer = ref(null);
 const inputRef = ref(null);
+
+const isDark = ref(false);
+let themeObserver = null;
 
 const suggestions = [
   "这个房间有什么告警吗？",
@@ -345,6 +348,14 @@ const sendMessage = async () => {
     loading.value = false;
     messages.value.push(response);
     
+    // Trigger Actions if present
+    if (response.actions && Array.isArray(response.actions)) {
+        response.actions.forEach(action => {
+             console.log('🤖 Trigger AI Action:', action);
+             emit('execute-action', action);
+        });
+    }
+
     // Auto open chart if available in response
     if (response.chartData) {
         // Optional: openChartModal(response.chartData);
@@ -396,21 +407,56 @@ defineExpose({
 onMounted(() => {
   x.value = window.innerWidth - 420;
   y.value = window.innerHeight - 650;
+  
+  // Initialize and observe theme
+  const updateTheme = () => {
+    isDark.value = document.documentElement.classList.contains('dark');
+  };
+  updateTheme();
+  
+  themeObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.attributeName === 'class') {
+        updateTheme();
+      }
+    });
+  });
+  
+  themeObserver.observe(document.documentElement, {
+    attributes: true, 
+    attributeFilter: ['class']
+  });
+});
+
+onUnmounted(() => {
+  if (themeObserver) themeObserver.disconnect();
 });
 </script>
 
 <style scoped>
 /* CSS Variables */
 .ai-chat-container {
-  --glass-bg: rgba(18, 18, 24, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --accent-color: #00f2ff;
-  --accent-glow: rgba(0, 242, 255, 0.4);
-  --text-primary: #ededed;
-  --text-secondary: #a1a1aa;
+  /* CSS Variables - Default Light Theme */
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --panel-bg-solid: rgba(255, 255, 255, 0.98);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --panel-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+
+  --accent-color: #0078d4;
+  --accent-glow: rgba(0, 120, 212, 0.3);
   
-  --msg-user-bg: rgba(0, 242, 255, 0.15);
-  --msg-ai-bg: rgba(255, 255, 255, 0.05);
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  
+  --msg-user-bg: rgba(0, 120, 212, 0.1);
+  --msg-ai-bg: rgba(0, 0, 0, 0.03);
+  
+  --input-bg: rgba(0, 0, 0, 0.03);
+  --tag-bg: rgba(0, 0, 0, 0.05);
+  --pill-bg: rgba(0, 0, 0, 0.05);
+  --avatar-bg: rgba(0, 0, 0, 0.05);
+  --btn-bg: rgba(0, 0, 0, 0.05);
+  --input-area-bg: rgba(255, 255, 255, 0.6);
 
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   z-index: 9999;
@@ -424,16 +470,40 @@ onMounted(() => {
   pointer-events: none;
 }
 
+/* Dark Mode Overrides */
+.ai-chat-container.dark-mode-active {
+  --glass-bg: rgba(18, 18, 24, 0.75);
+  --panel-bg-solid: rgba(18, 18, 24, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --panel-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+
+  --accent-color: #00f2ff;
+  --accent-glow: rgba(0, 242, 255, 0.4);
+  
+  --text-primary: #ededed;
+  --text-secondary: #a1a1aa;
+  
+  --msg-user-bg: rgba(0, 242, 255, 0.15);
+  --msg-ai-bg: rgba(255, 255, 255, 0.05);
+  
+  --input-bg: rgba(0, 0, 0, 0.2);
+  --tag-bg: rgba(0, 0, 0, 0.2);
+  --pill-bg: rgba(255, 255, 255, 0.05);
+  --avatar-bg: rgba(255, 255, 255, 0.1);
+  --btn-bg: rgba(0, 0, 0, 0.3);
+  --input-area-bg: rgba(30, 30, 35, 0.6);
+}
+
 /* Glass Effect */
 .glass-effect {
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  box-shadow: var(--panel-shadow);
 }
 .glass-effect-light {
-  background: rgba(30, 30, 35, 0.6);
+  background: var(--input-area-bg);
   backdrop-filter: blur(10px);
 }
 
@@ -578,7 +648,7 @@ onMounted(() => {
   margin-top: 24px;
 }
 .suggestion-pill {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--pill-bg);
   border: 1px solid var(--glass-border);
   color: var(--text-secondary);
   padding: 6px 12px;
@@ -610,7 +680,7 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--avatar-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -653,7 +723,7 @@ onMounted(() => {
 .source-tag {
   font-size: 11px;
   color: var(--text-secondary);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--tag-bg);
   padding: 2px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -715,7 +785,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--input-bg);
   border-radius: 8px;
   padding: 8px;
   border: 1px solid var(--glass-border);
@@ -786,7 +856,7 @@ textarea::placeholder {
 }
 .open-chart-btn {
   margin-top: 8px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--btn-bg);
   border: 1px solid var(--glass-border);
   color: var(--accent-color);
   font-size: 11px;
@@ -827,14 +897,14 @@ textarea::placeholder {
   z-index: 10005; /* Higher than chat panel */
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 50px rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(18, 18, 24, 0.95); /* Slightly more opaque */
+  box-shadow: var(--panel-shadow);
+  border: 1px solid var(--glass-border);
+  background: var(--panel-bg-solid); /* Slightly more opaque */
   pointer-events: auto;
 }
 
 .ai-chart-window .panel-header {
-  background: rgba(255,255,255,0.02);
+  background: var(--input-bg);
 }
 
 .ai-chart-window .chart-content {

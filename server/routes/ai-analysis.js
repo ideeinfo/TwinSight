@@ -178,4 +178,27 @@ router.post('/format-citations', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/ai/chat
+ * General Chat with AI
+ */
+router.post('/chat', async (req, res) => {
+    try {
+        const { message, context, fileId, history } = req.body;
+        if (!message) {
+            return res.status(400).json({ success: false, error: 'Missing message' });
+        }
+
+        const result = await aiService.processChat(req.body);
+
+        res.json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error('❌ Chat API Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;

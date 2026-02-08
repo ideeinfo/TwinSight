@@ -7,6 +7,19 @@ import * as timeseriesService from './timeseries-service.js';
 import { chatWithRAG } from './openwebui-service.js';
 import { getConfig } from './config-service.js';
 import { server } from '../config/index.js';
+import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
+
+// Load Skills on Startup
+let skillsPrompt = '';
+(async () => {
+    try {
+        const skills = await loadSkills();
+        skillsPrompt = generateSkillPrompt(skills);
+        console.log(`🤖 AI 技能系统已加载 ${skills.length} 个技能`);
+    } catch (e) {
+        console.error('Failed to load skills:', e);
+    }
+})();
 
 // Configuration
 const USE_N8N_WORKFLOW = process.env.USE_N8N_WORKFLOW === 'true' || false;
@@ -693,6 +706,37 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
 }
 
 /**
+ * Parse AI Response for Action Blocks
+ */
+function parseAIResponse(content) {
+    if (!content) return { content: '', actions: undefined };
+
+    // Regex for ```action ... ``` blocks
+    const actionRegex = /```action\s*([\s\S]*?)\s*```/g;
+    let match;
+    let actions = [];
+    let cleanContent = content;
+
+    while ((match = actionRegex.exec(content)) !== null) {
+        try {
+            // Remove the block from content
+            cleanContent = cleanContent.replace(match[0], '');
+
+            // Parse JSON
+            const jsonStr = match[1].trim();
+            actions.push(JSON.parse(jsonStr));
+        } catch (e) {
+            console.warn('Failed to parse AI action block:', e);
+        }
+    }
+
+    return {
+        content: cleanContent.trim(),
+        actions: actions.length > 0 ? actions : undefined
+    };
+}
+
+/**
  * Process General Chat Request
  * @param {object} params - { message, context, fileId, history }
  */
@@ -725,7 +769,7 @@ async function processChat(params) {
     }
 
     // 2. Build Prompt (System Instruction)
-    const systemInstruction = `你是一个智能建筑运维助手。
+    let systemInstruction = `你是一个智能建筑运维助手。
 当前关注对象：${context ? `${context.type === 'asset' ? '设备' : '空间'} - ${context.name}` : '未指定对象'}
 ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).slice(0, 500)}...` : ''}
 
@@ -738,6 +782,11 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
 你可以查询历史温度数据。若用户询问温度趋势或历史数据（如“最近一周温度”、“昨天最高温”），请不要回答无法获取，而是输出以下 JSON 指令：
 @@TOOL_CALL:get_temperature:{"roomCode": "从上下文获取的编码", "duration": "时长(如 24h, 7d)"}@@
 注意：只输出指令，不要包含其他文字。`;
+
+    // Inject Skills Prompt
+    if (skillsPrompt) {
+        systemInstruction += `\n\n${skillsPrompt}`;
+    }
 
     // 3. Construct Messages List
     const messages = [];
@@ -898,6 +947,9 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
         }
     }
 
+    // 7. Parse Actions (New Skill System)
+    const { content: cleanContent, actions } = parseAIResponse(analysisText);
+
     const sourceIndexMap = {};
     if (ragResult.sources && Array.isArray(ragResult.sources)) {
         ragResult.sources.forEach((sourceItem, i) => {
@@ -910,13 +962,14 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
         });
     }
 
-    const { analysis, sources } = await formatAnalysisResult(analysisText, sourceIndexMap, contextData.documents);
+    const { analysis, sources } = await formatAnalysisResult(cleanContent, sourceIndexMap, contextData.documents);
 
     return {
         role: 'assistant',
         content: analysis,
         sources: sources,
-        chartData: chartData, // Return chart data
+        chartData: chartData,
+        actions: actions, // Return parsed actions
         timestamp: Date.now()
     };
 }

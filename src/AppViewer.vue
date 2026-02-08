@@ -183,6 +183,7 @@
       <AIChatPanel
         :current-context="aiContext"
         @send-message="handleAIChatMessage"
+        @execute-action="executeAIAction"
       />
     </div>
   </div>
@@ -807,10 +808,69 @@ const handleAIChatMessage = async (payload, callback) => {
   }
 };
 
-const switchView = (view) => {
+/**
+ * 执行 AI 返回的操作指令
+ */
+const executeAIAction = async (payload) => {
+  console.log('🚀 [AppViewer] 执行 AI 操作:', payload);
+  const { action, params } = payload;
+  
+  if (action === 'navigate_to_module') {
+      // 兼容旧名或后端可能的变体
+      const { module } = params;
+      if (module) switchView(module);
+  }
+  else if (action === 'navigate_module') {
+      const { module } = params;
+      if (module) switchView(module);
+  }
+  else if (action === 'power_trace_upstream') {
+      await handlePowerTraceAction(params);
+  }
+};
+
+/**
+ * 处理电源追溯操作
+ */
+const handlePowerTraceAction = async (params) => {
+  const { mcCode } = params;
+  
+  if (!mcCode) {
+    console.warn('⚠️ 电源追溯缺少 mcCode 参数');
+    return;
+  }
+  
+  console.log(`⚡ [AppViewer] AI 触发电源追溯: ${mcCode}`);
+  
+  // 1. 切换到 RDS 模块 (保留当前选择，防止属性面板清空)
+  if (currentView.value !== 'rds') {
+    switchView('rds', true);
+    await nextTick();
+  }
+  
+  // 2. 调用 AspectTreePanel 的方法
+  // 确保组件已挂载
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  if (aspectTreePanelRef.value && aspectTreePanelRef.value.switchToPowerAndTrace) {
+    const success = await aspectTreePanelRef.value.switchToPowerAndTrace(mcCode);
+    if (!success) {
+       console.warn(`⚠️ 未找到设备或组件未就绪: ${mcCode}`);
+    }
+  } else {
+    console.error('❌ AspectTreePanel 组件 ref 不可用');
+  }
+};
+
+
+const switchView = (view, preserveSelection = false) => {
   currentView.value = view;
-  // 切换视图时清除选择
-  selectedRoomProperties.value = null;
+  
+  // 切换视图时默认清除选择，除非显式指定保留 (如 AI 联动场景)
+  if (!preserveSelection) {
+    selectedRoomProperties.value = null;
+    currentSelectionType.value = null;
+  }
 
   // 缺陷修复：当切换到文档管理界面时，MainView 会被卸载
   // 我们需要重置 currentLoadedModelPath，以便当用户返回 模型视图 时

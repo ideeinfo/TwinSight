@@ -122,34 +122,46 @@ router.post('/test-influx', async (req, res) => {
 
         // 构建完整 URL
         const baseUrl = influxPort ? `${influxUrl}:${influxPort}` : influxUrl;
-        const healthUrl = `${baseUrl}/health`;
 
-        console.log(`🧪 测试 InfluxDB 连接: ${healthUrl}`);
+        // 使用 /api/v2/buckets 端点测试，该端点需要有效认证
+        const testUrl = `${baseUrl}/api/v2/buckets?limit=1`;
 
-        const response = await fetch(healthUrl, {
+        console.log(`🧪 测试 InfluxDB 连接 (验证 Token): ${testUrl}`);
+
+        const response = await fetch(testUrl, {
             method: 'GET',
             headers: {
-                'Authorization': `Token ${influxToken}`
+                'Authorization': `Token ${influxToken}`,
+                'Content-Type': 'application/json'
             }
         });
 
         if (response.ok) {
             const data = await response.json();
-            console.log('✅ InfluxDB 连接测试成功:', data);
+            console.log('✅ InfluxDB 连接测试成功，找到', data.buckets?.length || 0, '个 Bucket');
             res.json({
                 success: true,
                 message: '连接成功',
                 data: {
-                    status: data.status,
-                    version: data.version
+                    status: 'healthy',
+                    bucketsFound: data.buckets?.length || 0
                 }
             });
         } else {
             const errorText = await response.text();
             console.error('❌ InfluxDB 连接测试失败:', response.status, errorText);
+
+            // 提供更友好的错误信息
+            let errorMsg = `连接失败: ${response.status}`;
+            if (response.status === 401) {
+                errorMsg = 'Token 无效或权限不足';
+            } else if (response.status === 403) {
+                errorMsg = 'Token 权限不足，无法访问 Buckets';
+            }
+
             res.status(response.status).json({
                 success: false,
-                error: `连接失败: ${response.status} - ${errorText}`
+                error: errorMsg
             });
         }
     } catch (error) {

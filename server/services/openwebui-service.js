@@ -4,6 +4,7 @@
  */
 
 import openwebuiConfig from '../config/openwebui-config.js';
+import { getConfig } from './config-service.js';
 import fs from 'fs';
 import path from 'path';
 // 不再使用 form-data 包，使用 Node.js 原生 FormData
@@ -25,16 +26,17 @@ const MIME_TYPES = {
 
 // 动态读取配置（避免 ES Modules 静态导入时环境变量未加载的问题）
 // 每次调用时都从 openwebuiConfig 读取最新值，而不是在模块加载时固定
-const getBaseUrl = () => openwebuiConfig.baseUrl;
-const getApiKey = () => openwebuiConfig.apiKey;
+// 动态读取配置（优先使用系统配置，不使用 env.local）
+const getBaseUrl = async () => await getConfig('OPENWEBUI_URL', '');
+const getApiKey = async () => await getConfig('OPENWEBUI_API_KEY', '');
 const { endpoints, supportedFormats } = openwebuiConfig;
 
 /**
  * 通用请求方法
  */
 async function request(endpoint, options = {}) {
-    const baseUrl = getBaseUrl();
-    const apiKey = getApiKey();
+    const baseUrl = await getBaseUrl();
+    const apiKey = await getApiKey();
 
     // 调试日志：检查配置状态
     console.log(`🔧 Open WebUI 配置: URL=${baseUrl}, API Key=${apiKey ? `已配置(${apiKey.substring(0, 10)}...)` : '未配置'}`);
@@ -80,7 +82,7 @@ async function request(endpoint, options = {}) {
  */
 export async function checkHealth() {
     try {
-        const baseUrl = getBaseUrl();
+        const baseUrl = await getBaseUrl();
         const response = await fetch(`${baseUrl}${endpoints.health}`);
         return response.ok;
     } catch (error) {
@@ -181,8 +183,8 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const baseUrl = getBaseUrl();
-    const apiKey = getApiKey();
+    const baseUrl = await getBaseUrl();
+    const apiKey = await getApiKey();
 
     const uploadUrl = `${baseUrl}/api/v1/files/`;
     const uploadResponse = await fetch(uploadUrl, {
@@ -215,10 +217,10 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // 等待 3 秒
 
         // 检查文件状态
-        const checkResponse = await fetch(`${getBaseUrl()}/api/v1/files/${fileId}`, {
+        const checkResponse = await fetch(`${await getBaseUrl()}/api/v1/files/${fileId}`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${getApiKey()}`,
+                'Authorization': `Bearer ${await getApiKey()}`,
             },
         });
 
@@ -239,11 +241,11 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     }
 
     // Step 2: 将文件添加到知识库
-    const addToKbUrl = `${getBaseUrl()}/api/v1/knowledge/${kbId}/file/add`;
+    const addToKbUrl = `${await getBaseUrl()}/api/v1/knowledge/${kbId}/file/add`;
     const addResponse = await fetch(addToKbUrl, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
+            'Authorization': `Bearer ${await getApiKey()}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ file_id: fileId }),
@@ -290,17 +292,18 @@ export async function listDocuments(kbId) {
 export async function chatWithRAG(options) {
     const {
         prompt,
+        messages,
         kbId,
         fileIds = [],
         model = openwebuiConfig.defaultModel,
     } = options;
 
-    console.log(`💬 RAG 查询: ${prompt.substring(0, 50)}...`);
+    console.log(`💬 RAG 查询: ${messages ? `${messages.length} 条消息` : prompt.substring(0, 50)}...`);
 
     // 构建请求体
     const requestBody = {
         model,
-        messages: [
+        messages: messages || [
             { role: 'user', content: prompt }
         ],
     };
