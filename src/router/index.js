@@ -20,6 +20,11 @@ const routes = [
     path: '/theme-debug',
     name: 'ThemeDebug',
     component: () => import('../views/ThemeDebugPage.vue')
+  },
+  {
+    path: '/chart-view',
+    name: 'ChartView',
+    component: () => import('../views/ChartView.vue')
   }
 ]
 

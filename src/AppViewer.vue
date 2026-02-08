@@ -178,12 +178,20 @@
         @restore-view="handleRestoreView"
         @current-view-changed="currentViewName = $event"
       />
+
+      <!-- AI 对话面板 -->
+      <AIChatPanel
+        :current-context="aiContext"
+        @send-message="handleAIChatMessage"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
+import AIChatPanel from './components/ai/AIChatPanel.vue';
+import AIAnalysisModal from './components/viewer/AIAnalysisModal.vue';
 import { useAuthStore } from './stores/auth';
 import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
@@ -279,6 +287,7 @@ const spacePanelRef = ref(null);
 const aspectTreePanelRef = ref(null);
 const selectedRoomProperties = ref(null);
 const selectedObjectIds = ref([]); // 当前选中的对象ID列表（用于批量编辑）
+const aiContext = ref(null); // AI 对话上下文 { id, name, type, properties }
 const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' or 'spaces' - 默认加载资产页面
 // 新增状态：记录当前选中的对象类型（用于跨模块联动）
@@ -363,7 +372,7 @@ const openDataExportPanel = async (file) => {
       
       if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
         try {
-          // 保存原模型路径，以便关闭面板时恢复
+          // 保存原模型路径，以便关闭时恢复
           previousModelPath.value = currentLoadedModelPath.value;
           currentLoadedModelPath.value = file.extracted_path;
           console.log('📦 开始加载模型...');
@@ -763,6 +772,38 @@ const onChartDataUpdate = async (data) => {
         console.warn('⚠️ 刷新房间图表数据失败:', err);
       }
     }
+  }
+};
+
+
+/**
+ * 处理 AI 对话消息发送
+ */
+const handleAIChatMessage = async (payload, callback) => {
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      method: 'POST',
+      headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: payload.text,
+        context: payload.context,
+        history: payload.history,
+        fileId: activeFileId.value
+      })
+    });
+    
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    
+    const data = await res.json();
+    if (data.success) {
+      callback(data.data);
+    } else {
+      callback({ role: 'assistant', content: `❌ 分析遇到问题: ${data.error}` });
+    }
+  } catch (e) {
+    console.error('AI Chat Error:', e);
+    callback({ role: 'assistant', content: `🔌 网络连接错误: ${e.message}` });
   }
 };
 
@@ -1601,6 +1642,21 @@ const onModelSelectionChanged = (dbIds) => {
   // 注意：dbIds 是数字数组，列表中的 dbId 可能也是数字或字符串，需统一类型比较
   const isAsset = assetList.value.some(a => dbIds.includes(Number(a.dbId)));
   const isSpace = roomList.value.some(r => dbIds.includes(Number(r.dbId)));
+
+  // 更新 AI 上下文
+  if (dbIds && dbIds.length === 1) {
+    if (isAsset) {
+        const asset = assetList.value.find(a => Number(a.dbId) === dbIds[0]);
+        if (asset) aiContext.value = { id: String(asset.dbId), name: asset.name, type: 'asset', properties: asset };
+    } else if (isSpace) {
+        const space = roomList.value.find(s => Number(s.dbId) === dbIds[0]);
+        if (space) aiContext.value = { id: String(space.dbId), name: space.name, type: 'space', properties: space };
+    } else {
+        aiContext.value = null;
+    }
+  } else {
+      aiContext.value = null;
+  }
 
   if (isAsset) {
     console.log('📦 [Selection] 识别为资产:', dbIds);

@@ -3,6 +3,7 @@
  * Encapsulates logic for AI analysis, N8N workflows, and result formatting.
  */
 import pool from '../db/index.js';
+import * as timeseriesService from './timeseries-service.js';
 import { chatWithRAG } from './openwebui-service.js';
 import { getConfig } from './config-service.js';
 import { server } from '../config/index.js';
@@ -691,10 +692,240 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
     };
 }
 
+/**
+ * Process General Chat Request
+ * @param {object} params - { message, context, fileId, history }
+ */
+async function processChat(params) {
+    const { message, context, fileId } = params;
+
+    // 1. Context Data Retrieval
+    let contextData = { assets: [], documents: [] };
+    let roomCode = '';
+    let roomName = '';
+
+    if (context) {
+        if (context.type === 'space') {
+            roomCode = context.properties.code || context.name; // Fallback
+            roomName = context.properties.name || context.name;
+        } else if (context.type === 'asset') {
+            const props = context.properties || {};
+            // If asset has room info, use it to get broader context
+            if (props.room) roomCode = props.room;
+            // Also store asset code for specific filtering
+        }
+
+        if (fileId && roomCode) {
+            try {
+                contextData = await getContextData(roomCode, roomName, fileId);
+            } catch (e) {
+                console.warn('Chat context retrieval failed', e);
+            }
+        }
+    }
+
+    // 2. Build Prompt (System Instruction)
+    const systemInstruction = `你是一个智能建筑运维助手。
+当前关注对象：${context ? `${context.type === 'asset' ? '设备' : '空间'} - ${context.name}` : '未指定对象'}
+${context?.properties ? `属性摘要：${JSON.stringify(context.properties).slice(0, 500)}...` : ''}
+
+规则：
+1. 请根据上下文信息和参考文档回答用户问题。
+2. 回答要简洁、专业，使用中文。
+3. 如果引用了文档，请自然地在文中标记（如 [1]）。
+
+能力增强：
+你可以查询历史温度数据。若用户询问温度趋势或历史数据（如“最近一周温度”、“昨天最高温”），请不要回答无法获取，而是输出以下 JSON 指令：
+@@TOOL_CALL:get_temperature:{"roomCode": "从上下文获取的编码", "duration": "时长(如 24h, 7d)"}@@
+注意：只输出指令，不要包含其他文字。`;
+
+    // 3. Construct Messages List
+    const messages = [];
+    messages.push({ role: 'system', content: systemInstruction });
+
+    const { history } = params;
+    if (history && Array.isArray(history)) {
+        // Simple sanitation: only keep valid roles and content
+        history.forEach(h => {
+            if (['user', 'assistant'].includes(h.role) && h.content) {
+                // Remove sources/charts from history content if needed, but basic text is fine
+                // OpenWebUI usually handles markdown history fine
+                messages.push({ role: h.role, content: h.content });
+            }
+        });
+    }
+
+    messages.push({ role: 'user', content: message });
+
+    // 4. Resolve KB & Files
+    let kbId = null;
+    let fileIds = [];
+
+    if (fileId) {
+        try {
+            const kbResult = await pool.query('SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1', [fileId]);
+            if (kbResult.rows.length > 0) kbId = kbResult.rows[0].openwebui_kb_id;
+
+            // Resolve File IDs from Context Documents (documents that are synced)
+            if (contextData.documents.length > 0) {
+                const docIds = contextData.documents.map(d => d.id);
+                const fileIdsResult = await pool.query(`
+                   SELECT openwebui_file_id FROM kb_documents 
+                   WHERE document_id = ANY($1) AND openwebui_file_id IS NOT NULL AND sync_status = 'synced'
+               `, [docIds]);
+                fileIds = fileIdsResult.rows.map(r => r.openwebui_file_id);
+            }
+        } catch (e) {
+            console.warn('Chat KB resolution failed', e);
+        }
+    }
+
+    // 5. Call RAG
+    const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
+    const ragResult = await chatWithRAG({
+        messages, // Use messages array for multi-turn
+        kbId,
+        fileIds, // Focus on context docs
+        model: llmModel
+    });
+
+    // 5. Extract & Format
+    let analysisText = '';
+    // Handle different response structures
+    if (ragResult.choices?.[0]?.message?.content) analysisText = ragResult.choices[0].message.content;
+    else if (ragResult.message?.content) analysisText = ragResult.message.content;
+    else if (typeof ragResult === 'string') analysisText = ragResult;
+
+    // 6. Check for Tool Calls
+    let chartData = null;
+    const toolMatch = analysisText.match(/@@TOOL_CALL:get_temperature:([\s\S]*?)@@/);
+
+    if (toolMatch) {
+        console.log('🔧 Detect Tool Call:', toolMatch[1]);
+        try {
+            const args = JSON.parse(toolMatch[1]);
+            const durationStr = args.duration || '24h';
+            let rCode = args.roomCode || roomCode; // Use arg or fallback to context
+            // Clean roomCode: remove " [ID]" suffix if present
+            if (rCode) {
+                rCode = rCode.replace(/\s*\[.*?\]$/, '').trim();
+            }
+
+            // 智能房间匹配：如果指定的房间没有数据，尝试自动查找
+            try {
+                const availableRooms = await timeseriesService.getAvailableRooms(24);
+                console.log(`🔍 Available Rooms: ${availableRooms.join(', ')} (Target: ${rCode})`);
+
+                if (availableRooms.length > 0) {
+                    if (!rCode || !availableRooms.includes(rCode)) {
+                        // 尝试模糊匹配
+                        const match = availableRooms.find(r => r.includes(rCode) || (rCode && rCode.includes(r)));
+                        if (match) {
+                            console.log(`-> Fuzzy matched: ${rCode} => ${match}`);
+                            rCode = match;
+                        } else {
+                            // 如果完全匹配不上，且没有指定 specific room (或者 context 是 generic 的)
+                            // 回退到第一个可用房间，或者全部显示？
+                            // 这里简单回退到第一个，并告知用户
+                            console.log(`-> No match found. Fallback to first available: ${availableRooms[0]}`);
+                            rCode = availableRooms[0];
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to get available rooms', err);
+            }
+
+            if (rCode) {
+                // Parse duration
+                const durationMatch = durationStr.match(/(\d+)([dh])/);
+                let durationMs = 24 * 3600 * 1000;
+                if (durationMatch) {
+                    const val = parseInt(durationMatch[1]);
+                    const unit = durationMatch[2];
+                    durationMs = unit === 'd' ? val * 24 * 3600 * 1000 : val * 3600 * 1000;
+                }
+
+                const endMs = Date.now();
+                const startMs = endMs - durationMs;
+
+                // Determine aggregation
+                let aggregateWindow = '1h';
+                if (durationMs > 7 * 24 * 3600 * 1000) aggregateWindow = '1d';
+                else if (durationMs <= 24 * 3600 * 1000) aggregateWindow = '15m';
+
+                // Execute Queries
+                const points = await timeseriesService.queryTemperatureRange(rCode, startMs, endMs, aggregateWindow);
+                const stats = await timeseriesService.getTemperatureStats(rCode, startMs, endMs);
+
+                // Generate Chart Data (Native Format for ChartPanel.vue)
+                if (points.length > 0) {
+                    chartData = {
+                        type: 'temperature',
+                        data: points, // { timestamp, value }
+                        range: { startMs, endMs },
+                        title: `${rCode} 温度趋势`,
+                        roomCode: rCode // Add metadata for external link
+                    };
+                }
+
+                // Call LLM again with data
+                messages.push({ role: 'assistant', content: analysisText }); // The tool call message
+                messages.push({
+                    role: 'user',
+                    content: `系统：已执行工具调用 (实际查询房间: ${rCode})。
+数据统计：Min: ${stats.min?.toFixed(1)}°C, Max: ${stats.max?.toFixed(1)}°C, Avg: ${stats.avg?.toFixed(1)}°C.
+数据点数：${stats.count}.
+请根据以上数据回答用户问题（如描述趋势、异常等），并告知已生成图表 (显示房间: ${rCode})。
+注意：请直接输出回答，**禁止**输出任何思考过程或“用户询问...”之类的分析。`
+                });
+
+                const secondRagResult = await chatWithRAG({
+                    messages,
+                    kbId,
+                    fileIds,
+                    model: llmModel
+                });
+
+                if (secondRagResult.choices?.[0]?.message?.content) analysisText = secondRagResult.choices[0].message.content;
+                else if (secondRagResult.message?.content) analysisText = secondRagResult.message.content;
+            } else {
+                analysisText = "无法执行查询：未找到房间编码 (Room Code)。";
+            }
+        } catch (e) {
+            console.error('Tool execution failed', e);
+            analysisText += `\n(系统：数据查询失败 - ${e.message})`;
+        }
+    }
+
+    const sourceIndexMap = {};
+    if (ragResult.sources && Array.isArray(ragResult.sources)) {
+        ragResult.sources.forEach((sourceItem, i) => {
+            const idx = i + 1;
+            const openwebuiFileId = sourceItem.source?.id || sourceItem.metadata?.[0]?.file_id;
+            const name = sourceItem.metadata?.[0]?.name || sourceItem.metadata?.[0]?.source || `Source ${idx}`;
+            if (openwebuiFileId) {
+                sourceIndexMap[idx] = { index: idx, openwebuiFileId, name, fileName: name };
+            }
+        });
+    }
+
+    const { analysis, sources } = await formatAnalysisResult(analysisText, sourceIndexMap, contextData.documents);
+
+    return {
+        role: 'assistant',
+        content: analysis,
+        sources: sources,
+        chartData: chartData, // Return chart data
+        timestamp: Date.now()
+    };
+}
+
 export default {
     getContextData,
     processTemperatureAlert,
     processManualAnalysis,
+    processChat,
     formatAnalysisResult,
     USE_N8N_WORKFLOW
 };
