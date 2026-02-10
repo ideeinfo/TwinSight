@@ -1,0 +1,29 @@
+# API 服务器配置
+VITE_API_URL=http://localhost:3001
+
+# ======== PostgreSQL 数据库配置 ========
+# 连接到局域网 Ubuntu 服务器
+DB_HOST=192.168.2.183
+DB_PORT=5432
+DB_NAME=twinsight
+DB_USER=postgres
+DB_PASSWORD=password
+
+# ======== InfluxDB 配置 ========
+# 连接到局域网 Ubuntu 服务器
+INFLUX_URL=http://192.168.2.183:8086
+INFLUX_ORG=demo
+INFLUX_BUCKET=twinsight
+INFLUX_TOKEN=nLGajutgYSfV65VhAw0hakHeeKnwAXAvvnap1yQHNl87Q6C1H4oua35MOu1XG2HJqOWGAmAJLuctHq7LOLPNhQ==
+
+# ======== AI 服务配置 ========
+# 连接到局域网 Ubuntu 服务器
+OPENWEBUI_URL=http://192.168.2.183:3080
+OPENWEBUI_API_KEY=sk-ca761aa4d9164f9b9930cb4dea16a894
+N8N_WEBHOOK_URL=http://192.168.2.183:5678
+USE_N8N_WORKFLOW=true
+API_BASE_URL=http://192.168.2.120:3001
+LOGIC_ENGINE_URL=http://192.168.2.183:8000
+
+# API 密钥配置 (用于生成 Stream URL 的安全 Key)
+API_KEY_SECRET=twinsight-timeseries-secret-2024

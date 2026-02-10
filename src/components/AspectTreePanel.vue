@@ -34,6 +34,8 @@
         :prefix-icon="Search"
         clearable
         size="small"
+        autocomplete="off"
+        name="aspect-search"
         @keyup.enter="handleSearch"
         @clear="handleSearch"
       />

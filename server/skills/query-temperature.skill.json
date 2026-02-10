@@ -1,0 +1,48 @@
+{
+    "id": "query_temperature",
+    "name": "查询历史温度及生成图表",
+    "description": "从 InfluxDB 时序数据库中查询指定房间或设备的实时及历史温度数据，并在聊天窗口中生成可视化趋势图表。适用于回答“最近一周温度”、“昨天最高温”或“查看温度趋势”等问题。",
+    "version": "1.0.0",
+    "triggers": [
+        "查询温度",
+        "温度趋势",
+        "历史温度",
+        "看看温度",
+        "温度曲线",
+        "最近的温度记录",
+        "温度统计"
+    ],
+    "parameters": [
+        {
+            "name": "roomCode",
+            "type": "string",
+            "description": "房间编码或设备编码。如果未明确提供，且上下文中有指定的关注对象，请使用上下文中的编码（如 A1-101）。",
+            "required": true,
+            "examples": [
+                "18-B1F-SF-01",
+                "RDS-ROOM-001"
+            ]
+        },
+        {
+            "name": "duration",
+            "type": "string",
+            "description": "查询的时间范围。默认 24h。支持格式：'24h' (24小时), '7d' (7天), '30d' (30天)。",
+            "required": false,
+            "default": "24h",
+            "examples": [
+                "24h",
+                "7d",
+                "30d"
+            ]
+        }
+    ],
+    "action": {
+        "type": "server_tool",
+        "command": "GET_TEMPERATURE",
+        "payload": {
+            "roomCode": "${roomCode}",
+            "duration": "${duration}"
+        }
+    },
+    "responseTemplate": "正在为您调取 **${roomCode}** 最近 **${duration}** 的温度监测数据并生成图表分析。"
+}

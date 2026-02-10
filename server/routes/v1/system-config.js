@@ -232,10 +232,14 @@ router.post('/test-openwebui', async (req, res) => {
  */
 router.post('/test-n8n', async (req, res) => {
     try {
-        const { webhookUrl } = req.body;
+        const { webhookUrl, apiKey: providedApiKey } = req.body;
 
         // 使用传入的值或从数据库获取
         const n8nUrl = webhookUrl || await getConfigRaw('N8N_WEBHOOK_URL');
+        let apiKey = providedApiKey;
+        if (!apiKey) {
+            apiKey = await getConfigRaw('N8N_API_KEY');
+        }
 
         if (!n8nUrl) {
             return res.status(400).json({
@@ -244,24 +248,50 @@ router.post('/test-n8n', async (req, res) => {
             });
         }
 
-        // 检查 n8n 健康检查端点
         const baseUrl = n8nUrl.replace(/\/$/, '');
+
+        // 如果提供了 API Key，尝试验证 API 权限
+        if (apiKey) {
+            const userUrl = `${baseUrl}/api/v1/users`;
+            console.log(`🧪 测试 n8n API 连接: ${userUrl}`);
+
+            const response = await fetch(userUrl, {
+                method: 'GET',
+                headers: {
+                    'X-N8N-API-KEY': apiKey
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ n8n API Key 验证成功');
+                return res.json({
+                    success: true,
+                    message: '连接成功 (API Key 有效)',
+                    data: { status: 'authenticated' }
+                });
+            } else {
+                console.warn('⚠️ n8n API Key 验证失败，尝试仅检查服务健康状态...');
+            }
+        }
+
+        // 回退到健康检查
         const healthUrl = `${baseUrl}/healthz`;
+        console.log(`🧪 测试 n8n 服务健康状态: ${healthUrl}`);
 
-        console.log(`🧪 测试 n8n 连接: ${healthUrl}`);
-
-        const response = await fetch(healthUrl, {
-            method: 'GET'
-        });
+        const response = await fetch(healthUrl, { method: 'GET' });
 
         if (response.ok) {
             const data = await response.json();
-            console.log('✅ n8n 连接测试成功:', data);
+            console.log('✅ n8n 服务连接成功:', data);
             res.json({
                 success: true,
-                message: '连接成功',
+                message: apiKey
+                    ? '服务连接成功 (但 API Key 可能无效)'
+                    : '服务连接成功 (未配置 API Key，无法获取工作流列表)',
                 data: {
-                    status: data.status || 'ok'
+                    status: data.status || 'ok',
+                    apiKeyValid: false
                 }
             });
         } else {

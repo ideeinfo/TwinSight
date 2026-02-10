@@ -92,6 +92,7 @@
               @chart-data-update="onChartDataUpdate"
               @time-range-changed="onTimeRangeChanged"
               @model-selection-changed="onModelSelectionChanged"
+              @trigger-ai-alert="handleAIAlert"
             />
           </div>
 
@@ -181,10 +182,20 @@
 
       <!-- AI 对话面板 -->
       <AIChatPanel
+        ref="aiChatPanelRef"
         :current-context="aiContext"
         @send-message="handleAIChatMessage"
         @execute-action="executeAIAction"
+        @open-source="onOpenSource"
       />
+
+      <!-- 全局文档预览 -->
+      <DocumentPreview 
+        :visible="previewVisible" 
+        :document="previewDocument" 
+        @close="previewVisible = false"
+      />
+
     </div>
   </div>
 </template>
@@ -207,11 +218,14 @@ import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
 import MultiChartPanel from './components/MultiChartPanel.vue';
 import DataExportPanel from './components/DataExportPanel.vue';
+import DocumentPreview from './components/DocumentPreview.vue';
+
 import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
 import { usePropertySelection } from './composables/usePropertySelection';
+import { triggerTemperatureAlert } from './services/ai-analysis';
 
 const { getPropertiesFromSelection, formatAssetProperties, formatSpaceProperties } = usePropertySelection();
 
@@ -231,6 +245,11 @@ const isPanoCompareMode = ref(false);
 const panoFileId = ref('');
 const panoModelPath = ref('');
 const panoFileName = ref('');
+
+// 文档预览状态
+const previewVisible = ref(false);
+const previewDocument = ref(null);
+
 
 // 初始化全景比对模式
 const initPanoCompareMode = async () => {
@@ -777,6 +796,19 @@ const onChartDataUpdate = async (data) => {
 };
 
 
+const aiChatPanelRef = ref(null);
+
+/**
+ * 处理 AI 报警推送
+ */
+const handleAIAlert = (alert) => {
+  if (aiChatPanelRef.value) {
+    aiChatPanelRef.value.addAlertMessage(alert);
+  } else {
+    console.warn('⚠️ AI Chat Panel ref not ready for alert:', alert);
+  }
+};
+
 /**
  * 处理 AI 对话消息发送
  */
@@ -813,21 +845,128 @@ const handleAIChatMessage = async (payload, callback) => {
  */
 const executeAIAction = async (payload) => {
   console.log('🚀 [AppViewer] 执行 AI 操作:', payload);
-  const { action, params } = payload;
   
-  if (action === 'navigate_to_module') {
-      // 兼容旧名或后端可能的变体
+  // 兼容不同的 payload 结构 (有时 action 在顶层，有时在 params 里)
+  const actionType = payload.action || payload.type;
+  const params = payload.params || payload; 
+  
+  if (actionType === 'navigate_to_module' || actionType === 'navigate_module') {
       const { module } = params;
       if (module) switchView(module);
   }
-  else if (action === 'navigate_module') {
-      const { module } = params;
-      if (module) switchView(module);
-  }
-  else if (action === 'power_trace_upstream') {
+  else if (actionType === 'power_trace_upstream') {
       await handlePowerTraceAction(params);
   }
+  else if (actionType === 'locate_room') {
+      const { id } = params;
+      if (id) {
+          console.log(`📍 [AppViewer] 定位房间: ${id}`);
+          // 切换到 Connect 视图（或者保持当前），并选中房间
+          if (currentView.value !== 'connect' && currentView.value !== 'spaces') {
+              switchView('connect');
+          }
+          
+          // 触发选中通知 (更新 UI 状态)
+          onModelSelectionChanged([Number(id)]);
+          
+          // 在 3D 视图中隔离并聚焦
+          if (mainViewRef.value?.isolateAndFocusRooms) {
+              mainViewRef.value.isolateAndFocusRooms([Number(id)]);
+          } else {
+              console.warn('⚠️ MainView 不支持 isolateAndFocusRooms');
+          }
+      }
+  }
+  else if (actionType === 'acknowledge') {
+      console.log('✅ 报警已确认');
+      // TODO: Call API to acknowledge alert
+  }
+  else if (actionType === 'analyze_alert') {
+      const { roomCode, roomName, temperature, threshold, alertType, fileId } = params;
+      console.log(`🧠 [AppViewer] 用户请求 AI 分析: ${roomName} (${roomCode})`);
+      
+      // 1. 在聊天框显示 "AI 正在分析..."
+      const loadingMsg = { 
+          role: 'assistant', 
+          content: '正在进行智能分析，请稍候... (分析云端知识库及历史数据)', 
+          timestamp: Date.now() 
+      };
+      if (aiChatPanelRef.value) {
+          aiChatPanelRef.value.addMessage(loadingMsg);
+          aiChatPanelRef.value.setLoading(true);
+          // Auto-open if not open
+          if (!aiChatPanelRef.value.isOpen) aiChatPanelRef.value.isOpen = true;
+      }
+
+      // 2. 调用服务
+      try {
+          const result = await triggerTemperatureAlert({
+              roomCode, roomName, temperature, threshold, alertType, fileId
+          });
+
+          if (aiChatPanelRef.value) {
+              aiChatPanelRef.value.setLoading(false);
+
+              if (result.success && result.analysis) {
+                const sources = (result.sources || []).map(s => ({
+                      ...s,
+                      isInternal: true,
+                      documentId: s.id || null
+                  }));
+
+                  aiChatPanelRef.value.addMessage({
+                      role: 'assistant',
+                      content: result.analysis,
+                      sources: sources,
+                      timestamp: Date.now()
+                  });
+              } else {
+                aiChatPanelRef.value.addMessage({
+                      role: 'assistant',
+                      content: `⚠️ 分析失败: ${result.error || '未知错误'}`,
+                      timestamp: Date.now()
+                  });
+              }
+          }
+      } catch (e) {
+          if (aiChatPanelRef.value) {
+              aiChatPanelRef.value.setLoading(false);
+              console.error('AI Analysis Error:', e);
+              aiChatPanelRef.value.addMessage({
+                  role: 'assistant',
+                  content: `❌ 分析过程发生异常: ${e.message}`,
+                  timestamp: Date.now()
+              });
+          }
+      }
+  } else {
+      console.warn('⚠️ 未知的 AI 操作类型:', actionType);
+  }
 };
+
+/**
+ * 打开文档预览 (由 AI Chat 触发)
+ */
+const onOpenSource = async (source) => {
+  const { id } = source;
+  if (!id) return;
+  
+  console.log('📄 [AppViewer] 打开引用文档:', id);
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const res = await fetch(`${API_BASE}/api/documents/${id}`, { headers: getHeaders() });
+    const data = await res.json();
+    if (data.success) {
+      previewDocument.value = data.data;
+      previewVisible.value = true;
+    } else {
+      console.warn('Failed to load document:', data.error);
+    }
+  } catch (e) {
+    console.error('Failed to open document:', e);
+  }
+};
+
 
 /**
  * 处理电源追溯操作

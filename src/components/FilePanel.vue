@@ -17,6 +17,8 @@
           size="small"
           clearable
           style="flex: 1"
+          autocomplete="off"
+          name="file-search"
         />
         <div class="filter-icon">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

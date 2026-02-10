@@ -66,6 +66,8 @@
         clearable
         @input="debouncedSearch"
         style="flex: 1"
+        autocomplete="off"
+        name="view-search"
       />
       <el-button class="btn-sort" size="small" :title="$t('views.sort')" @click="toggleSort">
         <template #icon>

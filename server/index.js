@@ -20,6 +20,7 @@ import influxConfigRoutes from './routes/influx-config.js';
 import aiAnalysisRoutes from './routes/ai-analysis.js';
 import configRoutes from './routes/config.js';
 import rdsRoutes from './routes/rds.js';
+import iotTriggersRoutes from './routes/iot-triggers.js';
 
 // 新版 v1 路由
 import v1Router from './routes/v1/index.js';
@@ -128,6 +129,7 @@ app.use('/api/influx-config', influxConfigRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes); // 旧版时序路由
 app.use('/api/ai', aiAnalysisRoutes);
 app.use('/api/rds', rdsRoutes);
+app.use('/api/iot-triggers', iotTriggersRoutes);
 // 健康检查
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -208,26 +208,29 @@
       <el-tab-pane label="AI 工作流" name="workflow">
         <div class="config-form">
           <div class="section-desc">
-            <p>n8n 工作流用于自动化处理 AI 任务，如文档分析、智能分类等。</p>
+            <p>配置 n8n 服务器连接，以便 TwinSight 能够触发 n8n 工作流。</p>
           </div>
           
-          <!-- n8n Switch -->
+          <!-- n8n URL -->
           <div class="form-item">
-            <el-switch
-              v-model="aiForm.useN8n"
-              active-text="启用 n8n 工作流"
-            />
-          </div>
-          
-          <!-- n8n Webhook URL -->
-          <div class="form-item">
-            <label class="form-label">Webhook 地址</label>
+            <label class="form-label">服务器地址</label>
             <el-input
               v-model="aiForm.n8nWebhookUrl"
               placeholder="http://localhost:5678"
-              :disabled="!aiForm.useN8n"
             />
-            <span class="form-hint">n8n 的 Webhook 触发器 URL</span>
+            <span class="form-hint">n8n 服务器的基础 URL</span>
+          </div>
+          
+          <!-- n8n API Key -->
+          <div class="form-item">
+            <label class="form-label">API Key</label>
+            <el-input
+              v-model="aiForm.n8nApiKey"
+              type="password"
+              show-password
+              :placeholder="n8nHasApiKey ? '已配置，留空保持不变' : '请输入 API Key'"
+            />
+            <span class="form-hint">用于获取工作流列表 (X-N8N-API-KEY)</span>
           </div>
           
           <!-- 测试结果 -->
@@ -239,6 +242,11 @@
             <span>{{ n8nTestResult.message }}</span>
           </div>
         </div>
+      </el-tab-pane>
+      
+      <!-- IoT 触发器 -->
+      <el-tab-pane label="IoT 触发器" name="iot">
+        <IoTTriggersConfig />
       </el-tab-pane>
     </el-tabs>
     
@@ -270,7 +278,7 @@
         <el-button
           v-if="activeTab === 'workflow'"
           :loading="testingN8n"
-          :disabled="!aiForm.n8nWebhookUrl || !aiForm.useN8n"
+          :disabled="!aiForm.n8nWebhookUrl"
           @click="handleTestN8n"
         >
           测试连接
@@ -288,6 +296,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
+import IoTTriggersConfig from './IoTTriggersConfig.vue';
 
 // Props & Emits
 const props = defineProps({
@@ -324,11 +333,12 @@ const aiForm = ref({
   model: '',
   openwebuiUrl: '',
   openwebuiApiKey: '',
-  useN8n: false,
-  n8nWebhookUrl: ''
+  n8nWebhookUrl: '',
+  n8nApiKey: ''
 });
 const aiHasApiKey = ref(false);
 const openwebuiHasApiKey = ref(false);
+const n8nHasApiKey = ref(false);
 const aiTestResult = ref(null);
 const testingAi = ref(false);
 const loadingModels = ref(false);
@@ -422,8 +432,8 @@ async function loadConfigs() {
             case 'N8N_WEBHOOK_URL':
               aiForm.value.n8nWebhookUrl = cfg.value || '';
               break;
-            case 'USE_N8N':
-              aiForm.value.useN8n = cfg.value === 'true';
+            case 'N8N_API_KEY':
+              n8nHasApiKey.value = cfg.isEncrypted && cfg.value !== '';
               break;
           }
         }
@@ -608,7 +618,8 @@ async function handleTestN8n() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        webhookUrl: aiForm.value.n8nWebhookUrl
+        webhookUrl: aiForm.value.n8nWebhookUrl,
+        apiKey: aiForm.value.n8nApiKey || undefined
       })
     });
     
@@ -668,8 +679,11 @@ async function handleSave() {
     }
     
     // n8n 配置
-    configs.push({ key: 'USE_N8N', value: String(aiForm.value.useN8n) });
     configs.push({ key: 'N8N_WEBHOOK_URL', value: aiForm.value.n8nWebhookUrl });
+    
+    if (aiForm.value.n8nApiKey) {
+      configs.push({ key: 'N8N_API_KEY', value: aiForm.value.n8nApiKey });
+    }
     
     const response = await fetch(`${API_BASE}/system-config`, {
       method: 'POST',

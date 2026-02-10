@@ -29,6 +29,8 @@
         :prefix-icon="Search"
         clearable
         size="small"
+        autocomplete="off"
+        name="space-search"
       />
     </div>
 

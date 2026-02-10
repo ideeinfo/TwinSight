@@ -106,6 +106,8 @@
             size="small"
             clearable
             style="width: 200px"
+            autocomplete="off"
+            name="document-search"
           />
           <el-button-group class="view-toggle">
             <el-button :type="viewMode === 'list' ? 'primary' : ''" size="small" :title="t('documents.listView')" @click="viewMode = 'list'">

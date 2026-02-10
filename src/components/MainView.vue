@@ -117,7 +117,7 @@ const props = defineProps({
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -395,112 +395,59 @@ const setTagTempsAtCurrentTime = () => {
           console.log(`🔍 [${tag.code}] 高温检测: tempValue=${tempValue}, isAIEnabled=${props.isAIEnabled}, _highAlertTriggered=${tag._highAlertTriggered}`);
         }
         
-        // 高温报警：当温度超过28度时触发AI分析（移除"跨越"条件限制）
+        // 高温报警：当温度超过28度时触发AI分析
         if (props.isAIEnabled && tempValue > HIGH_THRESHOLD && !tag._highAlertTriggered) {
           tag._highAlertTriggered = true;
           console.log(`🔥 高温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${HIGH_THRESHOLD}°C`);
           
-          // 设置弹窗初始数据并显示加载状态
-          aiAnalysisData.value = {
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: HIGH_THRESHOLD,
-            severity: tempValue >= HIGH_THRESHOLD + 5 ? 'critical' : 'warning',
-            analysis: '',
-            sources: []
-          };
-          aiAnalysisLoading.value = true;
-          showAIAnalysisModal.value = true;
-          
-          // 异步调用 n8n AI 分析工作流
-
-          console.log(`🚀 发送高温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
-          console.log(`👀 [DEBUG] tag dump:`, JSON.stringify(tag));
-          triggerTemperatureAlert({
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: HIGH_THRESHOLD,
-            alertType: 'high',
-            fileId: tag.fileId,
-          }).then(result => {
-            aiAnalysisLoading.value = false;
-            if (result.success && result.analysis) {
-              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
-              aiAnalysisData.value.analysis = result.analysis;
-              // 保存文档来源列表
-              if (result.sources && result.sources.length > 0) {
-                aiAnalysisData.value.sources = result.sources.map(s => ({
-                  ...s,
-                  isInternal: true,  // 标记为内部文档
-                  documentId: s.id || null
-                }));
-                console.log(`📄 MainView 更新 sources:`, aiAnalysisData.value.sources);
-              } else {
-                console.warn(`⚠️ MainView 收到的 result.sources 为空或不存在`, result);
-              }
-            } else {
-              console.warn(`⚠️ AI 分析失败:`, result.error);
-              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
-            }
-          }).catch(err => {
-            aiAnalysisLoading.value = false;
-            console.error(`❌ AI 分析异常:`, err);
-            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
+          // 立即触发报警通知，需用户手动点击 "分析"
+          emit('trigger-ai-alert', {
+            title: `🔥 高温报警: ${tag.name || tag.code}`,
+            message: `**当前温度**: ${tempValue}°C (阈值: ${HIGH_THRESHOLD}°C)\n\n系统检测到温度异常，请立即检查。您可以点击下方按钮进行智能分析。`,
+            level: 'critical',
+            actions: [
+               { label: '定位房间', type: 'locate_room', id: tag.dbId },
+               { 
+                 label: '智能分析', 
+                 type: 'analyze_alert', 
+                 params: { 
+                   roomCode: tag.code, 
+                   roomName: tag.name || tag.code, 
+                   temperature: tempValue, 
+                   threshold: HIGH_THRESHOLD, 
+                   alertType: 'high',
+                   fileId: tag.fileId
+                 }
+               }
+            ]
           });
         }
         
-        // 低温报警：当温度低于0度时触发AI分析（移除"跨越"条件限制）
+        // 低温报警：当温度低于0度时触发AI分析
         if (props.isAIEnabled && tempValue < LOW_THRESHOLD && !tag._lowAlertTriggered) {
           tag._lowAlertTriggered = true;
           console.log(`❄️ 低温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 低于阈值 ${LOW_THRESHOLD}°C`);
           
-          // 设置弹窗初始数据并显示加载状态
-          aiAnalysisData.value = {
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: LOW_THRESHOLD,
-            severity: tempValue <= LOW_THRESHOLD - 5 ? 'critical' : 'warning',
-            analysis: '',
-            sources: []
-          };
-          aiAnalysisLoading.value = true;
-          showAIAnalysisModal.value = true;
-          
-          // 异步调用 n8n AI 分析工作流（低温报警）
-
-          console.log(`🚀 发送低温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
-          triggerTemperatureAlert({
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: LOW_THRESHOLD,
-            alertType: 'low',
-            fileId: tag.fileId,
-          }).then(result => {
-            aiAnalysisLoading.value = false;
-            if (result.success && result.analysis) {
-              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
-              aiAnalysisData.value.analysis = result.analysis;
-              // 保存文档来源列表
-              if (result.sources && result.sources.length > 0) {
-                aiAnalysisData.value.sources = result.sources.map(s => ({
-                  ...s,
-                  isInternal: true,
-                  documentId: s.id || null
-                }));
-                console.log(`📄 文档来源: ${result.sources.length} 个`);
-              }
-            } else {
-              console.warn(`⚠️ AI 分析失败:`, result.error);
-              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
-            }
-          }).catch(err => {
-            aiAnalysisLoading.value = false;
-            console.error(`❌ AI 分析异常:`, err);
-            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
+          // 立即触发报警通知，需用户手动点击 "分析"
+          emit('trigger-ai-alert', {
+            title: `❄️ 低温报警: ${tag.name || tag.code}`,
+            message: `**当前温度**: ${tempValue}°C (阈值: ${LOW_THRESHOLD}°C)\n\n系统检测到温度异常，请立即检查。您可以点击下方按钮进行智能分析。`,
+            level: 'critical',
+            actions: [
+               { label: '定位房间', type: 'locate_room', id: tag.dbId },
+               {
+                 label: '智能分析',
+                 type: 'analyze_alert',
+                 params: {
+                   roomCode: tag.code,
+                   roomName: tag.name || tag.code,
+                   temperature: tempValue,
+                   threshold: LOW_THRESHOLD,
+                   alertType: 'low',
+                   fileId: tag.fileId
+                 }
+               }
+            ]
           });
         }
         

@@ -29,6 +29,8 @@
           size="small"
           clearable
           style="flex: 1"
+          autocomplete="off"
+          name="room-search"
         />
       </div>
 

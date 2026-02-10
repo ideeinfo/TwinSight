@@ -30,6 +30,8 @@
         :prefix-icon="Search"
         clearable
         size="small"
+        autocomplete="off"
+        name="asset-search"
       />
     </div>
 
