@@ -52,8 +52,8 @@ COPY --from=frontend-builder /app/dist ./dist
 COPY public ./public
 
 # 复制启动脚本
-COPY docker/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+# COPY docker/entrypoint.sh ./entrypoint.sh
+# RUN chmod +x ./entrypoint.sh
 
 # 设置环境变量
 ENV NODE_ENV=production
@@ -72,3 +72,5 @@ RUN mkdir -p /app/uploads/models /app/uploads/docs /app/uploads/files /app/uploa
 # 使用 CMD 而非 ENTRYPOINT，以便 Railway 的 startCommand 能正确覆盖
 CMD ["node", "index.js"]
 
+# 生产环境启动命令
+CMD ["npm", "run", "start"]
