@@ -1,52 +1,50 @@
 <template>
-  <Teleport to="body">
-    <div v-if="visible" class="dialog-overlay" @click.self="handleCancel">
-      <div class="dialog" :class="dialogClass">
-        <div class="dialog-header">
-          <h4>{{ title }}</h4>
-          <button class="btn-close-dialog" @click="handleCancel">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div class="dialog-body">
-          <!-- Input mode -->
-          <input 
-            v-if="type === 'prompt'" 
-            ref="inputRef"
-            v-model="inputValue" 
-            type="text" 
-            :placeholder="placeholder"
-            @keyup.enter="handleConfirm"
-          />
-          <!-- Message mode -->
-          <p v-else class="dialog-message">{{ message }}</p>
-          <!-- Extra slot for custom content -->
-          <slot name="extra"></slot>
-        </div>
-        <div class="dialog-footer">
-          <button v-if="type !== 'alert'" class="btn-cancel" @click="handleCancel">
-            {{ finalCancelText }}
-          </button>
-          <button 
-            class="btn-confirm" 
-            :class="{ 'btn-danger': danger }"
-            :disabled="type === 'prompt' && !inputValue.trim()"
-            @click="handleConfirm"
-          >
-            {{ finalConfirmText }}
-          </button>
-        </div>
-      </div>
+  <el-dialog
+    :model-value="visible"
+    :title="title"
+    width="400px"
+    :close-on-click-modal="false"
+    destroy-on-close
+    class="custom-dialog"
+    @update:model-value="$emit('update:visible', $event)"
+    @close="handleCancel"
+  >
+    <div class="dialog-body-content">
+      <!-- Input mode -->
+      <el-input 
+        v-if="type === 'prompt'" 
+        ref="inputRef"
+        v-model="inputValue" 
+        :placeholder="placeholder"
+        @keydown.enter="handleConfirm"
+      />
+      <!-- Message mode -->
+      <p v-else class="dialog-message">{{ message }}</p>
+      <!-- Extra slot for custom content -->
+      <slot name="extra"></slot>
     </div>
-  </Teleport>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button v-if="type !== 'alert'" @click="handleCancel">
+          {{ finalCancelText }}
+        </el-button>
+        <el-button 
+          :type="danger ? 'danger' : 'primary'"
+          :disabled="type === 'prompt' && !inputValue.trim()"
+          @click="() => { console.log('[ConfirmDialog] Button clicked directly'); handleConfirm(); }"
+        >
+          {{ finalConfirmText }}
+        </el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue';
+
 import { useI18n } from 'vue-i18n';
+import { Close } from '@element-plus/icons-vue';
 
 const { t } = useI18n();
 
@@ -86,75 +84,28 @@ watch(() => props.visible, (newVal) => {
 });
 
 const handleConfirm = () => {
+  console.log('[ConfirmDialog] handleConfirm called, type:', props.type);
   if (props.type === 'prompt') {
     emit('confirm', inputValue.value);
   } else {
     emit('confirm');
   }
+  console.log('[ConfirmDialog] emitting update:visible false');
   emit('update:visible', false);
 };
 
 const handleCancel = () => {
+  console.log('[ConfirmDialog] handleCancel called');
   emit('cancel');
+  console.log('[ConfirmDialog] emitting update:visible false');
   emit('update:visible', false);
 };
 </script>
 
 <style scoped>
-.dialog-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.dialog {
-  background: #252526;
-  border: 1px solid #3e3e42;
-  border-radius: 6px;
-  min-width: 300px;
-  max-width: 450px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #3e3e42;
-}
-
-.dialog-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.btn-close-dialog {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-close-dialog:hover {
-  color: #fff;
-}
-
-.dialog-body {
-  padding: 16px;
+/* 模态框样式移除，使用 el-dialog */
+.dialog-body-content {
+  padding: 10px 0;
 }
 
 .dialog-message {
@@ -165,70 +116,6 @@ const handleCancel = () => {
   word-break: break-word;
 }
 
-.dialog-body input {
-  width: 100%;
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #fff;
-  outline: none;
-  box-sizing: border-box;
-}
 
-.dialog-body input:focus {
-  border-color: #38ABDF;
-}
 
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid #3e3e42;
-}
-
-.btn-cancel, .btn-confirm {
-  padding: 6px 16px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn-cancel {
-  background: transparent;
-  border: 1px solid #3e3e42;
-  color: #ccc;
-}
-
-.btn-cancel:hover {
-  border-color: #555;
-  color: #fff;
-}
-
-.btn-confirm {
-  background: #38ABDF;
-  border: none;
-  color: #fff;
-  font-weight: 500;
-}
-
-.btn-confirm:hover {
-  background: #2D9ACC;
-}
-
-.btn-confirm:disabled {
-  background: #3e3e42;
-  color: #666;
-  cursor: not-allowed;
-}
-
-.btn-confirm.btn-danger {
-  background: #dc3545;
-}
-
-.btn-confirm.btn-danger:hover {
-  background: #c82333;
-}
 </style>

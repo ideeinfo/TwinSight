@@ -29,8 +29,15 @@
 
         <!-- 透明度滑块 (仅重叠模式显示) -->
         <div v-if="isOverlayMode" class="opacity-slider">
-          <span>透明度</span>
-          <input v-model.number="panoOpacity" type="range" min="0" max="1" step="0.1" />
+          <span style="flex-shrink: 0;">透明度</span>
+          <el-slider 
+            v-model="panoOpacity" 
+            :min="0" 
+            :max="1" 
+            :step="0.1" 
+            :show-tooltip="false"
+            style="width: 100px; margin-left: 10px;"
+          />
         </div>
 
         <div class="divider"></div>
@@ -251,19 +258,20 @@ const uploadPanoImage = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('title', `Pano_View_${currentViewId.value || 'temp'}`);
-  // 使用 viewId 关联
+  
+  // 使用 v2 API 的 associations 格式
   if (currentViewId.value) {
-      formData.append('viewId', currentViewId.value);
+      const associations = [{ type: 'view', code: String(currentViewId.value) }];
+      formData.append('associations', JSON.stringify(associations));
   } else {
       console.warn('⚠️ 当前没有 View ID，全景图可能无法正确关联');
   }
   
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
   
   try {
-    // 复用文档上传接口，或者新建专用接口
-    // 这里假设有一个可以关联图片的接口，或者简单上传为 Document
-    const res = await fetch(`${API_BASE}/api/documents/upload`, {
+    // 使用 v2 文档上传接口
+    const res = await fetch(`${API_BASE}/api/v2/documents`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authStore.token}`
@@ -429,7 +437,7 @@ const loadModel = (path) => {
 
       // 尝试恢复默认视图
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         // 获取默认视图元数据
         console.log('🔍 [PanoView] 尝试获取默认视图, fileId:', props.fileId);
         const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${props.fileId}`, { headers: getHeaders() });
@@ -550,7 +558,7 @@ const applyDefaultView = () => {
 // 根据 View ID 加载全景图
 const loadPanoForView = async (viewId) => {
     try {
-        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         const res = await fetch(`${API_BASE}/api/documents/view/${viewId}`, { headers: getHeaders() });
         const result = await res.json();
         
@@ -603,7 +611,7 @@ const saveDefaultView = async () => {
       };
       
       // 4. 调用 API 更新
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
       const res = await fetch(`${API_BASE}/api/views/${currentViewId.value}`, {
           method: 'PUT',
           headers: {

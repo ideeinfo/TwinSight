@@ -1,5 +1,5 @@
 /**
- * Tandem Demo 后端服务
+ * Twinsight 后端服务
  * Express + PostgreSQL
  */
 import express from 'express';
@@ -19,9 +19,14 @@ import viewsRoutes from './routes/views.js';
 import influxConfigRoutes from './routes/influx-config.js';
 import aiAnalysisRoutes from './routes/ai-analysis.js';
 import configRoutes from './routes/config.js';
+import rdsRoutes from './routes/rds.js';
+import iotTriggersRoutes from './routes/iot-triggers.js';
 
 // 新版 v1 路由
 import v1Router from './routes/v1/index.js';
+
+// 新版 v2 路由 (文档管理模块)
+import v2Router from './routes/v2/index.js';
 
 // 中间件
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
@@ -35,8 +40,8 @@ import appConfig from './config/index.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 加载环境变量
-config();
+// 加载项目根目录的 .env.local（统一配置管理）
+config({ path: path.join(__dirname, '../.env.local') });
 
 const app = express();
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
@@ -59,7 +64,7 @@ app.use(cors({
                 callback(null, true); // 生产环境暂时允许所有来源，可按需调整
             }
         }
-        : allowedOrigins,
+        : (origin, callback) => callback(null, true),
     credentials: true
 }));
 app.use(express.json({ limit: '200mb' }));
@@ -109,6 +114,11 @@ app.get('/test-ping', (req, res) => {
 app.use('/api/v1', v1Router);
 
 // ========================================
+// 新版 API v2 路由（文档管理模块）
+// ========================================
+app.use('/api/v2', v2Router);
+
+// ========================================
 // 旧版 API 路由（保留兼容，逐步废弃）
 // ========================================
 app.use('/api', apiRoutes);
@@ -118,6 +128,8 @@ app.use('/api/views', viewsRoutes);
 app.use('/api/influx-config', influxConfigRoutes);
 app.use('/api/v1/timeseries', timeseriesRoutes); // 旧版时序路由
 app.use('/api/ai', aiAnalysisRoutes);
+app.use('/api/rds', rdsRoutes);
+app.use('/api/iot-triggers', iotTriggersRoutes);
 // 健康检查
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -178,7 +190,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
     console.log(`
 ╔════════════════════════════════════════════════╗
-║     Tandem Demo API Server                     ║
+║     Twinsight API Server                       ║
 ╠════════════════════════════════════════════════╣
 ║  🚀 服务已启动                                 ║
 ║  📍 绑定地址: ${bindHost}:${bindPort}             ║
@@ -196,3 +208,4 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 export default app;
+

@@ -30,8 +30,13 @@ export const useAuthStore = defineStore('auth', {
     getters: {
         /**
          * 检查用户是否有指定权限
+         * Admin 角色拥有所有权限
          */
         hasPermission: (state) => (permission: string): boolean => {
+            // Admin 角色拥有所有权限
+            if (state.user?.roles?.includes('admin')) {
+                return true;
+            }
             return state.permissions.includes(permission);
         },
 

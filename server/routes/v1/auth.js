@@ -180,13 +180,23 @@ router.post('/logout', authenticate, async (req, res) => {
  */
 router.get('/me', authenticate, async (req, res) => {
     try {
+        const user = await userModel.findById(req.user.sub);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: '用户不存在',
+            });
+        }
+
         res.json({
             success: true,
             data: {
-                id: req.user.sub,
-                email: req.user.email,
-                name: req.user.name,
-                roles: req.user.roles,
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                avatarUrl: user.avatar_url,
+                roles: req.user.roles, // 保持来自 Token 的权限上下文
                 permissions: req.user.permissions,
             },
         });

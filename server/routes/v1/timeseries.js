@@ -8,28 +8,9 @@ import { validateRequest } from '../../middleware/validate.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { ApiError } from '../../middleware/error-handler.js';
 import { PERMISSIONS } from '../../config/auth.js';
-import { InfluxDB, Point } from '@influxdata/influxdb-client';
-import config from '../../config/index.js';
+import timeseriesService from '../../services/timeseries-service.js';
 
 const router = Router();
-
-// InfluxDB 客户端
-let influxClient = null;
-let queryApi = null;
-
-/**
- * 初始化 InfluxDB 客户端
- */
-const getQueryApi = () => {
-    if (!queryApi && config.influx.url && config.influx.token) {
-        influxClient = new InfluxDB({
-            url: config.influx.url,
-            token: config.influx.token,
-        });
-        queryApi = influxClient.getQueryApi(config.influx.org);
-    }
-    return queryApi;
-};
 
 /**
  * @swagger
@@ -48,45 +29,7 @@ router.get('/query',
     async (req, res, next) => {
         try {
             const { roomCode, start, end, aggregateWindow } = req.query;
-            const api = getQueryApi();
-
-            if (!api) {
-                throw ApiError.internal('InfluxDB 未配置');
-            }
-
-            const windowClause = aggregateWindow
-                ? `|> aggregateWindow(every: ${aggregateWindow}, fn: mean, createEmpty: false)`
-                : '';
-
-            const fluxQuery = `
-        from(bucket: "${config.influx.bucket}")
-          |> range(start: ${Math.floor(start / 1000)}, stop: ${Math.floor(end / 1000)})
-          |> filter(fn: (r) => r["room"] == "${roomCode}")
-          |> filter(fn: (r) => r["_field"] == "temperature")
-          ${windowClause}
-          |> sort(columns: ["_time"])
-      `;
-
-            const points = [];
-
-            await new Promise((resolve, reject) => {
-                api.queryRows(fluxQuery, {
-                    next(row, tableMeta) {
-                        const o = tableMeta.toObject(row);
-                        points.push({
-                            timestamp: new Date(o._time).getTime(),
-                            value: o._value,
-                        });
-                    },
-                    error(error) {
-                        reject(error);
-                    },
-                    complete() {
-                        resolve();
-                    },
-                });
-            });
-
+            const points = await timeseriesService.queryTemperatureRange(roomCode, start, end, aggregateWindow);
             res.json({ success: true, data: points });
         } catch (error) {
             next(error);
@@ -111,10 +54,10 @@ router.post('/query/batch',
     async (req, res, next) => {
         try {
             const { roomCodes, startTime, endTime, aggregateWindow } = req.body;
-            const api = getQueryApi();
+            const influx = await getQueryApi();
 
-            if (!api) {
-                throw ApiError.internal('InfluxDB 未配置');
+            if (!influx) {
+                throw ApiError.internal('InfluxDB 未配置或未启用');
             }
 
             const results = {};
@@ -125,10 +68,10 @@ router.post('/query/batch',
                     : '';
 
                 const fluxQuery = `
-          from(bucket: "${config.influx.bucket}")
+          from(bucket: "${influx.bucket}")
             |> range(start: ${Math.floor(startTime / 1000)}, stop: ${Math.floor(endTime / 1000)})
             |> filter(fn: (r) => r["room"] == "${roomCode}")
-            |> filter(fn: (r) => r["_field"] == "temperature")
+            |> filter(fn: (r) => r["_field"] == "value")
             ${windowClause}
             |> sort(columns: ["_time"])
         `;
@@ -136,7 +79,7 @@ router.post('/query/batch',
                 const points = [];
 
                 await new Promise((resolve, reject) => {
-                    api.queryRows(fluxQuery, {
+                    influx.api.queryRows(fluxQuery, {
                         next(row, tableMeta) {
                             const o = tableMeta.toObject(row);
                             points.push({
@@ -177,27 +120,27 @@ router.post('/latest',
     async (req, res, next) => {
         try {
             const { roomCodes } = req.body;
-            const api = getQueryApi();
+            const influx = await getQueryApi();
 
-            if (!api) {
-                throw ApiError.internal('InfluxDB 未配置');
+            if (!influx) {
+                throw ApiError.internal('InfluxDB 未配置或未启用');
             }
 
             const results = [];
 
             for (const roomCode of roomCodes) {
                 const fluxQuery = `
-          from(bucket: "${config.influx.bucket}")
+          from(bucket: "${influx.bucket}")
             |> range(start: -1h)
             |> filter(fn: (r) => r["room"] == "${roomCode}")
-            |> filter(fn: (r) => r["_field"] == "temperature")
+            |> filter(fn: (r) => r["_field"] == "value")
             |> last()
         `;
 
                 let latest = null;
 
                 await new Promise((resolve, reject) => {
-                    api.queryRows(fluxQuery, {
+                    influx.api.queryRows(fluxQuery, {
                         next(row, tableMeta) {
                             const o = tableMeta.toObject(row);
                             latest = {
@@ -241,24 +184,24 @@ router.get('/latest/:roomCode',
     async (req, res, next) => {
         try {
             const { roomCode } = req.params;
-            const api = getQueryApi();
+            const influx = await getQueryApi();
 
-            if (!api) {
-                throw ApiError.internal('InfluxDB 未配置');
+            if (!influx) {
+                throw ApiError.internal('InfluxDB 未配置或未启用');
             }
 
             const fluxQuery = `
-        from(bucket: "${config.influx.bucket}")
+        from(bucket: "${influx.bucket}")
           |> range(start: -1h)
           |> filter(fn: (r) => r["room"] == "${roomCode}")
-          |> filter(fn: (r) => r["_field"] == "temperature")
+          |> filter(fn: (r) => r["_field"] == "value")
           |> last()
       `;
 
             let result = null;
 
             await new Promise((resolve, reject) => {
-                api.queryRows(fluxQuery, {
+                influx.api.queryRows(fluxQuery, {
                     next(row, tableMeta) {
                         const o = tableMeta.toObject(row);
                         result = {
@@ -303,18 +246,18 @@ router.get('/statistics',
     async (req, res, next) => {
         try {
             const { roomCode, start, end } = req.query;
-            const api = getQueryApi();
+            const influx = await getQueryApi();
 
-            if (!api) {
-                throw ApiError.internal('InfluxDB 未配置');
+            if (!influx) {
+                throw ApiError.internal('InfluxDB 未配置或未启用');
             }
 
             // 获取 min, max, mean, count
             const statsQuery = `
-        data = from(bucket: "${config.influx.bucket}")
+        data = from(bucket: "${influx.bucket}")
           |> range(start: ${Math.floor(start / 1000)}, stop: ${Math.floor(end / 1000)})
           |> filter(fn: (r) => r["room"] == "${roomCode}")
-          |> filter(fn: (r) => r["_field"] == "temperature")
+          |> filter(fn: (r) => r["_field"] == "value")
         
         min = data |> min() |> yield(name: "min")
         max = data |> max() |> yield(name: "max")
@@ -325,7 +268,7 @@ router.get('/statistics',
             const stats = { min: null, max: null, avg: null, count: 0 };
 
             await new Promise((resolve, reject) => {
-                api.queryRows(statsQuery, {
+                influx.api.queryRows(statsQuery, {
                     next(row, tableMeta) {
                         const o = tableMeta.toObject(row);
                         if (o.result === 'min') stats.min = o._value;

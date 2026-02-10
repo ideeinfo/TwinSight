@@ -51,22 +51,14 @@
         </div>
 
         <div class="actions-section">
-          <button 
-            class="btn btn-secondary" 
-            @click="checkConnection"
-          >
-            🔄 {{ $t('dataExport.checkConnection') }}
-          </button>
-
-          <button 
-            class="btn btn-primary" 
-            :disabled="isExporting || apiStatus !== 'connected' || !authStore.hasPermission('model:upload')" 
+          <el-button 
+            type="primary" 
+            :loading="isExporting"
+            :disabled="apiStatus !== 'connected' || !authStore.hasPermission('model:upload')" 
             @click="extractAndExport"
           >
-            <span v-if="isExporting" class="spinner"></span>
-            <span v-else>📤</span>
             {{ isExporting ? $t('dataExport.exporting') : $t('dataExport.exportAction') }}
-          </button>
+          </el-button>
         </div>
 
         <div v-if="exportResult" class="result-section" :class="{ success: exportResult.success, error: !exportResult.success }">
@@ -493,58 +485,6 @@ defineExpose({
   gap: 12px;
   justify-content: flex-end; /* 右对齐 */
   margin-bottom: 0;
-}
-
-.btn {
-  padding: 10px 16px;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-  width: 160px; /* 固定宽度，包含图标和文字 */
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #0078d4;
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #106ebe;
-}
-
-.btn-secondary {
-  background: #444;
-  color: #e0e0e0;
-}
-
-.btn-secondary:hover {
-  background: #555;
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .result-section {

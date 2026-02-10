@@ -1,45 +1,52 @@
 <template>
-  <Teleport to="body">
-    <transition name="fade">
-      <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
-        <div class="ai-analysis-modal">
-          <div class="ai-modal-header">
-            <div class="ai-header-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <span class="ai-header-title">🤖 AI 智能分析</span>
-            <button class="ai-close-btn" @click="$emit('close')">×</button>
-          </div>
-          
-          <div class="ai-modal-body">
-            <div v-if="loading" class="ai-loading">
-              <div class="ai-spinner"></div>
-              <span>AI 正在分析中...</span>
-            </div>
-            <div v-else class="ai-content">
-              <div class="ai-alert-info">
-                <div class="alert-badge" :class="severity">
-                  {{ severity === 'critical' ? '严重' : '警告' }}
-                </div>
-                <span class="alert-location">{{ roomName }}</span>
-                <span class="alert-temp">{{ temperature }}°C</span>
-              </div>
-              <div class="ai-analysis-text" @click="handleTextClick" v-html="formattedAnalysis"></div>
-            </div>
-          </div>
-          
-          <div class="ai-modal-footer">
-            <button class="ai-btn-secondary" @click="$emit('close')">关闭</button>
-            <button class="ai-btn-primary" @click="$emit('acknowledge')">已了解</button>
-          </div>
+  <el-dialog
+    :model-value="visible"
+    :show-close="false"
+    width="600px"
+    :close-on-click-modal="true"
+    destroy-on-close
+    class="ai-analysis-dialog"
+    @update:model-value="$emit('close')"
+    @close="$emit('close')"
+  >
+    <template #header>
+      <div class="ai-modal-header">
+        <div class="ai-header-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
         </div>
+        <span class="ai-header-title">🤖 AI 智能分析</span>
+        <button class="ai-close-btn" @click="$emit('close')">×</button>
       </div>
-    </transition>
-  </Teleport>
+    </template>
+
+    <div class="ai-modal-body">
+      <div v-if="loading" class="ai-loading">
+        <div class="ai-spinner"></div>
+        <span>AI 正在分析中...</span>
+      </div>
+      <div v-else class="ai-content">
+        <div class="ai-alert-info">
+          <div class="alert-badge" :class="severity">
+            {{ severity === 'critical' ? '严重' : '警告' }}
+          </div>
+          <span class="alert-location">{{ roomName }}</span>
+          <span class="alert-temp">{{ temperature }}°C</span>
+        </div>
+        <div class="ai-analysis-text" @click="handleTextClick" v-html="formattedAnalysis"></div>
+      </div>
+    </div>
+    
+    <template #footer>
+      <div class="ai-modal-footer">
+        <button class="ai-btn-secondary" @click="$emit('close')">关闭</button>
+        <button class="ai-btn-primary" @click="$emit('acknowledge')">已了解</button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -129,29 +136,33 @@ const formattedAnalysis = computed(() => {
 </script>
 
 <style scoped>
+/* 模态框样式移除 */
+/* 
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(4px);
+  ... 
+}
+*/
+
+/* 自定义类 ai-analysis-dialog 的样式需要全局或通过 deep 覆盖 */
+:global(.ai-analysis-dialog) {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  --el-dialog-bg-color: transparent;
 }
 
-.ai-analysis-modal {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+:global(.ai-analysis-dialog .el-dialog__header),
+:global(.ai-analysis-dialog .el-dialog__body),
+:global(.ai-analysis-dialog .el-dialog__footer) {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+:global(.ai-analysis-dialog .el-dialog__headerbtn) {
+  display: none !important; /* Hide default close button */
 }
 
 .ai-modal-header {

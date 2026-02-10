@@ -1,130 +1,141 @@
+<!--
+  @deprecated 此组件已弃用，请使用 SystemConfigPanel.vue
+  InfluxDB 配置已迁移到系统配置中心 (system_config 表)，不再支持按模型单独配置。
+  此文件保留用于向后兼容，将在后续版本中删除。
+-->
 <template>
-  <div class="influx-config-modal" @click.self="$emit('close')">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>⚡ {{ t('influxConfig.title') }}</h3>
-        <button class="modal-close-btn" @click="$emit('close')">×</button>
-      </div>
-      
-      <div class="modal-body">
-        <!-- 连接信息 -->
-        <div class="form-section">
-          <h4>{{ t('influxConfig.connectionInfo') }}</h4>
-          
-          <div class="form-group">
-            <label>{{ t('influxConfig.url') }} <span class="required">*</span></label>
-            <input 
-              v-model="form.influxUrl"
-              :disabled="!authStore.hasPermission('influx:manage')" 
-              type="text" 
-              placeholder="http://localhost 或 /influx"
+  <el-dialog
+    :model-value="true"
+    :title="'⚡ ' + t('influxConfig.title')"
+    width="600px"
+    :close-on-click-modal="false"
+    destroy-on-close
+    class="custom-dialog custom-influx-dialog"
+    @close="$emit('close')"
+  >
+    <div class="influx-config-content">
+      <!-- 连接信息 -->
+      <div class="form-section">
+        <h4>{{ t('influxConfig.connectionInfo') }}</h4>
+        
+        <div class="form-group">
+          <label>{{ t('influxConfig.url') }} <span class="required">*</span></label>
+          <el-input 
+            v-model="form.influxUrl"
+            :disabled="!authStore.hasPermission('influx:manage')" 
+            placeholder="http://localhost 或 /influx"
+            name="influx-url"
+            autocomplete="off"
+          />
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group half">
+            <label>{{ t('influxConfig.port') }}</label>
+            <el-input 
+              v-model.number="form.influxPort" 
+              type="number" 
+              placeholder="8086"
+              name="influx-port"
+              autocomplete="off"
             />
           </div>
-          
-          <div class="form-row">
-            <div class="form-group half">
-              <label>{{ t('influxConfig.port') }}</label>
-              <input 
-                v-model.number="form.influxPort" 
-                type="number" 
-                placeholder="8086"
-              />
-            </div>
-            <div class="form-group half">
-              <label>{{ t('influxConfig.org') }} <span class="required">*</span></label>
-              <input 
-                v-model="form.influxOrg" 
-                type="text" 
-                placeholder="demo"
-              />
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label>{{ t('influxConfig.bucket') }} <span class="required">*</span></label>
-            <input 
-              v-model="form.influxBucket" 
-              type="text" 
-              placeholder="tandem"
+          <div class="form-group half">
+            <label>{{ t('influxConfig.org') }} <span class="required">*</span></label>
+            <el-input 
+              v-model="form.influxOrg" 
+              placeholder="demo"
+              name="influx-org"
+              autocomplete="off"
             />
           </div>
         </div>
+        
+        <div class="form-group">
+          <label>{{ t('influxConfig.bucket') }} <span class="required">*</span></label>
+          <el-input 
+            v-model="form.influxBucket" 
+            placeholder="twinsight"
+            name="influx-bucket"
+            autocomplete="off"
+          />
+        </div>
+      </div>
 
-        <!-- 认证方式 -->
-        <div class="form-section">
-          <h4>{{ t('influxConfig.authentication') }}</h4>
-          
-          <div class="auth-toggle">
-            <label class="toggle-option" :class="{ active: !form.useBasicAuth }">
-              <input v-model="form.useBasicAuth" type="radio" :value="false" />
-              Token API
-            </label>
-            <label class="toggle-option" :class="{ active: form.useBasicAuth }">
-              <input v-model="form.useBasicAuth" type="radio" :value="true" />
-              Basic Auth
-            </label>
+      <!-- 认证方式 -->
+      <div class="form-section">
+        <h4>{{ t('influxConfig.authentication') }}</h4>
+        
+        <el-radio-group v-model="form.useBasicAuth" style="margin-bottom: 16px;">
+          <el-radio :value="false">Token API</el-radio>
+          <el-radio :value="true">Basic Auth</el-radio>
+        </el-radio-group>
+
+        <div v-if="!form.useBasicAuth" class="form-group">
+          <label>API Token</label>
+          <el-input 
+            v-model="form.influxToken" 
+            type="password" 
+            show-password
+            :placeholder="hasToken ? t('influxConfig.keepExisting') : t('influxConfig.enterToken')"
+            name="influx-token"
+            autocomplete="new-password"
+          />
+        </div>
+
+        <div v-else class="form-row">
+          <div class="form-group half">
+            <label>{{ t('influxConfig.username') }}</label>
+            <el-input 
+              v-model="form.influxUser" 
+              placeholder="root"
+              name="influx-user"
+              autocomplete="off"
+            />
           </div>
-
-          <div v-if="!form.useBasicAuth" class="form-group">
-            <label>API Token</label>
-            <input 
-              v-model="form.influxToken" 
+          <div class="form-group half">
+            <label>{{ t('influxConfig.password') }}</label>
+            <el-input 
+              v-model="form.influxPassword" 
               type="password" 
-              :placeholder="hasToken ? t('influxConfig.keepExisting') : t('influxConfig.enterToken')"
+              show-password
+              :placeholder="hasPassword ? t('influxConfig.keepExisting') : t('influxConfig.enterPassword')"
+              name="influx-password"
+              autocomplete="new-password"
             />
           </div>
-
-          <div v-else class="form-row">
-            <div class="form-group half">
-              <label>{{ t('influxConfig.username') }}</label>
-              <input 
-                v-model="form.influxUser" 
-                type="text" 
-                placeholder="root"
-              />
-            </div>
-            <div class="form-group half">
-              <label>{{ t('influxConfig.password') }}</label>
-              <input 
-                v-model="form.influxPassword" 
-                type="password" 
-                :placeholder="hasPassword ? t('influxConfig.keepExisting') : t('influxConfig.enterPassword')"
-              />
-            </div>
-          </div>
         </div>
-
-        <!-- 启用状态 -->
-        <div class="form-section">
-          <label class="checkbox-label">
-            <input v-model="form.isEnabled" type="checkbox" />
-            {{ t('influxConfig.enabled') }}
-          </label>
-        </div>
-
-        <!-- 连接测试结果 (移到底部显示) -->
       </div>
+
+      <!-- 启用状态 -->
+      <div class="form-section">
+        <el-checkbox v-model="form.isEnabled">{{ t('influxConfig.enable') }}</el-checkbox>
+      </div>
+
+      <!-- 连接测试结果 (移到底部显示) -->
+    </div>
       
-      <div class="modal-footer">
+    <template #footer>
+      <div class="dialog-footer-row">
         <div class="footer-left">
-          <button class="btn btn-outline" :disabled="isTesting" @click="testConnection">
+          <el-button :loading="isTesting" @click="testConnection">
             {{ isTesting ? t('influxConfig.testing') : t('influxConfig.testConnection') }}
-          </button>
+          </el-button>
           <span v-if="testResult" class="test-result-inline" :class="testResult.success ? 'success' : 'error'">
             {{ testResult.success ? '✓' : '✗' }} {{ testResult.message }}
           </span>
         </div>
         <div class="footer-right">
-          <button class="btn btn-secondary" @click="$emit('close')">
+          <el-button @click="$emit('close')">
             {{ t('common.cancel') }}
-          </button>
-          <button class="btn btn-primary" :disabled="isSaving || !isValid || !authStore.hasPermission('influx:manage')" @click="saveConfig">
+          </el-button>
+          <el-button type="primary" :loading="isSaving" :disabled="!isValid || !canManageInflux" @click="saveConfig">
             {{ isSaving ? t('common.saving') : t('common.save') }}
-          </button>
+          </el-button>
         </div>
       </div>
-    </div>
-  </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -143,7 +154,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 // 表单数据
 const form = ref({
@@ -164,6 +175,30 @@ const testResult = ref(null);
 const hasToken = ref(false);
 const hasPassword = ref(false);
 
+// 表单验证 (必须在 canManageInflux 之前定义)
+const isValid = computed(() => {
+  const valid = form.value.influxUrl && form.value.influxOrg && form.value.influxBucket;
+  console.log('🔍 [InfluxConfigPanel] isValid 检查:', {
+    influxUrl: form.value.influxUrl,
+    influxOrg: form.value.influxOrg,
+    influxBucket: form.value.influxBucket,
+    result: valid
+  });
+  return valid;
+});
+
+// 调试：打印权限状态
+const canManageInflux = computed(() => {
+  const hasPerm = authStore.hasPermission('influx:manage');
+  console.log('[InfluxConfigPanel] 权限检查:', {
+    permissions: authStore.permissions,
+    hasInfluxManage: hasPerm,
+    isValid: isValid.value,
+    user: authStore.user
+  });
+  return hasPerm;
+});
+
 // Helper to show alert using ElMessageBox
 const showAlert = async (message, title = '') => {
   await ElMessageBox.alert(message, title || t('common.alert'), {
@@ -171,11 +206,6 @@ const showAlert = async (message, title = '') => {
     type: 'warning'
   });
 };
-
-// 表单验证
-const isValid = computed(() => {
-  return form.value.influxUrl && form.value.influxOrg && form.value.influxBucket;
-});
 
 // 加载现有配置
 const loadConfig = async () => {
@@ -194,9 +224,9 @@ const loadConfig = async () => {
         influxPort: config.influx_port || 8086,
         influxOrg: config.influx_org || '',
         influxBucket: config.influx_bucket || '',
-        influxToken: config.has_token ? '******' : '',
+        influxToken: config.influx_token || '',
         influxUser: config.influx_user || '',
-        influxPassword: config.has_password ? '******' : '',
+        influxPassword: config.influx_password || '',
         useBasicAuth: config.use_basic_auth || false,
         isEnabled: config.is_enabled !== false
       };
@@ -289,68 +319,47 @@ const saveConfig = async () => {
 };
 
 onMounted(() => {
+  console.log('🔍 [InfluxConfigPanel] onMounted 权限调试:', {
+    permissions: authStore.permissions,
+    hasInfluxManage: authStore.hasPermission('influx:manage'),
+    user: authStore.user,
+    isAuthenticated: authStore.isAuthenticated
+  });
   loadConfig();
 });
 </script>
 
+<style>
+/* 非 Scoped 样式，确保能穿透到 Element Plus 内部组件 */
+/* 提升权重：加上 html.light 前缀以覆盖全局样式 */
+html.light .custom-influx-dialog .el-input__wrapper {
+  background-color: var(--md-sys-color-surface-container-high) !important;
+  box-shadow: none !important; 
+}
+
+html.light .custom-influx-dialog .el-input__inner {
+  background-color: transparent !important;
+  color: var(--el-text-color-primary) !important;
+}
+
+/* 修复下拉框等可能是 input 的情况 */
+html.light .custom-influx-dialog input {
+  background-color: transparent !important;
+}
+</style>
+
 <style scoped>
-.influx-config-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+/* 移除 fixed 定位，让 el-dialog 控制布局 */
+/* .influx-config-content { padding: 10px; } */
 
-.modal-content {
-  background: #1e1e1e;
-  border: 1px solid #444;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-}
+/* 底部按钮布局 */
+.dialog-footer-row { display: flex; justify-content: space-between; width: 100%; }
+.footer-left { display: flex; align-items: center; gap: 8px; }
+.footer-right { display: flex; gap: 8px; }
 
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #333;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #fff;
-}
-
-.modal-close-btn {
-  background: none;
-  border: none;
-  color: #888;
-  font-size: 24px;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.modal-close-btn:hover {
-  color: #fff;
-}
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-}
+.test-result-inline { font-size: 12px; margin-left: 8px; display: flex; align-items: center; }
+.test-result-inline.success { color: var(--el-color-success); }
+.test-result-inline.error { color: var(--el-color-danger); }
 
 .form-section {
   margin-bottom: 24px;
@@ -359,9 +368,10 @@ onMounted(() => {
 .form-section h4 {
   margin: 0 0 12px 0;
   font-size: 13px;
-  color: #888;
+  color: var(--el-text-color-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
 .form-group {
@@ -371,30 +381,30 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 12px;
-  color: #aaa;
+  color: var(--el-text-color-regular);
   margin-bottom: 6px;
 }
 
 .form-group label .required {
-  color: #f44336;
+  color: var(--el-color-danger);
 }
 
-.form-group input[type="text"],
-.form-group input[type="password"],
-.form-group input[type="number"] {
-  width: 100%;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 4px;
-  padding: 10px 12px;
-  color: #fff;
-  font-size: 13px;
-  transition: border-color 0.2s;
+/* 使用 Element Plus 输入框样式，移除自定义的硬编码样式 */
+:deep(.el-input__wrapper) {
+  /* 浅色模式下使用浅灰背景，深色模式下 Element Plus 会自动适配 */
+  background-color: var(--md-sys-color-surface-container-high) !important; 
+  box-shadow: none !important; /* 浅灰背景下可以移除边框，或者保留看效果 */
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #38ABDF;
+:deep(.el-input__inner) {
+  color: var(--el-text-color-primary);
+  background-color: transparent !important; /* 必须强制透明，否则会受全局 input 样式污染导致色差 */
+}
+
+/* 降低 placeholder 对比度，自动适应深浅色 */
+:deep(.el-input__inner::placeholder) {
+  color: var(--el-text-color-placeholder) !important;
+  opacity: 0.6; /* 稍微降低不透明度 */
 }
 
 .form-row {
@@ -406,152 +416,13 @@ onMounted(() => {
   flex: 1;
 }
 
-.auth-toggle {
-  display: flex;
-  background: #2a2a2a;
-  border-radius: 6px;
-  padding: 4px;
-  margin-bottom: 16px;
+/* 移除自定义的 Toggle 样式，直接使用 ElRadio */
+:deep(.el-radio) {
+  margin-right: 20px;
 }
 
-.toggle-option {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: #888;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.toggle-option input {
-  display: none;
-}
-
-.toggle-option.active {
-  background: #38ABDF;
-  color: #fff;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  color: #ccc;
-  font-size: 13px;
-}
-
-.checkbox-label input {
-  width: 16px;
-  height: 16px;
-}
-
-.test-result {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  margin-top: 16px;
-}
-
-.test-result.success {
-  background: rgba(76, 175, 80, 0.15);
-  color: #4caf50;
-  border: 1px solid rgba(76, 175, 80, 0.3);
-}
-
-.test-result.error {
-  background: rgba(244, 67, 54, 0.15);
-  color: #f44336;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-}
-
-.test-icon {
-  font-weight: bold;
-}
-
-.modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-top: 1px solid #333;
-}
-
-.footer-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.test-result-inline {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 4px;
-}
-
-.test-result-inline.success {
-  color: #4caf50;
-  background: rgba(76, 175, 80, 0.15);
-}
-
-.test-result-inline.error {
-  color: #f44336;
-  background: rgba(244, 67, 54, 0.15);
-}
-
-.footer-right {
-  display: flex;
-  gap: 12px;
-}
-
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #38ABDF;
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #0091ea;
-}
-
-.btn-secondary {
-  background: #444;
-  color: #ccc;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #555;
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid #666;
-  color: #ccc;
-}
-
-.btn-outline:hover:not(:disabled) {
-  border-color: #38ABDF;
-  color: #38ABDF;
+/* Checkbox 样式 */
+:deep(.el-checkbox__label) {
+  color: var(--el-text-color-regular);
 }
 </style>

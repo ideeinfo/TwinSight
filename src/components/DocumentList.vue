@@ -39,9 +39,9 @@
         
         <div class="doc-info">
           <div v-if="editingId === doc.id" class="doc-edit">
-            <input 
+            <el-input 
               v-model="editingTitle"
-              class="edit-input"
+              size="small"
               @keydown.enter="saveTitle(doc.id)"
               @keydown.esc="cancelEdit"
               @blur="saveTitle(doc.id)"
@@ -168,7 +168,7 @@ import DocumentPreview from './DocumentPreview.vue';
 import { useAuthStore } from '../stores/auth';
 const { t } = useI18n();
 const authStore = useAuthStore();
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 const props = defineProps({
   assetCode: { type: String, default: null },
@@ -223,9 +223,27 @@ const showAlert = async (message, title = '') => {
 const getFileIcon = (doc) => {
   const fileType = doc?.file_type?.toLowerCase();
   
-  // 检查是否是全景图（长宽比接近 2:1）
+  /**
+   * 检查是否是全景图 (混合判断方案)
+   * 优先级: 1.标签 > 2.auto_detected_type > 3.图片尺寸
+   */
   const isPanorama = () => {
     if (!['jpg', 'jpeg', 'png'].includes(fileType)) return false;
+    
+    // 1. 优先检查标签 (用户可编辑, LLM可增强)
+    const tags = doc.tags || [];
+    const panoramaTags = ['全景图', '全景', 'panorama', '360'];
+    if (tags.some(tag => panoramaTags.includes(tag.name?.toLowerCase?.() || tag.name))) {
+      return true;
+    }
+    
+    // 2. 检查系统自动检测的类型
+    const autoType = doc.auto_detected_type;
+    if (autoType && autoType.includes('panorama')) {
+      return true;
+    }
+    
+    // 3. Fallback: 使用图片尺寸判断 (宽高比 2:1)
     const width = doc.image_width;
     const height = doc.image_height;
     if (!width || !height || height === 0) return false;
@@ -293,7 +311,7 @@ const getFileIcon = (doc) => {
   </svg>`;
 };
 
-// 加载文档列表
+// 加载文档列表 (使用 V2 API, 从 document_associations 表查询)
 const loadDocuments = async () => {
   if (!relatedCode.value) {
     documents.value = [];
@@ -302,11 +320,19 @@ const loadDocuments = async () => {
 
   try {
     const params = new URLSearchParams();
-    if (props.assetCode) params.append('assetCode', props.assetCode);
-    if (props.spaceCode) params.append('spaceCode', props.spaceCode);
-    if (props.specCode) params.append('specCode', props.specCode);
+    // V2 API 使用 objectType + objectCode 参数
+    if (props.assetCode) {
+      params.append('objectType', 'asset');
+      params.append('objectCode', props.assetCode);
+    } else if (props.spaceCode) {
+      params.append('objectType', 'space');
+      params.append('objectCode', props.spaceCode);
+    } else if (props.specCode) {
+      params.append('objectType', 'spec');
+      params.append('objectCode', props.specCode);
+    }
 
-    const response = await fetch(`${API_BASE}/api/documents?${params}`, {
+    const response = await fetch(`${API_BASE}/api/v2/documents?${params}`, {
       headers: {
         'Authorization': `Bearer ${authStore.token}`
       }
@@ -404,9 +430,15 @@ const processFiles = (files) => {
 const uploadFile = (uploadItem) => {
   const formData = new FormData();
   formData.append('file', uploadItem.file);
-  if (props.assetCode) formData.append('assetCode', props.assetCode);
-  if (props.spaceCode) formData.append('spaceCode', props.spaceCode);
-  if (props.specCode) formData.append('specCode', props.specCode);
+  
+  // 构建关联数组 (v2 API 格式)
+  const associations = [];
+  if (props.assetCode) associations.push({ type: 'asset', code: props.assetCode });
+  if (props.spaceCode) associations.push({ type: 'space', code: props.spaceCode });
+  if (props.specCode) associations.push({ type: 'spec', code: props.specCode });
+  if (associations.length > 0) {
+    formData.append('associations', JSON.stringify(associations));
+  }
 
   const xhr = new XMLHttpRequest();
   uploadXhrMap.set(uploadItem.id, xhr);
@@ -470,7 +502,7 @@ const uploadFile = (uploadItem) => {
     uploadXhrMap.delete(uploadItem.id);
   });
 
-  xhr.open('POST', `${API_BASE}/api/documents/upload`);
+  xhr.open('POST', `${API_BASE}/api/v2/documents`);
   
   if (authStore.token) {
     xhr.setRequestHeader('Authorization', `Bearer ${authStore.token}`);
@@ -635,9 +667,9 @@ const formatDate = (dateString) => {
 .document-section {
   margin-top: 16px;
   padding: 12px;
-  background: #252526;
+  background: var(--md-sys-color-surface);
   border-radius: 4px;
-  border: 1px solid #3e3e42;
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .section-header {
@@ -650,7 +682,7 @@ const formatDate = (dateString) => {
 .section-title {
   font-size: 12px;
   font-weight: 600;
-  color: #ccc;
+  color: var(--md-sys-color-on-surface);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -662,7 +694,7 @@ const formatDate = (dateString) => {
   gap: 4px;
   padding: 0;
   background: transparent;
-  color: #00b0ff;
+  color: var(--md-sys-color-primary);
   border: none;
   font-size: 11px;
   cursor: pointer;
@@ -689,15 +721,15 @@ const formatDate = (dateString) => {
   align-items: center;
   gap: 10px;
   padding: 8px;
-  background: #1e1e1e;
-  border: 1px solid #3e3e42;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 3px;
   transition: all 0.2s;
 }
 
 .document-item:hover {
-  background: #2a2a2a;
-  border-color: #555;
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .doc-icon {
@@ -711,7 +743,7 @@ const formatDate = (dateString) => {
 
 .doc-title {
   font-size: 11px;
-  color: #eee;
+  color: var(--md-sys-color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -719,12 +751,12 @@ const formatDate = (dateString) => {
 
 .doc-title.clickable {
   cursor: pointer;
-  color: #00b0ff;
+  color: var(--md-sys-color-primary);
   transition: color 0.2s;
 }
 
 .doc-title.clickable:hover {
-  color: #4fc3f7;
+  color: var(--md-sys-color-primary);
   text-decoration: underline;
 }
 
@@ -741,10 +773,10 @@ const formatDate = (dateString) => {
 .edit-input {
   width: 100%;
   padding: 2px 6px;
-  background: #1e1e1e;
-  border: 1px solid #0078d4;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-primary);
   border-radius: 2px;
-  color: #eee;
+  color: var(--md-sys-color-on-surface);
   font-size: 11px;
   outline: none;
 }
@@ -757,9 +789,9 @@ const formatDate = (dateString) => {
 .btn-icon {
   padding: 4px;
   background: transparent;
-  border: 1px solid #444;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 3px;
-  color: #aaa;
+  color: var(--md-sys-color-secondary);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
@@ -768,15 +800,15 @@ const formatDate = (dateString) => {
 }
 
 .btn-icon:hover {
-  background: #333;
-  border-color: #666;
-  color: #fff;
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn-delete:hover {
-  background: #4442;
-  border-color: #e74c3c;
-  color: #e74c3c;
+  background: var(--md-sys-color-error-container);
+  border-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-error);
 }
 
 .empty-state {

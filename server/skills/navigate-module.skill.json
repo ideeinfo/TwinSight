@@ -1,0 +1,48 @@
+{
+    "id": "navigate_module",
+    "name": "切换功能模块",
+    "description": "切换系统的左侧功能导航栏，进入特定模块。",
+    "version": "1.0.0",
+    "triggers": [
+        "打开",
+        "切换到",
+        "进入",
+        "显示",
+        "查看模块",
+        "跳到"
+    ],
+    "parameters": [
+        {
+            "name": "module",
+            "type": "string",
+            "description": "目标模块的标识符",
+            "required": true,
+            "enum": [
+                "connect",
+                "spaces",
+                "assets",
+                "rds",
+                "models",
+                "documents"
+            ],
+            "examples": [
+                "connect",
+                "assets"
+            ]
+        },
+        {
+            "name": "view_name",
+            "type": "string",
+            "description": "模块的中文名称（如'资产管理'、'温湿度监测'），用于回复用户。",
+            "required": false
+        }
+    ],
+    "action": {
+        "type": "frontend_command",
+        "command": "NAVIGATE_TO_MODULE",
+        "payload": {
+            "module": "${module}"
+        }
+    },
+    "responseTemplate": "好的，正在为您切换到 **${view_name}** 模块。"
+}

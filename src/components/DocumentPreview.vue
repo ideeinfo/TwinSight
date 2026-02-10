@@ -140,7 +140,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -163,9 +163,16 @@ const panoramaRoll = ref(0); // 全景图滚转角度
 // 获取文件 URL
 const fileUrl = computed(() => {
   if (!props.document) return '';
-  let url = `${API_BASE}${props.document.file_path}`;
+  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
+  const filePath = props.document.file_path || props.document.filePath;
+  if (!filePath) {
+    console.error('文档对象缺少file_path/filePath字段:', props.document);
+    return '';
+  }
+  let url = `${API_BASE}${filePath}`;
   // 对于 PDF，添加参数隐藏浏览器 PDF 查看器的侧边栏
-  if (props.document?.file_type?.toLowerCase() === 'pdf') {
+  const docFileType = (props.document.file_type || props.document.fileType || '').toLowerCase();
+  if (docFileType === 'pdf') {
     url += '#toolbar=1&navpanes=0&scrollbar=1';
   }
   return url;
@@ -173,18 +180,41 @@ const fileUrl = computed(() => {
 
 // 文件类型判断
 const fileType = computed(() => {
-  return props.document?.file_type?.toLowerCase() || '';
+  // 优先使用下划线格式(数据库格式), 降级到驼峰格式
+  return (props.document?.file_type || props.document?.fileType || '').toLowerCase();
 });
 
 const isPdf = computed(() => fileType.value === 'pdf');
 const isImage = computed(() => ['jpg', 'jpeg', 'png', 'svg', 'gif', 'webp'].includes(fileType.value));
 const isVideo = computed(() => ['mp4', 'webm', 'ogg'].includes(fileType.value));
 
-// 判断是否是全景图（长宽比接近 2:1）
+/**
+ * 判断是否是全景图 (混合判断方案)
+ * 优先级: 1.标签 > 2.auto_detected_type > 3.图片尺寸
+ * 这样设计便于: 用户手动更正、LLM增强、系统自动检测
+ */
 const isPanorama = computed(() => {
   if (!['jpg', 'jpeg', 'png'].includes(fileType.value)) return false;
-  const width = props.document?.image_width;
-  const height = props.document?.image_height;
+  
+  const doc = props.document;
+  if (!doc) return false;
+  
+  // 1. 优先检查标签 (用户可编辑, LLM可增强)
+  const tags = doc.tags || [];
+  const panoramaTags = ['全景图', '全景', 'panorama', '360'];
+  if (tags.some(tag => panoramaTags.includes(tag.name?.toLowerCase?.() || tag.name))) {
+    return true;
+  }
+  
+  // 2. 检查系统自动检测的类型
+  const autoType = doc.auto_detected_type;
+  if (autoType && autoType.includes('panorama')) {
+    return true;
+  }
+  
+  // 3. Fallback: 使用图片尺寸判断 (宽高比 2:1)
+  const width = doc.image_width || doc.imageWidth;
+  const height = doc.image_height || doc.imageHeight;
   if (!width || !height || height === 0) return false;
   const ratio = width / height;
   return ratio >= 1.9 && ratio <= 2.1;

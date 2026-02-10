@@ -159,11 +159,97 @@ export async function batchUpsertAssetSpecsWithFile(specs, fileId) {
     }
 }
 
+/**
+ * 更新资产规格属性
+ * @param {String} specCode - 规格编码
+ * @param {Object} updates - 要更新的字段
+ */
+export async function updateAssetSpec(specCode, updates) {
+    const allowedFields = [
+        'spec_name', 'classification_code', 'classification_desc',
+        'category', 'family', 'type', 'manufacturer', 'address', 'phone'
+    ];
+    const setClause = [];
+    const values = [];
+    let paramIndex = 1;
+
+    // 构建 SET 子句
+    for (const [key, value] of Object.entries(updates)) {
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+        }
+    }
+
+    if (setClause.length === 0) {
+        throw new Error('没有有效的更新字段');
+    }
+
+    // 添加 spec_code 到参数列表
+    values.push(specCode);
+
+    const sql = `
+    UPDATE asset_specs
+    SET ${setClause.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE spec_code = $${paramIndex}
+    RETURNING *
+  `;
+
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
+/**
+ * 根据文件ID和规格编码更新资产规格
+ * @param {Number} fileId - 文件ID
+ * @param {String} specCode - 规格编码
+ * @param {Object} updates - 要更新的字段
+ */
+export async function updateAssetSpecByFileId(fileId, specCode, updates) {
+    const allowedFields = [
+        'spec_name', 'classification_code', 'classification_desc',
+        'category', 'family', 'type', 'manufacturer', 'address', 'phone'
+    ];
+    const setClause = [];
+    const values = [];
+    let paramIndex = 1;
+
+    // 构建 SET 子句
+    for (const [key, value] of Object.entries(updates)) {
+        if (allowedFields.includes(key)) {
+            setClause.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+        }
+    }
+
+    if (setClause.length === 0) {
+        throw new Error('没有有效的更新字段');
+    }
+
+    // 添加 file_id 和 spec_code 到参数列表
+    values.push(fileId);
+    values.push(specCode);
+
+    const sql = `
+    UPDATE asset_specs
+    SET ${setClause.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE file_id = $${paramIndex} AND spec_code = $${paramIndex + 1}
+    RETURNING *
+  `;
+
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
 export default {
     upsertAssetSpec,
     batchUpsertAssetSpecs,
     batchUpsertAssetSpecsWithFile,
     getAllAssetSpecs,
     getAssetSpecByCode,
-    getAssetSpecsByClassification
+    getAssetSpecsByClassification,
+    updateAssetSpec,
+    updateAssetSpecByFileId
 };

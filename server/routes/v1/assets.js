@@ -83,6 +83,47 @@ router.get('/:code',
 
 /**
  * @swagger
+ * /api/v1/assets/by-dbid/{dbId}:
+ *   get:
+ *     summary: 根据 DB ID 获取资产
+ *     tags: [Assets]
+ *     parameters:
+ *       - in: path
+ *         name: dbId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 数据库 ID (db_id)
+ *       - in: query
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 文件 ID
+ */
+router.get('/by-dbid/:dbId',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_READ),
+    param('dbId').isInt().toInt(),
+    query('fileId').isInt().toInt(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const asset = await assetModel.getAssetByDbId(req.params.dbId, req.query.fileId);
+            if (!asset) {
+                // 如果数据库中没有记录，返回 null data 而不是 404，
+                // 因为前端可能选中了模型中存在但数据库未同步的构件
+                return res.json({ success: true, data: null });
+            }
+            res.json({ success: true, data: asset });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
  * /api/v1/assets:
  *   post:
  *     summary: 创建资产
@@ -141,6 +182,31 @@ router.put('/:code',
 /**
  * @swagger
  * /api/v1/assets/{code}:
+ *   patch:
+ *     summary: 部分更新资产(更新指定字段)
+ *     tags: [Assets]
+ */
+router.patch('/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const asset = await assetModel.updateAsset(req.params.code, req.body);
+            if (!asset) {
+                throw ApiError.notFound('资产不存在');
+            }
+            res.json({ success: true, data: asset });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
+ * /api/v1/assets/{code}:
  *   delete:
  *     summary: 删除资产
  *     tags: [Assets]
@@ -157,6 +223,33 @@ router.delete('/:code',
                 throw ApiError.notFound('资产不存在');
             }
             res.json({ success: true, message: '删除成功' });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
+ * /api/v1/assets/batch-delete:
+ *   post:
+ *     summary: 批量删除资产
+ *     tags: [Assets]
+ */
+router.post('/batch-delete',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_DELETE),
+    body('dbIds').isArray().withMessage('dbIds 必须是数组'),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const { dbIds } = req.body;
+            const deletedCount = await assetModel.deleteAssetsByDbIds(dbIds);
+            res.json({
+                success: true,
+                count: deletedCount,
+                message: `成功删除 ${deletedCount} 个资产`
+            });
         } catch (error) {
             next(error);
         }
@@ -250,4 +343,60 @@ router.get('/specs/:code',
     }
 );
 
+/**
+ * @swagger
+ * /api/v1/assets/specs/{code}:
+ *   patch:
+ *     summary: 部分更新资产规格(更新指定字段)
+ *     tags: [AssetSpecs]
+ */
+router.patch('/specs/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const spec = await assetSpecModel.updateAssetSpec(req.params.code, req.body);
+            if (!spec) {
+                throw ApiError.notFound('资产规格不存在');
+            }
+            res.json({ success: true, data: spec });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+/**
+ * @swagger
+ * /api/v1/assets/specs/{fileId}/{code}:
+ *   patch:
+ *     summary: 根据文件ID和规格编码更新资产规格
+ *     tags: [AssetSpecs]
+ */
+router.patch('/specs/:fileId/:code',
+    authenticate,
+    authorize(PERMISSIONS.ASSET_UPDATE),
+    param('fileId').isInt().toInt(),
+    param('code').notEmpty().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const spec = await assetSpecModel.updateAssetSpecByFileId(
+                req.params.fileId,
+                req.params.code,
+                req.body
+            );
+            if (!spec) {
+                throw ApiError.notFound('资产规格不存在');
+            }
+            res.json({ success: true, data: spec });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 export default router;
+

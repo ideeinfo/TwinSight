@@ -122,6 +122,24 @@ CREATE TABLE IF NOT EXISTS influx_configs (
 CREATE INDEX IF NOT EXISTS idx_influx_configs_file_id ON influx_configs(file_id);
 
 -- ========================================
+-- 6. 系统配置表
+-- 存储 API 密钥等敏感信息及系统全局配置
+-- ========================================
+CREATE TABLE IF NOT EXISTS system_config (
+    id SERIAL PRIMARY KEY,
+    config_key VARCHAR(100) UNIQUE NOT NULL,
+    config_value TEXT,
+    description VARCHAR(255),
+    is_encrypted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 系统配置表索引
+CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config(config_key);
+
+
+-- ========================================
 -- 创建更新时间触发器函数
 -- ========================================
 
@@ -164,6 +182,12 @@ CREATE TRIGGER update_influx_configs_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_system_config_updated_at ON system_config;
+CREATE TRIGGER update_system_config_updated_at
+    BEFORE UPDATE ON system_config
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ========================================
 -- 添加注释
 -- ========================================
@@ -199,3 +223,21 @@ COMMENT ON COLUMN influx_configs.influx_org IS 'InfluxDB组织名称';
 COMMENT ON COLUMN influx_configs.influx_bucket IS 'InfluxDB存储桶名称';
 COMMENT ON COLUMN influx_configs.influx_token IS 'API Token用于认证';
 COMMENT ON COLUMN influx_configs.use_basic_auth IS '是否使用Basic认证而非Token';
+
+COMMENT ON TABLE system_config IS '系统配置表：存储及动态管理系统全局参数';
+
+-- ========================================
+-- 初始化数据
+-- ========================================
+
+-- 初始化系统配置默认值
+INSERT INTO system_config (config_key, config_value, description, is_encrypted)
+VALUES 
+    -- 基础 AI 配置
+    ('N8N_WEBHOOK_URL', 'http://localhost:5678', 'n8n Webhook 基础 URL', FALSE),
+    -- LLM 配置 (v1.1)
+    ('LLM_PROVIDER', 'gemini', 'LLM 服务提供商 (gemini/qwen/deepseek)', FALSE),
+    ('LLM_API_KEY', '', 'LLM API Key', TRUE),
+    ('LLM_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/', 'OpenAI 兼容 API 基础 URL', FALSE),
+    ('LLM_MODEL', 'gemini-2.0-flash', '选择的模型名称', FALSE)
+ON CONFLICT (config_key) DO NOTHING;

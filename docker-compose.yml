@@ -1,7 +1,7 @@
-# Tandem Demo - 完整 Docker 服务配置
-# 项目名称: tandem-demo (用于 Docker Desktop 分组)
+# Twinsight - 完整 Docker 服务配置
+# 项目名称: twinsight (用于 Docker Desktop 分组)
 
-name: tandem-demo
+name: twinsight
 
 services:
   # ==================== 数据库服务 ====================
@@ -9,23 +9,29 @@ services:
   # PostgreSQL 数据库 (带 PGVector 扩展)
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: tandem-postgres
+    container_name: twinsight-postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: tandem
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-twinsight}
+      TZ: Asia/Shanghai
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - tandem-network
+      - twinsight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d twinsight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # InfluxDB 2.x - 时序数据库 (使用现有容器配置，保留历史数据)
   influxdb:
     image: influxdb:2.7-alpine
-    container_name: influxdb2
+    container_name: twinsight-influxdb
     restart: always
     environment:
       # 注意：这些初始化变量只在首次启动时生效，已有数据不受影响
@@ -33,23 +39,24 @@ services:
       DOCKER_INFLUXDB_INIT_USERNAME: admin
       DOCKER_INFLUXDB_INIT_PASSWORD: mis730607
       DOCKER_INFLUXDB_INIT_ORG: demo
-      DOCKER_INFLUXDB_INIT_BUCKET: tandem
+      DOCKER_INFLUXDB_INIT_BUCKET: twinsight
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: SsFt9slg5E2jS6HmvxuaePjebpkNVRi-S0wrDexjQWOFXDeARRY8NeJ-_Dqe6eAzsyuWtIVHFmSs3XMuv0x1ww==
+      TZ: Asia/Shanghai
     ports:
       - "8086:8086"
     volumes:
-      # 使用现有的本地目录挂载，保留历史数据
-      - C:/Users/diwei/influxdb2:/var/lib/influxdb2
-      - C:/Users/diwei/influxdb2-config:/etc/influxdb2
+      # 使用 Docker managed volumes
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
     networks:
-      - tandem-network
+      - twinsight-network
 
   # ==================== IoT 服务 ====================
 
-  # Node-RED - 可视化流程编程工具 (使用现有容器配置，保留历史数据)
+  # Node-RED - 可视化流程编程工具
   nodered:
     image: nodered/node-red:latest
-    container_name: mynodered
+    container_name: twinsight-nodered
     restart: always
     environment:
       TZ: Asia/Shanghai
@@ -57,50 +64,70 @@ services:
     ports:
       - "1880:1880"
     volumes:
-      # 使用现有的本地目录挂载，保留历史数据
-      - D:/node-red-docker/data:/data
-      - D:/node-red-docker/files:/usr/src/node-red/files
+      # 使用 Docker managed volumes
+      - nodered_data:/data
     depends_on:
       - influxdb
       - postgres
     networks:
-      - tandem-network
+      - twinsight-network
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880" ]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Grafana - 数据可视化仪表盘
-  grafana:
-    image: grafana/grafana-enterprise
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=mis730607
-      - TZ=Asia/Shanghai
-    depends_on:
-      - influxdb
-      - postgres
-    networks:
-      - tandem-network
+  # Grafana - 数据可视化仪表盘 (暂时禁用)
+  # grafana:
+  #   image: grafana/grafana-enterprise
+  #   container_name: twinsight-grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=mis730607
+  #     - TZ=Asia/Shanghai
+  #   depends_on:
+  #     - influxdb
+  #     - postgres
+  #   networks:
+  #     - twinsight-network
 
   # ==================== AI 服务 ====================
+
+  # IEC 81346 Logic Engine - Python FastAPI 编码解析与拓扑分析服务
+  logic-engine:
+    build: ./logic-engine
+    container_name: twinsight-logic-engine
+    restart: unless-stopped
+    environment:
+      # 使用容器名 twinsight-postgres 或宿主机 IP
+      # 服务器上 postgres 容器名为 twinsight-postgres
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@twinsight-postgres:5432/${DB_NAME:-twinsight}
+      TZ: Asia/Shanghai
+    ports:
+      - "8000:8000"
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # n8n 工作流自动化平台
   n8n:
     image: n8nio/n8n:latest
-    container_name: tandem-n8n
+    container_name: twinsight-n8n
     restart: unless-stopped
     ports:
       - "5678:5678"
     environment:
       # 基础配置
+      - N8N_SECURE_COOKIE=false
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
@@ -117,7 +144,7 @@ services:
       - N8N_BASIC_AUTH_USER=ideeinfo@gmail.com
       - N8N_BASIC_AUTH_PASSWORD=Mis730607
       # Gemini API 配置 (在 .env 文件中设置)
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       # 允许在表达式中访问环境变量
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES=true
@@ -130,51 +157,81 @@ services:
       - n8n_data:/home/node/.n8n
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 223.5.5.5
+      - 8.8.8.8
     networks:
-      - tandem-network
+      - twinsight-network
 
   # ==================== Open WebUI ====================
   open-webui:
     image: ghcr.io/open-webui/open-webui:v0.6.43
-    container_name: tandem-open-webui
+    container_name: twinsight-open-webui
     restart: unless-stopped
     ports:
       - "3080:8080"
     environment:
       # 基础配置
-      - WEBUI_NAME=Tandem AI
+      - TZ=Asia/Shanghai
+      - WEBUI_NAME=Twinsight AI
       - DEFAULT_LOCALE=zh-CN
       # 安全配置 (注意：新版变量名为复数 KEYS)
       - ENABLE_API_KEYS=true
-      # Gemini API 配置
-      - OPENAI_API_BASE_URLS=https://generativelanguage.googleapis.com/v1beta/openai
-      - OPENAI_API_KEYS=${GEMINI_API_KEY:-}
+      # LLM 配置已移至 Open WebUI Admin 界面，支持用户自主配置
+      # 如需预置 API，可取消以下注释并设置对应的环境变量
+      # - OPENAI_API_BASE_URLS=https://dashscope.aliyuncs.com/compatible-mode/v1
+      # - OPENAI_API_KEYS=${QWEN_API_KEY:-}
+      # - OPENAI_API_KEYS=${GEMINI_API_KEY:-}
       # 允许注册（首次使用需要创建管理员账户）
       - ENABLE_SIGNUP=true
       # RAG 配置（使用内置 ChromaDB）
-      - ENABLE_RAG_WEB_SEARCH=true
+      - ENABLE_RAG_WEB_SEARCH=false
       # 国内 Hugging Face 镜像源
       - HF_ENDPOINT=https://hf-mirror.com
       # RAG 配置 (强制使用本地多语言模型)
+      - HF_HUB_OFFLINE=1
       - RAG_EMBEDDING_ENGINE=
       - RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
     volumes:
       - open_webui_data:/app/backend/data
     networks:
-      - tandem-network
+      - twinsight-network
+    # network_mode: host # 添加这一行
+    dns:
+      - 223.5.5.5 # 阿里云 DNS
+      - 8.8.8.8 # Google DNS
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
-
   postgres_data:
-
+    external: true
+    name: twinsight-lan_postgres_data
   grafana_data:
+    external: true
+    name: twinsight-lan_grafana_data
   n8n_data:
+    external: true
+    name: twinsight-lan_n8n_data
   open_webui_data:
-
+    external: true
+    name: twinsight-lan_open_webui_data
+  influxdb_data:
+    external: true
+    name: twinsight-lan_influxdb_data
+  influxdb_config:
+    external: true
+    name: twinsight-lan_influxdb_config
+  nodered_data:
+    external: true
+    name: twinsight-lan_nodered_data
 
 networks:
-  tandem-network:
+  twinsight-network:
     driver: bridge
+  # 服务器上已存在的网络（用于 logic-engine 连接 postgres）
+  twinsight-lan_twinsight-network:
+    external: true
 
 # ============================================
 # 服务说明:

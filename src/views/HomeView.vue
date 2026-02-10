@@ -11,9 +11,8 @@
       </div>
 
       <div class="hero-content">
-        <div v-animate="{ delay: 0 }" class="hero-badge">
-          <span class="pulse-dot"></span>
-          <span>{{ $t('home.liveSystem') }}</span>
+        <div v-animate="{ delay: 0 }" class="hero-logo-container">
+          <img src="../assets/logo.png" alt="TwinSight" class="hero-logo-img" />
         </div>
 
         <h1 v-animate="{ delay: 100 }" class="hero-title">
@@ -146,15 +145,6 @@
     <!-- Footer -->
     <footer class="home-footer">
       <div class="footer-content">
-        <div class="footer-brand">
-          <div class="brand-logo">
-            <svg viewBox="0 0 40 40" fill="none">
-              <path d="M20 4L36 36H4L20 4Z" stroke="currentColor" stroke-width="2" />
-              <circle cx="20" cy="24" r="6" fill="currentColor" />
-            </svg>
-          </div>
-          <span class="brand-name">TANDEM</span>
-        </div>
         <div class="footer-links">
           <a href="#" class="footer-link">{{ $t('home.documentation') }}</a>
           <a href="#" class="footer-link">{{ $t('home.support') }}</a>
@@ -439,6 +429,20 @@ const vAnimate = {
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.hero-logo-container {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.hero-logo-img {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  /* 增加一点发光效果以适应深色背景 */
+  filter: drop-shadow(0 0 8px rgba(0, 188, 212, 0.3));
 }
 
 .hero-title {

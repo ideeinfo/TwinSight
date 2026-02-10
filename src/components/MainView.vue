@@ -117,7 +117,7 @@ const props = defineProps({
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -173,7 +173,7 @@ const handleOpenSource = async (source) => {
   
   // 从 API 获取完整的文档信息（包括正确的 file_path）
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
     const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`, { headers: getHeaders() });
     const data = await response.json();
     
@@ -319,10 +319,12 @@ const loadChartData = async () => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
-  console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}`);
+  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+  console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}, fileId=${currentFileId}`);
   if (isInfluxConfigured()) {
     try {
-      const pts = await queryAverageSeries(start, end, windowMs);
+      const pts = await queryAverageSeries(start, end, windowMs, currentFileId);
       chartData.value = pts || [];
       console.log(`  📈 图表数据已更新: ${chartData.value.length} 个点`);
     } catch (err) {
@@ -341,8 +343,10 @@ const refreshRoomSeriesCache = async (codes) => {
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
+  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
   const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
-  const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
+  const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
   const cache = {};
   list.forEach(({ code, pts }) => { cache[code] = pts || []; });
   roomSeriesCache = cache;
@@ -391,112 +395,59 @@ const setTagTempsAtCurrentTime = () => {
           console.log(`🔍 [${tag.code}] 高温检测: tempValue=${tempValue}, isAIEnabled=${props.isAIEnabled}, _highAlertTriggered=${tag._highAlertTriggered}`);
         }
         
-        // 高温报警：当温度超过28度时触发AI分析（移除"跨越"条件限制）
+        // 高温报警：当温度超过28度时触发AI分析
         if (props.isAIEnabled && tempValue > HIGH_THRESHOLD && !tag._highAlertTriggered) {
           tag._highAlertTriggered = true;
           console.log(`🔥 高温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 超过阈值 ${HIGH_THRESHOLD}°C`);
           
-          // 设置弹窗初始数据并显示加载状态
-          aiAnalysisData.value = {
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: HIGH_THRESHOLD,
-            severity: tempValue >= HIGH_THRESHOLD + 5 ? 'critical' : 'warning',
-            analysis: '',
-            sources: []
-          };
-          aiAnalysisLoading.value = true;
-          showAIAnalysisModal.value = true;
-          
-          // 异步调用 n8n AI 分析工作流
-
-          console.log(`🚀 发送高温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
-          console.log(`👀 [DEBUG] tag dump:`, JSON.stringify(tag));
-          triggerTemperatureAlert({
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: HIGH_THRESHOLD,
-            alertType: 'high',
-            fileId: tag.fileId,
-          }).then(result => {
-            aiAnalysisLoading.value = false;
-            if (result.success && result.analysis) {
-              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
-              aiAnalysisData.value.analysis = result.analysis;
-              // 保存文档来源列表
-              if (result.sources && result.sources.length > 0) {
-                aiAnalysisData.value.sources = result.sources.map(s => ({
-                  ...s,
-                  isInternal: true,  // 标记为内部文档
-                  documentId: s.id || null
-                }));
-                console.log(`📄 MainView 更新 sources:`, aiAnalysisData.value.sources);
-              } else {
-                console.warn(`⚠️ MainView 收到的 result.sources 为空或不存在`, result);
-              }
-            } else {
-              console.warn(`⚠️ AI 分析失败:`, result.error);
-              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
-            }
-          }).catch(err => {
-            aiAnalysisLoading.value = false;
-            console.error(`❌ AI 分析异常:`, err);
-            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
+          // 立即触发报警通知，需用户手动点击 "分析"
+          emit('trigger-ai-alert', {
+            title: `🔥 高温报警: ${tag.name || tag.code}`,
+            message: `**当前温度**: ${tempValue}°C (阈值: ${HIGH_THRESHOLD}°C)\n\n系统检测到温度异常，请立即检查。您可以点击下方按钮进行智能分析。`,
+            level: 'critical',
+            actions: [
+               { label: '定位房间', type: 'locate_room', id: tag.dbId },
+               { 
+                 label: '智能分析', 
+                 type: 'analyze_alert', 
+                 params: { 
+                   roomCode: tag.code, 
+                   roomName: tag.name || tag.code, 
+                   temperature: tempValue, 
+                   threshold: HIGH_THRESHOLD, 
+                   alertType: 'high',
+                   fileId: tag.fileId
+                 }
+               }
+            ]
           });
         }
         
-        // 低温报警：当温度低于0度时触发AI分析（移除"跨越"条件限制）
+        // 低温报警：当温度低于0度时触发AI分析
         if (props.isAIEnabled && tempValue < LOW_THRESHOLD && !tag._lowAlertTriggered) {
           tag._lowAlertTriggered = true;
           console.log(`❄️ 低温报警: ${tag.code} (${tag.name || '未命名'}) 温度 ${newTemp}°C 低于阈值 ${LOW_THRESHOLD}°C`);
           
-          // 设置弹窗初始数据并显示加载状态
-          aiAnalysisData.value = {
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: LOW_THRESHOLD,
-            severity: tempValue <= LOW_THRESHOLD - 5 ? 'critical' : 'warning',
-            analysis: '',
-            sources: []
-          };
-          aiAnalysisLoading.value = true;
-          showAIAnalysisModal.value = true;
-          
-          // 异步调用 n8n AI 分析工作流（低温报警）
-
-          console.log(`🚀 发送低温报警请求: room=${tag.code}, fileId=${tag.fileId}`); // Explicit Log
-          triggerTemperatureAlert({
-            roomCode: tag.code,
-            roomName: tag.name || tag.code,
-            temperature: tempValue,
-            threshold: LOW_THRESHOLD,
-            alertType: 'low',
-            fileId: tag.fileId,
-          }).then(result => {
-            aiAnalysisLoading.value = false;
-            if (result.success && result.analysis) {
-              console.log(`✅ AI 分析结果:`, result.analysis.substring(0, 200) + '...');
-              aiAnalysisData.value.analysis = result.analysis;
-              // 保存文档来源列表
-              if (result.sources && result.sources.length > 0) {
-                aiAnalysisData.value.sources = result.sources.map(s => ({
-                  ...s,
-                  isInternal: true,
-                  documentId: s.id || null
-                }));
-                console.log(`📄 文档来源: ${result.sources.length} 个`);
-              }
-            } else {
-              console.warn(`⚠️ AI 分析失败:`, result.error);
-              aiAnalysisData.value.analysis = `分析失败: ${result.error || '未知错误'}`;
-            }
-          }).catch(err => {
-            aiAnalysisLoading.value = false;
-            console.error(`❌ AI 分析异常:`, err);
-            aiAnalysisData.value.analysis = `分析异常: ${err.message || '网络错误'}`;
+          // 立即触发报警通知，需用户手动点击 "分析"
+          emit('trigger-ai-alert', {
+            title: `❄️ 低温报警: ${tag.name || tag.code}`,
+            message: `**当前温度**: ${tempValue}°C (阈值: ${LOW_THRESHOLD}°C)\n\n系统检测到温度异常，请立即检查。您可以点击下方按钮进行智能分析。`,
+            level: 'critical',
+            actions: [
+               { label: '定位房间', type: 'locate_room', id: tag.dbId },
+               {
+                 label: '智能分析',
+                 type: 'analyze_alert',
+                 params: {
+                   roomCode: tag.code,
+                   roomName: tag.name || tag.code,
+                   temperature: tempValue,
+                   threshold: LOW_THRESHOLD,
+                   alertType: 'low',
+                   fileId: tag.fileId
+                 }
+               }
+            ]
           });
         }
         
@@ -828,17 +779,43 @@ const initViewer = () => {
 
 
 // 新增：加载新模型（返回 Promise，等待模型加载完成）
+// 新增：加载新模型（返回 Promise，等待模型加载完成）
+// 使用单例 Promise 模式，防止重复调用导致提前返回
+let currentLoadPromise = null;
+
 const loadNewModel = async (modelPath) => {
   if (!viewer) return Promise.resolve(false);
   
-  // 防止重复加载同一个模型
-  if (isLoadingModel || currentModelPath === modelPath) {
-    console.log(`⏭️ 模型正在加载或已加载，跳过: ${modelPath}`);
-    return Promise.resolve(true); // 已加载，返回成功
+  // 如果已经在加载，直接返回当前的 loading promise
+  if (isLoadingModel && currentLoadPromise) {
+    console.log(`⏭️ 模型正在加载中，返回现有 Promise 以保持锁定: ${modelPath}`);
+    return currentLoadPromise;
+  }
+  
+  // 防止重复加载同一个已加载的模型
+  if (!isLoadingModel && currentModelPath === modelPath) {
+    console.log(`⏭️ 模型已完全加载，跳过重复加载: ${modelPath}`);
+    return Promise.resolve(true); 
   }
   
   isLoadingModel = true;
   modelFullyReady = false; // 重置模型就绪状态
+  
+  // 创建并存储当前的 loading promise
+  currentLoadPromise = (async () => {
+    try {
+      return await performLoadNewModel(modelPath);
+    } finally {
+      // 加载完成（成功或失败）后，清理 promise 引用
+      currentLoadPromise = null;
+    }
+  })();
+  
+  return currentLoadPromise;
+};
+
+// 提取实际的加载逻辑到单独函数
+const performLoadNewModel = async (modelPath) => {
   console.log('🔄 开始加载新模型:', modelPath);
   
   // 构造候选路径 - 使用完整 URL 确保 Web Worker 能正确解析（特别是 HTTPS 环境）
@@ -909,6 +886,33 @@ const loadNewModel = async (modelPath) => {
   
   // 返回 Promise，等待模型加载完成
   return new Promise((resolve, reject) => {
+    // 监听 Promise 1: 几何体加载完成
+    const geometryPromise = new Promise(res => {
+      const handler = () => {
+        viewer.removeEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, handler);
+        console.log('✅ [loadNewModel] GEOMETRY_LOADED_EVENT 触发');
+        res();
+      };
+      viewer.addEventListener(window.Autodesk.Viewing.GEOMETRY_LOADED_EVENT, handler);
+    });
+
+    // 监听 Promise 2: 对象树构建完成（确保可交互）
+    const treePromise = new Promise(res => {
+      const handler = () => {
+        viewer.removeEventListener(window.Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, handler);
+        console.log('✅ [loadNewModel] OBJECT_TREE_CREATED_EVENT 触发');
+        res();
+      };
+      viewer.addEventListener(window.Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, handler);
+    });
+
+    // 加载错误处理
+    const onLoadError = (errorCode) => {
+       console.error('❌ 模型加载失败:', errorCode, finalPath);
+       isLoadingModel = false;
+       reject(new Error(`模型加载失败: ${errorCode}`));
+    };
+
     // 加载新模型，并明确指定全局坐标系
     const loadOptions = {
       globalOffset: { x: 0, y: 0, z: 0 },
@@ -930,7 +934,7 @@ const loadNewModel = async (modelPath) => {
           console.log('⚡ 模型加载回调：立即强制设置 WorldUpVector 为 Z 轴向上');
         }
         
-        console.log('✅ 新模型加载成功:', finalPath);
+        console.log('✅ loadModel 调用成功 (Manifest Loaded):', finalPath);
         console.log('📊 模型信息:', { 
           hasGeometry: model.getGeometryList ? 'Yes' : 'No',
           rootId: model.getRootId ? model.getRootId() : 'N/A'
@@ -955,36 +959,47 @@ const loadNewModel = async (modelPath) => {
           console.log('🧭 已强制设置 WorldUpVector 为 Z 轴向上:', correctUpVector);
         }
         
-        // 检查几何体是否已加载完成
-        // 如果已完成，手动触发 onModelLoaded（以防事件未触发）
-        setTimeout(() => {
-          if (model.isLoadDone && model.isLoadDone()) {
-            console.log('📦 检测到几何体已加载完成，确保初始化执行');
-            // GEOMETRY_LOADED_EVENT 应该已经触发，但为了保险，我们检查状态
-            if (foundRoomDbIds.length === 0 && foundAssetDbIds.length === 0) {
-              console.log('⚠️ 数据未提取，手动触发 onModelLoaded');
-              onModelLoaded();
-            }
-          }
-          // 标记模型完全就绪，并执行所有待处理回调
-          setTimeout(() => {
-            modelFullyReady = true;
-            isLoadingModel = false; // 移到这里，与 modelFullyReady 同步
-            console.log('📦 模型完全就绪，执行待处理回调:', modelReadyCallbacks.length);
-            modelReadyCallbacks.forEach(cb => {
-              try { cb(); } catch (e) { console.error('回调执行失败:', e); }
-            });
-            modelReadyCallbacks = [];
-            resolve(true);
-          }, 500); // 额外等待500ms确保渲染完成
-        }, 1000);
+        // 检查某些事件是否可能已经同步发生或已完成
+        const pendingPromises = [];
         
-        // 注意：onModelLoaded 会通过事件自动触发
-    }, (errorCode) => {
-        console.error('❌ 模型加载失败:', errorCode, finalPath);
-        isLoadingModel = false;
-        reject(new Error(`模型加载失败: ${errorCode}`));
-    });
+        if (model.isLoadDone && model.isLoadDone()) {
+             console.log('⏩ 几何体已加载 (同步或缓存)');
+        } else {
+             console.log('⏳ 等待几何体加载...');
+             pendingPromises.push(geometryPromise);
+        }
+
+        if (model.getInstanceTree && model.getInstanceTree()) {
+             console.log('⏩ 对象树已构建 (同步或缓存)');
+        } else {
+             console.log('⏳ 等待对象树构建...');
+             pendingPromises.push(treePromise);
+        }
+
+        // 等待所有条件满足
+        Promise.all(pendingPromises).then(() => {
+             console.log('🎉 模型几何体与对象树均已就绪');
+             
+             // 额外的稳定时间，确保渲染帧完成且 Viewer 内部状态同步
+             setTimeout(() => {
+                modelFullyReady = true;
+                isLoadingModel = false;
+                console.log('📦 模型完全交互就绪，执行回调:', modelReadyCallbacks.length);
+                
+                // 再次确保 WorldUpVector 正确
+                if (viewer.navigation && viewer.navigation.setWorldUpVector) {
+                   viewer.navigation.setWorldUpVector(new window.THREE.Vector3(0, 0, 1));
+                }
+
+                modelReadyCallbacks.forEach(cb => {
+                  try { cb(); } catch (e) { console.error('回调执行失败:', e); }
+                });
+                modelReadyCallbacks = [];
+                resolve(true);
+             }, 500);
+        });
+
+    }, onLoadError);
   });
 };
 
@@ -1180,10 +1195,18 @@ const processRooms = (dbIds) => {
 
       // 只添加有"编号"属性的房间
       if (code) {
+        // 尝试解析 fileId
+        let fileId;
+        if (props.rooms && props.rooms.length > 0) {
+          const match = props.rooms.find(r => r.code === code || r.dbId === dbId);
+          if (match) fileId = match.fileId;
+        }
+
         roomList.push({
           dbId: dbId,
           name: name || `房间 ${dbId}`,
-          code: code
+          code: code,
+          fileId: fileId
         });
         const tag = newTags.find(t => t.dbId === dbId);
         if (tag) {
@@ -1540,7 +1563,7 @@ const showAllRooms = () => {
 
   // 更新所有标签位置
   updateAllTagPositions();
-  animateToDefaultView();
+  // 注意：移除了 animateToDefaultView() 调用，以保持用户的相机视角
 };
 
 // 9. 切换热力图
@@ -1770,7 +1793,7 @@ const showAllAssets = () => {
   viewer.clearSelection();
 
   viewer.impl.invalidate(true, true, true);
-  animateToDefaultView();
+  // 注意：移除了 animateToDefaultView() 调用，以保持用户的相机视角
 };
 
 const getAssetProperties = (dbId) => {
@@ -1964,8 +1987,9 @@ const startAutoRefresh = () => {
       if (codes.length) {
         await refreshRoomSeriesCache(codes).catch(() => {});
         
-        // 更新最新温度值
-        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch((err) => {
+        // 获取当前模型的 fileId（使用第一个 room 的 fileId）
+        const currentFileId = roomTags.value[0]?.fileId;
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000, currentFileId).catch((err) => {
           console.warn('  ⚠️ queryLatestByRooms 失败:', err);
           return {};
         });
@@ -2029,7 +2053,7 @@ onMounted(() => {
       const codes = roomTags.value.map(t => t.code).filter(Boolean);
       if (codes.length) {
         refreshRoomSeriesCache(codes).catch(() => {});
-        queryLatestByRooms(codes, 60 * 60 * 1000).then(map => {
+        queryLatestByRooms(codes, 60 * 60 * 1000, roomTags.value[0]?.fileId).then(map => {
           roomTags.value.forEach(tag => {
             const v = map[tag.code];
             if (v !== undefined) tag.currentTemp = v.toFixed(1);
@@ -2071,7 +2095,7 @@ const refreshTimeSeriesData = async () => {
       
       // 更新最新温度值
       if (await isInfluxConfigured()) {
-        const map = await queryLatestByRooms(codes, 60 * 60 * 1000).catch(() => ({}));
+        const map = await queryLatestByRooms(codes, 60 * 60 * 1000, roomTags.value[0]?.fileId).catch(() => ({}));
         roomTags.value.forEach(tag => {
           const v = map[tag.code];
           if (v !== undefined) tag.currentTemp = v.toFixed(1);
@@ -2085,8 +2109,495 @@ const refreshTimeSeriesData = async () => {
   }
 };
 
+// 12. 根据 GUID 和 搜索目标 (RefCodes 或 高级查询) 高亮构件
+const highlightBimObjects = (guids, searchTarget) => {
+  if (!viewer || !viewer.model) return;
+
+  const targetDbIds = new Set();
+  
+  // 辅助函数：根据 dbIds 完成高亮
+  const finalize = () => {
+    const finalDbIds = Array.from(targetDbIds);
+    if (finalDbIds.length > 0) {
+      console.log(`🎯 高亮 ${finalDbIds.length} 个构件`);
+      isolateAndFocusAssets(finalDbIds);
+    } else {
+      ElMessage.warning('在模型中未找到对应构件');
+    }
+  };
+
+  // 核心搜索逻辑
+  const executeSearch = (codes, attributes) => {
+    if (!codes || codes.length === 0) return Promise.resolve();
+    
+    // 如果 refCodes 数量过多，只取前 50 个避免卡顿
+    const codesToSearch = codes.length > 50 ? codes.slice(0, 50) : codes;
+    if (codes.length > 50) {
+       // 使用防抖或仅提示一次
+       console.log(`选中项过多(${codes.length})，仅搜索前 50 个`);
+    }
+
+    const promises = codesToSearch.map(code => {
+      return new Promise((resolve) => {
+        // search(value, onSuccess, onError, attributeNames)
+        viewer.search(code, (dbIds) => {
+           dbIds.forEach(id => targetDbIds.add(id));
+           resolve();
+        }, (err) => {
+           resolve();
+        }, attributes);
+      });
+    });
+    
+    return Promise.all(promises);
+  };
+
+  // 1. 处理 GUIDs (优先处理，因为最快且准确)
+  const processGuids = () => {
+    return new Promise((resolve) => {
+      if (guids && guids.length > 0) {
+        viewer.model.getExternalIdMapping((mapping) => {
+          guids.forEach(guid => {
+            if (mapping[guid]) targetDbIds.add(mapping[guid]);
+          });
+          resolve();
+        }, (err) => {
+           console.error('获取 ExternalIdMapping 失败', err);
+           resolve();
+        });
+      } else {
+        resolve();
+      }
+    });
+  };
+
+  // 2. 执行流程
+  processGuids().then(() => {
+    // 处理 searchTarget
+    if (Array.isArray(searchTarget)) {
+       // 兼容旧模式：searchTarget 是 refCodes 数组
+       // 为了提高效率，只搜索特定属性
+       const defaultAttributes = ['MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number'];
+       executeSearch(searchTarget, defaultAttributes).then(finalize);
+    } 
+    else if (searchTarget && searchTarget.queries) {
+       // 新模式：高级查询对象 { queries: [{ values: [], attributes: [] }] }
+       const queryPromises = searchTarget.queries.map(q => executeSearch(q.values, q.attributes));
+       Promise.all(queryPromises).then(finalize);
+    } 
+    else {
+       // 只有 GUID 或无数据
+       finalize();
+    }
+  });
+};
+
+// ==================== 电源追溯 3D 可视化 ====================
+
+// 存储 3D 覆盖层对象，用于清除时移除
+let powerTraceOverlayObjects = [];
+
+// ==================== 电源追溯 3D 可视化 ====================
+
+// 存储 3D 覆盖层对象，用于清除时移除
+// let powerTraceOverlayObjects = []; // 已在上方声明
+
+/**
+ * 获取 BIM 构件的包围盒
+ */
+const getComponentBounds = (dbId) => {
+  if (!viewer || !viewer.model) return null;
+  
+  const fragList = viewer.model.getFragmentList();
+  const instanceTree = viewer.model.getInstanceTree();
+  
+  const bounds = new window.THREE.Box3();
+  
+  instanceTree.enumNodeFragments(dbId, (fragId) => {
+    const box = new window.THREE.Box3();
+    fragList.getWorldBounds(fragId, box);
+    bounds.union(box);
+  });
+  
+  return bounds.isEmpty() ? null : bounds;
+};
+
+/**
+ * 获取射线与包围盒的交点（从中心向外）
+ * 用于计算箭头的准确起点（在包围盒表面）
+ */
+const getBoxIntersection = (center, target, box) => {
+  const direction = target.clone().sub(center).normalize();
+  const ray = new window.THREE.Ray(center, direction);
+  
+  // THREE.Box3.intersectRay 返回交点，如果射线在盒内起点则返回 null (老版本 THREE behavior maybe?)
+  // Forge Viewer 的 THREE 版本较旧 (r71 based)，我们需要谨慎使用
+  
+  // 简化算法：如果不使用 ray.intersectBox，我们可以手动计算
+  // 但 Forge Viewer 带的 THREE.Box3 应该有 intersectRay
+  const point = ray.intersectBox(box);
+  
+  // 如果起点就在盒内，intersectBox 可能返回 null 或者 远处的交点（取决于 Three 版本）
+  // 让我们尝试手动计算"离开点"
+  if (!point) {
+    // 粗略近似：将中心点沿着方向移动，直到超出包围盒一半尺寸
+    const size = box.getSize(new window.THREE.Vector3());
+    const dist = Math.min(size.x, size.y, size.z) * 0.5;
+    return center.clone().add(direction.multiplyScalar(dist));
+  }
+  
+  return point;
+};
+
+// 共享几何体和材质以优化性能
+let _arrowShaftGeo, _arrowHeadGeo, _arrowMat;
+const getArrowAssets = (THREE, color) => {
+   if (!_arrowShaftGeo) {
+     // 建立单位高度的圆柱和圆锥，之后通过 scale 调整
+     // 默认高度 1，中心在原点 -> 需要调整 pivot?
+     // CylinderGeometry(radiusTop, radiusBottom, height)
+     // Pivot default is center.
+     _arrowShaftGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1);
+     // Shift pivot to bottom: translate y by 0.5
+     _arrowShaftGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, 0.5, 0));
+     
+     _arrowHeadGeo = new THREE.CylinderGeometry(0, 1, 1, 16, 1);
+     _arrowHeadGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, 0.5, 0));
+   }
+   // 材质每次可能颜色不同，或者可以复用
+   if (!_arrowMat || _arrowMat.color.getHex() !== color) {
+     _arrowMat = new THREE.MeshPhongMaterial({ color: color, ambient: color, specular: 0x111111, shininess: 200 });
+   }
+   return { shaftGeo: _arrowShaftGeo, headGeo: _arrowHeadGeo, mat: _arrowMat };
+};
+
+/**
+ * 创建更加明显的 3D 箭头（圆柱杆 + 圆锥头）- 性能优化版
+ */
+const createThickArrow = (startPos, endPos, color = 0xff0000, thickness = 0.5) => {
+  const THREE = window.THREE;
+  const { shaftGeo, headGeo, mat } = getArrowAssets(THREE, color);
+  
+  const direction = endPos.clone().sub(startPos);
+  const length = direction.length();
+  
+  // 箭头头部长度和宽度 (调整系数以适应更细的线)
+  const headLength = Math.min(length * 0.3, 5); 
+  const headWidth = Math.max(thickness * 3, 0.5);
+  const shaftLength = length - headLength;
+  
+  // 如果太短，不画或者画微小的
+  if (length < 0.1) return null;
+  
+  const arrowGroup = new THREE.Object3D();
+  
+  // 1. 箭杆
+  if (shaftLength > 0) {
+    const shaft = new THREE.Mesh(shaftGeo, mat);
+    // Scale: x=thickness, y=shaftLength, z=thickness
+    shaft.scale.set(thickness, shaftLength, thickness);
+    // Shaft position is local 0,0,0 because pivot is at bottom
+    arrowGroup.add(shaft);
+  }
+  
+  // 2. 箭头
+  const head = new THREE.Mesh(headGeo, mat);
+  head.scale.set(headWidth, headLength, headWidth);
+  head.position.y = shaftLength; // 头部放在杆子顶端
+  arrowGroup.add(head);
+  
+  // 3. 对齐方向
+  const axisY = new THREE.Vector3(0, 1, 0);
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(axisY, direction.normalize());
+  arrowGroup.setRotationFromQuaternion(quaternion);
+  
+  // 设置位置
+  arrowGroup.position.copy(startPos);
+  
+  return arrowGroup;
+};
+
+/**
+ * 创建垂直指示箭头
+ */
+const createPointerArrow = (position, color = 0x00AAFF) => {
+  const THREE = window.THREE;
+  const height = 15;
+  const headHeight = 5;
+  const radius = 2;
+  
+  // 复用几何体逻辑，或者简单创建
+  const group = new THREE.Object3D();
+  
+  // 简单创建 Mesh (少量使用无所谓)
+  const coneGeo = new THREE.CylinderGeometry(0, radius * 2, headHeight, 16, 1);
+  coneGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, -headHeight/2, 0)); // Pivot at top to rotate easier? Or just keep standard
+  const coneMat = new THREE.MeshPhongMaterial({ color: color, shininess: 100 });
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.y = height; 
+  cone.rotation.x = Math.PI; // Point down
+  group.add(cone);
+  
+  // 杆
+  const bodyGeo = new THREE.CylinderGeometry(radius, 0, height - headHeight, 8, 1);
+  bodyGeo.applyMatrix(new THREE.Matrix4().makeTranslation(0, (height - headHeight)/2, 0));
+  const bodyMat = new THREE.MeshPhongMaterial({ color: color, opacity: 0.8, transparent: true });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.y = headHeight; // 
+  // group.add(body); // 简化，只显示箭头头 或 浮动箭头
+  
+  group.add(cone);
+  group.position.copy(position).add(new THREE.Vector3(0, 5, 0));
+  return group;
+};
+
+/**
+ * 检查构件是否属于"线管"类别
+ */
+const isConduit = (dbId) => {
+  if (!viewer) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    viewer.getProperties(dbId, (result) => {
+      if (!result || !result.properties) {
+        resolve(false);
+        return;
+      }
+      const isConduit = result.properties.some(prop => {
+        const name = prop.displayName || prop.attributeName;
+        const val = String(prop.displayValue);
+        return (name === '类别' || name === 'Category') && (val.includes('线管') || val.includes('Conduit') || val.includes('Cable'));
+      });
+      resolve(isConduit);
+    }, () => resolve(false));
+  });
+};
+
+/**
+ * 显示电源追溯覆盖层
+ */
+const showPowerTraceOverlay = async (traceData) => {
+  if (!viewer || !traceData) return;
+  
+  console.log('⚡ [MainView] 显示电源追溯覆盖层:', traceData);
+  
+  // 1. 收集所有节点的 dbId 和类型信息
+  const nodeDbIdMap = new Map();
+  const nodeIsConduitMap = new Map(); // nodeId -> boolean
+  const isolateDbIds = []; 
+  let startNodeDbId = null;
+  
+  // 并行处理所有节点以提高速度
+  await Promise.all(traceData.nodes.map(async (node) => {
+    let dbId = null;
+    
+    // 查找 dbId
+    if (node.bimGuid && viewer.model) {
+      try {
+        dbId = await new Promise((resolve) => {
+          viewer.model.getExternalIdMapping((mapping) => {
+            for (const [id, extId] of Object.entries(mapping)) {
+              if (extId === node.bimGuid) { resolve(parseInt(id)); return; }
+            }
+            resolve(null);
+          });
+        });
+      } catch (e) {}
+    }
+    
+    if (!dbId && node.mcCode && viewer.model) {
+      try {
+        const searchAttributes = [
+          'MC编码', 'MC Code', 'DeviceCode', '设备编码', 'Tag Number', 
+          'Name', '名称', 'Mark', '标记', 'Number', '编号', 'Label', '标签'
+        ];
+        dbId = await new Promise((resolve) => {
+          viewer.search(node.mcCode, (dbIds) => {
+            resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null);
+          }, () => resolve(null), searchAttributes);
+        });
+        if (!dbId) {
+          const globalId = await new Promise((resolve) => {
+             viewer.search(node.mcCode, (dbIds) => resolve(dbIds && dbIds.length > 0 ? dbIds[0] : null), () => resolve(null));
+          });
+          if (globalId) dbId = globalId;
+        }
+      } catch (e) {}
+    }
+    
+    if (dbId) {
+      nodeDbIdMap.set(node.id, dbId);
+      
+      const isCond = await isConduit(dbId);
+      // 也可以根据 nodeType 辅助判断
+      const isCableType = node.nodeType === 'Cable' || (node.label && (node.label.includes('电缆') || node.label.includes('线')));
+      nodeIsConduitMap.set(node.id, isCond || isCableType);
+      
+      if (!isCond && !isCableType) {
+        isolateDbIds.push(dbId);
+      } else {
+        console.log(`  👻 识别到线管/电缆: ${node.label} (dbId: ${dbId})，将在逻辑连接中跳过`);
+      }
+      
+      if (traceData.startNodeId && node.id === traceData.startNodeId) {
+        startNodeDbId = dbId;
+      }
+    } else {
+      console.warn(`  ⚠️ 未找到 BIM 构件: ${node.label} (MC: ${node.mcCode}) - 将作为虚拟节点处理 (跳过但传递连接)`);
+    }
+  }));
+  
+  // 2. 隔离显示 (只显示非线管设备)
+  if (isolateDbIds.length > 0) {
+    setManualSelection();
+    viewer.isolate(isolateDbIds);
+    viewer.fitToView(isolateDbIds);
+  }
+  
+  // 3. 绘制逻辑连线 (跳过 线管 OR 未找到模型的节点 -> 直连 Device)
+  clearPowerTraceOverlay();
+  
+  const overlayName = 'power-trace-overlay';
+  if (viewer.impl.overlayScenes && !viewer.impl.overlayScenes[overlayName]) {
+    viewer.impl.createOverlayScene(overlayName);
+  }
+  
+  const THREE = window.THREE;
+  const nodeBoundsMap = new Map();
+  nodeDbIdMap.forEach((dbId, nodeId) => {
+    const bounds = getComponentBounds(dbId);
+    if (bounds) nodeBoundsMap.set(nodeId, bounds);
+  });
+
+  // 构建邻接表用于遍历 (基于所有 traceData edge，不管是否有 BIM)
+  const adj = new Map(); // nodeId -> [childNodeIds]
+  traceData.edges.forEach(edge => {
+    if (!adj.has(edge.source)) adj.set(edge.source, []);
+    adj.get(edge.source).push(edge.target);
+  });
+
+  // 辅助函数：查找下游的第一个可见设备 (有 BIM 且非线管)
+  // 如果遇到 无BIM 或 是线管 的节点，则继续向下递归
+  const findVisibleTargetDevices = (nodeId, visited = new Set()) => {
+    if (visited.has(nodeId)) return [];
+    visited.add(nodeId);
+    
+    const children = adj.get(nodeId) || [];
+    let devices = [];
+    
+    for (const childId of children) {
+       // 判断 child 是否为"可见设备"
+       const hasBim = nodeDbIdMap.has(childId);
+       const isCond = nodeIsConduitMap.get(childId);
+       
+       if (hasBim && !isCond) {
+         // 找到目标：是可见的，且不是线管
+         devices.push(childId);
+       } else {
+         // 不是目标（是线管 或 无BIM），则作为中间节点，继续穿透查找
+         devices = devices.concat(findVisibleTargetDevices(childId, visited));
+       }
+    }
+    return devices;
+  };
+  
+  // 遍历所有"可见设备"作为起点
+  for (const [nodeId, dbId] of nodeDbIdMap.entries()) {
+    // 如果起点本身是线管，则不能作为箭头的起始端 (它只是中间路径)
+    if (nodeIsConduitMap.get(nodeId)) continue;
+    
+    // 查找所有逻辑下游可见设备
+    const targets = findVisibleTargetDevices(nodeId, new Set()); 
+    
+    for (const targetId of targets) {
+      const targetDbId = nodeDbIdMap.get(targetId);
+      const sourceBounds = nodeBoundsMap.get(nodeId);
+      const targetBounds = nodeBoundsMap.get(targetId);
+      
+      if (!targetDbId || !sourceBounds || !targetBounds) continue;
+      
+      const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
+      const targetCenter = targetBounds.getCenter(new THREE.Vector3());
+      
+      // 计算端点
+      const dir = targetCenter.clone().sub(sourceCenter).normalize();
+      const rayOut = new THREE.Ray(sourceCenter, dir);
+      let startPoint = rayOut.intersectBox(sourceBounds);
+      
+      if (!startPoint) {
+        startPoint = sourceCenter.clone(); 
+        const size = sourceBounds.getSize(new THREE.Vector3());
+        const offset = dir.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45); 
+        startPoint.add(offset);
+      }
+      
+      const dirIn = sourceCenter.clone().sub(targetCenter).normalize();
+      const rayIn = new THREE.Ray(targetCenter, dirIn);
+      let endPoint = rayIn.intersectBox(targetBounds);
+      
+      if (!endPoint) {
+        endPoint = targetCenter.clone();
+        const size = targetBounds.getSize(new THREE.Vector3());
+        const offset = dirIn.clone().multiplyScalar(Math.min(size.x, size.y, size.z) * 0.45);
+        endPoint.add(offset);
+      }
+      
+      
+      // 这里的厚度从 0.4 调整为 0.15，使连线更细
+      const arrow = createThickArrow(startPoint, endPoint, 0xff3300, 0.15);
+      
+      if (arrow && viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+        viewer.impl.addOverlay(overlayName, arrow);
+        powerTraceOverlayObjects.push({ name: overlayName, object: arrow });
+      }
+    }
+  }
+  
+  // 4. 起点标记
+  if (startNodeDbId) {
+    const bounds = nodeBoundsMap.get(traceData.startNodeId);
+    if (bounds) {
+       const center = bounds.getCenter(new THREE.Vector3());
+       const size = bounds.getSize(new THREE.Vector3());
+       
+       const markerPos = center.clone().add(new THREE.Vector3(0, size.y * 0.5 + 2, 0));
+       const dir = new THREE.Vector3(0, -1, 0);
+       
+       const markerArrow = new THREE.ArrowHelper(dir, markerPos.clone().add(new THREE.Vector3(0, 8, 0)), 8, 0x00AAFF, 3, 2);
+       if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[overlayName]) {
+         viewer.impl.addOverlay(overlayName, markerArrow);
+         powerTraceOverlayObjects.push({ name: overlayName, object: markerArrow });
+       }
+    }
+  }
+  
+  console.log(`  🔗 绘制 ${powerTraceOverlayObjects.length} 个可视对象 (逻辑连接)`);
+  viewer.impl.invalidate(true, true, true);
+};
+
+/**
+ * 清除电源追溯覆盖层
+ */
+const clearPowerTraceOverlay = () => {
+  if (!viewer) return;
+  
+  // 移除所有覆盖层对象
+  for (const item of powerTraceOverlayObjects) {
+    if (viewer.impl.overlayScenes && viewer.impl.overlayScenes[item.name]) {
+      viewer.impl.removeOverlay(item.name, item.object);
+    }
+  }
+  
+  powerTraceOverlayObjects = [];
+  
+  // 刷新渲染
+  viewer.impl.invalidate(true, true, true);
+  
+  console.log('🧹 [MainView] 电源追溯覆盖层已清除');
+};
+
 // 暴露方法给父组件
 defineExpose({
+  highlightBimObjects,
   resizeViewer,
   loadNewModel,
   // 模型就绪后执行回调（如果已就绪则立即执行）
@@ -2106,6 +2617,8 @@ defineExpose({
   isolateAndFocusRooms,
   getAssetProperties,
   getRoomProperties,
+  showPowerTraceOverlay,
+  clearPowerTraceOverlay,
   getTimeRange: () => ({ startMs: startDate.value.getTime(), endMs: endDate.value.getTime(), windowMs: Math.max(60_000, Math.round((endDate.value.getTime()-startDate.value.getTime())/300)) }),
   getAssetPropertyList,
   getSpacePropertyList,
@@ -2130,7 +2643,9 @@ defineExpose({
     const start = startDate.value.getTime();
     const end = endDate.value.getTime();
     const windowMs = 0; // 不聚合，显示原始数据点
-    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs));
+    // 获取当前模型的 fileId
+    const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+    const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId));
     const list = await Promise.all(promises);
     overlaySeries.value = list;
     selectedRoomCodes.value = codes.slice();

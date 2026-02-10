@@ -11,6 +11,8 @@ const __dirname = path.dirname(__filename);
 
 // 加载环境变量 - 从项目根目录的 .env 文件
 dotenv.config({ path: path.join(__dirname, '../../.env') });
+// 加载本地开发覆盖配置
+dotenv.config({ path: path.join(__dirname, '../../.env.local'), override: true });
 
 const config = {
     // 服务器配置
@@ -18,6 +20,9 @@ const config = {
         port: parseInt(process.env.PORT || '3001', 10),
         host: process.env.HOST || '0.0.0.0',
         env: process.env.NODE_ENV || 'development',
+        // API Base URL for external services (like n8n) to call back
+        // Default to localhost for dev, but strongly recommend setting API_BASE_URL in production
+        baseUrl: process.env.API_BASE_URL || `http://localhost:${parseInt(process.env.PORT || '3001', 10)}`,
     },
 
     // 数据库配置 - 使用 getter 确保运行时动态读取环境变量

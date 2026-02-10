@@ -4,7 +4,8 @@
  */
 
 // n8n Webhook URL（需要在 n8n 中创建 Webhook 节点后获取）
-const N8N_BASE_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678';
+import { server } from '../config/index.js';
+import { getConfig } from './config-service.js';
 
 /**
  * 计算告警严重程度
@@ -34,7 +35,8 @@ function calculateSeverity(alertData) {
  * @param {number} alertData.fileId - 关联的模型文件ID
  */
 export async function triggerTemperatureAlert(alertData) {
-    const webhookPath = process.env.N8N_TEMPERATURE_ALERT_WEBHOOK || '/webhook/temperature-alert';
+    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+    const webhookPath = '/webhook/temperature-alert';
 
     try {
         const payload = {
@@ -48,16 +50,18 @@ export async function triggerTemperatureAlert(alertData) {
                 timestamp: alertData.timestamp || new Date().toISOString(),
                 fileId: alertData.fileId,
                 severity: calculateSeverity(alertData),
+                apiBaseUrl: server.baseUrl,
+
             },
             metadata: {
-                source: 'tandem-demo',
+                source: 'twinsight',
                 version: '1.0',
             }
         };
 
         console.log('📤 发送到 n8n 的数据:', JSON.stringify(payload, null, 2));
 
-        const response = await fetch(`${N8N_BASE_URL}${webhookPath}`, {
+        const response = await fetch(`${n8nBaseUrl}${webhookPath}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -89,10 +93,11 @@ export async function triggerTemperatureAlert(alertData) {
  * @param {number} analysisRequest.fileId - 关联的模型文件ID
  */
 export async function triggerManualAnalysis(analysisRequest) {
-    const webhookPath = process.env.N8N_MANUAL_ANALYSIS_WEBHOOK || '/webhook/manual-analysis';
+    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+    const webhookPath = '/webhook/manual-analysis';
 
     try {
-        const response = await fetch(`${N8N_BASE_URL}${webhookPath}`, {
+        const response = await fetch(`${n8nBaseUrl}${webhookPath}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -105,9 +110,11 @@ export async function triggerManualAnalysis(analysisRequest) {
                     question: analysisRequest.question || '',
                     fileId: analysisRequest.fileId,
                     timestamp: new Date().toISOString(),
+                    apiBaseUrl: server.baseUrl,
+
                 },
                 metadata: {
-                    source: 'tandem-demo',
+                    source: 'twinsight',
                     version: '1.0',
                 }
             }),
@@ -132,7 +139,8 @@ export async function triggerManualAnalysis(analysisRequest) {
  */
 export async function checkN8nHealth() {
     try {
-        const response = await fetch(`${N8N_BASE_URL}/healthz`, {
+        const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+        const response = await fetch(`${n8nBaseUrl}/healthz`, {
             method: 'GET',
             timeout: 5000,
         });

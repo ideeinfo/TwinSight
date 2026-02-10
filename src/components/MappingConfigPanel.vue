@@ -108,7 +108,7 @@
               {{ saveMessage }}
             </span>
           </transition>
-          <button class="btn btn-primary" @click="saveMapping">{{ $t('dataExport.mappingConfig.save') }}</button>
+          <el-button type="primary" @click="saveMapping">{{ $t('dataExport.mappingConfig.save') }}</el-button>
         </div>
       </div>
     </div>
@@ -436,34 +436,6 @@ function saveMapping() {
   gap: 12px;
   align-self: flex-end; /* 按钮靠下对齐，或者 center? flex-end 会和帮助文本底部对齐 */
   margin-bottom: 2px;
-}
-
-.btn {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #0078d4;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #106ebe;
-}
-
-.btn-secondary {
-  background: #444;
-  color: #ccc;
-}
-
-.btn-secondary:hover {
-  background: #555;
-  color: #fff;
 }
 
 .save-msg {

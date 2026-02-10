@@ -3,7 +3,7 @@
 
 {
     "version": 2,
-    "name": "tandem-demo",
+    "name": "twinsight",
     "builds": [
         {
             "src": "package.json",

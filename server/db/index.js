@@ -4,9 +4,14 @@
  */
 import pg from 'pg';
 import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// 加载环境变量
-config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 加载项目根目录的 .env.local
+config({ path: join(__dirname, '../../.env.local') });
 
 const { Pool } = pg;
 
@@ -34,7 +39,7 @@ if (process.env.DATABASE_URL) {
         port: parseInt(process.env.DB_PORT || '5432'),
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'password',
-        database: process.env.DB_NAME || 'tandem',
+        database: process.env.DB_NAME || 'twinsight',
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,

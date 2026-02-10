@@ -170,7 +170,7 @@ watch(() => props.roomProperties, (newVal) => {
 
 // 判断是否为资产模式
 const isAssetMode = computed(() => {
-  return props.viewMode === 'assets';
+  return props.viewMode === 'assets' || props.viewMode === 'rds';
 });
 
 // 获取有效的规格代码（用于文档显示）
@@ -225,25 +225,26 @@ const handleFieldChange = async (fieldName, newValue) => {
   }
   
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
     
     if (isAssetMode.value) {
-      // 更新资产数据
-      const assetCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.mcCode];
+      // 定义资产表字段(存储在assets表)
+      const assetFields = ['name', 'level', 'room', 'typeComments'];
+      // 定义规格表字段(存储在asset_specs表)
+      const specFields = ['specName', 'omniClass21Number', 'omniClass21Description', 
+                          'category', 'family', 'type', 'manufacturer', 'address', 'phone'];
       
-      if (!assetCodes || assetCodes.length === 0 || !assetCodes[0]) {
-        console.error('无法获取资产编码');
-        return;
-      }
-      
-      // 根据字段名映射到数据库字段
-      const fieldMapping = {
-        mcCode: 'asset_code',
-        typeComments: 'spec_code',
-        specName: 'spec_name',
+      // 资产表字段映射
+      const assetFieldMapping = {
         name: 'name',
         level: 'floor',
         room: 'room',
+        typeComments: 'spec_code'
+      };
+      
+      // 规格表字段映射
+      const specFieldMapping = {
+        specName: 'spec_name',
         omniClass21Number: 'classification_code',
         omniClass21Description: 'classification_desc',
         category: 'category',
@@ -254,21 +255,72 @@ const handleFieldChange = async (fieldName, newValue) => {
         phone: 'phone'
       };
       
-      const dbField = fieldMapping[fieldName];
-      if (!dbField) {
-        console.error('未知的字段名:', fieldName);
-        return;
-      }
-      
-      // 批量更新所有选中的资产
       let successCount = 0;
       let failCount = 0;
       
-      for (const assetCode of assetCodes) {
+      if (assetFields.includes(fieldName)) {
+        // 更新资产表字段
+        const assetCodes = isMultiEdit ? props.selectedIds : [props.roomProperties?.mcCode];
+        
+        if (!assetCodes || assetCodes.length === 0 || !assetCodes[0]) {
+          console.error('无法获取资产编码');
+          return;
+        }
+        
+        const dbField = assetFieldMapping[fieldName];
+        if (!dbField) {
+          console.error('未知的资产字段名:', fieldName);
+          return;
+        }
+        
+        for (const assetCode of assetCodes) {
+          try {
+            console.log(`🔄 正在更新资产: ${assetCode}`);
+            
+            const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
+              method: 'PATCH',
+              headers: getHeaders('application/json'),
+              body: JSON.stringify({
+                [dbField]: newValue
+              })
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: response.statusText }));
+              console.error(`❌ 更新资产 ${assetCode} 失败:`, errorData);
+              failCount++;
+              continue;
+            }
+            
+            await response.json();
+            console.log(`✅ 资产 ${assetCode} 更新成功`);
+            successCount++;
+          } catch (err) {
+            console.error(`❌ 更新资产 ${assetCode} 异常:`, err);
+            failCount++;
+          }
+        }
+      } else if (specFields.includes(fieldName)) {
+        // 更新规格表字段
+        // 获取规格编码 - 使用 typeComments 或 specCode
+        const specCode = localProperties.value.typeComments || localProperties.value.specCode;
+        
+        if (!specCode) {
+          console.error('无法获取规格编码');
+          await showAlert('无法更新: 该资产没有关联的规格编码');
+          return;
+        }
+        
+        const dbField = specFieldMapping[fieldName];
+        if (!dbField) {
+          console.error('未知的规格字段名:', fieldName);
+          return;
+        }
+        
         try {
-          console.log(`🔄 正在更新资产: ${assetCode}`);
+          console.log(`🔄 正在更新规格: ${specCode}, 字段: ${dbField}`);
           
-          const response = await fetch(`${API_BASE}/api/assets/${assetCode}`, {
+          const response = await fetch(`${API_BASE}/api/assets/specs/${specCode}`, {
             method: 'PATCH',
             headers: getHeaders('application/json'),
             body: JSON.stringify({
@@ -278,18 +330,20 @@ const handleFieldChange = async (fieldName, newValue) => {
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: response.statusText }));
-            console.error(`❌ 更新资产 ${assetCode} 失败:`, errorData);
-            failCount++;
-            continue;
+            console.error(`❌ 更新规格 ${specCode} 失败:`, errorData);
+            failCount = 1;
+          } else {
+            await response.json();
+            console.log(`✅ 规格 ${specCode} 更新成功`);
+            successCount = 1;
           }
-          
-          await response.json();
-          console.log(`✅ 资产 ${assetCode} 更新成功`);
-          successCount++;
         } catch (err) {
-          console.error(`❌ 更新资产 ${assetCode} 异常:`, err);
-          failCount++;
+          console.error(`❌ 更新规格 ${specCode} 异常:`, err);
+          failCount = 1;
         }
+      } else {
+        console.error('未知的字段名:', fieldName);
+        return;
       }
       
       // 更新本地副本
@@ -438,23 +492,23 @@ const breadcrumbText = computed(() => {
 </script>
 
 <style scoped>
-.right-panel { width: 100%; height: 100%; background: #252526; border-left: 1px solid #1e1e1e; display: flex; flex-direction: column; font-size: 11px; color: #ccc; user-select: none; }
-.header-row { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-weight: 600; flex-shrink: 0; color: #eee; }
-.header-icons { display: flex; gap: 12px; } .icon-btn { cursor: pointer; color: #ccc; } .icon-btn:hover { color: #fff; } .close-icon:hover { color: #ff6b6b; }
-.breadcrumb-row { padding: 4px 12px 10px 12px; font-size: 11px; color: #fff; display: flex; align-items: center; border-bottom: 1px solid #333; }
-.breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; }
-.tabs { display: flex; border-bottom: 1px solid #333; height: 32px; flex-shrink: 0; background: #252526; }
-.tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: #888; font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
-.tab:hover { color: #ccc; } .tab.active { color: #38ABDF; border-bottom-color: #38ABDF; }
-.add-action { margin-left: auto; padding-right: 12px; color: #38ABDF; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.right-panel { width: 100%; height: 100%; background: var(--md-sys-color-surface); border-left: 1px solid var(--md-sys-color-outline-variant); display: flex; flex-direction: column; font-size: 11px; color: var(--md-sys-color-on-surface); user-select: none; }
+.header-row { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-weight: 600; flex-shrink: 0; color: var(--md-sys-color-on-surface); }
+.header-icons { display: flex; gap: 12px; } .icon-btn { cursor: pointer; color: var(--icon-btn-color); } .icon-btn:hover { color: var(--icon-btn-hover-color); } .close-icon:hover { color: var(--color-error, #ff6b6b); }
+.breadcrumb-row { padding: 4px 12px 10px 12px; font-size: 11px; color: var(--md-sys-color-on-surface); display: flex; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; stroke: var(--md-sys-color-secondary); }
+.tabs { display: flex; border-bottom: 1px solid var(--md-sys-color-outline-variant); height: 32px; flex-shrink: 0; background: var(--md-sys-color-surface-container-low); }
+.tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: var(--md-sys-color-on-surface-variant); font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
+.tab:hover { color: var(--md-sys-color-on-surface); } .tab.active { color: var(--md-sys-color-primary); border-bottom-color: var(--md-sys-color-primary); }
+.add-action { margin-left: auto; padding-right: 12px; color: var(--md-sys-color-primary); display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .scroll-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
-.group-header { background: #2d2d2d; padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; border-top: 1px solid #333; margin-top: -1px; cursor: pointer; color: #fff; }
-.group-header:hover { background: #333; }
+.group-header { background: var(--md-sys-color-surface-container); padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); border-top: 1px solid var(--md-sys-color-outline-variant); margin-top: -1px; cursor: pointer; color: var(--md-sys-color-on-surface); }
+.group-header:hover { background: var(--md-sys-color-surface-container-high); }
 .arrow-icon { transition: transform 0.2s; } .arrow-icon.rotated { transform: rotate(180deg); }
-.group-body { padding-bottom: 8px; } .form-group { padding: 8px 12px; } .sub-label { color: #fff; font-weight: 600; margin-bottom: 8px; }
-.row { display: flex; align-items: center; margin-bottom: 6px; height: 26px; } .row label { flex: 0 0 70px; color: #999; display: flex; align-items: center; }
-.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid #38ABDF; color: #38ABDF; border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
-.val-box { flex: 1; background: #1e1e1e; border: 1px solid #3e3e42; min-height: 24px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; color: #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
-.val-box:hover { border-color: #555; } .val-box.placeholder { color: #777; font-style: normal; } .val-box.dropdown { justify-content: space-between; cursor: pointer; } .val-box.multiline { white-space: normal; line-height: 1.2; padding: 4px 8px; height: auto; }
-.link-text { color: #38ABDF; text-decoration: underline; cursor: pointer; }
+.group-body { padding-bottom: 8px; } .form-group { padding: 8px 12px; } .sub-label { color: var(--md-sys-color-on-surface); font-weight: 600; margin-bottom: 8px; }
+.row { display: flex; align-items: center; margin-bottom: 6px; height: 26px; } .row label { flex: 0 0 70px; color: var(--md-sys-color-on-surface-variant); display: flex; align-items: center; }
+.info-i { display: inline-flex; width: 12px; height: 12px; border: 1px solid var(--md-sys-color-primary); color: var(--md-sys-color-primary); border-radius: 50%; font-size: 9px; align-items: center; justify-content: center; margin-left: 4px; cursor: help; }
+.val-box { flex: 1; background: var(--input-bg); border: 1px solid var(--input-border); min-height: 24px; display: flex; align-items: center; padding: 0 8px; border-radius: 2px; color: var(--input-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
+.val-box:hover { border-color: var(--md-sys-color-outline); } .val-box.placeholder { color: var(--input-placeholder); font-style: normal; } .val-box.dropdown { justify-content: space-between; cursor: pointer; } .val-box.multiline { white-space: normal; line-height: 1.2; padding: 4px 8px; height: auto; }
+.link-text { color: var(--md-sys-color-primary); text-decoration: underline; cursor: pointer; }
 </style>

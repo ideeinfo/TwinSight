@@ -12,6 +12,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import config from '../../config/index.js';
+import { processNewDocument } from '../../services/document-intelligence-service.js';
 
 const router = Router();
 
@@ -178,6 +179,11 @@ router.post('/',
                     spaceId || null,
                 ]
             );
+
+            // 异步触发智能分析 (缩略图生成、类型检测、自动打标签等)
+            processNewDocument(result.rows[0].id, filePath, originalName).catch(err => {
+                console.error('[Documents v1] Intelligence processing error:', err);
+            });
 
             res.status(201).json({ success: true, data: result.rows[0] });
         } catch (error) {

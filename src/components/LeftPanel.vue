@@ -2,8 +2,37 @@
   <div class="left-container">
     <!-- List Panel -->
     <div class="list-panel">
-      <div class="panel-header"><span class="title">{{ t('leftPanel.connections') }}</span><div class="actions"><span class="plus">+</span> {{ t('common.create') }}</div></div>
-      <div class="search-row"><div class="search-input-wrapper"><svg class="search-icon-sm" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg><input type="text" :placeholder="t('common.search')" /></div><div class="filter-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg></div></div>
+      <div class="panel-header">
+        <span class="title">{{ t('leftPanel.connections') }}</span>
+        <div class="actions">
+          <template v-if="selectedDbIdsLocal.length > 0">
+            <span class="selection-count">{{ t('common.selected', { count: selectedDbIdsLocal.length }) }}</span>
+            <el-button 
+              type="danger" 
+              text 
+              size="small" 
+              class="delete-btn"
+              style="color: #F56C6C !important;"
+              @click="handleDeleteRooms"
+            >
+             <el-icon><Delete /></el-icon>
+              {{ t('common.delete') }}
+            </el-button>
+          </template>
+        </div>
+      </div>
+      <div class="search-row">
+        <el-input
+          v-model="searchText"
+          :placeholder="t('common.search')"
+          :prefix-icon="Search"
+          size="small"
+          clearable
+          style="flex: 1"
+          autocomplete="off"
+          name="room-search"
+        />
+      </div>
 
       
       <div class="item-list">
@@ -41,7 +70,7 @@
             stroke="#888" 
             stroke-width="2"
             :title="t('leftPanel.copyStreamUrl')"
-            @click.stop="copyStreamUrl(item.code)"
+            @click.stop="copyStreamUrl(item.fileId, item.code)"
           >
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -62,7 +91,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { Search, Delete } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
+import { deleteSpaces } from '../services/postgres.js';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -81,22 +113,37 @@ const props = defineProps({
   selectedDbIds: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['open-properties', 'rooms-selected']);
+const emit = defineEmits(['open-properties', 'rooms-selected', 'rooms-deleted']);
 
 // 复制提示状态
 const showCopyToast = ref(false);
+const searchText = ref('');
 let toastTimer = null;
 
-// 使用从模型获取的房间列表，如果为空则显示加载提示
+// 使用从模型获取的房间列表，支持搜索过滤
 const items = computed(() => {
-  if (props.rooms && props.rooms.length > 0) {
-    return props.rooms.map(room => ({
-      name: room.name,
-      code: room.code,
-      dbId: room.dbId
-    }));
+  if (!props.rooms || props.rooms.length === 0) {
+    return [];
   }
-  return [];
+  
+  // 将房间数据转换为列表项格式
+  let list = props.rooms.map(room => ({
+    name: room.name,
+    code: room.code,
+    dbId: room.dbId,
+    fileId: room.fileId  // 包含 fileId 用于生成唯一的 Stream URL
+  }));
+  
+  // 🔑 根据搜索文本过滤
+  if (searchText.value) {
+    const search = searchText.value.toLowerCase();
+    list = list.filter(item => 
+      (item.name || '').toLowerCase().includes(search) ||
+      (item.code || '').toLowerCase().includes(search)
+    );
+  }
+  
+  return list;
 });
 
 // 多选：存储选中的 dbId 数组（由父级传入以在视图切换时保留）
@@ -133,11 +180,15 @@ const selectItem = (index) => {
   if (selectedDbIdsLocal.value.length > 0) emit('open-properties');
 };
 
-// 复制 Stream URL 到剪贴板
-const copyStreamUrl = async (spaceCode) => {
+// 复制 Stream URL 到剪贴板（需要 fileId 确保唯一性）
+const copyStreamUrl = async (fileId, spaceCode) => {
   try {
-    // 从服务器获取完整的 Stream URL（包含 API Key）
-    const response = await fetch(`/api/v1/timeseries/stream-url/${encodeURIComponent(spaceCode)}`, { headers: getHeaders() });
+    if (!fileId) {
+      console.error('无法复制 Stream URL: 缺少 fileId');
+      return;
+    }
+    // 从服务器获取完整的 Stream URL（包含 API Key 和 fileId）
+    const response = await fetch(`/api/v1/timeseries/stream-url/${fileId}/${encodeURIComponent(spaceCode)}`, { headers: getHeaders() });
     const result = await response.json();
     
     if (result.success && result.data?.streamUrl) {
@@ -158,46 +209,72 @@ const copyStreamUrl = async (spaceCode) => {
   }
 };
 
+// 删除选中的空间
+const handleDeleteRooms = async () => {
+    const count = selectedDbIdsLocal.value.length;
+    if (count === 0) return;
+
+    try {
+        await ElMessageBox.confirm(
+            t('common.confirmDelete', { count }),
+            t('common.warning'),
+            {
+                confirmButtonText: t('common.confirm'),
+                cancelButtonText: t('common.cancel'),
+                type: 'warning',
+            }
+        );
+
+        // 调用删除 API
+        await deleteSpaces(selectedDbIdsLocal.value);
+        
+        ElMessage.success(t('common.deleteSuccess') || '删除成功');
+        
+        // 触发父组件刷新列表
+        emit('rooms-deleted');
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('删除失败:', error);
+            ElMessage.error(t('common.deleteFailed') || '删除失败: ' + error.message);
+        }
+    }
+};
+
 </script>
 
 <style scoped>
-.left-container { display: flex; height: 100%; width: 100%; background: #252526; border-right: 1px solid #1e1e1e; }
-.icon-bar { width: 48px; flex-shrink: 0; background: #2b2b2b; border-right: 1px solid #1e1e1e; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
-.nav-group-top { width: 100%; display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
-.nav-group-bottom { width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
-.nav-item { width: 100%; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #999; cursor: pointer; margin-bottom: 4px; }
-.nav-item:hover { background: #333; }
-.nav-item.active-blue { border-left: 2px solid #38ABDF; background: #2a2d2e; color: #38ABDF; }
-.nav-item.active-blue svg { stroke: #38ABDF; }
-.nav-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-.nav-item .label { font-size: 10px; text-align: center; } /* Unified font size */
-.list-panel { flex: 1; display: flex; flex-direction: column; background: #252526; } /* Match AssetPanel flex */
-.panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #1e1e1e; }
-.title { font-size: 11px; font-weight: 600; color: #ccc; text-transform: uppercase; } /* Unified title */
-.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #888; cursor: pointer; } /* Unified actions */
-.actions:hover { color: #38ABDF; }
-.plus { font-size: 14px; font-weight: bold; }
-.search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; } /* Unified search row */
-.search-input-wrapper { flex: 1; position: relative; } /* Unified search wrapper */
-.search-input-wrapper input { width: 100%; background: #1e1e1e; border: 1px solid #333; border-radius: 3px; padding: 4px 8px 4px 24px; color: #ccc; font-size: 11px; }
-.search-input-wrapper input:focus { outline: none; border-color: #38ABDF; }
-.search-icon-sm { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); }
-.filter-icon { cursor: pointer; padding: 4px; }
-.filter-icon:hover svg { stroke: #38ABDF; }
+.left-container { display: flex; height: 100%; width: 100%; background: var(--md-sys-color-surface); border-right: 1px solid var(--md-sys-color-outline-variant); }
+/* icon-bar removed or handled elsewhere? In template it wasn't visible in snippet. Assuming only list-panel matters here. */
+/* Using tokens for list styles */
+.list-panel { flex: 1; display: flex; flex-direction: column; background: var(--list-bg); }
+.panel-header { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+.title { font-size: 11px; font-weight: 600; color: var(--md-sys-color-on-surface); text-transform: uppercase; }
+.actions { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--md-sys-color-secondary); cursor: pointer; }
+.selection-count { font-size: 12px; color: var(--md-sys-color-primary); margin-right: 8px; }
+.delete-btn { padding: 4px 8px; }
+.delete-btn:hover { background-color: var(--el-color-danger-light-9); }
+.actions:hover { color: var(--md-sys-color-primary); }
+.search-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
+/* .search-input-wrapper removed in favor of el-input */
+
+
 
 .item-list { flex: 1; overflow-y: auto; }
-.list-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #1e1e1e; cursor: pointer; } /* Tweaked to be visually similar but LeftPanel lacks indentation for tree */
-.list-item:hover { background: #2a2a2a; }
-.list-item.selected { background: #2a2d2e; border-left: 2px solid #38ABDF; }
-.checkbox { width: 16px; height: 16px; border: 1px solid #555; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-right: 8px; }
-.checkbox:hover { border-color: #38ABDF; }
-.checkbox.checked { background: #38ABDF; border-color: #38ABDF; }
-.checkbox svg { width: 12px; height: 12px; stroke: #fff; }
+.list-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); cursor: pointer; transition: background-color 0.2s; }
+.list-item:hover { background: var(--list-item-bg-hover); }
+.list-item.selected { background: var(--list-item-bg-selected); border-left: 2px solid var(--md-sys-color-primary); }
+
+/* Custom Checkbox styled like Element Plus */
+.checkbox { width: 16px; height: 16px; border: 1px solid var(--md-sys-color-outline); border-radius: 2px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-right: 8px; background: transparent; }
+.checkbox:hover { border-color: var(--md-sys-color-primary); }
+.checkbox.checked { background: var(--md-sys-color-primary); border-color: var(--md-sys-color-primary); }
+.checkbox svg { width: 12px; height: 12px; stroke: var(--md-sys-color-on-primary); }
+
 .item-content { flex: 1; min-width: 0; }
-.item-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-code { font-size: 10px; color: #888; margin-top: 2px; }
-.link-icon { flex-shrink: 0; opacity: 0.5; cursor: pointer; transition: all 0.2s; }
-.link-icon:hover { opacity: 1; stroke: #38ABDF; }
+.item-name { font-size: 12px; color: var(--list-item-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-code { font-size: 10px; color: var(--list-item-text-secondary); margin-top: 2px; }
+.link-icon { flex-shrink: 0; opacity: 0.5; cursor: pointer; transition: all 0.2s; stroke: var(--md-sys-color-secondary); }
+.link-icon:hover { opacity: 1; stroke: var(--md-sys-color-primary); }
 .loading-hint { padding: 40px 20px; text-align: center; color: #666; font-size: 12px; }
 
 /* 复制成功提示 */

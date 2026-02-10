@@ -272,11 +272,12 @@ router.get('/context', async (req, res) => {
         // 3. 获取相关文档
         // 3.1 房间直接关联的文档
         const spaceDocsResult = await pool.query(`
-            SELECT id, title, file_name, file_path, file_type, 'space' as source_type
-            FROM documents
-            WHERE space_code = $1
-              AND file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt')
-        `, [roomCode]);
+                SELECT d.id, d.title, d.file_name, d.file_path, d.file_type, 'space' as source_type
+                FROM documents d
+                JOIN spaces s ON d.space_code = s.space_code
+                WHERE d.space_code = $1 AND s.file_id = $2
+                  AND d.file_type IN ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'md', 'txt')
+            `, [roomCode, targetFileId]);
 
         // 3.2 房间内资产关联的文档
         const assetCodes = assetsResult.rows.map(a => a.asset_code);

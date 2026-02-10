@@ -1,0 +1,219 @@
+# Tandem Demo - 完整 Docker 服务配置
+# 项目名称: tandem-demo (用于 Docker Desktop 分组)
+
+name: tandem-demo
+
+services:
+  # ==================== 数据库服务 ====================
+
+  # PostgreSQL 数据库 (带 PGVector 扩展)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tandem-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tandem
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tandem-network
+
+  # InfluxDB 2.x - 时序数据库 (使用现有容器配置，保留历史数据)
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: influxdb2
+    restart: always
+    environment:
+      # 注意：这些初始化变量只在首次启动时生效，已有数据不受影响
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: mis730607
+      DOCKER_INFLUXDB_INIT_ORG: demo
+      DOCKER_INFLUXDB_INIT_BUCKET: tandem
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: SsFt9slg5E2jS6HmvxuaePjebpkNVRi-S0wrDexjQWOFXDeARRY8NeJ-_Dqe6eAzsyuWtIVHFmSs3XMuv0x1ww==
+    ports:
+      - "8086:8086"
+    volumes:
+      # 使用 Docker managed volumes
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - tandem-network
+
+  # ==================== IoT 服务 ====================
+
+  # Node-RED - 可视化流程编程工具 (使用现有容器配置，保留历史数据)
+  nodered:
+    image: nodered/node-red:latest
+    container_name: mynodered
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+      NODE_RED_ENABLE_PROJECTS: "false"
+    ports:
+      - "1880:1880"
+    volumes:
+      # 使用 Docker managed volumes
+      - nodered_data:/data
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - tandem-network
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - 数据可视化仪表盘
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=mis730607
+      - TZ=Asia/Shanghai
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - tandem-network
+
+  # ==================== AI 服务 ====================
+
+  # n8n 工作流自动化平台
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tandem-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # 基础配置
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
+      # 添加这行允许工作流访问环境变量
+      - N8N_RUNNERS_ENABLED=true
+
+      # 时区设置
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - TZ=Asia/Shanghai
+      # 安全配置
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=ideeinfo@gmail.com
+      - N8N_BASIC_AUTH_PASSWORD=Mis730607
+      # Gemini API 配置 (在 .env 文件中设置)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # 允许在表达式中访问环境变量
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES=true
+      # 允许调用本地服务
+      - N8N_RUNNERS_TASK_BROKER_URI=http://host.docker.internal:3001
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - API_BASE_URL=http://host.docker.internal:3001
+      - OPENWEBUI_URL=http://host.docker.internal:3080
+    volumes:
+      - n8n_data:/home/node/.n8n
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - tandem-network
+
+  # ==================== Open WebUI ====================
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.6.43
+    container_name: tandem-open-webui
+    restart: unless-stopped
+    ports:
+      - "3080:8080"
+    environment:
+      # 基础配置
+      - WEBUI_NAME=Tandem AI
+      - DEFAULT_LOCALE=zh-CN
+      # 安全配置 (注意：新版变量名为复数 KEYS)
+      - ENABLE_API_KEYS=true
+      # Gemini API 配置
+      - OPENAI_API_BASE_URLS=https://generativelanguage.googleapis.com/v1beta/openai
+      - OPENAI_API_KEYS=${GEMINI_API_KEY:-}
+      # 允许注册（首次使用需要创建管理员账户）
+      - ENABLE_SIGNUP=true
+      # RAG 配置（使用内置 ChromaDB）
+      - ENABLE_RAG_WEB_SEARCH=true
+      # 国内 Hugging Face 镜像源
+      - HF_ENDPOINT=https://hf-mirror.com
+      # RAG 配置 (强制使用本地多语言模型)
+      - RAG_EMBEDDING_ENGINE=
+      - RAG_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - tandem-network
+
+volumes:
+  postgres_data:
+  grafana_data:
+  n8n_data:
+  open_webui_data: # 新增：InfluxDB 和 Node-RED volumes
+
+  influxdb_data:
+  influxdb_config:
+  nodered_data:
+
+
+networks:
+  tandem-network:
+    driver: bridge
+
+# ============================================
+# 服务说明:
+# ============================================
+#
+# PostgreSQL: localhost:5432
+#   - 用户: postgres
+#   - 密码: password
+#   - 数据库: tandem
+#
+
+#
+# InfluxDB: http://localhost:8086
+#   - 用户: admin
+#   - 密码: adminpassword
+#   - 组织: demo
+#   - Bucket: tandem
+#   - Token: tandem-influx-token-2024
+#
+# Node-RED: http://localhost:1880
+#   - 可视化流程编辑器
+#   - 用于 IoT 数据采集和处理
+#
+# n8n: http://localhost:5678
+#   - 用户: admin
+#   - 密码: tandem123
+#   - AI 工作流自动化平台
+#
+#
+#
+# API 服务 (server/): npm run dev
+#   - 端口: 3001
+#   - 初始化数据库: cd server && npm run db:init
+#
+# ============================================
+# 快速启动:
+# ============================================
+# 1. 启动所有服务: docker-compose up -d
+# 2. 查看日志: docker-compose logs -f
+# 3. 停止服务: docker-compose down
+# 4. 清除数据: docker-compose down -v

@@ -3,12 +3,13 @@
  * 
  * 功能：
  * - 检查数据库连接
- * - 自动创建表结构（如不存在）
+ * - 自动创建表结构（首次部署）
+ * - 自动运行增量迁移（更新部署）
  * - 创建系统基础数据
  * 
  * 特点：幂等执行，可重复运行不会报错
  */
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import pg from 'pg';
@@ -76,6 +77,63 @@ async function tableExists(pool, tableName) {
     return result.rows[0].exists;
 }
 
+// 运行增量迁移
+async function runMigrations(pool) {
+    console.log('🔄 检查数据库迁移...');
+
+    // 1. 确保 migrations 表存在
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS migrations (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) UNIQUE NOT NULL,
+            executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // 2. 获取已执行的迁移
+    const { rows: executed } = await pool.query('SELECT name FROM migrations');
+    const executedNames = new Set(executed.map(row => row.name));
+
+    // 3. 读取本地迁移文件
+    const migrationsDir = join(__dirname, '../migrations');
+    let files = [];
+    try {
+        files = readdirSync(migrationsDir).filter(f => f.endsWith('.sql'));
+    } catch (e) {
+        console.warn('⚠️ 无法读取 migrations 目录，跳过迁移检查');
+        return;
+    }
+
+    // 4. 找出未执行的迁移并排序
+    const pending = files.filter(f => !executedNames.has(f)).sort();
+
+    if (pending.length === 0) {
+        console.log('✅ 所有迁移已执行');
+        return;
+    }
+
+    console.log(`📦 发现 ${pending.length} 个待执行迁移:`, pending);
+
+    // 5. 依次执行
+    for (const file of pending) {
+        console.log(`▶️ 执行迁移: ${file}...`);
+        const filePath = join(migrationsDir, file);
+        const sql = readFileSync(filePath, 'utf-8');
+
+        try {
+            await pool.query('BEGIN');
+            await pool.query(sql);
+            await pool.query('INSERT INTO migrations (name) VALUES ($1)', [file]);
+            await pool.query('COMMIT');
+            console.log(`   ✅ 成功`);
+        } catch (error) {
+            await pool.query('ROLLBACK');
+            console.error(`   ❌ 失败: ${error.message}`);
+            throw error; // 中断后续迁移，防止部分成功导致状态不一致
+        }
+    }
+}
+
 // 初始化数据库结构
 async function initializeDatabase() {
     const config = getDbConfig();
@@ -88,33 +146,26 @@ async function initializeDatabase() {
         if (!modelsTableExists) {
             console.log('📦 首次部署，开始创建数据库结构...');
 
-            // 首先创建 model_files 表（其他表依赖它）
-            await pool.query(`
-                CREATE TABLE IF NOT EXISTS model_files (
-                    id SERIAL PRIMARY KEY,
-                    filename VARCHAR(500) NOT NULL,
-                    original_name VARCHAR(500),
-                    urn VARCHAR(1000),
-                    file_path VARCHAR(1000),
-                    file_size BIGINT,
-                    status VARCHAR(50) DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            `);
-            console.log('   ✅ model_files 表已创建');
-
-            // 读取并执行完整 schema
+            // model_files 表由 schema.sql 创建，这里不再单独创建
+            // 直接执行 schema.sql
             const schemaPath = join(__dirname, '../db/schema.sql');
-            const schema = readFileSync(schemaPath, 'utf-8');
-            await pool.query(schema);
-            console.log('   ✅ 完整数据库结构已创建');
+            try {
+                const schema = readFileSync(schemaPath, 'utf-8');
+                await pool.query(schema);
+                console.log('   ✅ 完整数据库结构已创建');
+            } catch (err) {
+                console.error('   ❌ 数据库初始化失败:', err.message);
+                throw err;
+            }
         } else {
-            console.log('✅ 数据库结构已存在，跳过初始化');
+            console.log('✅ 基础数据库结构已存在');
         }
 
         // 检查并创建必要的扩展
         await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+
+        // 运行迁移 (处理 Schema 变更)
+        await runMigrations(pool);
 
         // 创建系统基础数据（如需要）
         await createBaseData(pool);
@@ -131,14 +182,7 @@ async function createBaseData(pool) {
 
     if (parseInt(result.rows[0].count) === 0) {
         console.log('📝 创建系统基础数据...');
-
         // 可以在此添加默认分类数据
-        // await pool.query(`
-        //     INSERT INTO classifications (classification_code, classification_desc, classification_type)
-        //     VALUES ('DEFAULT', '默认分类', 'asset')
-        //     ON CONFLICT DO NOTHING;
-        // `);
-
         console.log('   ✅ 基础数据创建完成');
     }
 }
@@ -147,7 +191,7 @@ async function createBaseData(pool) {
 async function main() {
     console.log(`
 ╔════════════════════════════════════════════════╗
-║     Tandem Demo - 部署后初始化                 ║
+║     Twinsight - 部署后初始化                    ║
 ╚════════════════════════════════════════════════╝
     `);
 

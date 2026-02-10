@@ -61,7 +61,7 @@ async function main() {
             }
 
             try {
-                const kbName = `Tandem-${model.title}`;
+                const kbName = `Twinsight-${model.title}`;
                 const kbDescription = `知识库关联模型文件: ${model.title} (${model.original_name})`;
 
                 const kb = await createKnowledgeBase(kbName, kbDescription);

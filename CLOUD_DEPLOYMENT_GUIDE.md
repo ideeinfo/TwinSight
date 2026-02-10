@@ -1,5 +1,5 @@
 
-# Tandem Demo 云部署指南
+# Twinsight 云部署指南
 
 > **最后更新**: 2024-12-30  
 > **版本**: 2.0 - 增补 n8n、Open WebUI 等 AI/IoT 服务
@@ -22,6 +22,7 @@
 - [GitHub Actions 自动部署](#-github-actions-自动部署)
 - [成本估算](#-成本估算)
 - [部署检查清单](#-部署检查清单)
+- [🇨🇳 阿里云 ECS 专项部署方案](ALIBABA_ECS_DEPLOYMENT.md)
 
 ---
 
@@ -29,16 +30,16 @@
 
 ### 服务组件
 
-| 组件 | 技术栈 | 端口 | 必需 | 说明 |
-|------|--------|------|------|------|
-| **前端 (Frontend)** | Vue 3 + Vite | 80/443 | ✅ | 静态文件，需要 CDN |
-| **后端 API (Server)** | Node.js + Express | 3001 | ✅ | RESTful API |
-| **PostgreSQL** | PostgreSQL 16 + pgvector | 5432 | ✅ | 主数据库 |
-| **InfluxDB** | InfluxDB 2.x | 8086 | ⚠️ | 时序数据库（如需时序数据） |
-| **n8n** | n8n | 5678 | ⚠️ | AI 工作流自动化 |
-| **Open WebUI** | Open WebUI | 3080 | ⚠️ | AI 对话界面 |
-| **Node-RED** | Node-RED | 1880 | ⚠️ | IoT 数据流处理 |
-| **Grafana** | Grafana | 3000 | ⚠️ | 数据可视化 |
+| 组件                  | 技术栈             | 端口    | 必需 | 说明                       |
+| --------------------- | ------------------ | ------- | ---- | -------------------------- |
+| **前端 (Frontend)**   | Vue 3 + Vite       | 80/443  | ✅   | 静态文件，需要 CDN         |
+| **后端 API (Server)** | Node.js + Express  | 3001    | ✅   | RESTful API                |
+| **PostgreSQL**        | PostgreSQL 16 + pg | 5432    | ✅   | 主数据库                   |
+| **InfluxDB**          | InfluxDB 2.x       | 8086    | ⚠️   | 时序数据库（如需时序数据） |
+| **n8n**               | n8n                | 5678    | ⚠️   | AI 工作流自动化            |
+| **Open WebUI**        | Open WebUI         | 3080    | ⚠️   | AI 对话界面                |
+| **Node-RED**          | Node-RED           | 1880    | ⚠️   | IoT 数据流处理             |
+| **Grafana**           | Grafana            | 3000    | ⚠️   | 数据可视化                 |
 
 
 ### 服务架构图
@@ -107,22 +108,22 @@ Docker volumes 中的数据存储在本地机器上，部署代码到云端时�
 
 ```bash
 # 1. 导出本地数据
-docker exec tandem-postgres pg_dump -U postgres tandem > backup.sql
+docker exec twinsight-postgres pg_dump -U postgres twinsight > backup.sql
 
 # 2. 上传到云端服务器后导入
 # Railway: 使用 Railway CLI
 railway run psql $DATABASE_URL < backup.sql
 
 # 或直接连接远程数据库
-psql "postgresql://user:pass@host:5432/tandem" < backup.sql
+psql "postgresql://user:pass@host:5432/twinsight" < backup.sql
 ```
 
 #### InfluxDB 数据导出/导入
 
 ```bash
 # 1. 导出本地数据
-docker exec tandem-influxdb influx backup /tmp/backup --token YOUR_TOKEN
-docker cp tandem-influxdb:/tmp/backup ./influx_backup
+docker exec twinsight-influxdb influx backup /tmp/backup --token YOUR_TOKEN
+docker cp twinsight-influxdb:/tmp/backup ./influx_backup
 
 # 2. 导入到云端 InfluxDB
 # 需要先设置远程连接，或使用 InfluxDB Cloud 的导入功能
@@ -155,7 +156,7 @@ n8n 的工作流存储在 SQLite 数据库中（默认情况），最简单的�
    - 建议在 Railway 的 n8n 服务中重新录入 `Gemini API Key` 和 `Postgres` 连接信息。
 
 #### 导入（Railway）
-1. 打开部署好的 Railway n8n 地址 (`https://tandem-n8n.up.railway.app`)。
+1. 打开部署好的 Railway n8n 地址 (`https://twinsight-n8n.up.railway.app`)。
 2. 创建管理员账户登录。
 3. 点击右上角 **Import from File**。
 4. 选择之前导出的 `.json` 文件。
@@ -208,13 +209,13 @@ Railway 允许您将整个项目配置（包含所有服务、变量连接、启
 
 #### 制作步骤
 1. **完善当前项目**：
-   - 确保您的 Railway 项目中包含了所有需要的服务（Tandem App, Postgres, N8N, Open WebUI 等）。
+   - 确保您的 Railway 项目中包含了所有需要的服务（Twinsight App, Postgres, N8N, Open WebUI 等）。
    - 确保所有服务之间的连接（通过变量）都已配置正确且运行正常。
 
 2. **生成模板**：
    - 在 Railway 项目界面，点击右上角的 **Settings** (设置)。
    - 找到 **Template** 区域，点击 **Generate Template**。
-   - 填写模板名称（如 `Tandem AI Solution`）和描述。
+   - 填写模板名称（如 `Twinsight AI Solution`）和描述。
 
 3. **获取部署链接**：
    - 生成后，您会获得一个类似 `https://railway.app/template/xxxx` 的链接。
@@ -236,7 +237,7 @@ Railway 允许您将整个项目配置（包含所有服务、变量连接、启
 #!/bin/bash
 # Tandem 一键部署脚本
 
-echo "开始部署 Tandem..."
+echo "开始部署 Twinsight..."
 
 # 1. 检查 Docker
 if ! command -v docker &> /dev/null; then
@@ -245,8 +246,8 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # 2. 下载代码
-git clone https://github.com/ideeinfo/tandem-demo.git /opt/tandem
-cd /opt/tandem/docker
+git clone https://github.com/ideeinfo/twinsight.git /opt/twinsight
+cd /opt/twinsight/docker
 
 # 3. 询问配置
 read -p "请输入 Gemini API Key: " api_key
@@ -265,25 +266,25 @@ echo "部署完成！访问 http://localhost 即可使用。"
 
 ### 推荐方案对比
 
-| 服务商 | 复杂度 | 月费估算 | Docker 支持 | 全服务栈 | 推荐场景 |
-|--------|--------|----------|------------|----------|----------|
-| **Railway** ⭐ | 🟢 简单 | $5-20 | ✅ 完整 | ✅ 是 | 快速原型/小团队 |
-| **Render** | 🟢 简单 | $0-25 | ✅ 完整 | ✅ 是 | 个人项目/演示 |
-| **Fly.io** | 🟡 中等 | $5-30 | ✅ 完整 | ✅ 是 | 全球边缘部署 |
-| **Vercel + Railway** | 🟡 中等 | $0-20 | 🔶 部分 | 🔶 拆分 | 前端优先项目 |
-| **Google Cloud Run** | 🟢 简单 | 按用量 | ✅ 完整 | 🔶 部分 | 无服务器/按需扩展 |
-| **AWS ECS + RDS** | 🔴 复杂 | $50-200+ | ✅ 完整 | ✅ 是 | 企业生产环境 |
-| **自托管 VPS** | 🔴 复杂 | $10-50 | ✅ 完整 | ✅ 是 | 完全控制/全服务 |
+| 服务商               | 复杂度  | 月费估算 | Docker 支持 | 全服务栈 | 推荐场景          |
+| -------------------- | ------- | -------- | ----------- | -------- | ----------------- |
+| **Railway** ⭐       | 🟢 简单 | $5-20    | ✅ 完整     | ✅ 是    | 快速原型/小团队   |
+| **Render**           | 🟢 简单 | $0-25    | ✅ 完整     | ✅ 是    | 个人项目/演示     |
+| **Fly.io**           | 🟡 中等 | $5-30    | ✅ 完整     | ✅ 是    | 全球边缘部署      |
+| **Vercel + Railway** | 🟡 中等 | $0-20    | 🔶 部分     | 🔶 拆分  | 前端优先项目      |
+| **Google Cloud Run** | 🟢 简单 | 按用量   | ✅ 完整     | 🔶 部分  | 无服务器/按需扩展 |
+| **AWS ECS + RDS**    | 🔴 复杂 | $50-200+ | ✅ 完整     | ✅ 是    | 企业生产环境      |
+| **自托管 VPS**       | 🔴 复杂 | $10-50   | ✅ 完整     | ✅ 是    | 完全控制/全服务   |
 
 ### 分层部署策略建议
 
 由于项目包含多个服务，建议采用**分层部署**：
 
-| 层级 | 服务 | 推荐平台 | 理由 |
-|------|------|----------|------|
-| **核心应用层** | 前端 + 后端 + PostgreSQL | Railway / Cloud Run | 自动 CI/CD，托管数据库 |
-| **AI 服务层** | n8n + Open WebUI | Railway 或 独立 VPS | 可选部署，资源灵活 |
-| **IoT/监控层** | InfluxDB + Node-RED + Grafana | 独立 VPS 或云托管 | 持久化数据，高可用 |
+| 层级           | 服务                          | 推荐平台            | 理由                   |
+| -------------- | ----------------------------- | ------------------- | ---------------------- |
+| **核心应用层** | 前端 + 后端 + PostgreSQL      | Railway / Cloud Run | 自动 CI/CD，托管数据库 |
+| **AI 服务层**  | n8n + Open WebUI              | Railway 或 独立 VPS | 可选部署，资源灵活     |
+| **IoT/监控层** | InfluxDB + Node-RED + Grafana | 独立 VPS 或云托管   | 持久化数据，高可用     |
 
 ---
 
@@ -323,7 +324,7 @@ Railway 支持直接从 GitHub 部署，自动检测项目类型并配置。
 
 1. **访问 [railway.app](https://railway.app)** → 用 GitHub 登录
 2. **New Project** → **Deploy from GitHub Repo**
-3. **选择 `ideeinfo/tandem-demo` 仓库**
+3. **选择 `ideeinfo/twinsight` 仓库**
 4. **添加 PostgreSQL**：
    - 点击 **Add Service** → **Database** → **PostgreSQL**
    - Railway 会自动注入 `DATABASE_URL` 环境变量
@@ -337,7 +338,7 @@ Railway 支持直接从 GitHub 部署，自动检测项目类型并配置。
    # InfluxDB（如果需要）
    INFLUX_URL=https://your-influxdb-cloud.com
    INFLUX_ORG=your-org
-   INFLUX_BUCKET=tandem
+   INFLUX_BUCKET=twinsight
    INFLUX_TOKEN=your-token
    ```
 6. **部署**：点击 **Deploy** 即可
@@ -364,7 +365,7 @@ Railway 支持直接从 GitHub 部署，自动检测项目类型并配置。
    VITE_API_URL=https://your-railway-backend.up.railway.app
    VITE_INFLUX_URL=https://your-influxdb-cloud.com
    VITE_INFLUX_ORG=your-org
-   VITE_INFLUX_BUCKET=tandem
+   VITE_INFLUX_BUCKET=twinsight
    VITE_INFLUX_TOKEN=your-token
    ```
 
@@ -399,8 +400,8 @@ curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
 
 # 克隆代码
-git clone https://github.com/ideeinfo/tandem-demo.git /opt/tandem-demo
-cd /opt/tandem-demo
+git clone https://github.com/ideeinfo/twinsight.git /opt/twinsight
+cd /opt/twinsight
 ```
 
 #### 2. 配置环境变量
@@ -473,7 +474,7 @@ n8n 是一个强大的工作流自动化平台，用于处理 AI 分析任务。
 ```yaml
 n8n:
   image: n8nio/n8n:latest
-  container_name: tandem-n8n
+  container_name: twinsight-n8n
   restart: unless-stopped
   environment:
     - N8N_HOST=${N8N_HOST:-localhost}
@@ -500,7 +501,7 @@ Open WebUI 提供类似 ChatGPT 的 AI 对话界面，支持 Gemini API。
 2. 选择 **Docker Image** → `ghcr.io/open-webui/open-webui:main`
 3. 配置环境变量：
    ```
-   WEBUI_NAME=Tandem AI
+   WEBUI_NAME=Twinsight AI
    DEFAULT_LOCALE=zh-CN
    ENABLE_API_KEYS=true
    OPENAI_API_BASE_URLS=https://generativelanguage.googleapis.com/v1beta/openai
@@ -526,7 +527,7 @@ Open WebUI 提供类似 ChatGPT 的 AI 对话界面，支持 Gemini API。
 
 1. 访问 [cloud2.influxdata.com](https://cloud2.influxdata.com)
 2. 注册免费账户
-3. 创建 Bucket：`tandem`
+3. 创建 Bucket：`twinsight`
 4. 获取 API Token
 5. 配置环境变量
 
@@ -586,9 +587,9 @@ location /ai/ {
 ### Railway 端口暴露
 
 Railway 自动处理端口暴露，每个服务获得独立域名：
-- 主应用：`tandem-demo.up.railway.app`
-- n8n：`tandem-n8n.up.railway.app`
-- Open WebUI：`tandem-ai.up.railway.app`
+- 主应用：`twinsight.up.railway.app`
+- n8n：`twinsight-n8n.up.railway.app`
+- Open WebUI：`twinsight-ai.up.railway.app`
 
 ---
 
@@ -633,31 +634,31 @@ async function main() {
 
 `.github/workflows/deploy.yml` 支持多种部署方式：
 
-| 部署目标 | 触发条件 | 说明 |
-|----------|----------|------|
-| **Railway** | 推送到 main/db 分支 | 自动部署 |
-| **Vercel** | 手动触发 | 前端部署 |
-| **SSH** | 手动触发 | 自托管服务器 |
-| **Docker** | 手动触发 | 仅构建镜像 |
+| 部署目标    | 触发条件            | 说明         |
+| ----------- | ------------------- | ------------ |
+| **Railway** | 推送到 main/db 分支 | 自动部署     |
+| **Vercel**  | 手动触发            | 前端部署     |
+| **SSH**     | 手动触发            | 自托管服务器 |
+| **Docker**  | 手动触发            | 仅构建镜像   |
 
 ### 配置 GitHub Secrets
 
 在仓库 **Settings** → **Secrets and variables** → **Actions** 中添加：
 
-| Secret 名称 | 说明 | 必需 |
-|------------|------|------|
-| `RAILWAY_TOKEN` | Railway API Token | ✅ |
-| `VITE_API_URL` | 后端 API 地址 | ✅ |
-| `VITE_INFLUX_URL` | InfluxDB 地址 | ⚠️ |
-| `VITE_INFLUX_ORG` | InfluxDB 组织 | ⚠️ |
-| `VITE_INFLUX_BUCKET` | InfluxDB Bucket | ⚠️ |
-| `VITE_INFLUX_TOKEN` | InfluxDB Token | ⚠️ |
-| `SSH_HOST` | SSH 服务器地址 | ⚠️ |
-| `SSH_USERNAME` | SSH 用户名 | ⚠️ |
-| `SSH_PRIVATE_KEY` | SSH 私钥 | ⚠️ |
-| `VERCEL_TOKEN` | Vercel Token | ⚠️ |
-| `VERCEL_ORG_ID` | Vercel 组织 ID | ⚠️ |
-| `VERCEL_PROJECT_ID` | Vercel 项目 ID | ⚠️ |
+| Secret 名称          | 说明            | 必需 |
+| -------------------- | --------------- | ---- |
+| `RAILWAY_TOKEN`      | Railway API Token | ✅  |
+| `VITE_API_URL`       | 后端 API 地址   | ✅   |
+| `VITE_INFLUX_URL`    | InfluxDB 地址   | ⚠️   |
+| `VITE_INFLUX_ORG`    | InfluxDB 组织   | ⚠️   |
+| `VITE_INFLUX_BUCKET` | InfluxDB Bucket | ⚠️   |
+| `VITE_INFLUX_TOKEN`  | InfluxDB Token  | ⚠️   |
+| `SSH_HOST`           | SSH 服务器地址  | ⚠️   |
+| `SSH_USERNAME`       | SSH 用户名      | ⚠️   |
+| `SSH_PRIVATE_KEY`    | SSH 私钥        | ⚠️   |
+| `VERCEL_TOKEN`       | Vercel Token    | ⚠️   |
+| `VERCEL_ORG_ID`      | Vercel 组织 ID  | ⚠️   |
+| `VERCEL_PROJECT_ID`  | Vercel 项目 ID  | ⚠️   |
 
 ### 手动触发部署
 
@@ -672,30 +673,30 @@ async function main() {
 ## 💰 成本估算
 
 ### 小型项目（< 1000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| Railway (API + PostgreSQL) | $5-10 |
-| Vercel (前端) | 免费 |
-| InfluxDB Cloud | 免费层 |
-| **总计** | **$5-10/月** |
+| 服务                       | 月费         |
+| -------------------------- | ------------ |
+| Railway (API + PostgreSQL) | $5-10        |
+| Vercel (前端)              | 免费         |
+| InfluxDB Cloud             | 免费层       |
+| **总计**                   | **$5-10/月** |
 
 ### 中型项目（1000-10000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| Railway Pro | $20 |
-| PostgreSQL (更大存储) | +$10 |
-| InfluxDB Cloud 付费 | $25 |
-| n8n (Railway) | +$5 |
-| Open WebUI (Railway) | +$5 |
-| **总计** | **$65/月** |
+| 服务                  | 月费       |
+| --------------------- | ---------- |
+| Railway Pro           | $20        |
+| PostgreSQL (更大存储) | +$10       |
+| InfluxDB Cloud 付费   | $25        |
+| n8n (Railway)         | +$5        |
+| Open WebUI (Railway)  | +$5        |
+| **总计**              | **$65/月** |
 
 ### 企业级（> 10000 用户/月）
-| 服务 | 月费 |
-|------|------|
-| 自托管 VPS (4核8G) | $50-100 |
-| RDS PostgreSQL | $50-100 |
-| InfluxDB Cloud 企业版 | $100+ |
-| **总计** | **$200+/月** |
+| 服务                  | 月费         |
+| --------------------- | ------------ |
+| 自托管 VPS (4核8G)    | $50-100      |
+| RDS PostgreSQL        | $50-100      |
+| InfluxDB Cloud 企业版 | $100+        |
+| **总计**              | **$200+/月** |
 
 ---
 

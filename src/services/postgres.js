@@ -4,7 +4,7 @@
  */
 
 // 后端 API 基础 URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 // API v1 路径
 const API_V1 = `${API_BASE_URL}/api/v1`;
@@ -28,9 +28,16 @@ const getHeaders = (contentType = null) => {
  */
 export async function checkApiHealth() {
     try {
+        console.log('🔍 Checking API Health:', `${API_V1}/health`);
         const response = await fetch(`${API_V1}/health`, { headers: getHeaders() });
-        return response.ok;
-    } catch {
+        if (response.ok) return true;
+
+        // Fallback check
+        console.warn('⚠️ Primary health check failed, trying fallback:', `${API_BASE_URL}/api/health`);
+        const fallbackResponse = await fetch(`${API_BASE_URL}/api/health`, { headers: getHeaders() });
+        return fallbackResponse.ok;
+    } catch (error) {
+        console.error('❌ API Health Check Failed:', error);
         return false;
     }
 }
@@ -105,6 +112,20 @@ export async function getAssetsByRoom(room) {
 
     if (!data.success) {
         throw new Error(data.error || '获取资产失败');
+    }
+
+    return data.data;
+}
+
+/**
+ * 根据 DB ID 和 文件 ID 获取资产详情
+ */
+export async function getAssetDetailByDbId(dbId, fileId) {
+    const response = await fetch(`${API_V1}/assets/by-dbid/${dbId}?fileId=${fileId}`, { headers: getHeaders() });
+    const data = await response.json();
+
+    if (!data.success) {
+        throw new Error(data.error || '获取资产详情失败');
     }
 
     return data.data;
@@ -231,6 +252,44 @@ export async function importAssets(assets) {
 }
 
 /**
+ * 批量删除资产
+ */
+export async function deleteAssets(dbIds) {
+    const response = await fetch(`${API_V1}/assets/batch-delete`, {
+        method: 'POST',
+        headers: getHeaders('application/json'),
+        body: JSON.stringify({ dbIds }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+        throw new Error(data.error || '删除资产失败');
+    }
+
+    return data;
+}
+
+/**
+ * 批量删除空间
+ */
+export async function deleteSpaces(dbIds) {
+    const response = await fetch(`${API_V1}/spaces/batch-delete`, {
+        method: 'POST',
+        headers: getHeaders('application/json'),
+        body: JSON.stringify({ dbIds }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+        throw new Error(data.error || '删除空间失败');
+    }
+
+    return data;
+}
+
+/**
  * 批量导入空间
  */
 export async function importSpaces(spaces) {
@@ -256,6 +315,7 @@ export default {
     getAssets,
     getAssetsByFloor,
     getAssetsByRoom,
+    getAssetDetailByDbId,
     getSpaces,
     getSpacesByFloor,
     importModelData,
@@ -263,5 +323,7 @@ export default {
     importClassifications,
     importAssetSpecs,
     importAssets,
+    deleteAssets,
+    deleteSpaces,
     importSpaces,
 };

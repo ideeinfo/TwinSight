@@ -4,7 +4,21 @@
     <div class="panel-header">
       <span class="title">{{ t('assetPanel.assets') }}</span>
       <div class="actions">
-        <span class="plus">+</span> {{ t('common.create') }}
+        <template v-if="selectedAssetsForDeletion.length > 0">
+          <span class="selection-count">{{ t('common.selected', { count: selectedAssetsForDeletion.length }) }}</span>
+          <el-button 
+            type="danger" 
+            text 
+            size="small" 
+            class="delete-btn"
+            style="color: #F56C6C !important;"
+            @click="handleDeleteAssets"
+          >
+           <el-icon><Delete /></el-icon>
+            {{ t('common.delete') }}
+          </el-button>
+        </template>
+        <!-- 移除“+ 创建”按钮 -->
       </div>
     </div>
 
@@ -16,6 +30,8 @@
         :prefix-icon="Search"
         clearable
         size="small"
+        autocomplete="off"
+        name="asset-search"
       />
     </div>
 
@@ -54,7 +70,9 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Search } from '@element-plus/icons-vue';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { Search, Delete } from '@element-plus/icons-vue';
+import { deleteAssets } from '../services/postgres.js';
 
 const { t } = useI18n();
 
@@ -63,7 +81,7 @@ const props = defineProps({
   selectedDbIds: { type: Array, default: () => [] }
 });
 
-const emit = defineEmits(['open-properties', 'assets-selected']);
+const emit = defineEmits(['open-properties', 'assets-selected', 'assets-deleted']);
 
 // 搜索文本
 const searchText = ref('');
@@ -130,13 +148,16 @@ const treeData = computed(() => {
     }
     
     // 第三级：资产
-    tree[classificationKey].children[specKey].children.push({
-      id: `asset-${asset.dbId}`,
-      label: asset.name || 'Unnamed Asset',
-      dbId: asset.dbId,
-      mcCode: asset.mcCode,
-      isAsset: true
-    });
+    // 确保有 dbId 才能被操作
+    if (asset.dbId) {
+      tree[classificationKey].children[specKey].children.push({
+        id: `asset-${asset.dbId}`,
+        label: asset.name || 'Unnamed Asset',
+        dbId: asset.dbId,
+        mcCode: asset.mcCode,
+        isAsset: true
+      });
+    }
   });
 
   // 转换为数组并添加计数
@@ -172,6 +193,9 @@ const debounce = (fn, delay) => {
   };
 };
 
+// 选中的资产 ID 列表 (用于删除等操作)
+const selectedAssetsForDeletion = ref([]);
+
 // 处理节点勾选变化（使用防抖优化性能）
 const handleCheckChange = debounce(() => {
   // el-tree-v2 获取选中节点的方法不同
@@ -181,11 +205,47 @@ const handleCheckChange = debounce(() => {
     .filter(node => node.isAsset && node.dbId)
     .map(node => node.dbId);
   
+  selectedAssetsForDeletion.value = assetDbIds; // 记录选中用于删除
+
   emit('assets-selected', assetDbIds);
   if (assetDbIds.length > 0) {
     emit('open-properties');
   }
 }, 100);
+
+// 删除选中的资产
+const handleDeleteAssets = async () => {
+    const count = selectedAssetsForDeletion.value.length;
+    if (count === 0) return;
+
+    try {
+        await ElMessageBox.confirm(
+            t('common.confirmDelete', { count }),
+            t('common.warning'),
+            {
+                confirmButtonText: t('common.confirm'),
+                cancelButtonText: t('common.cancel'),
+                type: 'warning',
+            }
+        );
+
+        // 调用删除 API
+        await deleteAssets(selectedAssetsForDeletion.value);
+        
+        ElMessage.success(t('common.deleteSuccess') || '删除成功');
+        
+        // 触发父组件刷新列表
+        emit('assets-deleted');
+        
+        // 不需要手动清空 selectedAssetsForDeletion，
+        // 因为父组件刷新 props.assets 后，树会重建，选中状态会重置
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('删除失败:', error);
+            ElMessage.error(t('common.deleteFailed') || '删除失败: ' + error.message);
+        }
+    }
+};
 
 // 处理节点点击
 const handleNodeClick = (data) => {
@@ -254,8 +314,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 默认使用主题表面色（浅色模式适配） */
-  background: var(--md-sys-color-surface);
+  /* Use list background token */
+  background: var(--list-bg);
 }
 
 .panel-header {
@@ -265,13 +325,13 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--md-sys-color-on-surface);
   text-transform: uppercase;
 }
 
@@ -280,12 +340,12 @@ defineExpose({
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  color: var(--md-sys-color-secondary);
   cursor: pointer;
 }
 
 .actions:hover {
-  color: var(--el-color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .plus {
@@ -295,7 +355,7 @@ defineExpose({
 
 .search-row {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   flex-shrink: 0;
 }
 
@@ -322,7 +382,7 @@ defineExpose({
 
 .node-label {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--list-item-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -341,8 +401,8 @@ defineExpose({
 
 .node-count {
   font-size: 10px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color);
+  color: var(--list-item-text-secondary);
+  background: var(--md-sys-color-surface-container-high);
   padding: 2px 6px;
   border-radius: 10px;
   flex-shrink: 0;
@@ -350,8 +410,8 @@ defineExpose({
 
 .node-code {
   font-size: 10px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color);
+  color: var(--list-item-text-secondary);
+  background: var(--md-sys-color-surface-container-high);
   padding: 2px 6px;
   border-radius: 2px;
   flex-shrink: 0;
@@ -369,14 +429,14 @@ defineExpose({
 /* 覆盖 el-tree-v2 样式以匹配原有设计 */
 :deep(.el-tree-v2) {
   background: transparent;
-  color: var(--el-text-color-regular);
+  color: var(--list-item-text);
 }
 
 /* 修正选择器：从 .el-tree-v2__content 改为 .el-tree-node__content */
 :deep(.el-tree-node__content) {
   position: relative;
   /* 使用内阴影绘制分割线，稳健且层级较高 */
-  box-shadow: inset 0 -1px 0 var(--el-border-color);
+  box-shadow: inset 0 -1px 0 var(--md-sys-color-outline-variant);
   background-color: transparent; /* 默认透明（适配浅色模式） */
 }
 
@@ -391,29 +451,39 @@ defineExpose({
 /* 二级节点（规格）样式 - 已统一在 .el-tree-node__content 中设置背景色 */
 
 :deep(.el-tree-node__content:hover) {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--list-item-bg-hover);
 }
 
 :deep(.el-checkbox__inner) {
   background-color: transparent;
-  border-color: var(--el-text-color-secondary);
+  border-color: var(--md-sys-color-outline);
 }
 
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner),
 :deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
-  background-color: var(--el-color-primary);
-  border-color: var(--el-color-primary);
+  background-color: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+}
+
+.selection-count {
+  font-size: 12px;
+  color: var(--md-sys-color-primary);
+  margin-right: 8px;
+}
+
+.delete-btn {
+  padding: 4px 8px;
+  color: var(--el-color-danger) !important; /* 强制使用红色，解决浅色主题下看不清的问题 */
+}
+
+.delete-btn:hover {
+  color: var(--el-color-danger-light-3) !important;
+  background-color: var(--el-color-danger-light-9);
 }
 </style>
 
 <!-- 非 scoped 样式，确保能够覆盖 Element Plus 的内部样式 -->
 <style>
-html.dark .asset-panel .el-tree-node__content {
-  background-color: #1e1e1e !important;
-}
-
-/* 强制覆盖 AssetPanel 背景色，避免被 Scoped 样式中的变量优先级覆盖 */
-html.dark .asset-panel {
-  background-color: #252526 !important;
-}
+/* Remove hardcoded dark mode overrides - rely on tokens */
+/* If overrides are still needed for specificity, use html.dark selector */
 </style>

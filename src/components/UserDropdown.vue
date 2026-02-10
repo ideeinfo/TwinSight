@@ -29,6 +29,28 @@
           </button>
         </div>
 
+        <!-- 语言选择 -->
+        <div class="theme-section">
+          <span class="section-label">{{ $t('common.language') || 'Language' }}</span>
+          <el-select
+            v-model="currentLang"
+            size="small"
+            class="theme-select"
+            @change="handleLangChange"
+          >
+            <el-option value="zh" label="中文">
+              <div class="theme-option">
+                 <span>🇨🇳 中文</span>
+              </div>
+            </el-option>
+            <el-option value="en" label="English">
+              <div class="theme-option">
+                 <span>🇺🇸 English</span>
+              </div>
+            </el-option>
+          </el-select>
+        </div>
+
         <!-- 主题选择 -->
         <div class="theme-section">
           <span class="section-label">{{ $t('account.theme') }}</span>
@@ -75,6 +97,9 @@
 
         <!-- 操作按钮 -->
         <div class="panel-actions">
+          <el-button size="small" @click="openSystemConfig">
+            系统配置
+          </el-button>
           <el-button type="primary" size="small" @click="openAccountSettings">
             {{ $t('account.settings') }}
           </el-button>
@@ -87,6 +112,9 @@
 
     <!-- 账户设置对话框 -->
     <AccountDialog v-model="showAccountDialog" />
+    
+    <!-- 系统配置对话框 -->
+    <SystemConfigPanel v-model="showSystemConfig" />
   </div>
 </template>
 
@@ -99,6 +127,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useThemeStore } from '@/stores/theme';
 import * as authService from '@/services/auth';
 import AccountDialog from './AccountDialog.vue';
+import SystemConfigPanel from './SystemConfigPanel.vue';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -108,6 +137,7 @@ const themeStore = useThemeStore();
 const dropdownRef = ref<HTMLElement | null>(null);
 const isOpen = ref(false);
 const showAccountDialog = ref(false);
+const showSystemConfig = ref(false);
 
 // 用户信息
 const user = computed(() => authStore.user);
@@ -147,6 +177,16 @@ const closeDropdown = () => {
   isOpen.value = false;
 };
 
+// 语言切换
+const { locale } = useI18n();
+const currentLang = ref(locale.value);
+
+const handleLangChange = (val: string) => {
+  locale.value = val;
+  localStorage.setItem('language', val);
+  currentLang.value = val;
+};
+
 // 主题切换
 const handleThemeChange = (val: string) => {
   themeStore.setMode(val as 'light' | 'dark' | 'system');
@@ -155,6 +195,12 @@ const handleThemeChange = (val: string) => {
 // 打开账户设置
 const openAccountSettings = () => {
   showAccountDialog.value = true;
+  closeDropdown();
+};
+
+// 打开系统配置
+const openSystemConfig = () => {
+  showSystemConfig.value = true;
   closeDropdown();
 };
 
