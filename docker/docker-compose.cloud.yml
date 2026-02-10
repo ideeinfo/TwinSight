@@ -37,7 +37,7 @@ services:
       LOGIC_ENGINE_URL: http://logic-engine:8000
       # LLM
       LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # GEMINI_API_KEY: ${GEMINI_API_KEY}
       TZ: Asia/Shanghai
     ports:
       - "127.0.0.1:3001:3001"
@@ -211,25 +211,25 @@ services:
       timeout: 10s
       retries: 3
 
-  # Grafana - 数据可视化
-  grafana:
-    image: grafana/grafana-enterprise
-    container_name: twinsight-grafana
-    restart: unless-stopped
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_SERVER_ROOT_URL: https://grafana.twinsight.cn/
-      TZ: Asia/Shanghai
-    ports:
-      - "127.0.0.1:3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - influxdb
-      - postgres
-    networks:
-      - twinsight-network
+  # Grafana - 数据可视化 (暂时禁用)
+  # grafana:
+  #   image: grafana/grafana-enterprise
+  #   container_name: twinsight-grafana
+  #   restart: unless-stopped
+  #   environment:
+  #     GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+  #     GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+  #     GF_SERVER_ROOT_URL: https://grafana.twinsight.cn/
+  #     TZ: Asia/Shanghai
+  #   ports:
+  #     - "127.0.0.1:3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   depends_on:
+  #     - influxdb
+  #     - postgres
+  #   networks:
+  #     - twinsight-network
 
 # ==================== 卷定义 ====================
 volumes:
