@@ -9,17 +9,23 @@ import { getConfig } from './config-service.js';
 import { server } from '../config/index.js';
 import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
 
-// Load Skills on Startup
-let skillsPrompt = '';
-(async () => {
+import fs from 'fs';
+import path from 'path';
+
+// ... imports ...
+
+const LOG_FILE = path.join(process.cwd(), 'ai-debug.log');
+
+function logToFile(message, data) {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message} ${data ? JSON.stringify(data, null, 2) : ''}\n`;
     try {
-        const skills = await loadSkills();
-        skillsPrompt = generateSkillPrompt(skills);
-        console.log(`🤖 AI 技能系统已加载 ${skills.length} 个技能`);
+        fs.appendFileSync(LOG_FILE, logEntry);
     } catch (e) {
-        console.error('Failed to load skills:', e);
+        console.error('Failed to write to log file:', e);
     }
-})();
+    console.log(message, data || '');
+}
 
 // Configuration
 const USE_N8N_WORKFLOW = process.env.USE_N8N_WORKFLOW === 'true' || false;
@@ -53,7 +59,7 @@ async function getContextData(roomCode, roomName, fileId) {
     const searchPatterns = [`%${roomCode}%`, `%${roomName || ''}%`];
     if (assets.length > 0) {
         const assetPatterns = assets
-            .flatMap(a => [a.name])
+            .flatMap(a => [a.name, a.asset_code])
             .filter(val => val && val.length > 2)
             .map(val => `%${val}%`);
         searchPatterns.push(...assetPatterns);
@@ -61,7 +67,7 @@ async function getContextData(roomCode, roomName, fileId) {
     const assetCodes = assets.map(a => a.asset_code).filter(c => c);
     const specCodes = assets.map(a => a.spec_code).filter(c => c);
 
-    // 2. Query Documents
+    // 2. Query Text Documents (PDF, DOCX, etc.) — excludes images
     const docsParams = [`%${roomCode}%`, `%${roomName || ''}%`, searchPatterns];
     let queryParts = [];
     let paramCounter = 4;
@@ -90,7 +96,7 @@ async function getContextData(roomCode, roomName, fileId) {
 
     let docsQuery = '';
 
-    // Construct the query with correct parameter indices
+    // Construct the text-document query (with image filter restored)
     if (fileId) {
         docsQuery = `
             SELECT DISTINCT d.id, d.title, d.file_name, d.file_type, d.space_code, d.asset_code, d.spec_code
@@ -108,7 +114,7 @@ async function getContextData(roomCode, roomName, fileId) {
             )
             ${assetCodesIdx > 0 ? `OR d.asset_code = ANY($${assetCodesIdx})` : ''}
             ${specCodesIdx > 0 ? `OR d.spec_code = ANY($${specCodesIdx})` : ''}
-            AND d.file_name NOT ILIKE '%.jpg' 
+            AND d.file_name NOT ILIKE '%.jpg'
             AND d.file_name NOT ILIKE '%.png'
             AND d.file_name NOT ILIKE '%.jpeg'
             AND d.file_name NOT ILIKE '%.gif'
@@ -127,17 +133,43 @@ async function getContextData(roomCode, roomName, fileId) {
                 OR file_name ILIKE ANY($3)
                 OR title ILIKE ANY($3)
             )
-              AND file_name NOT ILIKE '%.jpg' 
-              AND file_name NOT ILIKE '%.png'
-              AND file_name NOT ILIKE '%.jpeg'
-              AND file_name NOT ILIKE '%.gif'
-              AND file_name NOT ILIKE '%.webp'
+            AND file_name NOT ILIKE '%.jpg'
+            AND file_name NOT ILIKE '%.png'
+            AND file_name NOT ILIKE '%.jpeg'
+            AND file_name NOT ILIKE '%.gif'
+            AND file_name NOT ILIKE '%.webp'
             LIMIT 20
         `;
     }
 
     const docsResult = await pool.query(docsQuery, docsParams);
-    return { assets, documents: docsResult.rows, searchPatterns };
+
+    // 3. Query Photos — one per asset code, matching room assets
+    let photoRows = [];
+    if (assetCodes.length > 0) {
+        const photoQuery = `
+            SELECT DISTINCT ON (asset_code) id, title, file_name, file_type, space_code, asset_code, spec_code
+            FROM documents
+            WHERE asset_code = ANY($1)
+              AND file_name ~* '\\.(jpg|jpeg|png|gif|webp)$'
+            ORDER BY asset_code, id
+            LIMIT 30
+        `;
+        const photoResult = await pool.query(photoQuery, [assetCodes]);
+        photoRows = photoResult.rows;
+    }
+
+    // Merge: docs first, then photos (dedup by id)
+    const seenIds = new Set(docsResult.rows.map(r => r.id));
+    const mergedDocs = [...docsResult.rows];
+    for (const photo of photoRows) {
+        if (!seenIds.has(photo.id)) {
+            mergedDocs.push(photo);
+            seenIds.add(photo.id);
+        }
+    }
+
+    return { assets, documents: mergedDocs, searchPatterns };
 }
 
 /**
@@ -146,7 +178,7 @@ async function getContextData(roomCode, roomName, fileId) {
 async function executeN8nWorkflow(params) {
     const { roomCode, roomName, temperature, threshold, alertType, fileId } = params;
 
-    console.log(`📡 Sending request to N8N:`, { roomName, temperature });
+    logToFile(`📡 Sending request to N8N:`, { roomName, temperature, fileId });
 
     const n8nResponse = await fetch(N8N_TEMPERATURE_ALERT_URL, {
         method: 'POST',
@@ -175,7 +207,12 @@ async function executeN8nWorkflow(params) {
         throw new Error(`Invalid JSON response from N8N: ${e.message}`);
     }
 
-    console.log(`✅ N8N workflow executed successfully`);
+    logToFile(`✅ N8N workflow executed successfully. Result keys:`, Object.keys(n8nResult));
+    if (n8nResult.sourceIndexMap) {
+        logToFile(`🔍 N8N SourceIndexMap:`, n8nResult.sourceIndexMap);
+    } else {
+        logToFile(`⚠️ N8N response missing sourceIndexMap`);
+    }
 
     return {
         // We return the raw result + alert info, but we also include the context docs 
@@ -190,6 +227,7 @@ async function executeN8nWorkflow(params) {
  * Executes Direct Open WebUI analysis for temperature alert.
  */
 async function executeDirectAnalysis(params, context) {
+    logToFile('🚀 Entering executeDirectAnalysis', { params });
     const { roomCode, roomName, temperature, threshold, alertType, fileId } = params;
     const { assets, documents: contextDocs, searchPatterns } = context;
 
@@ -291,6 +329,17 @@ ${contextDocs && contextDocs.length > 0 ? contextDocs.map(d => `- ${d.file_name}
 
     // 4. Extract Text
     let analysisText = '';
+
+    if (!ragResult) {
+        logToFile('❌ Direct RAG returned null or undefined');
+        throw new Error('AI Service returned no response');
+    }
+
+    // Log the structure for debugging if it seems empty/malformed
+    if (!ragResult.choices && !ragResult.message && typeof ragResult !== 'string') {
+        logToFile('⚠️ Unexpected RAG result structure:', ragResult);
+    }
+
     if (ragResult.choices?.[0]?.message?.content) {
         analysisText = ragResult.choices[0].message.content;
     } else if (ragResult.message?.content) {
@@ -345,6 +394,13 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
 
     // Collect all needed Open WebUI File IDs to query local DB
     const openwebuiFileIds = [...indexMap.values()].map(v => v.openwebuiFileId).filter(Boolean);
+
+    logToFile('🔍 [AI Service] Resolve IDs:', {
+        indices: [...indexMap.keys()],
+        openwebuiFileIds,
+        contextDocsCount: contextDocs.length
+    });
+
     const docMap = new Map(); // localId -> doc info
 
     if (openwebuiFileIds.length > 0) {
@@ -354,6 +410,8 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
             JOIN documents d ON kbd.document_id = d.id
             WHERE kbd.openwebui_file_id = ANY($1)
         `, [openwebuiFileIds]);
+
+        logToFile(`🔍 [AI Service] DB Looked up ${docsResult.rows.length} docs from ${openwebuiFileIds.length} OpenWebUI IDs`);
 
         for (const doc of docsResult.rows) {
             // Update items in indexMap that match this openwebuiFileId
@@ -558,16 +616,41 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
         fileName: d.file_name || d.fileName,
         url: `/api/documents/${d.docId}/preview`,
         downloadUrl: `/api/documents/${d.docId}/download`,
-        docId: d.docId
+        docId: d.docId,
+        id: d.docId // Alias for frontend compatibility
     }));
 
+    // 8. Renumber Citations in Text
+    const renumberMap = new Map();
+    sortedDocs.forEach((d, newIdx) => {
+        const newNumber = newIdx + 1;
+        d.indices.forEach(oldIdx => {
+            renumberMap.set(oldIdx, newNumber);
+        });
+    });
+
+    formattedText = formattedText.replace(/<span class="ai-doc-link"([^>]*)>(\d+)<\/span>/g, (match, attrs, oldNumStr) => {
+        const oldNum = parseInt(oldNumStr);
+        if (renumberMap.has(oldNum)) {
+            const newNum = renumberMap.get(oldNum);
+            return `<span class="ai-doc-link"${attrs}>${newNum}</span>`;
+        }
+        return match;
+    });
+
     if (sortedDocs.length > 0) {
+        // We no longer append the reference section to the text
+        // because the frontend now displays sources using the AISourceList component.
+        // The inline citations [n] are still preserved in the text.
+
+        /* refSection removed
         let refSection = '\n\n### 4. 参考的文档\n';
         sortedDocs.forEach(d => {
             const minIndex = Math.min(...d.indices);
             refSection += `[${minIndex}] <span class="ai-doc-link" data-id="${d.docId}" data-name="${d.fileName}">${d.fileName}</span>\n`;
         });
         formattedText += refSection;
+        */
     }
 
     return { analysis: formattedText, sources };
@@ -577,32 +660,47 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
  * Process temperature alert (Main Entry Point)
  */
 async function processTemperatureAlert(params) {
+    logToFile('🔥 processTemperatureAlert CALLED', params);
     const { roomCode, roomName, fileId } = params;
 
-    // 1. Get Context
-    let context = { assets: [], documents: [], searchPatterns: [] };
     try {
-        context = await getContextData(roomCode, roomName, fileId);
-    } catch (e) {
-        console.warn('Could not get context data:', e);
+        // 1. Get Context
+        let context = { assets: [], documents: [], searchPatterns: [] };
+        try {
+            context = await getContextData(roomCode, roomName, fileId);
+            logToFile('✅ Context retrieved', {
+                assetCount: context.assets.length,
+                docCount: context.documents.length
+            });
+        } catch (e) {
+            logToFile('⚠️ Could not get context data:', e.message);
+            console.warn('Could not get context data:', e);
+        }
+
+        let resultRaw;
+
+        if (USE_N8N_WORKFLOW) {
+            logToFile('🔄 Using N8N Workflow');
+            resultRaw = await executeN8nWorkflow(params);
+        } else {
+            logToFile('🔄 Using Direct Analysis');
+            resultRaw = await executeDirectAnalysis(params, context);
+        }
+
+        // 2. Format
+        const { analysis, sources } = await formatAnalysisResult(resultRaw.analysisText, resultRaw.sourceIndexMap || {}, context.documents);
+
+        logToFile('✅ Analysis processing complete', { sourceCount: sources.length });
+
+        return {
+            analysis,
+            sources,
+            alert: { ...params }
+        };
+    } catch (error) {
+        logToFile('❌ Error in processTemperatureAlert:', error.message);
+        throw error;
     }
-
-    let resultRaw;
-
-    if (USE_N8N_WORKFLOW) {
-        resultRaw = await executeN8nWorkflow(params);
-    } else {
-        resultRaw = await executeDirectAnalysis(params, context);
-    }
-
-    // 2. Format
-    const { analysis, sources } = await formatAnalysisResult(resultRaw.analysisText, resultRaw.sourceIndexMap || {}, context.documents);
-
-    return {
-        analysis,
-        sources,
-        alert: { ...params }
-    };
 }
 
 /**
@@ -777,11 +875,8 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
 1. 请根据上下文信息和参考文档回答用户问题。
 2. 回答要简洁、专业，使用中文。
 3. 如果引用了文档，请自然地在文中标记（如 [1]）。
+4. **能力增强**：您可以查询历史温度数据。如果用户提到具体的房间或设备名称（如“泵房”），请尝试提取该名称作为 roomCode。系统会自动将其解析为对应的物理编码。`;
 
-能力增强：
-你可以查询历史温度数据。若用户询问温度趋势或历史数据（如“最近一周温度”、“昨天最高温”），请不要回答无法获取，而是输出以下 JSON 指令：
-@@TOOL_CALL:get_temperature:{"roomCode": "从上下文获取的编码", "duration": "时长(如 24h, 7d)"}@@
-注意：只输出指令，不要包含其他文字。`;
 
     // Inject Skills Prompt
     if (skillsPrompt) {
@@ -829,12 +924,84 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
         }
     }
 
-    // 5. Call RAG
+    // 5. Pre-fetch Data for Tools (Data First Approach)
+    // Determine if we should pre-fetch temperature data based on triggers
+    let preFetchedData = null;
+    let preFetchedRCode = null;
+    const tempTriggers = ["查询温度", "温度趋势", "历史温度", "看看温度", "温度曲线", "最近的温度记录", "温度统计", "最高温度", "最低温度", "平均温度"];
+    const isTempQuery = tempTriggers.some(t => message.includes(t));
+
+    if (isTempQuery) {
+        console.log('🔍 [Pre-fetch] Detecting potential temperature query...');
+        try {
+            // Extract potential name/code from message
+            // but we want to provide data CONTEXT now.
+            let targetIdentifier = roomCode; // Default to context
+            // 增强正则：匹配更多中文位置词汇
+            const nouns = message.match(/(泵房|机房|会议室|冷机|站房|办公室|大厅|走廊|[A-Z0-9-]{3,})/g);
+            if (nouns && nouns.length > 0) targetIdentifier = nouns[0];
+
+            if (targetIdentifier) {
+                const availableRooms = await timeseriesService.getAvailableRooms(24);
+                let resolvedCode = targetIdentifier;
+
+                // Semantic Resolution
+                const [assetMatches, spaceMatches] = await Promise.all([
+                    pool.query("SELECT asset_code as code FROM assets WHERE name ILIKE $1 OR asset_code ILIKE $1", [`%${targetIdentifier}%`]),
+                    pool.query("SELECT space_code as code FROM spaces WHERE name ILIKE $1 OR space_code ILIKE $1", [`%${targetIdentifier}%`])
+                ]);
+                const allMatches = [...assetMatches.rows, ...spaceMatches.rows];
+
+                if (allMatches.length > 0) {
+                    const best = allMatches.find(m => availableRooms.includes(m.code)) ||
+                        allMatches.find(m => availableRooms.some(r => r.includes(m.code))) ||
+                        allMatches[0];
+                    resolvedCode = best.code;
+                }
+
+                // Final sync with InfluxDB tags
+                const exactTag = availableRooms.find(r => r.includes(resolvedCode) || resolvedCode.includes(r));
+                if (exactTag) resolvedCode = exactTag;
+
+                if (availableRooms.includes(resolvedCode)) {
+                    preFetchedRCode = resolvedCode;
+                    const endMs = Date.now();
+                    const startMs = endMs - 24 * 3600 * 1000; // Default 24h for context
+                    const points = await timeseriesService.queryTemperatureRange(resolvedCode, startMs, endMs, '15m');
+                    const stats = await timeseriesService.getTemperatureStats(resolvedCode, startMs, endMs);
+
+                    if (stats.count > 0) {
+                        preFetchedData = { points, stats, roomCode: resolvedCode };
+                        console.log(`✅ [Pre-fetch] Data loaded for ${resolvedCode}: ${stats.count} points.`);
+
+                        // Inject into prompt with HIGH PRIORITY instructions
+                        systemInstruction += `\n\n## 🔴 实时监测数据 (REAL-TIME DATA - PRIORITIZE THIS!)
+系统已自动为您先检索了相关测点数据，详情如下：
+- 查询对象: ${resolvedCode}
+- 统计周期: 最近24小时
+- 统计细节: 最低温 ${stats.min?.toFixed(1)}°C, 最高温 ${stats.max?.toFixed(1)}°C, 平均温 ${stats.avg?.toFixed(1)}°C, 记录数 ${stats.count}。
+
+**重要规则**：
+1. **优先使用上述实时数据**回答用户关于“温度”、“趋势”及“统计”的问题。
+2. 即使参考文档中没有提及该对象的温度，也请直接引用上述数据。不要说“上下文中未提及”或“无法查询”。
+3. 请以肯定、自信的语气告知用户数据详情，并说明已生成图表。
+4. 在回复末尾必须包含操作指令块 (Action Block)。`;
+                        // Update system message in history
+                        messages[0].content = systemInstruction;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[Pre-fetch] Failed', e);
+        }
+    }
+
+    // 6. Call RAG (Knowledge Base + Integrated Real-time Data)
     const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
     const ragResult = await chatWithRAG({
-        messages, // Use messages array for multi-turn
+        messages,
         kbId,
-        fileIds, // Focus on context docs
+        fileIds,
         model: llmModel
     });
 
@@ -845,14 +1012,30 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
     else if (ragResult.message?.content) analysisText = ragResult.message.content;
     else if (typeof ragResult === 'string') analysisText = ragResult;
 
-    // 6. Check for Tool Calls
+    // 6. Check for Tool Calls (Old Tool Call format or New Skill Action)
     let chartData = null;
-    const toolMatch = analysisText.match(/@@TOOL_CALL:get_temperature:([\s\S]*?)@@/);
+    let toolAction = null;
 
+    // First check for legacy format
+    const toolMatch = analysisText.match(/@@TOOL_CALL:get_temperature:([\s\S]*?)@@/);
     if (toolMatch) {
-        console.log('🔧 Detect Tool Call:', toolMatch[1]);
         try {
-            const args = JSON.parse(toolMatch[1]);
+            toolAction = { action: 'query_temperature', params: JSON.parse(toolMatch[1]) };
+        } catch (e) {
+            console.warn('Failed to parse legacy tool call', e);
+        }
+    } else {
+        // Then check for new Skill Action format
+        const { actions: initialActions } = parseAIResponse(analysisText);
+        if (initialActions && Array.isArray(initialActions)) {
+            toolAction = initialActions.find(a => a.action === 'query_temperature');
+        }
+    }
+
+    if (toolAction) {
+        console.log('🔧 Executing Temperature Tool:', toolAction.params);
+        try {
+            const args = toolAction.params;
             const durationStr = args.duration || '24h';
             let rCode = args.roomCode || roomCode; // Use arg or fallback to context
             // Clean roomCode: remove " [ID]" suffix if present
@@ -860,29 +1043,47 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
                 rCode = rCode.replace(/\s*\[.*?\]$/, '').trim();
             }
 
-            // 智能房间匹配：如果指定的房间没有数据，尝试自动查找
+            // 1. 语义解析：将名称解析为物理编码
             try {
                 const availableRooms = await timeseriesService.getAvailableRooms(24);
-                console.log(`🔍 Available Rooms: ${availableRooms.join(', ')} (Target: ${rCode})`);
+                console.log(`📊 InfluxDB Available Tags: ${availableRooms.length}. Target: ${rCode}`);
 
-                if (availableRooms.length > 0) {
-                    if (!rCode || !availableRooms.includes(rCode)) {
-                        // 尝试模糊匹配
-                        const match = availableRooms.find(r => r.includes(rCode) || (rCode && rCode.includes(r)));
-                        if (match) {
-                            console.log(`-> Fuzzy matched: ${rCode} => ${match}`);
-                            rCode = match;
-                        } else {
-                            // 如果完全匹配不上，且没有指定 specific room (或者 context 是 generic 的)
-                            // 回退到第一个可用房间，或者全部显示？
-                            // 这里简单回退到第一个，并告知用户
-                            console.log(`-> No match found. Fallback to first available: ${availableRooms[0]}`);
-                            rCode = availableRooms[0];
+                if (availableRooms.length > 0 && (!rCode || !availableRooms.includes(rCode))) {
+                    console.log(`🔎 Performing deep semantic search for: ${rCode}`);
+
+                    // 同时查找资产和空间
+                    const [assetMatches, spaceMatches] = await Promise.all([
+                        pool.query("SELECT asset_code as code, name FROM assets WHERE name ILIKE $1 OR asset_code ILIKE $1", [`%${rCode}%`]),
+                        pool.query("SELECT space_code as code, name FROM spaces WHERE name ILIKE $1 OR space_code ILIKE $1", [`%${rCode}%`])
+                    ]);
+
+                    const allMatches = [...assetMatches.rows, ...spaceMatches.rows];
+
+                    if (allMatches.length > 0) {
+                        // 优先选择已经在 InfluxDB 中有数据的编码
+                        const bestMatch = allMatches.find(m => availableRooms.includes(m.code)) ||
+                            allMatches.find(m => availableRooms.some(r => r.includes(m.code) || m.code.includes(r))) ||
+                            allMatches[0];
+
+                        console.log(`-> Selected Best Candidate: ${rCode} => ${bestMatch.code} (${bestMatch.name})`);
+                        rCode = bestMatch.code;
+
+                        // 再次进行模糊同步，确保最终编码与 Tag 一致
+                        if (!availableRooms.includes(rCode)) {
+                            const exactTag = availableRooms.find(r => r.includes(rCode) || rCode.includes(r));
+                            if (exactTag) rCode = exactTag;
+                        }
+                    } else {
+                        // 如果数据库完全没搜到，尝试对输入内容在可用 Room 中做模糊匹配
+                        const directFuzzy = availableRooms.find(r => r.includes(rCode) || (rCode && rCode.includes(r)));
+                        if (directFuzzy) {
+                            console.log(`-> Direct Fuzzy Match: ${rCode} => ${directFuzzy}`);
+                            rCode = directFuzzy;
                         }
                     }
                 }
             } catch (err) {
-                console.error('Failed to get available rooms', err);
+                console.error('Advanced semantic resolution failed', err);
             }
 
             if (rCode) {
@@ -911,22 +1112,32 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
                 if (points.length > 0) {
                     chartData = {
                         type: 'temperature',
-                        data: points, // { timestamp, value }
+                        data: points,
                         range: { startMs, endMs },
                         title: `${rCode} 温度趋势`,
-                        roomCode: rCode // Add metadata for external link
+                        roomCode: rCode
                     };
                 }
 
                 // Call LLM again with data
-                messages.push({ role: 'assistant', content: analysisText }); // The tool call message
+                messages.push({ role: 'assistant', content: analysisText });
+
+                let statsSummary = '';
+                if (stats.count > 0) {
+                    statsSummary = `成功获取到历史温度数据（查询对象: ${rCode}）。
+统计摘要: 最低温 ${stats.min?.toFixed(1)}°C, 最高温 ${stats.max?.toFixed(1)}°C, 平均温 ${stats.avg?.toFixed(1)}°C。数据点共 ${stats.count} 个。
+请基于这些正式数据回复用户。告知用户已在对话框生成相应的趋势图（对应对象：${rCode}）。回答应专业且带有运维关怀。`;
+                } else {
+                    statsSummary = `尝试为“${rCode}”查询温度数据，但监测系统未返回有效记录（数据点为 0）。
+可能有几种情况：1. 测点近期未上线；2. 该位置未配置温度传感器。
+请以运维助理的身份，礼貌地告知用户无法获取实时趋势的原因。如果参考文档中有相关设计参数（如设计运行温度），可结合文档提示用户。`;
+                }
+
                 messages.push({
                     role: 'user',
-                    content: `系统：已执行工具调用 (实际查询房间: ${rCode})。
-数据统计：Min: ${stats.min?.toFixed(1)}°C, Max: ${stats.max?.toFixed(1)}°C, Avg: ${stats.avg?.toFixed(1)}°C.
-数据点数：${stats.count}.
-请根据以上数据回答用户问题（如描述趋势、异常等），并告知已生成图表 (显示房间: ${rCode})。
-注意：请直接输出回答，**禁止**输出任何思考过程或“用户询问...”之类的分析。`
+                    content: `【系统反馈】
+${statsSummary}
+注意：请保持回答简洁，并确保最终回复仍保留操作指令（Action Block），以便前端渲染图表（如果适用）。`
                 });
 
                 const secondRagResult = await chatWithRAG({
@@ -939,10 +1150,10 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
                 if (secondRagResult.choices?.[0]?.message?.content) analysisText = secondRagResult.choices[0].message.content;
                 else if (secondRagResult.message?.content) analysisText = secondRagResult.message.content;
             } else {
-                analysisText = "无法执行查询：未找到房间编码 (Room Code)。";
+                analysisText = "无法执行查询：未找到匹配的房间或设备编码。";
             }
         } catch (e) {
-            console.error('Tool execution failed', e);
+            console.error('Temperature tool execution failed', e);
             analysisText += `\n(系统：数据查询失败 - ${e.message})`;
         }
     }
@@ -963,6 +1174,28 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
     }
 
     const { analysis, sources } = await formatAnalysisResult(cleanContent, sourceIndexMap, contextData.documents);
+
+    // If we pre-fetched data, ensure chartData is populated for the frontend
+    // We reuse the same startMs/endMs context as pre-fetch (24h)
+    if (isTempQuery && preFetchedData && preFetchedData.points.length > 0) {
+        chartData = {
+            type: 'temperature',
+            data: preFetchedData.points,
+            range: { startMs: Date.now() - 24 * 3600 * 1000, endMs: Date.now() },
+            title: `${preFetchedRCode} 温度趋势`,
+            roomCode: preFetchedRCode
+        };
+
+        // Ensure action exists if LLM forgot it
+        const hasTempAction = actions && actions.some(a => a.action === 'query_temperature');
+        if (!hasTempAction) {
+            if (!actions) actions = [];
+            actions.push({
+                action: 'query_temperature',
+                params: { roomCode: preFetchedRCode, duration: '24h' }
+            });
+        }
+    }
 
     return {
         role: 'assistant',

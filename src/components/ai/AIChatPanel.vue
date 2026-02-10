@@ -71,44 +71,74 @@
             </div>
           </div>
 
-          <div v-for="(msg, index) in messages" :key="index" class="message-row" :class="msg.role">
-            <div class="avatar" :class="msg.role">
-              <span v-if="msg.role === 'user'">👤</span>
-              <svg v-else class="bot-avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                 <rect x="4" y="8" width="16" height="12" rx="4" ry="4" fill="rgba(0, 242, 255, 0.1)" stroke="var(--accent-color)"/>
-                 <line x1="12" y1="8" x2="12" y2="4" stroke="var(--accent-color)"/>
-                 <circle cx="12" cy="3" r="1.5" fill="var(--accent-color)"/>
-                 <circle cx="9" cy="13" r="1.5" fill="var(--text-primary)"/>
-                 <circle cx="15" cy="13" r="1.5" fill="var(--text-primary)"/>
-              </svg>
-            </div>
-            <div class="message-bubble glass-effect">
-              <div v-if="msg.context" class="msg-context">
-                <span>📍 {{ msg.context.name }}</span>
-              </div>
-              <div class="content markdown-body" v-html="renderMarkdown(msg.content)"></div>
-              <div v-if="msg.sources && msg.sources.length" class="sources">
-                <div v-for="src in msg.sources" :key="src.id" class="source-tag" @click="$emit('open-source', src)">
-                  📄 {{ src.name }}
+          <div v-for="(msg, index) in messages" :key="index" class="message-row" :class="[msg.role, msg.type]">
+            
+            <!-- Alert Message -->
+            <template v-if="msg.type === 'alert'">
+              <div class="alert-card glass-effect-danger">
+                <div class="alert-header">
+                  <div class="alert-icon-wrapper">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </div>
+                  <span class="alert-title">{{ msg.title }}</span>
+                  <span class="alert-time">{{ new Date(msg.timestamp).toLocaleTimeString() }}</span>
+                </div>
+                <div class="alert-body markdown-body" v-html="renderMarkdown(msg.content, msg.sources)"></div>
+                <AISourceList 
+                   :sources="msg.sources" 
+                   @open-source="$emit('open-source', $event)" 
+                />
+                <div class="alert-footer" v-if="msg.actions && msg.actions.length">
+                   <button v-for="action in msg.actions" :key="action.label" class="alert-action-btn" @click="$emit('execute-action', action)">
+                     {{ action.label }}
+                   </button>
                 </div>
               </div>
-              <!-- Chart Wrapper -->
-              <div v-if="msg.chartData" class="chart-wrapper">
-                <ChartPanel 
-                   v-if="msg.chartData.type === 'temperature'"
-                   :data="msg.chartData.data" 
-                   :label-text="msg.chartData.title"
-                   class="ai-mini-chart"
-                />
-                <button class="open-chart-btn" @click="openChartModal(msg.chartData)">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="9" y1="3" x2="9" y2="21"></line>
-                  </svg>
-                  放大查看
-                </button>
+            </template>
+
+            <!-- Normal Message -->
+            <template v-else>
+              <div class="avatar" :class="msg.role">
+                <span v-if="msg.role === 'user'">👤</span>
+                <svg v-else class="bot-avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                   <rect x="4" y="8" width="16" height="12" rx="4" ry="4" fill="rgba(0, 242, 255, 0.1)" stroke="var(--accent-color)"/>
+                   <line x1="12" y1="8" x2="12" y2="4" stroke="var(--accent-color)"/>
+                   <circle cx="12" cy="3" r="1.5" fill="var(--accent-color)"/>
+                   <circle cx="9" cy="13" r="1.5" fill="var(--text-primary)"/>
+                   <circle cx="15" cy="13" r="1.5" fill="var(--text-primary)"/>
+                </svg>
               </div>
-            </div>
+              <div class="message-bubble glass-effect">
+                <div v-if="msg.context" class="msg-context">
+                  <span>📍 {{ msg.context.name }}</span>
+                </div>
+                <div class="content markdown-body" v-html="renderMarkdown(msg.content, msg.sources)"></div>
+                <AISourceList 
+                   :sources="msg.sources" 
+                   @open-source="$emit('open-source', $event)" 
+                />
+                <!-- Chart Wrapper -->
+                <div v-if="msg.chartData" class="chart-wrapper">
+                  <ChartPanel 
+                     v-if="msg.chartData.type === 'temperature'"
+                     :data="msg.chartData.data" 
+                     :label-text="msg.chartData.title"
+                     class="ai-mini-chart"
+                  />
+                  <button class="open-chart-btn" @click="openChartModal(msg.chartData)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="9" y1="3" x2="9" y2="21"></line>
+                    </svg>
+                    放大查看
+                  </button>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div v-if="loading" class="message-row assistant">
@@ -202,6 +232,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useDraggable } from '@vueuse/core';
 import ChartPanel from '../ChartPanel.vue';
+import AISourceList from './AISourceList.vue';
 
 const props = defineProps({
   currentContext: { type: Object, default: null }
@@ -387,17 +418,90 @@ watch(inputText, () => {
   });
 });
 
-const renderMarkdown = (text) => {
+const renderMarkdown = (text, sources) => {
   if (!text) return '';
+  
+  // 1. Build a map of Index -> Source Object
+  const indexToSourceMap = new Map();
+  let hasNameMatch = false;
+
+  if (sources && sources.length) {
+    // Strategy A: Parse "[N] filename" lines
+    const lines = text.split(/\r?\n/);
+    lines.forEach(line => {
+      const match = line.match(/^\s*\[(\d+)\]\s+(.+)$/);
+      if (match) {
+        const idxStr = match[1];
+        const filename = match[2].trim();
+        const src = sources.find(s => {
+           const sName = s.name || s.fileName || '';
+           return sName && filename && (sName.toLowerCase().includes(filename.toLowerCase()) || filename.toLowerCase().includes(sName.toLowerCase()));
+        });
+        if (src) {
+           indexToSourceMap.set(idxStr, src);
+           hasNameMatch = true;
+        }
+      }
+    });
+
+    // Strategy B: Fallback to 1-based array indexing
+    if (!hasNameMatch) {
+       sources.forEach((s, i) => {
+          indexToSourceMap.set(String(i + 1), s);
+       });
+    }
+  }
+
   return text
+    // A. Bold
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // B. Headers (from AIAnalysisModal)
+    .replace(/^### (.*?)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.*?)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.*?)$/gm, '<h2>$1</h2>')
+    // C. Lists (from AIAnalysisModal)
+    .replace(/^- (.*?)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+    // D. Images
+    .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" style="max-width:100%; border-radius:4px;">')
+    // E. Links
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>')
+    // F. Newlines (handle double newlines as paragraphs)
+    .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    /* 
+      G. Citation Markers: [123]
+    */
+    .replace(/\[(\d+)\]/g, (match, p1) => {
+        const src = indexToSourceMap.get(p1);
+        if (src) {
+            const realId = src.id || src.documentId;
+            const name = src.name || '';
+            if (realId) {
+                return `<span class="ai-doc-link" data-id="${realId}" data-name="${name}">[${p1}]</span>`;
+            }
+        }
+        return match;
+    });
 };
 
 defineExpose({
   addMessage: (msg) => {
     messages.value.push(msg);
+    scrollToBottom();
+  },
+  addAlertMessage: (alert) => {
+    messages.value.push({
+      role: 'system',
+      type: 'alert',
+      title: alert.title || '系统报警',
+      content: alert.message || alert.content,
+      timestamp: Date.now(),
+      level: alert.level || 'warning',
+      actions: alert.actions,
+      sources: alert.sources // 添加 sources 支持
+    });
+    isOpen.value = true;
     scrollToBottom();
   },
   setLoading: (status) => loading.value = status,
@@ -425,6 +529,53 @@ onMounted(() => {
   themeObserver.observe(document.documentElement, {
     attributes: true, 
     attributeFilter: ['class']
+  });
+
+  // Handle click on citations
+  const attachClickListener = () => {
+    if (!messagesContainer.value) return;
+    
+    // Remove if exists to avoid duplicates (though ref change implies new element usually)
+    // We can just rely on the fact that if the element is destroyed (v-if false), the listener dies with it.
+    // When v-if true, we get a new element.
+    
+    messagesContainer.value.addEventListener('click', handleMessageClick);
+  };
+
+  const handleMessageClick = (e) => {
+      const target = e.target.closest('.ai-doc-link');
+      if (target) {
+        const id = target.getAttribute('data-id');
+        const name = target.getAttribute('data-name');
+        
+        if (id) {
+          const fileType = name ? name.split('.').pop().toLowerCase() : '';
+          
+          emit('open-source', { 
+            id, // Keep for backward compatibility
+            documentId: id,
+            name: name || `Document ${id}`,
+            isInternal: true,
+            fileType,
+            title: name || `Document ${id}`,
+            url: `/api/documents/${id}/preview`,
+            downloadUrl: `/api/documents/${id}/download`
+          });
+        }
+      }
+  };
+
+  // Watch for container availability (since it's inside v-if)
+  watch(messagesContainer, (newVal) => {
+    if (newVal) {
+      // Small delay to ensure DOM is strictly ready if needed, 
+      // but Vue sets ref after mount/patch so it should be fine.
+      attachClickListener(); 
+    }
+  });
+
+  onMounted(() => {
+    scrollToBottom();
   });
 });
 
@@ -907,10 +1058,113 @@ textarea::placeholder {
   background: var(--input-bg);
 }
 
+
+/* Alert Styles */
+.message-row.alert {
+  display: block;
+  max-width: 100%;
+  padding: 0 8px;
+  margin-bottom: 16px;
+}
+
+.glass-effect-danger {
+  background: rgba(40, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 50, 50, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.alert-card {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  animation: slide-up 0.3s ease-out;
+}
+
+.alert-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: rgba(255, 50, 50, 0.15);
+  border-bottom: 1px solid rgba(255, 50, 50, 0.1);
+  gap: 10px;
+}
+
+.alert-icon-wrapper {
+  color: #ff6b6b;
+  display: flex;
+  align-items: center;
+}
+
+.alert-title {
+  font-weight: 600;
+  color: #ff8787;
+  flex: 1;
+  font-size: 14px;
+}
+
+.alert-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.alert-body {
+  padding: 16px;
+  font-size: 14px;
+  color: #fff;
+  line-height: 1.6;
+}
+
+.alert-footer {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.alert-action-btn {
+  background: rgba(255, 100, 100, 0.1);
+  border: 1px solid rgba(255, 100, 100, 0.2);
+  color: #ff8787;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+
+.alert-action-btn:hover {
+  background: rgba(255, 100, 100, 0.2);
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
 .ai-chart-window .chart-content {
   flex: 1;
   position: relative;
   overflow: hidden;
   padding: 10px;
+}
+
+/* Deep selecors for v-html content links */
+:deep(.ai-doc-link) {
+  color: var(--accent-color);
+  cursor: pointer;
+  text-decoration: underline;
+  margin: 0 2px;
+  font-weight: 600;
+  transition: all 0.2s;
+  padding: 0 2px;
+}
+
+:deep(.ai-doc-link:hover) {
+  opacity: 0.8;
+  background: var(--tag-bg);
+  border-radius: 4px;
+  text-decoration: none;
 }
 </style>
