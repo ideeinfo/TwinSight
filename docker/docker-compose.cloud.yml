@@ -1,0 +1,266 @@
+# TwinSight 阿里云生产环境 Docker Compose 配置
+# 域名: demo.twinsight.cn
+# 特点: 端口仅绑定 127.0.0.1，由宿主机 Nginx 反向代理
+# 部署位置: /data/twinsight/docker-compose.yml
+
+name: twinsight-cloud
+
+services:
+  # ==================== 核心应用 ====================
+
+  # 后端 API + 前端静态文件
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: twinsight-api
+    restart: always
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 3001
+      # 数据库
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-twinsight}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
+      # InfluxDB
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: ${INFLUX_ORG:-demo}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-twinsight}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      # AI 服务（容器内部通信）
+      OPENWEBUI_URL: http://open-webui:8080
+      OPENWEBUI_API_KEY: ${OPENWEBUI_API_KEY}
+      N8N_WEBHOOK_URL: http://n8n:5678
+      # Logic Engine
+      LOGIC_ENGINE_URL: http://logic-engine:8000
+      # LLM
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # IEC 81346 Logic Engine (Python FastAPI)
+  logic-engine:
+    build:
+      context: ../logic-engine
+      dockerfile: Dockerfile
+    container_name: twinsight-logic-engine
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-twinsight}
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==================== 数据库 ====================
+
+  # PostgreSQL (带 PGVector 扩展)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: twinsight-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
+      POSTGRES_DB: ${DB_NAME:-twinsight}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-twinsight}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # InfluxDB 2.x - 时序数据库
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: twinsight-influxdb
+    restart: always
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:?InfluxDB密码必须设置}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-demo}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-twinsight}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - twinsight-network
+
+  # ==================== AI 服务 ====================
+
+  # n8n 工作流自动化
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: twinsight-n8n
+    restart: unless-stopped
+    environment:
+      N8N_SECURE_COOKIE: "true"
+      N8N_HOST: ${N8N_HOST:-n8n.twinsight.cn}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-https://n8n.twinsight.cn/}
+      N8N_DEFAULT_HTTP_REQUEST_TIMEOUT: 300
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      GENERIC_TIMEZONE: Asia/Shanghai
+      TZ: Asia/Shanghai
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_AUTH_PASSWORD:?n8n密码必须设置}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE_IN_OTHER_NODES: "true"
+      NODE_FUNCTION_ALLOW_EXTERNAL: "*"
+      # 内部服务地址
+      API_BASE_URL: http://api:3001
+      OPENWEBUI_URL: http://open-webui:8080
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Open WebUI - AI 对话界面
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.6.43
+    container_name: twinsight-open-webui
+    restart: unless-stopped
+    environment:
+      WEBUI_NAME: TwinSight AI
+      DEFAULT_LOCALE: zh-CN
+      ENABLE_API_KEYS: "true"
+      ENABLE_SIGNUP: "false"
+      ENABLE_RAG_WEB_SEARCH: "true"
+      HF_ENDPOINT: https://hf-mirror.com
+      RAG_EMBEDDING_ENGINE: ""
+      RAG_EMBEDDING_MODEL: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:3080:8080"
+    volumes:
+      - open_webui_data:/app/backend/data
+    networks:
+      - twinsight-network
+    dns:
+      - 223.5.5.5
+      - 8.8.8.8
+
+  # ==================== IoT 服务 ====================
+
+  # Node-RED
+  nodered:
+    image: nodered/node-red:latest
+    container_name: twinsight-nodered
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+      NODE_RED_ENABLE_PROJECTS: "false"
+    ports:
+      - "127.0.0.1:1880:1880"
+    volumes:
+      - nodered_data:/data
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - twinsight-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana - 数据可视化
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: twinsight-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: https://grafana.twinsight.cn/
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - twinsight-network
+
+# ==================== 卷定义 ====================
+volumes:
+  postgres_data:
+  influxdb_data:
+  influxdb_config:
+  n8n_data:
+  open_webui_data:
+  nodered_data:
+  grafana_data:
+  uploads_data:
+
+# ==================== 网络 ====================
+networks:
+  twinsight-network:
+    driver: bridge
+
+# ============================================
+# 使用说明:
+# ============================================
+#
+# 1. 复制 .env.cloud.example 为 .env 并填写密码和 Token
+# 2. 构建应用: docker compose build
+# 3. 启动服务: docker compose up -d
+# 4. 查看日志: docker compose logs -f api
+# 5. 停止服务: docker compose down
+#
+# 端口映射 (通过宿主机 Nginx 反向代理):
+#   demo.twinsight.cn     → api:3001
+#   n8n.twinsight.cn      → n8n:5678
+#   ai.twinsight.cn       → open-webui:8080
+#   nodered.twinsight.cn  → nodered:1880
+#   grafana.twinsight.cn  → grafana:3000
+# ============================================
