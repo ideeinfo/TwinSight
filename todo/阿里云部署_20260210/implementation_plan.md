@@ -439,8 +439,10 @@ tar -xzf twinsight-backup.tar.gz
 
 ```bash
 # 先启动基础服务（不含 API）
+git clone https://github.com/diwei/TwinSight.git twinsight
+
 cd /data/twinsight
-docker compose up -d postgres influxdb
+docker compose -f docker/docker-compose.cloud.yml up -d postgres influxdb
 
 # 等待 PostgreSQL 就绪
 sleep 10
@@ -453,19 +455,31 @@ docker cp /data/twinsight-backup/influx-backup twinsight-influxdb:/tmp/
 docker exec twinsight-influxdb influx restore /tmp/influx-backup --token <TOKEN>
 
 # 3. 恢复 n8n（停止容器后复制数据卷）
+docker compose -f docker/docker-compose.cloud.yml up -d n8n
 docker compose stop n8n
-docker cp /data/twinsight-backup/n8n-data/. $(docker volume inspect twinsight_n8n_data -f '{{.Mountpoint}}')
-docker compose up -d n8n
+# 获取路径并拷贝（注意末尾的 /. 确保拷贝内容而非文件夹本身）
+cp -r /data/twinsight-backup/n8n-data/. $(docker volume inspect twinsight-cloud_n8n_data -f '{{.Mountpoint}}')
+
+# 修复权限（n8n 容器内通常用 node 用户，uid 1000）
+chown -R 1000:1000 $(docker volume inspect twinsight-cloud_n8n_data -f '{{.Mountpoint}}')
+
+# 启动
+docker compose -f docker/docker-compose.cloud.yml up -d n8n
+
 
 # 4. 恢复 Node-RED
+docker compose -f docker/docker-compose.cloud.yml up -d nodered
 docker compose stop nodered
-docker cp /data/twinsight-backup/nodered-data/. $(docker volume inspect twinsight_nodered_data -f '{{.Mountpoint}}')
-docker compose up -d nodered
+cp -r /data/twinsight-backup/nodered-data/. $(docker volume inspect twinsight-cloud_nodered_data -f '{{.Mountpoint}}')
+chown -R 1000:1000 $(docker volume inspect twinsight-cloud_nodered_data -f '{{.Mountpoint}}')
+docker compose -f docker/docker-compose.cloud.yml up -d nodered
 
 # 5. 恢复 Open WebUI
+docker compose -f docker/docker-compose.cloud.yml up -d open-webui
 docker compose stop open-webui
-docker cp /data/twinsight-backup/openwebui-data/. $(docker volume inspect twinsight_open_webui_data -f '{{.Mountpoint}}')
-docker compose up -d open-webui
+cp -r /data/twinsight-backup/openwebui-data/. $(docker volume inspect twinsight-cloud_open_webui_data -f '{{.Mountpoint}}')
+# Open WebUI 权限通常不需要特别调整，或者跟着其实际运行用户调整
+docker compose -f docker/docker-compose.cloud.yml up -d open-webui
 ```
 
 ---
@@ -642,3 +656,38 @@ ssh $REMOTE "cd /data/twinsight && git pull origin main && docker compose build 
 > 3. **域名方案**：子域名方案（`n8n.twinsight.cn`）还是子路径方案（`demo.twinsight.cn/n8n/`）？
 > 4. **CI/CD 触发方式**：push 到 `main` 自动部署，还是手动触发？是否需要 staging 环境？
 > 5. **192.168.2.183 保留**：迁移后局域网服务器是否继续保留运行？
+
+---
+
+## 七、部署问题汇总与解决方案 (Troubleshooting)
+
+### 1. 环境变量与配置文件
+- **Docker Compose 找不到 .env**：使用 `-f docker/docker-compose.cloud.yml` 时，需确保 `.env` 文件被正确加载。推荐做法：`export $(cat .env | xargs)` 后再运行 compose 命令，或使用 `--env-file .env` 显式指定。
+- **Grafana 默认开启**：生产环境初始阶段暂不需要 Grafana，已在 `docker-compose.cloud.yml` 中注释掉，避免资源占用。
+- **Gemini Key 硬编码**：已移除 `.env` 中的硬编码 Key，改用 `SystemConfig` 动态配置，提高安全性。
+
+### 2. 数据迁移与恢复
+- **数据库密码不生效**：数据恢复（`pg_restore`）后，`postgres` 用户密码会被重置为旧数据库的密码，导致 `.env` 中的新密码失效。
+  - **解决**：进入容器 `docker exec -it twinsight-postgres psql -U postgres`，执行 `ALTER USER postgres WITH PASSWORD '新密码';`。
+- **Docker Volume 数据拷贝**：`docker cp` 不能直接拷贝到 Volume 挂载点。
+  - **解决**：使用 `docker volume inspect <volume_name>` 获取宿主机物理路径，然后直接用 `cp -r` 拷贝数据。
+- **Node-RED 目录结构**：由于 `cp -r` 可能会多拷贝一层文件夹，导致配置未能加载。需确保 `flows.json` 直接位于 `/data` 根目录下。
+
+### 3. Nginx 与 SSL
+- **InfluxDB 502 错误**：初始 Nginx 配置漏掉了 `influx.twinsight.cn` 的转发规则。
+  - **解决**：在 `twinsight_final.conf` 中添加 InfluxDB 的 `server` 块，并重新运行 `certbot` 扩展证书包含该域名。
+- **SSL 证书不全**：新增子域名后，必须使用 `certbot --nginx --expand -d ...` 来更新证书。
+
+### 4. 服务构建与依赖
+- **API 启动失败 (502)**：报错 `ERR_MODULE_NOT_FOUND: axios`。
+  - **原因**：`package.json` 中漏掉了 `axios` 依赖。
+  - **解决**：在 `server/package.json` 中添加 `axios` 并更新 `package-lock.json`，重新构建镜像。
+- **entrypoint.sh 缺失**：`Dockerfile` 引用了不存在或过时的 `entrypoint.sh`。
+  - **解决**：移除 `Dockerfile` 中的 `COPY entrypoint.sh` 指令，改用 `npm run start` 直接启动。
+
+### 5. 本地开发连接云端
+- **连接失败**：本地 `npm run dev` 无法连接云端数据库。
+  - **解决**：
+    1. 使用 SSH 隧道脚本 `connect-cloud.sh` 将云端端口转发到本地 `127.0.0.1`。
+    2. 创建 `.env.local`，设置 `DB_HOST=127.0.0.1`，并确保 `DB_NAME=twinsight`（否则默认连接 `tandem` 库导致报错）。
+    3. 修正 `server/scripts/migrate.js` 使其能正确加载项目根目录下的 `.env` 文件。
