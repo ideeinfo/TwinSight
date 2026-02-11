@@ -171,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Edit, Delete } from '@element-plus/icons-vue';
 
@@ -222,6 +222,13 @@ const currentTypeFields = computed(() => {
 onMounted(async () => {
   await fetchTriggerTypes();
   await fetchTriggers();
+});
+
+// 监听分析引擎切换，自动加载工作流
+watch(() => form.value.analysisEngine, (newVal) => {
+  if (newVal === 'n8n' && n8nWorkflows.value.length === 0) {
+    fetchN8nWorkflows();
+  }
 });
 
 // API 调用

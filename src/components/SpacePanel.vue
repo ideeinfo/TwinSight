@@ -4,7 +4,7 @@
     <div class="panel-header">
       <span class="title">{{ t('leftPanel.spaces') }}</span>
       <div class="actions">
-        <template v-if="selectedSpacesForDeletion.length > 0">
+        <template v-if="selectedSpacesForDeletion.length > 0 && authStore.hasPermission('space:delete')">
           <span class="selection-count">{{ t('common.selected', { count: selectedSpacesForDeletion.length }) }}</span>
           <el-button 
             type="danger" 
@@ -72,7 +72,9 @@ import { useI18n } from 'vue-i18n';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { Search, Delete } from '@element-plus/icons-vue';
 import { deleteSpaces } from '../services/postgres.js';
+import { useAuthStore } from '../stores/auth';
 
+const authStore = useAuthStore();
 const { t } = useI18n();
 
 const props = defineProps({

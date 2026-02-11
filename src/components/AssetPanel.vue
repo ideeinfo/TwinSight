@@ -4,7 +4,7 @@
     <div class="panel-header">
       <span class="title">{{ t('assetPanel.assets') }}</span>
       <div class="actions">
-        <template v-if="selectedAssetsForDeletion.length > 0">
+        <template v-if="selectedAssetsForDeletion.length > 0 && authStore.hasPermission('asset:delete')">
           <span class="selection-count">{{ t('common.selected', { count: selectedAssetsForDeletion.length }) }}</span>
           <el-button 
             type="danger" 
@@ -73,7 +73,9 @@ import { useI18n } from 'vue-i18n';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { Search, Delete } from '@element-plus/icons-vue';
 import { deleteAssets } from '../services/postgres.js';
+import { useAuthStore } from '../stores/auth';
 
+const authStore = useAuthStore();
 const { t } = useI18n();
 
 const props = defineProps({

@@ -32,10 +32,12 @@ CREATE INDEX IF NOT EXISTS idx_iot_triggers_enabled ON iot_triggers(enabled);
 
 -- 默认触发器
 INSERT INTO iot_triggers (name, type, condition_field, condition_operator, condition_value, severity, analysis_engine)
-VALUES 
-    ('高温报警', 'temperature', 'temperature', 'gt', 26, 'warning', 'builtin'),
-    ('低温报警', 'temperature', 'temperature', 'lt', 10, 'warning', 'builtin')
-ON CONFLICT DO NOTHING;
+SELECT '高温报警', 'temperature', 'temperature', 'gt', 26, 'warning', 'builtin'
+WHERE NOT EXISTS (SELECT 1 FROM iot_triggers WHERE name = '高温报警');
+
+INSERT INTO iot_triggers (name, type, condition_field, condition_operator, condition_value, severity, analysis_engine)
+SELECT '低温报警', 'temperature', 'temperature', 'lt', 10, 'warning', 'builtin'
+WHERE NOT EXISTS (SELECT 1 FROM iot_triggers WHERE name = '低温报警');
 
 -- 添加 N8N_API_KEY 到系统配置
 INSERT INTO system_config (config_key, config_value, description, category, label, config_type, is_encrypted, sort_order)

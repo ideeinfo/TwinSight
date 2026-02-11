@@ -739,27 +739,59 @@ const onAssetsLoaded = (inputAssets) => {
     return;
   }
   
+  // create a map of existing DB assets for enrichment
+  const dbAssetMap = new Map();
+  if (assetList.value.length > 0) {
+      assetList.value.forEach(a => {
+          if (a.dbId) dbAssetMap.set(a.dbId, a);
+      });
+  }
+
   // Normalize assets to ensure camelCase properties exist
-  const assets = (inputAssets || []).map(a => ({
-    ...a,
-    mcCode: a.mcCode || a.asset_code || a.code || '',
-    specCode: a.specCode || a.spec_code || '',
-    specName: a.specName || a.spec_name || '',
-    classificationCode: a.classificationCode || a.classification_code || '',
-    classificationDesc: a.classificationDesc || a.classification_desc || '',
-    type: a.type || '',
-    // Ensure numeric fields are preserved
-    dbId: a.dbId,
-    fileId: a.fileId || a.file_id
-  }));
+  const assets = (inputAssets || []).map(a => {
+    // Attempt to enrich from DB cache
+    const dbAsset = dbAssetMap.get(a.dbId);
+    
+    return {
+        ...a,
+        // IDs
+        dbId: a.dbId,
+        fileId: a.fileId || a.file_id || dbAsset?.fileId,
+        
+        // Codes & Names
+        mcCode: dbAsset?.mcCode || a.mcCode || a.asset_code || a.code || '',
+        name: dbAsset?.name || a.name || '',
+        
+        // Specs
+        specCode: dbAsset?.specCode || a.specCode || a.spec_code || '',
+        specName: dbAsset?.specName || a.specName || a.spec_name || '',
+        
+        // Classification (DB has classification_code, Model has classificationCode/classification_code)
+        // We normalize to classificationCode for the app, but keep snake_case if needed
+        classificationCode: dbAsset?.classification_code || dbAsset?.classificationCode || a.classificationCode || a.classification_code || '',
+        classificationDesc: dbAsset?.classification_desc || dbAsset?.classificationDesc || a.classificationDesc || a.classification_desc || '',
+        
+        // Location
+        floor: dbAsset?.floor || a.floor || '',
+        room: dbAsset?.room || a.room || '',
+
+        // Metadata Properties (often missing in Model)
+        category: dbAsset?.category || a.category || '',
+        family: dbAsset?.family || a.family || '',
+        type: dbAsset?.type || a.type || '',
+        manufacturer: dbAsset?.manufacturer || a.manufacturer || '',
+        address: dbAsset?.address || a.address || '',
+        phone: dbAsset?.phone || a.phone || ''
+    };
+  });
 
   if (assets.length > 0) {
     const sample = assets[0];
-    console.log('🔍 Asset sample (normalized):', {
+    console.log('🔍 Asset sample (normalized & enriched):', {
       mcCode: sample.mcCode,
       specCode: sample.specCode,
       specName: sample.specName,
-      raw_name: sample.name
+      source: dbAssetMap.has(sample.dbId) ? 'Merged DB' : 'Model Only'
     });
   }
 

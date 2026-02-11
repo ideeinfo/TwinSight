@@ -5,7 +5,7 @@
       <div class="panel-header">
         <span class="title">{{ t('leftPanel.connections') }}</span>
         <div class="actions">
-          <template v-if="selectedDbIdsLocal.length > 0">
+          <template v-if="selectedDbIdsLocal.length > 0 && authStore.hasPermission('space:delete')">
             <span class="selection-count">{{ t('common.selected', { count: selectedDbIdsLocal.length }) }}</span>
             <el-button 
               type="danger" 
