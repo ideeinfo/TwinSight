@@ -97,7 +97,9 @@ router.post('/analyze', async (req, res) => {
 const handleGetContext = async (req, res) => {
     try {
         // Support both GET (query) and POST (body)
-        const { roomCode, roomName, fileId } = req.method === 'POST' ? req.body : req.query;
+        // Support both GET (query) and POST (body)
+        const data = req.method === 'POST' ? req.body : req.query;
+        const { roomCode, roomName, fileId, api_key } = data;
 
         if (!roomCode) {
             return res.status(400).json({ success: false, error: 'Missing required parameters: roomCode' });

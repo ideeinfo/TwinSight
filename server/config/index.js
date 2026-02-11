@@ -23,6 +23,8 @@ const config = {
         // API Base URL for external services (like n8n) to call back
         // Default to localhost for dev, but strongly recommend setting API_BASE_URL in production
         baseUrl: process.env.API_BASE_URL || `http://localhost:${parseInt(process.env.PORT || '3001', 10)}`,
+        // Internal API Key for service-to-service communication (e.g., n8n, logic engine)
+        apiKey: process.env.INTERNAL_API_KEY || 'twinsight-internal-secret-2024',
     },
 
     // 数据库配置 - 使用 getter 确保运行时动态读取环境变量
