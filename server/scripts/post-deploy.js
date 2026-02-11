@@ -57,7 +57,7 @@ async function waitForDatabase(maxRetries = 30, retryDelay = 2000) {
             console.log('✅ 数据库连接成功');
             return true;
         } catch (error) {
-            console.log(`⏳ 等待数据库就绪... (${i + 1}/${maxRetries})`);
+            console.log(`⏳ 等待数据库就绪... (${i + 1}/${maxRetries}) - ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
     }
