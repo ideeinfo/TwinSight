@@ -879,6 +879,14 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
 
 
     // Inject Skills Prompt
+    let skillsPrompt = '';
+    try {
+        const skills = await loadSkills();
+        skillsPrompt = generateSkillPrompt(skills);
+    } catch (e) {
+        console.warn('Failed to load skills for prompt:', e);
+    }
+
     if (skillsPrompt) {
         systemInstruction += `\n\n${skillsPrompt}`;
     }
