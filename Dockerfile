@@ -37,7 +37,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 # 安装必要的工具（用于健康检查和脚本执行）
-RUN apk add --no-cache wget
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk add --no-cache wget ca-certificates
 
 # 从后端构建阶段复制依赖
 COPY --from=backend-builder /app/node_modules ./node_modules
