@@ -591,7 +591,7 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
         return `[${linked.join(', ')}]`;
     });
 
-    // 7. Name Linking
+    // 7. Name Linking (convert [filename.pdf] or [filename] to clickable spans)
     for (const info of indexMap.values()) {
         if (!info.docId || !info.fileName) continue;
         const name = info.fileName;
@@ -599,10 +599,17 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
         const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // Only match if not preceded by data-name=" or similar HTML
-        // Use a placeholder strategy or simplified regex
-        const regex = new RegExp(`(?<!data-name=")(?<!data-name=')${escapedBaseName}(?!")`, 'gi');
-        // This is risky. Let's start simple.
+        // Regex to find [Name] or [Name.pdf]
+        const nameRegex = new RegExp(`\\[\\s*(${escapedName}|${escapedBaseName})\\s*\\]`, 'gi');
+
+        // Use a safe replacement that avoids double-wrapping
+        formattedText = formattedText.replace(nameRegex, (match, foundName) => {
+            // Check if already inside a span (basic check)
+            if (formattedText.includes(`data-name="${info.fileName}"`)) {
+                // Might already be matched by another pass or different index
+            }
+            return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${foundName}</span>`;
+        });
     }
 
     // 7. Identify actually cited IDs and filter sources
