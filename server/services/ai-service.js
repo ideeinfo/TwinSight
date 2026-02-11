@@ -317,7 +317,27 @@ ${contextDocs && contextDocs.length > 0 ? contextDocs.map(d => `- ${d.file_name}
     }
 
     // 3. Call Open WebUI
-    const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
+    // Dynamic Model Selection
+    let llmModel = await getConfig('LLM_MODEL', '');
+    if (!llmModel) {
+        try {
+            const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
+            if (models && models.length > 0) {
+                // Priority: defined in env > gpt > gemini > llama > first available
+                const preferred = models.find(m => m.id.includes('gpt')) ||
+                    models.find(m => m.id.includes('gemini')) ||
+                    models.find(m => m.id.includes('llama')) ||
+                    models[0];
+                llmModel = preferred.id;
+                console.log(`🤖 Auto-selected model: ${llmModel}`);
+            }
+        } catch (e) {
+            console.warn('Failed to auto-discover models:', e.message);
+        }
+    }
+    // Fallback if discovery fails
+    if (!llmModel) llmModel = 'gemini-2.0-flash';
+
     const ragResult = await chatWithRAG({
         prompt,
         kbId,
@@ -769,7 +789,21 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
     }
 
     // 4. Call RAG
-    const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
+    let llmModel = await getConfig('LLM_MODEL', '');
+    if (!llmModel) {
+        try {
+            const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
+            if (models && models.length > 0) {
+                const preferred = models.find(m => m.id.includes('gpt')) ||
+                    models.find(m => m.id.includes('gemini')) ||
+                    models.find(m => m.id.includes('llama')) ||
+                    models[0];
+                llmModel = preferred.id;
+            }
+        } catch (e) { console.warn('Model discovery failed', e); }
+    }
+    if (!llmModel) llmModel = 'gemini-2.0-flash';
+
     const ragResult = await chatWithRAG({
         prompt,
         kbId,
@@ -1005,7 +1039,24 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
     }
 
     // 6. Call RAG (Knowledge Base + Integrated Real-time Data)
-    const llmModel = await getConfig('LLM_MODEL', 'gemini-2.0-flash');
+    let llmModel = await getConfig('LLM_MODEL', '');
+    if (!llmModel) {
+        try {
+            const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
+            if (models && models.length > 0) {
+                const preferred = models.find(m => m.id.includes('gpt')) ||
+                    models.find(m => m.id.includes('gemini')) ||
+                    models.find(m => m.id.includes('llama')) ||
+                    models[0];
+                llmModel = preferred.id;
+                console.log(`🤖 Chat Auto-selected model: ${llmModel}`);
+            }
+        } catch (e) {
+            console.warn('Chat model discovery failed', e);
+        }
+    }
+    if (!llmModel) llmModel = 'gemini-2.0-flash';
+
     const ragResult = await chatWithRAG({
         messages,
         kbId,

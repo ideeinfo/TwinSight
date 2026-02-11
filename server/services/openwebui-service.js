@@ -78,6 +78,20 @@ async function request(endpoint, options = {}) {
 }
 
 /**
+ * 获取可用模型列表
+ */
+export async function getAvailableModels() {
+    try {
+        const result = await request(endpoints.models, { method: 'GET' });
+        // Open WebUI returns { data: [ { id: '...', ... } ] }
+        return result.data || [];
+    } catch (error) {
+        console.error('❌ 获取模型列表失败:', error.message);
+        return [];
+    }
+}
+
+/**
  * 检查 Open WebUI 服务健康状态
  */
 export async function checkHealth() {
@@ -397,5 +411,7 @@ export default {
     uploadDocument,
     listDocuments,
     chatWithRAG,
+    chatWithRAG,
     syncDocumentsToKB,
+    getAvailableModels,
 };

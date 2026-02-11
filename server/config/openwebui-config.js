@@ -29,6 +29,9 @@ export default {
 
         // 健康检查
         health: '/health',
+
+        // 模型列表
+        models: '/api/models',
     },
 
     // 支持的 RAG 格式
