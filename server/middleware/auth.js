@@ -9,59 +9,60 @@ import { hasPermission, ROLES } from '../config/auth.js';
 /**
  * 验证 JWT Token
  */
-// 1. 优先检查 API Key（支持内部服务或特定路由）
-const apiKey = req.headers['x-api-key'] || req.query.api_key;
-if (apiKey && apiKey === config.server.apiKey) {
-    req.user = {
-        id: -1,
-        username: 'system',
-        roles: [ROLES.ADMIN],
-    };
-    req.permissions = ['*'];
-    return next();
-}
+export const authenticate = async (req, res, next) => {
+    // 1. 优先检查 API Key（支持内部服务或特定路由）
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (apiKey && apiKey === config.server.apiKey) {
+        req.user = {
+            id: -1,
+            username: 'system',
+            roles: [ROLES.ADMIN],
+        };
+        req.permissions = ['*'];
+        return next();
+    }
 
-// 开发模式下如果没有提供 Token，则给与访客权限（临时）
-if (config.server.env === 'development' && !req.headers.authorization) {
-    req.user = {
-        id: 0,
-        username: 'guest',
-        roles: [ROLES.ADMIN], // 开发模式给管理员权限
-    };
-    req.permissions = ['*'];
-    return next();
-}
+    // 开发模式下如果没有提供 Token，则给与访客权限（临时）
+    if (config.server.env === 'development' && !req.headers.authorization) {
+        req.user = {
+            id: 0,
+            username: 'guest',
+            roles: [ROLES.ADMIN], // 开发模式给管理员权限
+        };
+        req.permissions = ['*'];
+        return next();
+    }
 
-const authHeader = req.headers.authorization;
-if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-        success: false,
-        error: '未提供认证令牌',
-    });
-}
-
-const token = authHeader.replace('Bearer ', '');
-
-try {
-    const decoded = jwt.verify(token, config.jwt.secret);
-    req.user = decoded;
-
-    // 获取用户权限（未来从数据库获取）
-    req.permissions = decoded.permissions || [];
-
-    next();
-} catch (error) {
-    if (error.name === 'TokenExpiredError') {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({
             success: false,
-            error: '认证令牌已过期',
+            error: '未提供认证令牌',
         });
     }
-    return res.status(401).json({
-        success: false,
-        error: '无效的认证令牌',
-    });
-}
+
+    const token = authHeader.replace('Bearer ', '');
+
+    try {
+        const decoded = jwt.verify(token, config.jwt.secret);
+        req.user = decoded;
+
+        // 获取用户权限（未来从数据库获取）
+        req.permissions = decoded.permissions || [];
+
+        next();
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({
+                success: false,
+                error: '认证令牌已过期',
+            });
+        }
+        return res.status(401).json({
+            success: false,
+            error: '无效的认证令牌',
+        });
+    }
 };
 
 /**
