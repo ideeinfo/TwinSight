@@ -5,7 +5,7 @@
 
 // n8n Webhook URL（需要在 n8n 中创建 Webhook 节点后获取）
 import { server } from '../config/index.js';
-import { getConfig } from './config-service.js';
+import { getConfig, getApiBaseUrl } from './config-service.js';
 
 /**
  * 计算告警严重程度
@@ -33,26 +33,24 @@ function calculateSeverity(alertData) {
  * @param {number} alertData.threshold - 阈值温度
  * @param {string} alertData.timestamp - 报警时间
  * @param {number} alertData.fileId - 关联的模型文件ID
+ * @param {string} [webhookPath] - 可选：自定义 Webhook 路径 (覆盖默认)
  */
-export async function triggerTemperatureAlert(alertData) {
+export async function triggerTemperatureAlert(alertData, webhookPath = '/webhook/temperature-alert') {
     const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
-    const webhookPath = '/webhook/temperature-alert';
+    // const webhookPath = '/webhook/temperature-alert'; // Used default parameter instead
 
     try {
         const payload = {
             eventType: 'temperature_alert',
-            data: {
-                roomCode: alertData.roomCode,
-                roomName: alertData.roomName,
-                temperature: alertData.temperature,
-                threshold: alertData.threshold,
-                alertType: alertData.alertType || 'high',
-                timestamp: alertData.timestamp || new Date().toISOString(),
-                fileId: alertData.fileId,
-                severity: calculateSeverity(alertData),
-                apiBaseUrl: server.baseUrl,
-
-            },
+            roomCode: alertData.roomCode,
+            roomName: alertData.roomName,
+            temperature: alertData.temperature,
+            threshold: alertData.threshold,
+            alertType: alertData.alertType || 'high',
+            timestamp: alertData.timestamp || new Date().toISOString(),
+            fileId: alertData.fileId,
+            severity: calculateSeverity(alertData),
+            apiBaseUrl: await getApiBaseUrl(),
             metadata: {
                 source: 'twinsight',
                 version: '1.0',

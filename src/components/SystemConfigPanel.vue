@@ -7,7 +7,20 @@
     :close-on-click-modal="false"
     destroy-on-close
   >
-    <el-tabs v-model="activeTab" class="config-tabs">
+    <!-- 无权限提示 -->
+    <div v-if="!canAccessConfig" class="access-denied">
+      <el-result
+        icon="warning"
+        title="访问被拒绝"
+        sub-title="您没有权限访问系统配置，请联系系统管理员。"
+      >
+        <template #extra>
+          <el-button type="primary" @click="visible = false">关闭</el-button>
+        </template>
+      </el-result>
+    </div>
+
+    <el-tabs v-else v-model="activeTab" class="config-tabs">
       <!-- InfluxDB 配置 -->
       <el-tab-pane label="时序数据库" name="influxdb">
         <div class="config-form">
@@ -272,7 +285,7 @@
     </el-tabs>
     
     <template #footer>
-      <div class="dialog-footer">
+      <div v-if="canAccessConfig" class="dialog-footer">
         <el-button
           v-if="activeTab === 'influxdb'"
           :loading="testingInflux"
@@ -309,6 +322,9 @@
           保存配置
         </el-button>
       </div>
+      <div v-else class="dialog-footer">
+        <el-button @click="visible = false">关闭</el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -316,8 +332,9 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
+import { CircleCheck, CircleClose, Lock } from '@element-plus/icons-vue';
 import IoTTriggersConfig from './IoTTriggersConfig.vue';
+import { useAuthStore } from '../stores/auth';
 
 // Props & Emits
 const props = defineProps({
@@ -329,6 +346,12 @@ const emit = defineEmits(['update:modelValue']);
 const visible = ref(props.modelValue);
 watch(() => props.modelValue, (val) => { visible.value = val; });
 watch(visible, (val) => { emit('update:modelValue', val); });
+
+// 权限控制
+const authStore = useAuthStore();
+const canAccessConfig = computed(() => {
+  return authStore.hasPermission('system:admin');
+});
 
 // Tab 状态
 const activeTab = ref('influxdb');
@@ -648,7 +671,7 @@ async function handleTestN8n() {
     if (result.success) {
       n8nTestResult.value = {
         success: true,
-        message: '连接成功'
+        message: result.message || '连接成功'
       };
     } else {
       n8nTestResult.value = {
@@ -728,7 +751,9 @@ async function handleSave() {
 
 // 初始化
 onMounted(() => {
-  loadConfigs();
+  if (canAccessConfig.value) {
+    loadConfigs();
+  }
 });
 </script>
 

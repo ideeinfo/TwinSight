@@ -8,7 +8,12 @@ import { checkHealth as checkOpenWebUIHealth } from '../services/openwebui-servi
 import aiService from '../services/ai-service.js';
 import pool from '../db/index.js'; // Needed for /context additional queries if not moved to service
 
+import { authenticate } from '../middleware/auth.js';
+
 const router = express.Router();
+
+// Apply authentication to all AI routes
+router.use(authenticate);
 
 // Configuration Check (logging only)
 console.log(`🔧 AI Analysis Mode: ${aiService.USE_N8N_WORKFLOW ? 'N8N Workflow' : 'Direct Open WebUI request'}`);
@@ -47,7 +52,8 @@ router.post('/temperature-alert', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Missing required parameters: roomCode, temperature' });
         }
 
-        const result = await aiService.processTemperatureAlert(req.body);
+        const dynamicBaseUrl = `${req.protocol}://${req.get('host')}`;
+        const result = await aiService.processTemperatureAlert({ ...req.body, dynamicBaseUrl });
 
         res.json({
             success: true,

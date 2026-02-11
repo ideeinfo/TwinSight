@@ -159,6 +159,34 @@ export function clearConfigCache() {
     configCache.clear();
 }
 
+/**
+ * 获取 API 基础 URL（用于外部服务回调）
+ * 优先级：
+ * 1. 数据库配置 API_BASE_URL
+ * 2. 环境变量 API_BASE_URL
+ * 3. 请求头中的 Host (如果由请求触发)
+ * 4. 默认配置 server.baseUrl
+ */
+export async function getApiBaseUrl(req = null) {
+    // 1. 数据库
+    const dbUrl = await getConfig('API_BASE_URL', '');
+    if (dbUrl) return dbUrl.replace(/\/$/, '');
+
+    // 2. 环境变量 (config/index.js 已经处理了)
+    const { server } = await import('../config/index.js');
+    if (process.env.API_BASE_URL) return process.env.API_BASE_URL.replace(/\/$/, '');
+
+    // 3. 请求头
+    if (req) {
+        const protocol = req.protocol || 'http';
+        const host = req.get('host');
+        if (host) return `${protocol}://${host}`;
+    }
+
+    // 4. 默认值
+    return server.baseUrl.replace(/\/$/, '');
+}
+
 export default {
     getConfig,
     setConfig,

@@ -45,6 +45,38 @@ router.get('/enabled', async (req, res) => {
 });
 
 /**
+ * 触发器类型注册表
+ */
+export const TRIGGER_TYPES = {
+    temperature: {
+        name: '温度监控',
+        fields: ['temperature'],
+        operators: ['gt', 'lt', 'gte', 'lte'],
+        unit: '°C'
+    },
+    humidity: {
+        name: '湿度监控',
+        fields: ['humidity'],
+        operators: ['gt', 'lt', 'gte', 'lte'],
+        unit: '%'
+    },
+    energy: {
+        name: '能耗监控',
+        fields: ['power', 'current', 'voltage'],
+        operators: ['gt', 'lt', 'gte', 'lte'],
+        unit: 'kW'
+    }
+};
+
+/**
+ * GET /api/iot-triggers/types
+ * 获取支持的触发器类型
+ */
+router.get('/types', (req, res) => {
+    res.json({ success: true, data: TRIGGER_TYPES });
+});
+
+/**
  * GET /api/iot-triggers/:id
  * 获取单个触发器
  */
@@ -180,7 +212,8 @@ router.get('/n8n/workflows', async (req, res) => {
 
         // 调用 n8n API 获取工作流列表
         const apiUrl = `${n8nBaseUrl.replace(/\/$/, '')}/api/v1/workflows?active=true`;
-        console.log(`📡 获取 n8n 工作流列表: ${apiUrl}`);
+        console.log(`📡 [DEBUG] Fetching n8n workflows from: ${apiUrl}`);
+        console.log(`🔑 [DEBUG] Using API Key: ${n8nApiKey ? '***' + n8nApiKey.slice(-4) : 'NONE'}`);
 
         const response = await fetch(apiUrl, {
             method: 'GET',
@@ -201,6 +234,10 @@ router.get('/n8n/workflows', async (req, res) => {
 
         const result = await response.json();
         const workflows = result.data || [];
+        console.log(`📦 [DEBUG] Raw workflows count: ${workflows.length}`);
+        if (workflows.length > 0) {
+            console.log(`📄 [DEBUG] First workflow nodes types: ${workflows[0].nodes?.map(n => n.type).join(', ')}`);
+        }
 
         // 过滤出包含 Webhook 触发器的工作流，并提取 webhook 路径
         const webhookWorkflows = workflows
@@ -223,38 +260,6 @@ router.get('/n8n/workflows', async (req, res) => {
         console.error('❌ 获取 n8n 工作流失败:', error);
         res.status(500).json({ success: false, error: error.message });
     }
-});
-
-/**
- * 触发器类型注册表
- */
-export const TRIGGER_TYPES = {
-    temperature: {
-        name: '温度监控',
-        fields: ['temperature'],
-        operators: ['gt', 'lt', 'gte', 'lte'],
-        unit: '°C'
-    },
-    humidity: {
-        name: '湿度监控',
-        fields: ['humidity'],
-        operators: ['gt', 'lt', 'gte', 'lte'],
-        unit: '%'
-    },
-    energy: {
-        name: '能耗监控',
-        fields: ['power', 'current', 'voltage'],
-        operators: ['gt', 'lt', 'gte', 'lte'],
-        unit: 'kW'
-    }
-};
-
-/**
- * GET /api/iot-triggers/types
- * 获取支持的触发器类型
- */
-router.get('/types', (req, res) => {
-    res.json({ success: true, data: TRIGGER_TYPES });
 });
 
 export default router;

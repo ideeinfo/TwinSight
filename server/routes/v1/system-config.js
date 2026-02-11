@@ -5,8 +5,14 @@
 import { Router } from 'express';
 import pool from '../../db/index.js';
 import { getConfig, setConfig, getAllConfigs, getConfigRaw, batchSetConfigs, clearConfigCache } from '../../services/config-service.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
+import { PERMISSIONS } from '../../config/auth.js';
 
 const router = Router();
+
+// 所有系统配置路由都需要登录并具有系统管理员权限
+router.use(authenticate);
+router.use(authorize(PERMISSIONS.SYSTEM_ADMIN));
 
 /**
  * GET /api/v1/system-config

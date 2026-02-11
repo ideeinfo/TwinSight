@@ -8,7 +8,11 @@ import { getInfluxConfig } from '../models/influx-config.js';
 import { query } from '../db/index.js';
 import { getConfig } from '../services/config-service.js';
 
+import config from '../config/index.js';
+
 const router = Router();
+import { authenticate, authorize } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/auth.js';
 
 // 用于生成和验证 API Key 的密钥
 const API_KEY_SECRET = process.env.API_KEY_SECRET || 'tandem-timeseries-secret-2024';
@@ -47,11 +51,28 @@ export function generateStreamUrl(fileId, spaceCode, baseUrl = '') {
  */
 async function getGlobalInfluxConfig() {
     try {
-        const url = await getConfig('INFLUXDB_URL');
-        if (!url) return null;
+        // 优先从数据库获取配置
+        const dbUrl = await getConfig('INFLUXDB_URL');
+
+        // 如果数据库没有配置，尝试使用环境变量 (config.influx)
+        if (!dbUrl) {
+            if (config.influx && config.influx.url) {
+                console.log('Using InfluxDB config from Environment Variables');
+                return {
+                    influx_url: config.influx.url,
+                    influx_port: 8086, // Usually part of URL in env, but keep default
+                    influx_org: config.influx.org,
+                    influx_bucket: config.influx.bucket,
+                    influx_token: config.influx.token,
+                    is_enabled: true,
+                    use_basic_auth: false
+                };
+            }
+            return null;
+        }
 
         return {
-            influx_url: url,
+            influx_url: dbUrl,
             influx_port: parseInt(await getConfig('INFLUXDB_PORT', '8086')),
             influx_org: await getConfig('INFLUXDB_ORG', ''),
             influx_bucket: await getConfig('INFLUXDB_BUCKET', ''),
@@ -405,6 +426,12 @@ router.post('/streams/:fileId/:spaceCode', async (req, res) => {
         const result = await writeToInflux(config, fileId, spaceCode, dataFields, timestamp);
 
         if (result.ok) {
+            // 异步执行触发器评估，不阻塞响应
+            import('../services/iot-trigger-service.js').then(({ evaluateTriggers }) => {
+                console.log(`📊 [Timeseries] Calling evaluateTriggers for ${spaceCode}`);
+                evaluateTriggers(dataFields, { fileId, spaceCode });
+            }).catch(err => console.error('Failed to load trigger service:', err));
+
             res.json({
                 success: true,
                 message: 'Data written successfully',
@@ -490,6 +517,12 @@ router.post('/streams/:spaceCode', async (req, res) => {
         const result = await writeToInflux(config, fileId, spaceCode, dataFields, timestamp);
 
         if (result.ok) {
+            // 异步执行触发器评估，不阻塞响应
+            import('../services/iot-trigger-service.js').then(({ evaluateTriggers }) => {
+                console.log(`📊 [Timeseries] Calling evaluateTriggers (legacy) for ${spaceCode}`);
+                evaluateTriggers(dataFields, { fileId, spaceCode });
+            }).catch(err => console.error('Failed to load trigger service:', err));
+
             res.json({
                 success: true,
                 message: 'Data written successfully',
@@ -513,7 +546,7 @@ router.post('/streams/:spaceCode', async (req, res) => {
  * 查询平均值时序数据
  * GET /api/v1/timeseries/query/average
  */
-router.get('/query/average', async (req, res) => {
+router.get('/query/average', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { startMs, endMs, windowMs, fileId } = req.query;
         console.log(`📊 [query/average] 收到请求: fileId=${fileId || '未传递'}`);
@@ -563,7 +596,7 @@ router.get('/query/average', async (req, res) => {
  * 查询房间时序数据
  * GET /api/v1/timeseries/query/room
  */
-router.get('/query/room', async (req, res) => {
+router.get('/query/room', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { roomCode, startMs, endMs, windowMs, fileId } = req.query;
 
@@ -617,7 +650,7 @@ router.get('/query/room', async (req, res) => {
  * 查询多个房间的最新值
  * POST /api/v1/timeseries/query/latest
  */
-router.post('/query/latest', async (req, res) => {
+router.post('/query/latest', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { roomCodes, lookbackMs, fileId } = req.body;
 
@@ -668,7 +701,7 @@ router.post('/query/latest', async (req, res) => {
  * 检查 InfluxDB 配置状态
  * GET /api/v1/timeseries/status
  */
-router.get('/status', async (req, res) => {
+router.get('/status', authenticate, async (req, res) => {
     try {
         const { fileId } = req.query;
 
@@ -705,7 +738,7 @@ router.get('/status', async (req, res) => {
  * 获取 Stream URL
  * GET /api/v1/timeseries/stream-url/:fileId/:spaceCode
  */
-router.get('/stream-url/:fileId/:spaceCode', async (req, res) => {
+router.get('/stream-url/:fileId/:spaceCode', authenticate, authorize(PERMISSIONS.ASSET_UPDATE), async (req, res) => {
     try {
         const { fileId, spaceCode } = req.params;
         const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -729,7 +762,7 @@ router.get('/stream-url/:fileId/:spaceCode', async (req, res) => {
  * 批量获取多个空间的 Stream URL
  * POST /api/v1/timeseries/stream-urls
  */
-router.post('/stream-urls', async (req, res) => {
+router.post('/stream-urls', authenticate, authorize(PERMISSIONS.ASSET_UPDATE), async (req, res) => {
     try {
         const { fileId, spaceCodes } = req.body;
 

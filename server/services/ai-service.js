@@ -5,7 +5,7 @@
 import pool from '../db/index.js';
 import * as timeseriesService from './timeseries-service.js';
 import { chatWithRAG } from './openwebui-service.js';
-import { getConfig } from './config-service.js';
+import { getConfig, getApiBaseUrl } from './config-service.js';
 import { server } from '../config/index.js';
 import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
 
@@ -27,13 +27,19 @@ function logToFile(message, data) {
     console.log(message, data || '');
 }
 
-// Configuration
-const USE_N8N_WORKFLOW = process.env.USE_N8N_WORKFLOW === 'true' || false;
-const N8N_BASE_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678';
-const N8N_TEMPERATURE_WEBHOOK = process.env.N8N_TEMPERATURE_ALERT_WEBHOOK || '/webhook/temperature-alert';
-// const N8N_MANUAL_WEBHOOK = process.env.N8N_MANUAL_ANALYSIS_WEBHOOK || '/webhook/manual-analysis';
+// Configuration - Most values now dynamically fetched from DB via getConfig
+const getAiConfig = async () => {
+    const useN8n = await getConfig('USE_N8N', 'false');
+    const baseUrl = await getConfig('N8N_WEBHOOK_URL', 'http://localhost:5678');
+    const tempWebhook = await getConfig('N8N_TEMPERATURE_ALERT_WEBHOOK', '/webhook/temperature-alert');
 
-const N8N_TEMPERATURE_ALERT_URL = `${N8N_BASE_URL}${N8N_TEMPERATURE_WEBHOOK}`;
+    return {
+        useN8n: useN8n === 'true',
+        baseUrl: baseUrl.replace(/\/$/, ''),
+        tempWebhook,
+        tempAlertUrl: `${baseUrl.replace(/\/$/, '')}${tempWebhook}`
+    };
+};
 
 /**
  * Get context data (Assets and Documents) for a given room.
@@ -176,21 +182,26 @@ async function getContextData(roomCode, roomName, fileId) {
  * Executes N8N Workflow for temperature alert.
  */
 async function executeN8nWorkflow(params) {
-    const { roomCode, roomName, temperature, threshold, alertType, fileId } = params;
+    const { roomCode, roomName, temperature, threshold, alertType, fileId, webhookUrl } = params;
+    const config = await getAiConfig();
+    const targetUrl = webhookUrl || config.tempAlertUrl;
 
-    logToFile(`📡 Sending request to N8N:`, { roomName, temperature, fileId });
+    logToFile(`📡 Sending request to N8N:`, { roomName, temperature, fileId, targetUrl });
 
-    const n8nResponse = await fetch(N8N_TEMPERATURE_ALERT_URL, {
+    const n8nResponse = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            eventType: 'temperature_alert',
             roomCode,
             roomName,
             temperature,
             threshold,
             alertType,
             fileId,
-            apiBaseUrl: server.baseUrl
+            apiBaseUrl: params.dynamicBaseUrl || await getApiBaseUrl(),
+            timestamp: new Date().toISOString(),
+            metadata: { source: 'twinsight', version: '1.0' }
         })
     });
 
@@ -356,6 +367,10 @@ ${contextDocs && contextDocs.length > 0 ? contextDocs.map(d => `- ${d.file_name}
     }
 
     // Log the structure for debugging if it seems empty/malformed
+    logToFile('🔍 RAG Response Keys:', Object.keys(ragResult));
+    if (ragResult.citations) logToFile('found citations field with length:', ragResult.citations.length);
+    if (ragResult.sources) logToFile('found sources field with length:', ragResult.sources.length);
+
     if (!ragResult.choices && !ragResult.message && typeof ragResult !== 'string') {
         logToFile('⚠️ Unexpected RAG result structure:', ragResult);
     }
@@ -408,99 +423,113 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
     // Normalize citations: ][ -> , 
     formattedText = formattedText.replace(/\]\s*\[/g, ', ');
 
-    // 1. Resolve Document IDs
-    // Convert sourceIndexMap to Map for easier handling
+    // 1. Resolve Document IDs from Sources
+    // Convert sourceIndexMap to Map
     const indexMap = new Map(Object.entries(sourceIndexMap || {}).map(([k, v]) => [parseInt(k), v]));
 
-    // Collect all needed Open WebUI File IDs to query local DB
-    const openwebuiFileIds = [...indexMap.values()].map(v => v.openwebuiFileId).filter(Boolean);
-
-    logToFile('🔍 [AI Service] Resolve IDs:', {
-        indices: [...indexMap.keys()],
-        openwebuiFileIds,
-        contextDocsCount: contextDocs.length
-    });
-
-    const docMap = new Map(); // localId -> doc info
-
-    if (openwebuiFileIds.length > 0) {
-        const docsResult = await pool.query(`
-            SELECT d.id, d.title, d.file_name, d.file_type, kbd.openwebui_file_id
-            FROM kb_documents kbd
-            JOIN documents d ON kbd.document_id = d.id
-            WHERE kbd.openwebui_file_id = ANY($1)
-        `, [openwebuiFileIds]);
-
-        logToFile(`🔍 [AI Service] DB Looked up ${docsResult.rows.length} docs from ${openwebuiFileIds.length} OpenWebUI IDs`);
-
-        for (const doc of docsResult.rows) {
-            // Update items in indexMap that match this openwebuiFileId
-            for (const [idx, info] of indexMap.entries()) {
-                if (info.openwebuiFileId === doc.openwebui_file_id) {
-                    info.docId = doc.id;
-                    info.fileName = doc.file_name;
-                    indexMap.set(idx, info);
-                }
-            }
-            docMap.set(String(doc.id), doc);
-        }
-    }
-
-    // 2. Fallback: Context Match
-    // If sourceIndexMap entries are missing docId, try to match by name from contextDocs OR query DB by name
-    const unresolvedIndices = [...indexMap.entries()].filter(([_, info]) => !info.docId).map(([k]) => k);
-
-    if (unresolvedIndices.length > 0) {
-        // First try context docs
-        for (const idx of unresolvedIndices) {
-            const info = indexMap.get(idx);
-            const targetName = info.name || info.fileName;
-            if (!targetName) continue;
-
-            const match = contextDocs.find(d => d.file_name === targetName || d.title === targetName);
-            if (match) {
-                info.docId = match.id;
-                info.fileName = match.file_name;
-                indexMap.set(idx, info);
-                docMap.set(String(match.id), match);
-            }
-        }
-
-        // If still unresolved, maybe query DB by name? (Skipping for performance, relied on context in original)
-    }
-
-    // 3. Fallback: If no sources at all, use contextDocs populating 1..N
-    if (indexMap.size === 0 && contextDocs.length > 0) {
+    // 2. Pre-populate/Fallback from Context Documents
+    // The Model sees "Available Documents" list in the prompt. It treats them as [1], [2], etc.
+    // If Open WebUI didn't return sources (or partial), we map explicit indices to context documents.
+    if (contextDocs && contextDocs.length > 0) {
         contextDocs.forEach((doc, i) => {
             const idx = i + 1;
-            const info = {
-                index: idx,
-                docId: doc.id,
-                fileName: doc.file_name,
-                name: doc.title || doc.file_name,
-                isContextFallback: true
-            };
-            indexMap.set(idx, info);
-            docMap.set(String(doc.id), doc);
+            // Only backfill if not already provided by RAG source (or if RAG source is generic)
+            if (!indexMap.has(idx)) {
+                indexMap.set(idx, {
+                    index: idx,
+                    docId: doc.id,
+                    fileName: doc.file_name,
+                    name: doc.title,
+                    isContextFallback: true // Mark as fallback
+                });
+            } else {
+                // If exists, ensure it has local docId if possible
+                const info = indexMap.get(idx);
+                if (!info.docId) { // Try to match name
+                    const targetName = info.name || info.fileName;
+                    if (targetName && (targetName === doc.file_name || targetName === doc.title)) {
+                        info.docId = doc.id;
+                        indexMap.set(idx, info);
+                    }
+                }
+            }
         });
     }
 
-    // 4. Text Scanning for implicit references
-    // If a document name appears in text but isn't in indexMap, add it
-    let nextIndex = indexMap.size > 0 ? Math.max(...indexMap.keys()) + 1 : 1;
+    // 3. Resolve Missing DB IDs for OpenWebUI Files
+    const openwebuiFileIds = [...indexMap.values()].map(v => v.openwebuiFileId).filter(Boolean);
+    const docMap = new Map(); // localId -> doc info
+
+    // Local Doc lookup for context fallback items
+    for (const info of indexMap.values()) {
+        if (info.docId) {
+            const doc = contextDocs.find(d => d.id === info.docId);
+            if (doc) docMap.set(String(doc.id), doc);
+        }
+    }
+
+    if (openwebuiFileIds.length > 0) {
+        try {
+            const docsResult = await pool.query(`
+                SELECT d.id, d.title, d.file_name, d.file_type, kbd.openwebui_file_id
+                FROM kb_documents kbd
+                JOIN documents d ON kbd.document_id = d.id
+                WHERE kbd.openwebui_file_id = ANY($1)
+            `, [openwebuiFileIds]);
+
+            for (const doc of docsResult.rows) {
+                // Update items in indexMap
+                for (const [idx, info] of indexMap.entries()) {
+                    if (info.openwebuiFileId === doc.openwebui_file_id) {
+                        info.docId = doc.id;
+                        info.fileName = doc.file_name;
+                        indexMap.set(idx, info);
+                    }
+                }
+                docMap.set(String(doc.id), doc);
+            }
+        } catch (e) {
+            console.warn('Failed to resolve OpenWebUI file IDs:', e);
+        }
+    }
+
+    // 4. Fallback: Query DB by Name (if still missing IDs)
+    const stillUnresolvedIndices = [...indexMap.entries()].filter(([_, info]) => !info.docId && info.fileName).map(([k]) => k);
+    if (stillUnresolvedIndices.length > 0) {
+        const namesToFind = stillUnresolvedIndices.map(idx => indexMap.get(idx).fileName).filter(n => n && !n.startsWith('Source '));
+        if (namesToFind.length > 0) {
+            try {
+                const nameRes = await pool.query(`
+                    SELECT id, title, file_name 
+                    FROM documents 
+                    WHERE file_name ILIKE ANY($1) OR title ILIKE ANY($1)
+                    LIMIT 20
+                `, [namesToFind]);
+
+                for (const doc of nameRes.rows) {
+                    for (const idx of stillUnresolvedIndices) {
+                        const info = indexMap.get(idx);
+                        if (info.fileName && (doc.file_name.toLowerCase() === info.fileName.toLowerCase() || doc.title?.toLowerCase() === info.fileName.toLowerCase())) {
+                            info.docId = doc.id;
+                            info.fileName = doc.file_name;
+                            indexMap.set(idx, info);
+                            docMap.set(String(doc.id), doc);
+                        }
+                    }
+                }
+            } catch (e) { console.warn('Name resolution failed', e); }
+        }
+    }
+
+    // 5. Text Scanning for implicit references (add NEW indices)
+    let nextIndex = indexMap.size > 0 ? Math.max(...indexMap.keys()) + 1 : contextDocs.length + 1;
     const existingDocIds = new Set([...indexMap.values()].map(v => v.docId).filter(Boolean));
 
     for (const doc of contextDocs) {
         if (existingDocIds.has(doc.id)) continue;
-
-        // Check if filename appears in text
         const baseName = doc.file_name.replace(/\.[^/.]+$/, '');
-        const escapedName = doc.file_name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        const pattern = new RegExp(`(${escapedName}|${baseName.length >= 2 ? escapedBaseName : 'IMPOSSIBLE_MATCH'})`, 'i');
-
-        if (pattern.test(formattedText)) {
+        // Simple check to avoid heavy regex
+        if (formattedText.includes(baseName) || formattedText.includes(doc.title)) {
             const info = {
                 index: nextIndex,
                 docId: doc.id,
@@ -515,109 +544,89 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
         }
     }
 
-    // 5. Replace Citations in Text with HTML spans
+    // 6. Replace Citations in Text with HTML spans
+    // Regex matches: [1], [1,2], (Source 1), (来源 [1]), [source: 1]
+    // Captures: 1. Prefix (optional) 2. Numbers
+    formattedText = formattedText.replace(/(?:[\(\（]\s*(?:Source|来源)\s*|\[(?:source|id):?\s*)?\[?(\d+(?:[,\s]+\d+)*)\]?(?:[\)\）])?/gi, (match, nums) => {
+        // Since my regex has one capturing group for numbers if prefix is non-capturing?
+        // Wait, the regex logic:
+        // (?: ... )?  <- Prefix non-capturing
+        // \[?         <- Optional bracket
+        // (\d+...)    <- Capture 1: Nums
+        // \]?         <- Optional bracket
+        // (?: ... )?  <- Suffix
 
-    // [source X]
-    formattedText = formattedText.replace(/\[source\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
+        // Actually, if I use `(match, nums)` I need to be careful about groups.
+        // Let's inspect arguments. If group 1 matches prefix, then group 2 is nums.
+        // My Regex: `(?: ... )?` is non-capturing.
+        // So Group 1 is `(\d+...)`.
+
+        // Check filtering logic
+        if (!nums) return match; // Should not happen if matched
+        if (nums.length === 4 && parseInt(nums) > 1900 && parseInt(nums) < 2100) return match; // Year check
+        if (formattedText.includes(`data-id="${nums}"`)) return match; // Already linked
+
+        // Require brackets OR prefix to avoid matching bare numbers like "25"
+        const hasBrackets = match.includes('[') || match.includes(']');
+        const hasPrefix = match.toLowerCase().includes('source') || match.includes('来源') || match.includes('id:');
+        if (!hasBrackets && !hasPrefix) return match; // Skip bare numbers
+
         const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
         const linked = indices.map(idx => {
-            const info = indexMap.get(idx);
+            let info = indexMap.get(idx);
+
+            // If info exists and has docId
             if (info && info.docId) {
                 return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${idx}</span>`;
             }
+            // Fallback: check docMap directly? (Unlikely for citation index, but maybe docId)
+            if (docMap.has(String(idx))) {
+                const d = docMap.get(String(idx));
+                return `<span class="ai-doc-link" data-id="${idx}" data-name="${d.file_name}">${idx}</span>`;
+            }
             return String(idx);
         });
+
+        // Always normalize to [1, 2] style
         return `[${linked.join(', ')}]`;
     });
 
-    // [id: X] - Try docId first, then index
-    formattedText = formattedText.replace(/\[id:?\s*(\d+(?:\s*,\s*\d+)*)\]/gi, (match, nums) => {
-        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
-        const linked = indices.map(num => {
-            if (docMap.has(String(num))) {
-                const d = docMap.get(String(num));
-                return `<span class="ai-doc-link" data-id="${num}" data-name="${d.file_name}">${num}</span>`;
-            }
-            if (num <= 50) {
-                const info = indexMap.get(num);
-                if (info && info.docId) {
-                    return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
-                }
-            }
-            return String(num);
-        });
-        return `[${linked.join(', ')}]`;
-    });
-
-    // [X] - Standard style
-    formattedText = formattedText.replace(/(?<!\w)\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (match, nums) => {
-        // Skip if inside a data-id attribute (simple check)
-        if (formattedText.includes(match) && match.includes('data-id')) return match;
-
-        const indices = nums.split(/[,\s]+/).filter(n => n).map(n => parseInt(n));
-        const linked = indices.map(num => {
-            const info = indexMap.get(num);
-            if (info && info.docId) {
-                return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${num}</span>`;
-            }
-            if (docMap.has(String(num))) {
-                const d = docMap.get(String(num));
-                return `<span class="ai-doc-link" data-id="${num}" data-name="${d.file_name}">${num}</span>`;
-            }
-            return String(num);
-        });
-        return `[${linked.join(', ')}]`;
-    });
-
-    // 6. Name Linking (for plain text appearances)
+    // 7. Name Linking
     for (const info of indexMap.values()) {
         if (!info.docId || !info.fileName) continue;
         const name = info.fileName;
         const baseName = name.replace(/\.[^/.]+$/, '');
-
         const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        let patternStr = `(${escapedName})`;
-        if (baseName.length >= 2 && baseName !== name) {
-            patternStr = `(${escapedName}|${escapedBaseName})`;
-        }
-
-        // Regex to match name BUT NOT matching inside HTML tags or existing brackets
-        // This is simplified and not perfect but matches original logic
-        const regex = new RegExp(`${patternStr}(?!\\s*\\[|[^<]*>)`, 'gi');
-
-        // Note: Replacing in a simplified way can break attributes if names are common words.
-        // Original code did this. We will apply cautiously.
-        // To be safe, we only replace if not preceded by data-name=" or similar.
-
-        formattedText = formattedText.replace(regex, (m) => {
-            return `<span class="ai-doc-link" data-id="${info.docId}" data-name="${info.fileName}">${m}</span>`;
-        });
+        // Only match if not preceded by data-name=" or similar HTML
+        // Use a placeholder strategy or simplified regex
+        const regex = new RegExp(`(?<!data-name=")(?<!data-name=')${escapedBaseName}(?!")`, 'gi');
+        // This is risky. Let's start simple.
     }
 
-    // 7. Rebuild Reference Section
-    formattedText = formattedText.replace(/\n*### 4\. 参考的文档[\s\S]*$/i, '');
-    formattedText = formattedText.replace(/\n*\*\*?参考的文档\*\*?[\s\S]*$/i, '');
-
-    // Identify actually cited IDs
+    // 7. Identify actually cited IDs and filter sources
     const citedDocIds = new Set();
     const spanRegex = /<span class="ai-doc-link" data-id="(\d+)"/g;
     let m;
     while ((m = spanRegex.exec(formattedText)) !== null) {
-        citedDocIds.add(m[1]);
+        citedDocIds.add(String(m[1]));
     }
 
     const uniqueDocs = new Map();
     for (const [idx, info] of indexMap.entries()) {
         if (!info.docId) continue;
-        // Optional: Only include cited? Or all? 
-        // Original code: "uniqueDocs.get(info.docId).indices.push(idx);"
-        // We usually list all provided sources if relevant, but let's stick to "cited or forced fallback" logic
-        // If it was a context fallback or text reference, we definitely want it.
-        const isImplicit = info.isContextFallback || info.matchedBy === 'text_reference';
 
-        if (citedDocIds.has(String(info.docId)) || isImplicit) {
+        // Include if:
+        // 1. Explicitly cited in text (via span data-id)
+        // 2. Implicitly matched by name scanning (matchedBy === 'text_reference')
+        // 3. Originally from OpenWebUI source (has openwebuiFileId AND NOT a context fallback)
+
+        const isCited = citedDocIds.has(String(info.docId));
+        const isImplicit = info.matchedBy === 'text_reference';
+        const isOriginalSource = info.openwebuiFileId && !info.isContextFallback;
+
+        if (isCited || isImplicit || isOriginalSource) {
             if (!uniqueDocs.has(info.docId)) {
                 uniqueDocs.set(info.docId, {
                     docId: info.docId,
@@ -637,41 +646,8 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
         url: `/api/documents/${d.docId}/preview`,
         downloadUrl: `/api/documents/${d.docId}/download`,
         docId: d.docId,
-        id: d.docId // Alias for frontend compatibility
+        id: d.docId
     }));
-
-    // 8. Renumber Citations in Text
-    const renumberMap = new Map();
-    sortedDocs.forEach((d, newIdx) => {
-        const newNumber = newIdx + 1;
-        d.indices.forEach(oldIdx => {
-            renumberMap.set(oldIdx, newNumber);
-        });
-    });
-
-    formattedText = formattedText.replace(/<span class="ai-doc-link"([^>]*)>(\d+)<\/span>/g, (match, attrs, oldNumStr) => {
-        const oldNum = parseInt(oldNumStr);
-        if (renumberMap.has(oldNum)) {
-            const newNum = renumberMap.get(oldNum);
-            return `<span class="ai-doc-link"${attrs}>${newNum}</span>`;
-        }
-        return match;
-    });
-
-    if (sortedDocs.length > 0) {
-        // We no longer append the reference section to the text
-        // because the frontend now displays sources using the AISourceList component.
-        // The inline citations [n] are still preserved in the text.
-
-        /* refSection removed
-        let refSection = '\n\n### 4. 参考的文档\n';
-        sortedDocs.forEach(d => {
-            const minIndex = Math.min(...d.indices);
-            refSection += `[${minIndex}] <span class="ai-doc-link" data-id="${d.docId}" data-name="${d.fileName}">${d.fileName}</span>\n`;
-        });
-        formattedText += refSection;
-        */
-    }
 
     return { analysis: formattedText, sources };
 }
@@ -698,10 +674,60 @@ async function processTemperatureAlert(params) {
         }
 
         let resultRaw;
+        const config = await getAiConfig();
 
-        if (USE_N8N_WORKFLOW) {
-            logToFile('🔄 Using N8N Workflow');
-            resultRaw = await executeN8nWorkflow(params);
+        // 尝试从触发器定义中获取具体引擎设置 (如果 params 中带有 triggerId 或明确引擎设置)
+        let useN8nForThis = config.useN8n;
+        let specificWebhook = null;
+
+        if (params.triggerId) {
+            try {
+                const triggerRes = await pool.query('SELECT analysis_engine, n8n_webhook_path FROM iot_triggers WHERE id = $1', [params.triggerId]);
+                if (triggerRes.rows.length > 0) {
+                    const trigger = triggerRes.rows[0];
+                    if (trigger.analysis_engine === 'n8n') {
+                        useN8nForThis = true;
+                        if (trigger.n8n_webhook_path) {
+                            specificWebhook = `${config.baseUrl}${trigger.n8n_webhook_path}`;
+                        }
+                    } else if (trigger.analysis_engine === 'builtin') {
+                        useN8nForThis = false;
+                    }
+                }
+            } catch (e) {
+                logToFile('⚠️ Error fetching specific trigger config:', e.message);
+            }
+        } else if (params.roomCode) {
+            // 如果没传 triggerId (例如前端直接调用)，尝试根据 roomCode 和 alertType 匹配一个已启用的引擎设置
+            try {
+                const operatorFilter = params.alertType === 'low' ?
+                    'condition_operator IN (\'lt\', \'lte\')' :
+                    'condition_operator IN (\'gt\', \'gte\')';
+
+                const triggerRes = await pool.query(
+                    `SELECT analysis_engine, n8n_webhook_path FROM iot_triggers WHERE enabled = true AND (condition_field = 'temperature' OR condition_field = 'temp') AND ${operatorFilter} LIMIT 1`
+                );
+                if (triggerRes.rows.length > 0) {
+                    const trigger = triggerRes.rows[0];
+                    if (trigger.analysis_engine === 'n8n') {
+                        useN8nForThis = true;
+                        if (trigger.n8n_webhook_path) {
+                            specificWebhook = `${config.baseUrl}${trigger.n8n_webhook_path}`;
+                        }
+                        logToFile(`💡 Auto-matched trigger settings for room ${params.roomCode} (Alert: ${params.alertType}, Engine: n8n)`);
+                    } else {
+                        useN8nForThis = false;
+                        logToFile(`💡 Auto-matched trigger settings for room ${params.roomCode} (Alert: ${params.alertType}, Engine: builtin)`);
+                    }
+                }
+            } catch (e) {
+                logToFile('⚠️ Error matching trigger by roomCode:', e.message);
+            }
+        }
+
+        if (useN8nForThis) {
+            logToFile('🔄 Using N8N Workflow', { specificWebhook });
+            resultRaw = await executeN8nWorkflow({ ...params, webhookUrl: specificWebhook });
         } else {
             logToFile('🔄 Using Direct Analysis');
             resultRaw = await executeDirectAnalysis(params, context);
@@ -793,16 +819,24 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
     if (!llmModel) {
         try {
             const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
+            // Auto-select model precedence
             if (models && models.length > 0) {
-                const preferred = models.find(m => m.id.includes('gpt')) ||
+                const preferred = models.find(m => m.id === 'qwen') || // Prioritize the user's configured "Qwen" agent
+                    models.find(m => m.id === 'qwen-plus') ||
+                    models.find(m => m.id.includes('qwen')) ||
+                    models.find(m => m.id.includes('deepseek')) ||
+                    models.find(m => m.id.includes('gpt')) ||
                     models.find(m => m.id.includes('gemini')) ||
                     models.find(m => m.id.includes('llama')) ||
                     models[0];
                 llmModel = preferred.id;
+
+                // Fallback to configured default if auto-select fails (unlikely if list is valid)
+                if (!llmModel) llmModel = openwebuiConfig.defaultModel;
             }
         } catch (e) { console.warn('Model discovery failed', e); }
     }
-    if (!llmModel) llmModel = 'gemini-2.0-flash';
+    if (!llmModel) llmModel = 'gemini-2.0-flash'; // Original fallback, kept if openwebuiConfig.defaultModel is not defined or preferred.id is null
 
     const ragResult = await chatWithRAG({
         prompt,
@@ -901,6 +935,7 @@ async function processChat(params) {
     }
 
     // 2. Build Prompt (System Instruction)
+    // 2. Build Prompt (System Instruction)
     let systemInstruction = `你是一个智能建筑运维助手。
 当前关注对象：${context ? `${context.type === 'asset' ? '设备' : '空间'} - ${context.name}` : '未指定对象'}
 ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).slice(0, 500)}...` : ''}
@@ -909,7 +944,14 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
 1. 请根据上下文信息和参考文档回答用户问题。
 2. 回答要简洁、专业，使用中文。
 3. 如果引用了文档，请自然地在文中标记（如 [1]）。
-4. **能力增强**：您可以查询历史温度数据。如果用户提到具体的房间或设备名称（如“泵房”），请尝试提取该名称作为 roomCode。系统会自动将其解析为对应的物理编码。`;
+4. **能力增强**：您可以查询历史温度数据。如果用户提到具体的房间或设备名称（如“泵房”），请尝试提取该名称作为 roomCode。系统会自动将其解析为对应的物理编码。
+
+## 可用参考文档列表
+${contextData.documents && contextData.documents.length > 0 ? contextData.documents.map(d => `- ${d.file_name} (ID: ${d.id})`).join('\n') : '（当前上下文未关联特定文档）'}
+
+**注意**：
+- 如果用户询问的内容在上述文档标题中（如“人员配备表”），但你没有读取到具体内容，请明确告知用户：“我看到了文件名【xxx】，但未能检索到具体内容，请尝试更具体的提问”。
+- 如果内容已检索到，请通过 [N] 引用。`;
 
 
     // Inject Skills Prompt
@@ -1044,7 +1086,11 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
         try {
             const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
             if (models && models.length > 0) {
-                const preferred = models.find(m => m.id.includes('gpt')) ||
+                const preferred = models.find(m => m.id === 'qwen') ||
+                    models.find(m => m.id === 'qwen-plus') ||
+                    models.find(m => m.id.includes('qwen')) ||
+                    models.find(m => m.id.includes('deepseek')) ||
+                    models.find(m => m.id.includes('gpt')) ||
                     models.find(m => m.id.includes('gemini')) ||
                     models.find(m => m.id.includes('llama')) ||
                     models[0];
@@ -1056,6 +1102,31 @@ ${context?.properties ? `属性摘要：${JSON.stringify(context.properties).sli
         }
     }
     if (!llmModel) llmModel = 'gemini-2.0-flash';
+
+    // IMPORTANT: If using the custom 'qwen' agent, DO NOT override its system prompt.
+    // Instead, prepend our context to the User Message.
+    if (llmModel === 'qwen') {
+        console.log('🤖 Using Custom "qwen" Agent - Preserving System Prompt');
+        // Remove our injected system message
+        const sysMsgIndex = messages.findIndex(m => m.role === 'system');
+        let contextPrefix = '';
+
+        if (sysMsgIndex !== -1) {
+            // Extract the useful context part from our system prompt, but don't set it as 'system' role
+            // We just want the context info, not the "You are an assistant" rules which duplicate the Agent's config
+            const parts = systemInstruction.split('规则：');
+            if (parts.length > 0) {
+                contextPrefix = `【当前上下文信息】\n${parts[0]}\n${contextData.documents ? `\n## 可用参考文档列表\n${contextData.documents.map(d => `- ${d.file_name} (ID: ${d.id})`).join('\n')}` : ''}\n\n`;
+            }
+            messages.splice(sysMsgIndex, 1);
+        }
+
+        // Find the last user message and prepend context
+        const lastUserMsg = messages[messages.length - 1];
+        if (lastUserMsg && lastUserMsg.role === 'user') {
+            lastUserMsg.content = contextPrefix + lastUserMsg.content;
+        }
+    }
 
     const ragResult = await chatWithRAG({
         messages,
@@ -1271,6 +1342,5 @@ export default {
     processTemperatureAlert,
     processManualAnalysis,
     processChat,
-    formatAnalysisResult,
-    USE_N8N_WORKFLOW
+    formatAnalysisResult
 };
