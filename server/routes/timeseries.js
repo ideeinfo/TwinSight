@@ -6,6 +6,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { getInfluxConfig } from '../models/influx-config.js';
 import { query } from '../db/index.js';
+import { getConfig } from '../services/config-service.js';
 
 const router = Router();
 
@@ -42,6 +43,29 @@ export function generateStreamUrl(fileId, spaceCode, baseUrl = '') {
 }
 
 /**
+ * 获取全局 InfluxDB 配置
+ */
+async function getGlobalInfluxConfig() {
+    try {
+        const url = await getConfig('INFLUXDB_URL');
+        if (!url) return null;
+
+        return {
+            influx_url: url,
+            influx_port: parseInt(await getConfig('INFLUXDB_PORT', '8086')),
+            influx_org: await getConfig('INFLUXDB_ORG', ''),
+            influx_bucket: await getConfig('INFLUXDB_BUCKET', ''),
+            influx_token: await getConfig('INFLUXDB_TOKEN', ''),
+            is_enabled: (await getConfig('INFLUXDB_ENABLED', 'true')) === 'true',
+            use_basic_auth: false // 全局配置默认使用 Token
+        };
+    } catch (error) {
+        console.error('获取全局 InfluxDB 配置失败:', error);
+        return null;
+    }
+}
+
+/**
  * 获取当前激活模型的 InfluxDB 配置
  */
 async function getActiveInfluxConfig() {
@@ -49,14 +73,20 @@ async function getActiveInfluxConfig() {
         // 查找当前激活的模型
         const result = await query('SELECT id FROM model_files WHERE is_active = true LIMIT 1');
         if (result.rows.length === 0) {
-            return null;
+            return await getGlobalInfluxConfig();
         }
         const fileId = result.rows[0].id;
         const config = await getInfluxConfig(fileId);
+
+        if (!config) {
+            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
+            return await getGlobalInfluxConfig();
+        }
+
         return config;
     } catch (error) {
         console.error('获取激活模型 InfluxDB 配置失败:', error);
-        return null;
+        return await getGlobalInfluxConfig();
     }
 }
 
@@ -66,10 +96,14 @@ async function getActiveInfluxConfig() {
 async function getInfluxConfigByFileId(fileId) {
     try {
         const config = await getInfluxConfig(fileId);
+        if (!config) {
+            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
+            return await getGlobalInfluxConfig();
+        }
         return config;
     } catch (error) {
         console.error('获取 InfluxDB 配置失败:', error);
-        return null;
+        return await getGlobalInfluxConfig();
     }
 }
 
@@ -97,10 +131,16 @@ async function getInfluxConfigBySpaceCode(spaceCode) {
         }
         console.log(`📊 spaceCode "${spaceCode}" 关联到模型 file_id=${fileId}`);
         const config = await getInfluxConfig(fileId);
+
+        if (!config) {
+            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
+            return await getGlobalInfluxConfig();
+        }
+
         return config;
     } catch (error) {
         console.error('根据 spaceCode 获取 InfluxDB 配置失败:', error);
-        return null;
+        return await getActiveInfluxConfig();
     }
 }
 
@@ -196,7 +236,12 @@ async function writeToInflux(config, fileId, spaceCode, data, timestamp = Date.n
 
     try {
         const writeUrl = `${baseUrl}/api/v2/write?org=${encodeURIComponent(config.influx_org)}&bucket=${encodeURIComponent(config.influx_bucket)}&precision=ms`;
-        const resp = await fetch(writeUrl, { method: 'POST', headers, body });
+        const resp = await fetch(writeUrl, {
+            method: 'POST',
+            headers,
+            body,
+            signal: AbortSignal.timeout(10000) // 10秒超时
+        });
 
         if (resp.ok) {
             return { ok: true };
@@ -225,7 +270,12 @@ async function queryInflux(config, flux) {
     try {
         const resp = await fetch(
             `${baseUrl}/api/v2/query?org=${encodeURIComponent(config.influx_org)}`,
-            { method: 'POST', headers, body: flux }
+            {
+                method: 'POST',
+                headers,
+                body: flux,
+                signal: AbortSignal.timeout(10000) // 10秒超时
+            }
         );
 
         if (!resp.ok) {

@@ -16,6 +16,8 @@
             <el-input
               v-model="influxForm.url"
               placeholder="http://localhost"
+              autocomplete="off"
+              name="influx-url"
             />
           </div>
           
@@ -28,6 +30,7 @@
                 :max="65535"
                 controls-position="right"
                 style="width: 100%"
+                name="influx-port"
               />
             </div>
             <div class="form-item half">
@@ -35,6 +38,8 @@
               <el-input
                 v-model="influxForm.org"
                 placeholder="demo"
+                autocomplete="off"
+                name="influx-org"
               />
             </div>
           </div>
@@ -44,6 +49,8 @@
             <el-input
               v-model="influxForm.bucket"
               placeholder="twinsight"
+              autocomplete="off"
+              name="influx-bucket"
             />
             <span class="form-hint">全局 Bucket，所有模型数据通过 Tag 区分</span>
           </div>
@@ -55,6 +62,8 @@
               type="password"
               show-password
               :placeholder="influxHasToken ? '已配置，留空保持不变' : '请输入 Token'"
+              autocomplete="new-password"
+              name="influx-token"
             />
           </div>
           
@@ -104,6 +113,8 @@
               v-model="aiForm.baseUrl"
               placeholder="OpenAI 兼容 API 端点"
               readonly
+              autocomplete="off"
+              name="llm-base-url"
             />
             <span class="form-hint">根据提供商自动填充，不可修改</span>
           </div>
@@ -117,6 +128,8 @@
                 type="password"
                 show-password
                 :placeholder="aiHasApiKey ? '已配置，留空保持不变' : '请输入 API Key'"
+                autocomplete="new-password"
+                name="llm-api-key"
               />
               <el-button
                 type="primary"
@@ -179,6 +192,8 @@
             <el-input
               v-model="aiForm.openwebuiUrl"
               placeholder="http://localhost:8080"
+              autocomplete="off"
+              name="openwebui-url"
             />
           </div>
           
@@ -190,6 +205,8 @@
               type="password"
               show-password
               :placeholder="openwebuiHasApiKey ? '已配置，留空保持不变' : '请输入 API Key'"
+              autocomplete="new-password"
+              name="openwebui-api-key"
             />
           </div>
           
@@ -217,6 +234,8 @@
             <el-input
               v-model="aiForm.n8nWebhookUrl"
               placeholder="http://localhost:5678"
+              autocomplete="off"
+              name="n8n-webhook-url"
             />
             <span class="form-hint">n8n 服务器的基础 URL</span>
           </div>
@@ -229,6 +248,8 @@
               type="password"
               show-password
               :placeholder="n8nHasApiKey ? '已配置，留空保持不变' : '请输入 API Key'"
+              autocomplete="new-password"
+              name="n8n-api-key"
             />
             <span class="form-hint">用于获取工作流列表 (X-N8N-API-KEY)</span>
           </div>

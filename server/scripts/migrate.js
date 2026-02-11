@@ -8,10 +8,15 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// 1. 加载环境变量
-const envPath = join(__dirname, '../.env');
-if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath });
+// 1. 加载环境变量 (与 server/config/index.js 保持一致)
+const rootEnvPath = join(__dirname, '../../.env');
+const localEnvPath = join(__dirname, '../../.env.local');
+
+if (fs.existsSync(rootEnvPath)) {
+    dotenv.config({ path: rootEnvPath });
+}
+if (fs.existsSync(localEnvPath)) {
+    dotenv.config({ path: localEnvPath, override: true });
 }
 
 // 2. 动态导入数据库连接
