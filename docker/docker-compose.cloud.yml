@@ -148,7 +148,8 @@ services:
       # 内部服务地址
       API_BASE_URL: http://api:3001
       OPENWEBUI_URL: http://open-webui:8080
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENWEBUI_URL: http://open-webui:8080
+      # GEMINI_API_KEY 已弃用，使用 Open WebUI 统一管理模型
     ports:
       - "127.0.0.1:5678:5678"
     volumes:
