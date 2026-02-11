@@ -48,3 +48,11 @@ docker/
 scripts/
 todo/
 backup/
+# 生产环境不需要将模型和文档打入镜像（通过卷挂载）
+public/models/*
+public/docs/*
+public/data/*
+public/files/*
+public/documents/*
+public/temp/*
+!public/.gitkeep
