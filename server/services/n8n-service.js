@@ -57,7 +57,6 @@ export async function triggerTemperatureAlert(alertData, webhookPath = '/webhook
             }
         };
 
-        console.log('📤 发送到 n8n 的数据:', JSON.stringify(payload, null, 2));
 
         const response = await fetch(`${n8nBaseUrl}${webhookPath}`, {
             method: 'POST',
@@ -74,7 +73,6 @@ export async function triggerTemperatureAlert(alertData, webhookPath = '/webhook
 
         const result = await response.json().catch(() => ({}));
         console.log('✅ 温度报警已触发 n8n 工作流:', alertData.roomCode);
-        console.log('📥 n8n 返回结果:', JSON.stringify(result, null, 2));
         return { success: true, result };
     } catch (error) {
         console.error('❌ n8n Webhook 调用异常:', error.message);

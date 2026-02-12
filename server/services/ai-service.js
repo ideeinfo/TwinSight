@@ -14,18 +14,6 @@ import path from 'path';
 
 // ... imports ...
 
-const LOG_FILE = path.join(process.cwd(), 'ai-debug.log');
-
-function logToFile(message, data) {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${message} ${data ? JSON.stringify(data, null, 2) : ''}\n`;
-    try {
-        fs.appendFileSync(LOG_FILE, logEntry);
-    } catch (e) {
-        console.error('Failed to write to log file:', e);
-    }
-    console.log(message, data || '');
-}
 
 // Configuration - Most values now dynamically fetched from DB via getConfig
 const getAiConfig = async () => {
@@ -663,7 +651,7 @@ async function formatAnalysisResult(analysisText, sourceIndexMap, contextDocs = 
  * Process temperature alert (Main Entry Point)
  */
 async function processTemperatureAlert(params) {
-    logToFile('🔥 processTemperatureAlert CALLED', params);
+    console.log('🔥 processTemperatureAlert CALLED', params);
     const { roomCode, roomName, fileId } = params;
 
     try {
@@ -671,12 +659,12 @@ async function processTemperatureAlert(params) {
         let context = { assets: [], documents: [], searchPatterns: [] };
         try {
             context = await getContextData(roomCode, roomName, fileId);
-            logToFile('✅ Context retrieved', {
+            console.log('✅ Context retrieved', {
                 assetCount: context.assets.length,
                 docCount: context.documents.length
             });
         } catch (e) {
-            logToFile('⚠️ Could not get context data:', e.message);
+            console.warn('Could not get context data:', e.message);
             console.warn('Could not get context data:', e);
         }
 

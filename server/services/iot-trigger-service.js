@@ -1,20 +1,6 @@
 import { query } from '../db/index.js';
 import * as n8nService from './n8n-service.js';
 import * as aiService from './ai-service.js';
-import fs from 'fs';
-import path from 'path';
-
-const LOG_FILE = path.join(process.cwd(), 'ai-debug.log');
-
-function logToFile(message, data) {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] [IOT-TRIGGER] ${message} ${data ? JSON.stringify(data) : ''}\n`;
-    try {
-        fs.appendFileSync(LOG_FILE, logEntry);
-    } catch (e) {
-        // ignore
-    }
-}
 
 
 /**
@@ -25,7 +11,6 @@ function logToFile(message, data) {
 export async function evaluateTriggers(data, context) {
     const { fileId, spaceCode } = context;
     console.log(`🔍 [Trigger] evaluateTriggers called for space ${spaceCode} with data:`, JSON.stringify(data));
-    logToFile(`evaluateTriggers called for space ${spaceCode}`, data);
 
     // 1. 获取所有启用的触发器
     // TODO: 考虑添加缓存以提高性能
@@ -33,7 +18,6 @@ export async function evaluateTriggers(data, context) {
     const triggers = result.rows;
 
     console.log(`🔍 [Trigger] Found ${triggers.length} active triggers in DB.`);
-    logToFile(`Found ${triggers.length} active triggers in DB.`);
 
     if (triggers.length === 0) return;
 
