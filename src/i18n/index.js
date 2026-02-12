@@ -30,7 +30,99 @@ const messages = {
       selected: '已选中 {count} 项',
       warning: '警告',
       deleteSuccess: '删除成功',
-      deleteFailed: '删除失败'
+      deleteFailed: '删除失败',
+      testConnection: '测试连接',
+      testing: '测试中...',
+      testSuccess: '连接成功',
+      testFailed: '连接失败'
+    },
+    system: {
+      config: {
+        title: '系统配置',
+        accessDenied: '访问被拒绝',
+        accessDeniedMessage: '您没有权限访问系统配置，请联系系统管理员。',
+        tabs: {
+          influxdb: '时序数据库',
+          llm: 'AI 模型',
+          knowledge: '知识库',
+          workflow: 'AI 工作流',
+          iot: 'IoT 触发器'
+        },
+        influx: {
+          url: '服务器地址',
+          port: '端口',
+          org: '组织',
+          bucket: 'Bucket 名称',
+          bucketHint: '全局 Bucket，所有模型数据通过 Tag 区分',
+          token: 'API Token',
+          tokenPlaceholder: '请输入 Token',
+          tokenConfigured: '已配置，留空保持不变',
+          enabled: '启用时序数据'
+        },
+        llm: {
+          provider: '服务提供商',
+          providerPlaceholder: '选择服务提供商',
+          baseUrl: 'API 基础 URL',
+          baseUrlHint: '根据提供商自动填充，不可修改',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: '请输入 API Key',
+          apiKeyConfigured: '已配置，留空保持不变',
+          fetchModels: '获取模型',
+          model: '模型选择',
+          modelPlaceholder: '请先获取模型列表',
+          availableModels: '共 {count} 个可用模型',
+          currentModel: '当前使用: {model}'
+        },
+        knowledge: {
+          description: 'Open WebUI 用于管理知识库和文档，实现 RAG 检索增强生成。',
+          url: 'Open WebUI 地址',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: '请输入 API Key',
+          apiKeyConfigured: '已配置，留空保持不变'
+        },
+        workflow: {
+          description: '配置 n8n 服务器连接，以便 TwinSight 能够触发 n8n 工作流。',
+          url: '服务器地址',
+          urlHint: 'n8n 服务器的基础 URL',
+          apiKey: 'API Key',
+          apiKeyHint: '用于获取工作流列表 (X-N8N-API-KEY)',
+          apiKeyPlaceholder: '请输入 API Key',
+          apiKeyConfigured: '已配置，留空保持不变'
+        },
+        iot: {
+          title: 'IoT 触发器管理',
+          create: '新增触发器',
+          name: '名称',
+          namePlaceholder: '例如：高温报警',
+          type: '类型',
+          typePlaceholder: '选择类型',
+          condition: '触发条件',
+          conditionField: '监控字段',
+          conditionOperator: '操作符',
+          threshold: '阈值',
+          analysis: '分析引擎',
+          builtin: '内置分析模块',
+          n8n: 'n8n 工作流',
+          workflow: '工作流',
+          workflowPlaceholder: '选择 n8n 工作流',
+          workflowHint: '请先在系统配置中设置 N8N API Key',
+          webhook: 'Webhook',
+          severity: '严重程度',
+          warning: '警告 (Warning)',
+          critical: '严重 (Critical)',
+          autoOpenChat: '自动打开对话',
+          enabled: '启用',
+          status: '状态',
+          actions: '操作',
+          edit: '编辑',
+          delete: '删除',
+          confirmDelete: '确定要删除该触发器吗？',
+          deleteSuccess: '删除成功',
+          refresh: '刷新',
+          noWorkflows: '未找到包含 Webhook 的工作流',
+          workflowCount: '获取到 {count} 个工作流'
+        }
+      }
     },
     assetPanel: {
       assets: '资产列表',
@@ -601,6 +693,94 @@ const messages = {
       warning: 'Warning',
       deleteSuccess: 'Deleted successfully',
       deleteFailed: 'Delete failed'
+    },
+    system: {
+      config: {
+        title: 'System Configuration',
+        accessDenied: 'Access Denied',
+        accessDeniedMessage: 'You do not have permission to access system configuration. Please contact administrator.',
+        tabs: {
+          influxdb: 'Time Series DB',
+          llm: 'AI Model',
+          knowledge: 'Knowledge Base',
+          workflow: 'AI Workflow',
+          iot: 'IoT Triggers'
+        },
+        influx: {
+          url: 'Server URL',
+          port: 'Port',
+          org: 'Organization',
+          bucket: 'Bucket Name',
+          bucketHint: 'Global Bucket, model data distinguished by Tags',
+          token: 'API Token',
+          tokenPlaceholder: 'Enter Token',
+          tokenConfigured: 'Configured, leave empty to keep unchanged',
+          enabled: 'Enable Time Series Data'
+        },
+        llm: {
+          provider: 'Service Provider',
+          providerPlaceholder: 'Select Provider',
+          baseUrl: 'API Base URL',
+          baseUrlHint: 'Auto-filled based on provider, read-only',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: 'Enter API Key',
+          apiKeyConfigured: 'Configured, leave empty to keep unchanged',
+          fetchModels: 'Fetch Models',
+          model: 'Model Selection',
+          modelPlaceholder: 'Please fetch models first',
+          availableModels: '{count} models available',
+          currentModel: 'Current: {model}'
+        },
+        knowledge: {
+          description: 'Open WebUI manages knowledge bases and documents for RAG (Retrieval-Augmented Generation).',
+          url: 'Open WebUI URL',
+          apiKey: 'API Key',
+          apiKeyPlaceholder: 'Enter API Key',
+          apiKeyConfigured: 'Configured, leave empty to keep unchanged'
+        },
+        workflow: {
+          description: 'Configure n8n connection to trigger workflows from TwinSight.',
+          url: 'Server URL',
+          urlHint: 'n8n Server Base URL',
+          apiKey: 'API Key',
+          apiKeyHint: 'Used to fetch workflows (X-N8N-API-KEY)',
+          apiKeyPlaceholder: 'Enter API Key',
+          apiKeyConfigured: 'Configured, leave empty to keep unchanged'
+        },
+        iot: {
+          title: 'IoT Trigger Management',
+          create: 'New Trigger',
+          name: 'Name',
+          namePlaceholder: 'E.g. High Temp Alert',
+          type: 'Type',
+          typePlaceholder: 'Select Type',
+          condition: 'Condition',
+          conditionField: 'Field',
+          conditionOperator: 'Operator',
+          threshold: 'Threshold',
+          analysis: 'Analysis Engine',
+          builtin: 'Built-in Analysis',
+          n8n: 'n8n Workflow',
+          workflow: 'Workflow',
+          workflowPlaceholder: 'Select n8n Workflow',
+          workflowHint: 'Please configure N8N API Key first',
+          webhook: 'Webhook',
+          severity: 'Severity',
+          warning: 'Warning',
+          critical: 'Critical',
+          autoOpenChat: 'Auto Open Chat',
+          enabled: 'Enabled',
+          status: 'Status',
+          actions: 'Actions',
+          edit: 'Edit',
+          delete: 'Delete',
+          confirmDelete: 'Are you sure to delete this trigger?',
+          deleteSuccess: 'Deleted successfully',
+          refresh: 'Refresh',
+          noWorkflows: 'No workflows with Webhook found',
+          workflowCount: '{count} workflows fetched'
+        }
+      }
     },
     assetPanel: {
       assets: 'Asset List',

@@ -5,6 +5,7 @@ import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './style.css'
 import './theme.css'  // M3 主题变量
+import './assets/styles/config-form.css' // Shared config form styles
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'

@@ -111,12 +111,10 @@ router.post('/', async (req, res) => {
  */
 router.post('/test-influx', async (req, res) => {
     try {
-        const { url, port, org, bucket, token } = req.body;
+        const { url, org, bucket, token } = req.body;
 
         // 使用传入的值或从数据库获取
         const influxUrl = url || await getConfigRaw('INFLUXDB_URL');
-        const influxPort = port || await getConfigRaw('INFLUXDB_PORT');
-        const influxOrg = org || await getConfigRaw('INFLUXDB_ORG');
         const influxToken = token || await getConfigRaw('INFLUXDB_TOKEN');
 
         if (!influxUrl || !influxToken) {
@@ -126,11 +124,9 @@ router.post('/test-influx', async (req, res) => {
             });
         }
 
-        // 构建完整 URL
-        const baseUrl = influxPort ? `${influxUrl}:${influxPort}` : influxUrl;
-
         // 使用 /api/v2/buckets 端点测试，该端点需要有效认证
-        const testUrl = `${baseUrl}/api/v2/buckets?limit=1`;
+        // URL 应该包含端口
+        const testUrl = `${influxUrl}/api/v2/buckets?limit=1`;
 
         console.log(`🧪 测试 InfluxDB 连接 (验证 Token): ${testUrl}`);
 
@@ -147,7 +143,7 @@ router.post('/test-influx', async (req, res) => {
             console.log('✅ InfluxDB 连接测试成功，找到', data.buckets?.length || 0, '个 Bucket');
             res.json({
                 success: true,
-                message: '连接成功',
+                message: `连接成功 (发现 ${data.buckets?.length || 0} 个 Bucket)`,
                 data: {
                     status: 'healthy',
                     bucketsFound: data.buckets?.length || 0

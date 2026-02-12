@@ -20,8 +20,14 @@ const getInfluxConfig = async () => {
         const token = await getConfig('INFLUXDB_TOKEN', '');
         const enabled = await getConfig('INFLUXDB_ENABLED', 'true');
 
+        // Safely construct URL
+        let finalUrl = url;
+        if (port && !url.includes(`:${port}`)) {
+            finalUrl = `${url}:${port}`;
+        }
+
         const cfg = {
-            url: port ? `${url}:${port}` : url,
+            url: finalUrl,
             org,
             bucket,
             token,
