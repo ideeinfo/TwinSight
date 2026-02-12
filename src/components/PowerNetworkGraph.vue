@@ -631,6 +631,29 @@ const handleSearch = async (searchText) => {
     graphInstance.value.fitView();
 };
 
+// 视口控制
+const fitView = () => {
+    if (graphInstance.value) {
+        graphInstance.value.fitView();
+    }
+};
+
+const zoomIn = () => {
+    if (graphInstance.value) {
+        // G6 v5: 放大 20%
+        const currentZoom = graphInstance.value.getZoom();
+        graphInstance.value.zoomTo(currentZoom * 1.2);
+    }
+};
+
+const zoomOut = () => {
+    if (graphInstance.value) {
+        // G6 v5: 缩小 20%
+        const currentZoom = graphInstance.value.getZoom();
+        graphInstance.value.zoomTo(currentZoom * 0.8);
+    }
+};
+
 // 监听搜索词变化
 watch(() => props.searchText, handleSearch);
 
