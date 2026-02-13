@@ -299,15 +299,91 @@
                   <li>鼠标悬停查看具体数值</li>
                   <li>图表与时间轴同步</li>
                 </ol>
+              </section>
 
-                <h3>AI智能分析</h3>
+              <!-- AI 智能助手 -->
+              <section id="ai-assistant" class="content-section">
+                <h2>🤖 AI 智能助手</h2>
+
+                <h3>功能概述</h3>
+                <p>TwinSight AI 助手是一个智能对话面板，可以帮您快速查询资产、空间信息，分析异常数据，并提供运维建议。</p>
+
+                <h3>打开 AI 助手</h3>
                 <ol>
-                  <li>点击左侧图标栏的"AI"图标启用智能分析</li>
-                  <li>当温度超过阈值时会自动触发分析</li>
-                  <li>系统会调用 AI 分析异常原因</li>
-                  <li>分析结果会以弹窗形式展示</li>
-                  <li>包含问题诊断和建议措施</li>
+                  <li>点击屏幕右下角的蓝色机器人图标（浮动按钮）</li>
+                  <li>AI 面板会展开，显示欢迎界面和快捷建议</li>
+                  <li>您可以拖动面板顶部来移动位置</li>
+                  <li>拖动面板右下角可以调整大小</li>
                 </ol>
+
+                <h3>对话功能</h3>
+                <ul>
+                  <li><strong>自然语言查询</strong>：直接输入问题，如"这个房间有什么设备？"</li>
+                  <li><strong>上下文对话</strong>：系统会记住当前选中的空间或资产，自动关联对话</li>
+                  <li><strong>快捷建议</strong>：点击预设问题快速获取信息</li>
+                  <li><strong>历史记录</strong>：对话内容会在面板中保留，便于回顾</li>
+                </ul>
+
+                <div class="info-box">
+                  <strong>💡 提示</strong>：支持 Enter 发送消息，Shift+Enter 换行
+                </div>
+
+                <h3>智能分析</h3>
+                <p>当系统检测到异常数据时，AI 会主动触发分析：</p>
+                <ul>
+                  <li><strong>温度异常</strong>：超过阈值时自动分析原因</li>
+                  <li><strong>设备故障</strong>：结合知识库提供维修建议</li>
+                  <li><strong>参考来源</strong>：分析结果会引用相关文档</li>
+                  <li><strong>可操作建议</strong>：提供具体的处理步骤</li>
+                </ul>
+
+                <h3>图表查看</h3>
+                <p>AI 可以在对话中直接显示数据图表：</p>
+                <ol>
+                  <li>询问"显示最近一周的温度趋势"</li>
+                  <li>AI 会生成图表嵌入在对话中</li>
+                  <li>点击"放大查看"按钮打开独立图表窗口</li>
+                  <li>图表窗口也可以拖动和调整大小</li>
+                </ol>
+
+                <h3>文档参考</h3>
+                <p>AI 回答中引用的文档可以直接点击查看：</p>
+                <ul>
+                  <li>点击引用标记 [1]、[2] 等</li>
+                  <li>内部文档会在预览面板中打开</li>
+                  <li>外部链接会在新标签页打开</li>
+                </ol>
+
+                <h3>快捷操作</h3>
+                <table class="operation-table">
+                  <thead>
+                    <tr>
+                      <th>问题示例</th>
+                      <th>功能说明</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>"这个房间有什么告警吗？"</td>
+                      <td>查询选中房间的告警信息</td>
+                    </tr>
+                    <tr>
+                      <td>"显示最近一周的温度趋势"</td>
+                      <td>生成温度变化图表</td>
+                    </tr>
+                    <tr>
+                      <td>"高亮所有供电设备"</td>
+                      <td>在 3D 视图中高亮显示</td>
+                    </tr>
+                    <tr>
+                      <td>"查找空调的维修手册"</td>
+                      <td>搜索相关文档资料</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h3>清空对话</h3>
+                <p>点击面板头部的清空图标（垃圾桶）可以清除当前对话历史，开始新的会话。</p>
               </section>
 
               <!-- 高级功能 -->
@@ -519,6 +595,11 @@ const sections = ref([
     id: 'data-visualization',
     title: '数据可视化',
     icon: 'M18 20V10 M12 20V4 M6 20v-6'
+  },
+  {
+    id: 'ai-assistant',
+    title: 'AI 智能助手',
+    icon: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5'
   },
   {
     id: 'advanced-features',
