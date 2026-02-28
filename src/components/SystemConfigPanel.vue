@@ -151,6 +151,30 @@ watch(() => props.modelValue, (val) => {
 });
 watch(visible, (val) => { emit('update:modelValue', val); });
 
+// Config Declaration
+const configMappings = [
+  // InfluxDB
+  { key: 'INFLUXDB_URL', form: influxForm, prop: 'url' },
+  { key: 'INFLUXDB_ORG', form: influxForm, prop: 'org' },
+  { key: 'INFLUXDB_BUCKET', form: influxForm, prop: 'bucket' },
+  { key: 'INFLUXDB_ENABLED', form: influxForm, prop: 'enabled', type: 'boolean' },
+  { key: 'INFLUXDB_TOKEN', form: influxForm, prop: 'token', secretRef: influxHasToken },
+  
+  // AI - LLM
+  { key: 'LLM_PROVIDER', form: aiForm, prop: 'provider', default: 'qwen' },
+  { key: 'LLM_BASE_URL', form: aiForm, prop: 'baseUrl' },
+  { key: 'LLM_MODEL', form: aiForm, prop: 'model' },
+  { key: 'LLM_API_KEY', form: aiForm, prop: 'apiKey', secretRef: aiHasApiKey },
+  
+  // AI - Open WebUI
+  { key: 'OPENWEBUI_URL', form: aiForm, prop: 'openwebuiUrl' },
+  { key: 'OPENWEBUI_API_KEY', form: aiForm, prop: 'openwebuiApiKey', secretRef: openwebuiHasApiKey },
+  
+  // AI - n8n
+  { key: 'N8N_WEBHOOK_URL', form: aiForm, prop: 'n8nWebhookUrl' },
+  { key: 'N8N_API_KEY', form: aiForm, prop: 'n8nApiKey', secretRef: n8nHasApiKey }
+];
+
 // Load Configs
 async function loadConfigs() {
   try {
@@ -159,31 +183,26 @@ async function loadConfigs() {
     
     if (result.success) {
       const { influxdb, ai } = result.data;
+      const allConfigs = [...(influxdb || []), ...(ai || [])];
       
-      // Map InfluxDB
-      if (influxdb) {
-        influxdb.forEach(cfg => {
-          if (cfg.key === 'INFLUXDB_URL') influxForm.value.url = cfg.value;
-          if (cfg.key === 'INFLUXDB_ORG') influxForm.value.org = cfg.value;
-          if (cfg.key === 'INFLUXDB_BUCKET') influxForm.value.bucket = cfg.value;
-          if (cfg.key === 'INFLUXDB_TOKEN') influxHasToken.value = cfg.isEncrypted && !!cfg.value;
-          if (cfg.key === 'INFLUXDB_ENABLED') influxForm.value.enabled = cfg.value === 'true';
-        });
-      }
-      
-      // Map AI
-      if (ai) {
-        ai.forEach(cfg => {
-           if (cfg.key === 'LLM_PROVIDER') aiForm.value.provider = cfg.value || 'qwen';
-           if (cfg.key === 'LLM_BASE_URL') aiForm.value.baseUrl = cfg.value;
-           if (cfg.key === 'LLM_API_KEY') aiHasApiKey.value = cfg.isEncrypted && !!cfg.value;
-           if (cfg.key === 'LLM_MODEL') aiForm.value.model = cfg.value;
-           if (cfg.key === 'OPENWEBUI_URL') aiForm.value.openwebuiUrl = cfg.value;
-           if (cfg.key === 'OPENWEBUI_API_KEY') openwebuiHasApiKey.value = cfg.isEncrypted && !!cfg.value;
-           if (cfg.key === 'N8N_WEBHOOK_URL') aiForm.value.n8nWebhookUrl = cfg.value;
-           if (cfg.key === 'N8N_API_KEY') n8nHasApiKey.value = cfg.isEncrypted && !!cfg.value;
-        });
-      }
+      // Create a map for O(1) lookup
+      const configMap = new Map(allConfigs.map(c => [c.key, c]));
+
+      configMappings.forEach(mapping => {
+        const cfg = configMap.get(mapping.key);
+        if (cfg) {
+          if (mapping.secretRef) {
+            // For secrets, we don't load the value (it's masked), just update the status
+            mapping.secretRef.value = cfg.isEncrypted && !!cfg.value;
+          } else if (mapping.type === 'boolean') {
+            mapping.form.value[mapping.prop] = cfg.value === 'true';
+          } else {
+            mapping.form.value[mapping.prop] = cfg.value || mapping.default || '';
+          }
+        } else if (mapping.default) {
+           mapping.form.value[mapping.prop] = mapping.default;
+        }
+      });
     }
   } catch (error) {
     console.error('Failed to load configs', error);
@@ -197,25 +216,23 @@ async function handleSave() {
   try {
     const configs = [];
     
-    // InfluxDB
-    configs.push({ key: 'INFLUXDB_URL', value: influxForm.value.url });
-    // configs.push({ key: 'INFLUXDB_PORT', value: String(influxForm.value.port) }); // Removed
-    configs.push({ key: 'INFLUXDB_ORG', value: influxForm.value.org });
-    configs.push({ key: 'INFLUXDB_BUCKET', value: influxForm.value.bucket });
-    configs.push({ key: 'INFLUXDB_ENABLED', value: String(influxForm.value.enabled) });
-    if (influxForm.value.token) configs.push({ key: 'INFLUXDB_TOKEN', value: influxForm.value.token });
-    
-    // AI
-    configs.push({ key: 'LLM_PROVIDER', value: aiForm.value.provider });
-    configs.push({ key: 'LLM_BASE_URL', value: aiForm.value.baseUrl });
-    configs.push({ key: 'LLM_MODEL', value: aiForm.value.model });
-    if (aiForm.value.apiKey) configs.push({ key: 'LLM_API_KEY', value: aiForm.value.apiKey });
-    
-    configs.push({ key: 'OPENWEBUI_URL', value: aiForm.value.openwebuiUrl });
-    if (aiForm.value.openwebuiApiKey) configs.push({ key: 'OPENWEBUI_API_KEY', value: aiForm.value.openwebuiApiKey });
-    
-    configs.push({ key: 'N8N_WEBHOOK_URL', value: aiForm.value.n8nWebhookUrl });
-    if (aiForm.value.n8nApiKey) configs.push({ key: 'N8N_API_KEY', value: aiForm.value.n8nApiKey });
+    configMappings.forEach(mapping => {
+       const val = mapping.form.value[mapping.prop];
+       
+       if (mapping.secretRef) {
+         // Only save secrets if user has entered a new value
+         if (val) {
+           configs.push({ key: mapping.key, value: val });
+         }
+       } else if (mapping.type === 'boolean') {
+         configs.push({ key: mapping.key, value: String(val) });
+       } else {
+         // Perform simple undefined check
+         if (val !== undefined) {
+           configs.push({ key: mapping.key, value: val });
+         }
+       }
+    });
     
     const response = await fetch(`${API_BASE}/system-config`, {
       method: 'POST',

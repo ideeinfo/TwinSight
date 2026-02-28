@@ -352,7 +352,7 @@
                   <li>点击引用标记 [1]、[2] 等</li>
                   <li>内部文档会在预览面板中打开</li>
                   <li>外部链接会在新标签页打开</li>
-                </ol>
+                </ul>>
 
                 <h3>快捷操作</h3>
                 <table class="operation-table">

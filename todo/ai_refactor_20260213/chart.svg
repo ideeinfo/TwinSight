@@ -1,0 +1,71 @@
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(20, 70)">
+    <rect width="200" height="250" style="fill:none;stroke:gray;stroke-width:1;stroke-dasharray:5,5" />
+    <text x="100" y="270" text-anchor="middle" font-weight="bold">外部消费者</text>
+    <g transform="translate(10, 10)">
+      <rect width="180" height="40" style="fill:#E1F5FE;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">Claude Desktop / Code</text>
+    </g>
+    <g transform="translate(10, 60)">
+      <rect width="180" height="40" style="fill:#E1F5FE;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">其他 AI 客户端</text>
+    </g>
+    <g transform="translate(10, 110)">
+      <rect width="180" height="40" style="fill:#E1F5FE;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">第三方系统</text>
+    </g>
+  </g>
+
+  <g transform="translate(20, 20)">
+    <rect width="200" height="40" style="fill:#FFF3E0;stroke:black;stroke-width:1" />
+    <text x="100" y="25" text-anchor="middle">管理界面 (Vue 3)</text>
+  </g>
+
+  <g transform="translate(250, 70)">
+    <rect width="200" height="250" style="fill:#E8F5E9;stroke:black;stroke-width:1" />
+    <text x="100" y="270" text-anchor="middle" font-weight="bold">AI Hub (:4000)</text>
+    <g transform="translate(10, 10)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">MCP Server</text>
+    </g>
+    <g transform="translate(10, 60)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">Tool Registry</text>
+    </g>
+    <g transform="translate(10, 110)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">Hub REST API</text>
+    </g>
+    <g transform="translate(10, 160)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">技能执行引擎</text>
+    </g>
+    <g transform="translate(10, 210)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">规则引擎</text>
+    </g>
+  </g>
+
+  <g transform="translate(480, 70)">
+    <rect width="200" height="250" style="fill:#F3E5F5;stroke:black;stroke-width:1" />
+    <text x="100" y="270" text-anchor="middle" font-weight="bold">TwinSight API (:3001)</text>
+    <g transform="translate(10, 10)">
+      <rect width="180" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="90" y="25" text-anchor="middle">API Gateway</text>
+    </g>
+    <g transform="translate(10, 60)">
+      <rect width="85" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="42.5" y="25" text-anchor="middle">聊天服务</text>
+    </g>
+    <g transform="translate(105, 60)">
+      <rect width="85" height="40" style="fill:white;stroke:black;stroke-width:1" />
+      <text x="42.5" y="25" text-anchor="middle">工具服务层</text>
+    </g>
+    </g>
+
+  <g transform="translate(710, 70)">
+    <rect width="150" height="250" style="fill:none;stroke:gray;stroke-width:1;stroke-dasharray:5,5" />
+    <text x="75" y="270" text-anchor="middle" font-weight="bold">基础设施</text>
+    </g>
+
+  </svg>

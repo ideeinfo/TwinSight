@@ -12,9 +12,17 @@ import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
 import fs from 'fs';
 import path from 'path';
 
-// ... imports ...
 
-
+function logToFile(...args) {
+    console.log('[AI-Service]', ...args);
+    try {
+        const logPath = path.join(process.cwd(), 'ai-debug.log');
+        const msg = new Date().toISOString() + ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') + '\n';
+        fs.appendFileSync(logPath, msg);
+    } catch (e) {
+        console.error('Failed to log to file', e);
+    }
+}
 // Configuration - Most values now dynamically fetched from DB via getConfig
 const getAiConfig = async () => {
     const useN8n = await getConfig('USE_N8N', 'false');
