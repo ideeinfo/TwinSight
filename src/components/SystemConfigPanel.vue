@@ -178,7 +178,11 @@ const configMappings = [
 // Load Configs
 async function loadConfigs() {
   try {
-    const response = await fetch(`${API_BASE}/system-config`);
+    const headers = {};
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
+    const response = await fetch(`${API_BASE}/system-config`, { headers });
     const result = await response.json();
     
     if (result.success) {
@@ -234,9 +238,13 @@ async function handleSave() {
        }
     });
     
+    const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
     const response = await fetch(`${API_BASE}/system-config`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ configs })
     });
     

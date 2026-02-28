@@ -104,8 +104,10 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from '../../stores/auth';
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 const API_BASE = '/api/v1';
 
 const props = defineProps({
@@ -143,8 +145,12 @@ const displayModels = computed(() => {
 // Load providers on mount
 onMounted(async () => {
     try {
-        const res = await fetch(`${API_BASE}/system-config/llm/providers`);
-        const result = await res.json();
+        const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
+    const response = await fetch(`${API_BASE}/system-config/llm/providers`, { headers });
+        const result = await response.json();
         if (result.success) {
             providers.value = result.data;
              // Ensure baseUrl is set if empty
@@ -173,9 +179,13 @@ async function handleFetchModels() {
   testResult.value = null;
   
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
     const response = await fetch(`${API_BASE}/system-config/llm/models`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         provider: config.value.provider,
         apiKey: config.value.apiKey || '',
@@ -202,9 +212,13 @@ async function handleTest() {
   testResult.value = null;
   
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
     const response = await fetch(`${API_BASE}/system-config/llm/test`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         provider: config.value.provider,
         apiKey: config.value.apiKey || '',

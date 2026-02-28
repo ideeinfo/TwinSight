@@ -73,8 +73,10 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { useAuthStore } from '../../stores/auth';
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 
 const props = defineProps({
   modelValue: {
@@ -104,9 +106,13 @@ async function handleTest() {
   testResult.value = null;
   
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
     const response = await fetch(`${API_BASE}/system-config/test-influx`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         url: config.value.url,
         org: config.value.org,

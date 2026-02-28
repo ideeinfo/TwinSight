@@ -53,8 +53,11 @@
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { useAuthStore } from '../../stores/auth';
 
 const { t } = useI18n();
+const authStore = useAuthStore();
 const API_BASE = '/api/v1';
 
 const props = defineProps({
@@ -83,9 +86,13 @@ async function handleTest() {
   testResult.value = null;
   
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`;
+    }
     const response = await fetch(`${API_BASE}/system-config/test-n8n`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         webhookUrl: config.value.n8nWebhookUrl,
         apiKey: config.value.n8nApiKey || undefined
