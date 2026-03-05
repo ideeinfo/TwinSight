@@ -719,13 +719,34 @@ onUnmounted(() => {
 const selectNodeByMcCode = async (mcCode, autoTrace = true) => {
     if (!fullGraphData.value || !fullGraphData.value.nodes) return false;
     
-    // 尝试匹配（全字匹配）
-    const targetNode = fullGraphData.value.nodes.find(n => 
-        n.mcCode === mcCode || 
-        n.code === mcCode ||
-        n.fullCode === mcCode ||
-        (n.label && n.label.includes(mcCode))
+    // 尝试匹配（精确 → 模糊）
+    const searchCode = mcCode.trim();
+    const searchLower = searchCode.toLowerCase();
+    
+    // 1. 精确匹配
+    let targetNode = fullGraphData.value.nodes.find(n => 
+        n.mcCode === searchCode || 
+        n.shortCode === searchCode ||
+        n.code === searchCode ||
+        n.fullCode === searchCode
     );
+    
+    // 2. 不区分大小写匹配
+    if (!targetNode) {
+        targetNode = fullGraphData.value.nodes.find(n => 
+            (n.mcCode && n.mcCode.toLowerCase() === searchLower) ||
+            (n.shortCode && n.shortCode.toLowerCase() === searchLower) ||
+            (n.code && n.code.toLowerCase() === searchLower)
+        );
+    }
+    
+    // 3. 包含匹配 (fullCode 可能是 "===TA001.CP0104"，搜索 "CP0104" 应能命中)
+    if (!targetNode) {
+        targetNode = fullGraphData.value.nodes.find(n => 
+            (n.fullCode && n.fullCode.toLowerCase().includes(searchLower)) ||
+            (n.label && n.label.toLowerCase().includes(searchLower))
+        );
+    }
     
     if (!targetNode) {
         console.warn(`[PowerGraph] 未找到节点: ${mcCode}`);
