@@ -1,26 +1,40 @@
-# 修复云端部署“追溯上游供电”时报错 502 的详细说明
+# 修复云端"追溯上游供电"问题 Walkthrough
 
-## 🔍 问题分析
+## 修复 1：502 Bad Gateway
 
-用户在阿里云部署的系统上点击或发送“追溯上游供电”时，AI 聊天接口 `/api/ai/chat` 返回了 `502 Bad Gateway` 错误。
+**根因**：Node.js 默认 `keepAliveTimeout=5s`，与阿里云 SLB 空闲超时冲突。
 
-经过详细调查与代码分析：
-1. `502 Bad Gateway` 意味着 Nginx (或阿里云 SLB) 在与后端的 Node.js Express 服务器（端口 3001）通信时，连接被意外断开或拒绝。
-2. 我们的 Nginx 配置（`nginx-cloud.conf`）已经设置了极长的 `proxy_read_timeout 86400s;`，排除了 Nginx 主动超时的可能。
-3. 从 `ai-service.js` 和 `openwebui-service.js` 来看，任何由外部 API（例如 DeepSeek / OpenWebUI）返回的错误都会被 `try/catch` 捕获拦截，并通过 HTTP 500 返回给前端。因此前端看到 502 一定是底层网络连接层面的切断。
-4. **核心原因：** 现代 Node.js（v18 以上，当前 Docker 基础镜像为 `node:20-alpine`）默认的 HTTP 取保活超时（`keepAliveTimeout`）时间是 **5秒**。如果外部 API 处理时间过长，或者阿里云 SLB（默认空闲超时 60秒）复用了一个快要到期的连接，而 Node.js 刚好在这个时刻由于达到 5 秒超时主动关闭了底层 TCP Socket，就会发生被称为 **HTTP keep-alive 竞争** 的经典问题，导致用户立刻或在一定时间后收到 502 错误。
-5. 追溯上游供电时，LLM 推理时间经常在 10 ~ 60 秒内波动，极其容易与负载均衡器的超时设置引发冲突。
+**修改**：`server/index.js` — 设置 `keepAliveTimeout=75s`、`headersTimeout=76s`、`timeout=300s`
 
-## 💡 解决方案
+---
 
-我们修改了后端入口文件 `server/index.js`，为 Express 应用挂载的 `server` 实例手动设置了更高的超时时间（必须大于 Nginx 代理超时或 SLB 默认的 60 秒超时）：
+## 修复 2：电源追溯时序竞争
 
-- **`server.keepAliveTimeout = 75000`** (75秒)
-- **`server.headersTimeout = 76000`** (76秒) 
-- 防止 Node.js 过早强杀业务代码：`server.timeout = 300000` (5分钟)
+**根因**：`handlePowerTraceAction` 和 `switchToPowerAndTrace` 用硬编码 `setTimeout(500ms)` 等待组件挂载和数据加载，云端网络延迟下不可靠。
 
-这能确保哪怕是耗时很久的大模型推理查询，底层的 Node.js HTTP 服务器也不会提前断开连接，而是耐心等待应用层的返回（或由 Nginx/SLB 的超时策略接管）。
+| 文件 | 修改 |
+|------|------|
+| `PowerNetworkGraph.vue` | 新增 `dataReadyPromise`，`selectNodeByMcCode` 等待数据就绪（最多10s） |
+| `AspectTreePanel.vue` | 轮询等待 `powerGraphRef` 就绪（最多5s） |
+| `AppViewer.vue` | 轮询等待 `aspectTreePanelRef` 就绪（最多3s） |
 
-## 📝 涉及修改的文件
+---
 
-- **[MODIFY]** `server/index.js` - 修改了底部 `app.listen` 返回的 Server 实例配置，增加了防止 502 竞争错误的超时设定。
+## 修复 3：重复追溯失效
+
+**根因**：LLM 在第二次追溯请求时看到会话历史中已执行过追溯，省略了 action 代码块，导致前端不触发操作。
+
+| 文件 | 修改 |
+|------|------|
+| `skill-registry.js` | 新增 Prompt 规则 5：要求 LLM 对重复请求也必须生成 action 块 |
+| `ai-service.js` | 后端兜底：当回复提及追溯但缺少 action 块时，自动注入 `power_trace_upstream` |
+
+---
+
+## 部署
+
+```bash
+cd /opt/twinsight
+git pull origin main
+docker compose up -d --build api
+```
