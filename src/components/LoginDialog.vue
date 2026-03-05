@@ -449,10 +449,10 @@ watch(isLogin, () => {
   color: #a0a0b0;
 }
 
-/* 切换登录/注册按钮增强效果 */
+/* 切换登录/注册按钮增强效果 (浅色模式默认) */
 .mode-switch-btn {
   font-weight: 600 !important;
-  color: #00bcd4 !important;
+  color: #0097a7 !important; /* 浅色模式下加深一点，对比度更好 */
   position: relative;
   margin-left: 8px;
   padding: 0 4px;
@@ -461,16 +461,18 @@ watch(isLogin, () => {
 }
 
 .mode-switch-btn:hover {
-  color: #00e5ff !important;
-  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  color: #00bcd4 !important;
+  text-shadow: 0 0 8px rgba(0, 188, 212, 0.4);
   transform: scale(1.05);
 }
 
+/* 深色模式增强 */
 .is-dark .mode-switch-btn {
   color: #00e5ff !important;
 }
 
 .is-dark .mode-switch-btn:hover {
+  color: #84ffff !important;
   text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
 }
 
