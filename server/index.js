@@ -207,5 +207,14 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     startSyncService(5 * 60 * 1000);
 });
 
+// 修复 Nginx / Aliyun SLB 下的 502 Bad Gateway 问题
+// Node.js 默认 keepAliveTimeout 是 5 秒，如果负载均衡器保持连接时间长于此，
+// 且在请求到来时 Node 断开连接，会导致 502 错误。
+// 将其设置为大于 60 秒（常见负载均衡器超时时间）。
+server.keepAliveTimeout = 75000;
+server.headersTimeout = 76000;
+// 设置主超时，防止超长 RAG 查询被 Node 强制掐断
+server.timeout = 300000; // 5 minutes
+
 export default app;
 
