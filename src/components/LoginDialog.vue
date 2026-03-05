@@ -100,7 +100,7 @@
       <!-- 切换登录/注册 -->
       <div class="auth-switch">
         <span>{{ isLogin ? $t('auth.noAccount') : $t('auth.hasAccount') }}</span>
-        <el-button type="primary" link @click="toggleMode">
+        <el-button type="primary" link class="mode-switch-btn" @click="toggleMode">
           {{ isLogin ? $t('auth.goRegister') : $t('auth.goLogin') }}
         </el-button>
       </div>
@@ -447,6 +447,31 @@ watch(isLogin, () => {
 
 .is-dark .auth-switch {
   color: #a0a0b0;
+}
+
+/* 切换登录/注册按钮增强效果 */
+.mode-switch-btn {
+  font-weight: 600 !important;
+  color: #00bcd4 !important;
+  position: relative;
+  margin-left: 8px;
+  padding: 0 4px;
+  transition: all 0.3s ease;
+  font-size: 15px;
+}
+
+.mode-switch-btn:hover {
+  color: #00e5ff !important;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  transform: scale(1.05);
+}
+
+.is-dark .mode-switch-btn {
+  color: #00e5ff !important;
+}
+
+.is-dark .mode-switch-btn:hover {
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
 }
 
 /* OAuth 区域 */
