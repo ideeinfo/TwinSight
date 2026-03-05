@@ -87,6 +87,8 @@ export function generateSkillPrompt(skills) {
     prompt += `3. 使用 \`\`\`action ... \`\`\` 包裹 JSON。\n`;
     prompt += `4. 在回复的正文中，用自然语言告知用户正在执行该操作（例如：“好的，我正在为您切换到资产模块...”）。\n`;
 
+    prompt += `5. **即使**在当前对话中已执行过同一操作，当用户再次请求时，你**必须**再次生成完整的 action 块。不要因为之前已经执行过而省略。\n`;
+
     return prompt;
 }
 

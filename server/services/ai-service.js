@@ -1292,7 +1292,7 @@ ${statsSummary}
     }
 
     // 7. Parse Actions (New Skill System)
-    const { content: cleanContent, actions } = parseAIResponse(analysisText);
+    let { content: cleanContent, actions } = parseAIResponse(analysisText);
 
     const sourceIndexMap = {};
     if (ragResult.sources && Array.isArray(ragResult.sources)) {
@@ -1327,6 +1327,27 @@ ${statsSummary}
                 action: 'query_temperature',
                 params: { roomCode: preFetchedRCode, duration: '24h' }
             });
+        }
+    }
+
+    // Fallback: If response text mentions power tracing but LLM forgot the action block
+    const hasPowerTraceAction = actions && actions.some(a => a.action === 'power_trace_upstream');
+    if (!hasPowerTraceAction) {
+        const traceKeywords = ['追溯', '供电路径', '上游供电', '供电来源', '电源追溯'];
+        const mentionsTrace = traceKeywords.some(kw => analysisText.includes(kw));
+        const userAsksTrace = traceKeywords.some(kw => message.includes(kw));
+
+        if ((mentionsTrace || userAsksTrace) && context) {
+            // Extract mcCode from context properties
+            const mcCode = context.properties?.mcCode || context.properties?.deviceCode || context.properties?.code;
+            if (mcCode) {
+                console.log(`[AI] Fallback: injecting power_trace_upstream action for mcCode=${mcCode}`);
+                if (!actions) actions = [];
+                actions.push({
+                    action: 'power_trace_upstream',
+                    params: { mcCode }
+                });
+            }
         }
     }
 
