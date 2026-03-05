@@ -629,4 +629,24 @@ body .el-dialog.auth-dialog:not(.is-dark) .auth-input .el-input__inner:-webkit-a
   box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.01) inset !important;
   caret-color: #303133;
 }
+
+/* 强制覆盖 Element Plus link 按钮默认颜色 (浅色模式) */
+body .el-dialog.auth-dialog:not(.is-dark) button.mode-switch-btn.el-button--primary.is-link {
+  color: #008ba3 !important;
+  font-weight: 600 !important;
+}
+
+body .el-dialog.auth-dialog:not(.is-dark) button.mode-switch-btn.el-button--primary.is-link:hover {
+  color: #00bcd4 !important;
+}
+
+/* 强制覆盖 Element Plus link 按钮默认颜色 (深色模式) */
+body .el-dialog.auth-dialog.is-dark button.mode-switch-btn.el-button--primary.is-link {
+  color: #00e5ff !important;
+  font-weight: 600 !important;
+}
+
+body .el-dialog.auth-dialog.is-dark button.mode-switch-btn.el-button--primary.is-link:hover {
+  color: #84ffff !important;
+}
 </style>
