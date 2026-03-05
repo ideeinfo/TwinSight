@@ -757,14 +757,17 @@ async function switchToPowerAndTrace(mcCode) {
     if (activeAspect.value !== 'power') {
         activeAspect.value = 'power';
         await import('vue').then(v => v.nextTick());
-        // 等待组件挂载和可能的初始加载
-        await new Promise(resolve => setTimeout(resolve, 500)); 
+        // 轮询等待 PowerGraph 组件挂载（最多 5 秒，每 100ms 检查一次）
+        for (let i = 0; i < 50; i++) {
+            if (powerGraphRef.value?.selectNodeByMcCode) break;
+            await new Promise(r => setTimeout(r, 100));
+        }
     }
     
     if (powerGraphRef.value && powerGraphRef.value.selectNodeByMcCode) {
         return await powerGraphRef.value.selectNodeByMcCode(mcCode);
     } else {
-        console.warn('PowerGraph ref not ready');
+        console.warn('PowerGraph ref not ready after 5s');
         return false;
     }
 }

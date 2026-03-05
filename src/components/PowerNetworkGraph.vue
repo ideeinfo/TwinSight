@@ -127,6 +127,10 @@ const tooltip = ref({ show: false, x: 0, y: 0, data: null });
 const selectedNode = ref(null); // 当前选中的节点
 const isTracing = ref(false); // 是否处于追溯模式
 
+// 数据就绪 Promise（用于 AI 触发追溯时等待数据加载完成）
+let _dataReadyResolve = null;
+let dataReadyPromise = new Promise(resolve => { _dataReadyResolve = resolve; });
+
 // Graph instance (use shallowRef to avoid deep reactivity overhead for complex G6 instance)
 const graphInstance = shallowRef(null);
 let resizeObserver = null;
@@ -450,6 +454,9 @@ const getGroupedAspects = (aspects) => {
 const loadData = async () => {
     if (!props.fileId) return;
     
+    // 重置数据就绪 Promise（用于重新加载场景）
+    dataReadyPromise = new Promise(resolve => { _dataReadyResolve = resolve; });
+    
     loading.value = true;
     isTracing.value = false; // 重新加载时清除追溯模式
     selectedNode.value = null;
@@ -487,6 +494,11 @@ const loadData = async () => {
         console.error('加载电源图失败:', err);
     } finally {
         loading.value = false;
+        // 通知等待方数据已就绪
+        if (_dataReadyResolve) {
+            _dataReadyResolve();
+            _dataReadyResolve = null;
+        }
     }
 };
 
@@ -717,36 +729,24 @@ onUnmounted(() => {
  * 根据 MC 编码选中节点并触发追溯 (AI 调用)
  */
 const selectNodeByMcCode = async (mcCode, autoTrace = true) => {
-    if (!fullGraphData.value || !fullGraphData.value.nodes) return false;
+    // 等待数据加载完成（最多 10 秒超时，解决 AI 触发时的时序竞争问题）
+    await Promise.race([
+        dataReadyPromise,
+        new Promise(resolve => setTimeout(resolve, 10000))
+    ]);
     
-    // 尝试匹配（精确 → 模糊）
-    const searchCode = mcCode.trim();
-    const searchLower = searchCode.toLowerCase();
+    if (!fullGraphData.value || !fullGraphData.value.nodes || fullGraphData.value.nodes.length === 0) {
+        console.warn(`[PowerGraph] 数据未就绪或为空, 无法查找节点: ${mcCode}`);
+        return false;
+    }
     
-    // 1. 精确匹配
-    let targetNode = fullGraphData.value.nodes.find(n => 
-        n.mcCode === searchCode || 
-        n.shortCode === searchCode ||
-        n.code === searchCode ||
-        n.fullCode === searchCode
+    // 尝试匹配（全字匹配）
+    const targetNode = fullGraphData.value.nodes.find(n => 
+        n.mcCode === mcCode || 
+        n.code === mcCode ||
+        n.fullCode === mcCode ||
+        (n.label && n.label.includes(mcCode))
     );
-    
-    // 2. 不区分大小写匹配
-    if (!targetNode) {
-        targetNode = fullGraphData.value.nodes.find(n => 
-            (n.mcCode && n.mcCode.toLowerCase() === searchLower) ||
-            (n.shortCode && n.shortCode.toLowerCase() === searchLower) ||
-            (n.code && n.code.toLowerCase() === searchLower)
-        );
-    }
-    
-    // 3. 包含匹配 (fullCode 可能是 "===TA001.CP0104"，搜索 "CP0104" 应能命中)
-    if (!targetNode) {
-        targetNode = fullGraphData.value.nodes.find(n => 
-            (n.fullCode && n.fullCode.toLowerCase().includes(searchLower)) ||
-            (n.label && n.label.toLowerCase().includes(searchLower))
-        );
-    }
     
     if (!targetNode) {
         console.warn(`[PowerGraph] 未找到节点: ${mcCode}`);

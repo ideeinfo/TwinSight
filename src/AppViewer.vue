@@ -1019,9 +1019,11 @@ const handlePowerTraceAction = async (params) => {
     await nextTick();
   }
   
-  // 2. 调用 AspectTreePanel 的方法
-  // 确保组件已挂载
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // 2. 轮询等待 AspectTreePanel 组件就绪（最多 3 秒，每 100ms 检查一次）
+  for (let i = 0; i < 30; i++) {
+    if (aspectTreePanelRef.value?.switchToPowerAndTrace) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
   
   if (aspectTreePanelRef.value && aspectTreePanelRef.value.switchToPowerAndTrace) {
     const success = await aspectTreePanelRef.value.switchToPowerAndTrace(mcCode);
