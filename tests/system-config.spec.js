@@ -127,5 +127,17 @@ test.describe('System Config Panel Functionality', () => {
         // IoT 配置组件有一个特定的 full-width 容器
         const iotContent = page.locator('.tab-content.full-width');
         await expect(iotContent).toBeVisible();
+
+        // --- 新增：排版边界断言 ---
+        // 验证左侧导航区未被右侧宽表格挤压，宽度应足量保持在 180px 附近
+        // 允许有一点点亚像素级别的误差
+        const headerBox = await page.locator('.config-tabs .el-tabs__header').boundingBox();
+        expect(headerBox.width).toBeGreaterThanOrEqual(179);
+        expect(headerBox.width).toBeLessThanOrEqual(181);
+
+        // --- 新增：视觉截图断言 ---
+        // 对整个配置弹窗进行截图对比，容差设置为 maxDiffPixelRatio: 0.05 (5% 像素差异)
+        // 第一次运行会自动生成 baseline 图片
+        await expect(dialog).toHaveScreenshot('iot-config-panel.png', { maxDiffPixelRatio: 0.05 });
     });
 });
