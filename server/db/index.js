@@ -10,8 +10,8 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// 加载项目根目录的 .env.local
-config({ path: join(__dirname, '../../.env.local') });
+// 加载项目根目录的统一 .env 文件
+config({ path: join(__dirname, '../../.env') });
 
 const { Pool } = pg;
 
