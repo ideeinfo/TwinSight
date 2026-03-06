@@ -281,7 +281,7 @@ async function handleSave() {
   margin-right: 0;
   width: 180px;
   background-color: var(--el-fill-color-light);
-  /* border-right removed to avoid double border */
+  flex-shrink: 0;
 }
 
 .config-tabs :deep(.el-tabs__item) {
@@ -301,6 +301,8 @@ async function handleSave() {
   height: 100%;
   overflow-y: auto;
   padding: 20px 24px;
+  flex: 1;
+  min-width: 0;
 }
 
 .tab-title {
@@ -319,5 +321,6 @@ async function handleSave() {
   max-width: 100%; /* Allow full width for table */
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 </style>

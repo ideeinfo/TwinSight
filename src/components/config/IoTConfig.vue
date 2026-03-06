@@ -67,8 +67,8 @@
         
         <el-table-column :label="t('system.config.iot.actions')" width="100" align="right">
           <template #default="{ row }">
-            <el-button type="primary" link :icon="Edit" @click="handleEdit(row)" />
-            <el-button type="danger" link :icon="Delete" @click="handleDelete(row)" />
+            <el-button type="primary" plain size="small" circle :icon="Edit" @click="handleEdit(row)" style="margin-right: 4px;" />
+            <el-button type="danger" plain size="small" circle :icon="Delete" @click="handleDelete(row)" />
           </template>
         </el-table-column>
       </el-table>
