@@ -7,6 +7,7 @@ import openwebuiConfig from '../config/openwebui-config.js';
 import { getConfig } from './config-service.js';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 // 不再使用 form-data 包，使用 Node.js 原生 FormData
 
 // MIME 类型映射表
@@ -59,19 +60,20 @@ async function request(endpoint, options = {}) {
     }
 
     try {
-        const response = await fetch(url, {
-            ...options,
+        const response = await axios({
+            url,
+            method: options.method || 'GET',
+            data: options.body,
             headers,
+            timeout: 120000 // 120s timeout
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Open WebUI API 错误 [${response.status}]:`, errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        return await response.json();
+        return response.data;
     } catch (error) {
+        if (error.response) {
+            console.error(`❌ Open WebUI API 错误 [${error.response.status}]:`, JSON.stringify(error.response.data));
+            throw new Error(`HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}`);
+        }
         console.error(`❌ Open WebUI 请求失败 [${endpoint}]:`, error.message);
         throw error;
     }
@@ -97,8 +99,8 @@ export async function getAvailableModels() {
 export async function checkHealth() {
     try {
         const baseUrl = await getBaseUrl();
-        const response = await fetch(`${baseUrl}${endpoints.health}`);
-        return response.ok;
+        const response = await axios.get(`${baseUrl}${endpoints.health}`, { timeout: 10000 });
+        return response.status === 200;
     } catch (error) {
         console.error('❌ Open WebUI 健康检查失败:', error.message);
         return false;
@@ -201,25 +203,25 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
     const apiKey = await getApiKey();
 
     const uploadUrl = `${baseUrl}/api/v1/files/`;
-    const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: formData,
-    });
-
-    if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error(`❌ 文件上传失败 [${uploadResponse.status}]:`, errorText);
+    let uploadResult;
+    try {
+        const uploadResponse = await axios.post(uploadUrl, formData, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`
+            },
+            timeout: 60000
+        });
+        uploadResult = uploadResponse.data;
+    } catch (error) {
+        const status = error.response ? error.response.status : 'Network Error';
+        const errorText = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error(`❌ 文件上传失败 [${status}]:`, errorText);
         console.error(`   文件名: ${fileName}`);
         console.error(`   文件路径: ${filePath}`);
         console.error(`   MIME类型: ${mimeType}`);
         console.error(`   文件大小: ${fileBuffer.length} bytes`);
-        throw new Error(`文件上传失败: HTTP ${uploadResponse.status}: ${errorText}`);
+        throw new Error(`文件上传失败: HTTP ${status}: ${errorText}`);
     }
-
-    const uploadResult = await uploadResponse.json();
     const fileId = uploadResult.id;
     console.log(`✅ 文件上传成功, fileId=${fileId}`);
 
@@ -231,22 +233,24 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
         await new Promise(resolve => setTimeout(resolve, 3000)); // 等待 3 秒
 
         // 检查文件状态
-        const checkResponse = await fetch(`${await getBaseUrl()}/api/v1/files/${fileId}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${await getApiKey()}`,
-            },
-        });
+        try {
+            const checkResponse = await axios.get(`${await getBaseUrl()}/api/v1/files/${fileId}`, {
+                headers: {
+                    'Authorization': `Bearer ${await getApiKey()}`,
+                },
+                timeout: 10000
+            });
 
-        if (checkResponse.ok) {
-            const fileInfo = await checkResponse.json();
-            // 检查文件内容是否已处理
-            if (fileInfo.data && fileInfo.data.content) {
-                console.log(`✅ 文件处理完成`);
-                fileReady = true;
-                break;
+            if (checkResponse.status === 200) {
+                const fileInfo = checkResponse.data;
+                // 检查文件内容是否已处理
+                if (fileInfo.data && fileInfo.data.content) {
+                    console.log(`✅ 文件处理完成`);
+                    fileReady = true;
+                    break;
+                }
             }
-        }
+        } catch (e) { /* ignore error on polling */ }
         console.log(`⏳ 等待中... (${i + 1}/10)`);
     }
 
@@ -256,22 +260,22 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
 
     // Step 2: 将文件添加到知识库
     const addToKbUrl = `${await getBaseUrl()}/api/v1/knowledge/${kbId}/file/add`;
-    const addResponse = await fetch(addToKbUrl, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${await getApiKey()}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ file_id: fileId }),
-    });
-
-    if (!addResponse.ok) {
-        const errorText = await addResponse.text();
-        console.error(`❌ 添加文件到知识库失败 [${addResponse.status}]:`, errorText);
-        throw new Error(`添加文件到知识库失败: HTTP ${addResponse.status}`);
+    let addResult;
+    try {
+        const addResponse = await axios.post(addToKbUrl, { file_id: fileId }, {
+            headers: {
+                'Authorization': `Bearer ${await getApiKey()}`,
+                'Content-Type': 'application/json',
+            },
+            timeout: 30000
+        });
+        addResult = addResponse.data;
+    } catch (error) {
+        const status = error.response ? error.response.status : 'Network Error';
+        const errorText = error.response ? JSON.stringify(error.response.data) : error.message;
+        console.error(`❌ 添加文件到知识库失败 [${status}]:`, errorText);
+        throw new Error(`添加文件到知识库失败: HTTP ${status}`);
     }
-
-    const addResult = await addResponse.json();
     console.log(`✅ 文档已添加到知识库`);
     console.log(`🔍 addResult:`, JSON.stringify(addResult).substring(0, 200));  // 调试日志
 

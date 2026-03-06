@@ -6,6 +6,7 @@ import { Router } from 'express';
 import pool from '../../db/index.js';
 import { getConfig, setConfig, getAllConfigs, getConfigRaw, batchSetConfigs, clearConfigCache } from '../../services/config-service.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
+import axios from 'axios';
 import { PERMISSIONS } from '../../config/auth.js';
 
 const router = Router();
@@ -428,24 +429,24 @@ router.post('/llm/models', async (req, res) => {
 
         console.log(`📡 获取模型列表: ${modelsUrl}`);
 
-        const response = await fetch(modelsUrl, {
-            method: 'GET',
+        const response = await axios.get(modelsUrl, {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            validateStatus: () => true
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
+        if (response.status < 200 || response.status >= 300) {
+            const errorText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
             console.error('获取模型列表失败:', response.status, errorText);
             return res.status(response.status).json({
                 success: false,
-                error: `获取模型列表失败: ${response.status}`
+                error: `获取模型列表失败: ${response.status} - ${errorText}`
             });
         }
 
-        const result = await response.json();
+        const result = response.data;
 
         // 解析模型列表（OpenAI 格式）
         let models = [];
@@ -503,7 +504,7 @@ router.post('/llm/test', async (req, res) => {
             return res.status(400).json({ success: false, error: '请提供 API Key' });
         }
 
-        const effectiveBaseUrl = baseUrl || (LLM_PROVIDERS[provider]?.baseUrl);
+        const effectiveBaseUrl = (baseUrl || (LLM_PROVIDERS[provider]?.baseUrl))?.trim();
         if (!effectiveBaseUrl) {
             return res.status(400).json({ success: false, error: '无效的提供商或 URL' });
         }
@@ -513,29 +514,28 @@ router.post('/llm/test', async (req, res) => {
 
         console.log(`🧪 测试 LLM 连接: ${chatUrl}, 模型: ${model}`);
 
-        const response = await fetch(chatUrl, {
-            method: 'POST',
+        const response = await axios.post(chatUrl, {
+            model: model,
+            messages: [{ role: 'user', content: 'Hello' }],
+            max_tokens: 10
+        }, {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model: model,
-                messages: [{ role: 'user', content: 'Hello' }],
-                max_tokens: 10
-            })
+            validateStatus: () => true
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
+        if (response.status < 200 || response.status >= 300) {
+            const errorText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
             console.error('LLM 连接测试失败:', response.status, errorText);
             return res.status(response.status).json({
                 success: false,
-                error: `连接测试失败: ${response.status}`
+                error: `连接测试失败: ${response.status} - ${errorText}`
             });
         }
 
-        const result = await response.json();
+        const result = response.data;
         console.log('✅ LLM 连接测试成功');
 
         res.json({
@@ -545,7 +545,8 @@ router.post('/llm/test', async (req, res) => {
         });
     } catch (error) {
         console.error('LLM 连接测试异常:', error);
-        res.status(500).json({ success: false, error: error.message });
+        const causeMsg = error.cause ? (error.cause.message || error.cause.code) : 'None';
+        res.status(500).json({ success: false, error: `${error.message} (Cause: ${causeMsg})`, detail: error.stack });
     }
 });
 

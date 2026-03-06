@@ -7,7 +7,7 @@ DB_HOST=192.168.2.183
 DB_PORT=5432
 DB_NAME=twinsight
 DB_USER=postgres
-DB_PASSWORD=password
+DB_PASSWORD=Idee@52524567
 
 # ======== InfluxDB 配置 ========
 # 连接到局域网 Ubuntu 服务器
