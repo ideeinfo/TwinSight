@@ -47,3 +47,8 @@ backup/*.tar
 backup/*.gz
 public/归档.zip
 *.zip
+
+# playwright
+playwright-report/
+test-results/
+playwright/.cache/
