@@ -11,9 +11,11 @@
 - [server/routes/v1/models.js](file://server/routes/v1/models.js)
 - [server/routes/v1/timeseries.js](file://server/routes/v1/timeseries.js)
 - [server/routes/v1/ai.js](file://server/routes/v1/ai.js)
+- [server/routes/v1/system-config.js](file://server/routes/v1/system-config.js)
 - [server/middleware/auth.js](file://server/middleware/auth.js)
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js)
 - [server/config/auth.js](file://server/config/auth.js)
+- [server/services/config-service.js](file://server/services/config-service.js)
 </cite>
 
 ## 目录
@@ -29,11 +31,11 @@
 10. [附录](#附录)
 
 ## 简介
-本文件聚焦于 API v1 版本的路由架构设计与实现，系统性解析 index.js 如何聚合资产、空间、模型、时序、文档、AI、认证与用户等子路由；阐述 RESTful 设计原则在实际路由中的应用（资源命名、HTTP 方法映射、版本控制策略）；说明中间件注入方式与错误传播机制；并讨论未来版本兼容性与扩展性设计建议。
+本文件聚焦于 API v1 版本的路由架构设计与实现，系统性解析 index.js 如何聚合资产、空间、模型、时序、文档、AI、认证、用户与系统配置等子路由；阐述 RESTful 设计原则在实际路由中的应用（资源命名、HTTP 方法映射、版本控制策略）；说明中间件注入方式与错误传播机制；并讨论未来版本兼容性与扩展性设计建议。
 
 ## 项目结构
 - 服务入口通过 Express 应用启动，统一挂载新版 v1 路由与旧版兼容路由。
-- v1 路由采用模块化设计，每个领域（资产、空间、模型、时序、文档、AI、认证、用户）独立文件，最终在 v1 聚合器中统一挂载。
+- v1 路由采用模块化设计，每个领域（资产、空间、模型、时序、文档、AI、认证、用户、系统配置）独立文件，最终在 v1 聚合器中统一挂载。
 - 中间件层提供认证、授权、参数校验与全局错误处理。
 
 ```mermaid
@@ -47,18 +49,19 @@ B --> G["文档路由<br/>documents.js"]
 B --> H["AI 路由<br/>ai.js"]
 B --> I["认证路由<br/>auth.js"]
 B --> J["用户路由<br/>users.js"]
-A --> K["全局错误处理<br/>error-handler.js"]
-A --> L["认证中间件<br/>auth.js"]
-A --> M["参数校验中间件<br/>validate.js"]
+B --> K["系统配置路由<br/>system-config.js"]
+A --> L["全局错误处理<br/>error-handler.js"]
+A --> M["认证中间件<br/>auth.js"]
+A --> N["参数校验中间件<br/>validate.js"]
 ```
 
 图表来源
 - [server/index.js](file://server/index.js#L106-L121)
-- [server/routes/v1/index.js](file://server/routes/v1/index.js#L28-L39)
+- [server/routes/v1/index.js](file://server/routes/v1/index.js#L28-L55)
 
 章节来源
 - [server/index.js](file://server/index.js#L106-L121)
-- [server/routes/v1/index.js](file://server/routes/v1/index.js#L1-L42)
+- [server/routes/v1/index.js](file://server/routes/v1/index.js#L1-L60)
 
 ## 核心组件
 - v1 路由聚合器：集中挂载各子路由模块，提供健康检查端点。
@@ -249,6 +252,29 @@ Err-->>Client : "标准化错误响应"
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js#L1-L115)
 - [server/config/auth.js](file://server/config/auth.js#L1-L142)
 
+### 系统配置路由（system-config.js）
+- 资源命名：复数形式 /api/v1/system-config，管理系统级配置（LLM、InfluxDB、Open WebUI、n8n）。
+- HTTP 方法映射：
+  - GET /api/v1/system-config：获取所有配置（按分类分组）。
+  - GET /api/v1/system-config/{category}：获取指定分类的配置。
+  - POST /api/v1/system-config：批量更新配置。
+  - POST /api/v1/system-config/test-influx：测试 InfluxDB 连接。
+  - POST /api/v1/system-config/test-openwebui：测试 Open WebUI 连接。
+  - POST /api/v1/system-config/test-n8n：测试 n8n 连接。
+  - GET /api/v1/system-config/llm/providers：获取 LLM 提供商列表。
+  - GET /api/v1/system-config/llm：获取 LLM 配置。
+  - PUT /api/v1/system-config/llm：更新 LLM 配置。
+  - POST /api/v1/system-config/llm/models：获取 LLM 模型列表。
+  - POST /api/v1/system-config/llm/test：测试 LLM 连接。
+- 中间件注入：认证中间件 + 系统管理员权限检查。
+- 错误处理：统一返回标准化错误响应。
+
+章节来源
+- [server/routes/v1/system-config.js](file://server/routes/v1/system-config.js#L1-L554)
+- [server/services/config-service.js](file://server/services/config-service.js)
+- [server/middleware/auth.js](file://server/middleware/auth.js#L12-L54)
+- [server/config/auth.js](file://server/config/auth.js#L1-L142)
+
 ### 认证与授权中间件（auth.js）
 - authenticate：JWT 校验，开发模式下可模拟用户。
 - authorize：基于权限字符串的授权检查，支持通配符权限。
@@ -270,7 +296,7 @@ Err-->>Client : "标准化错误响应"
 ## 依赖分析
 - 路由与中间件耦合：各路由文件依赖认证与授权中间件，参数校验中间件，以及统一的错误处理。
 - 权限与角色：权限常量与角色映射集中定义，路由通过 authorize 中间件进行权限检查。
-- 服务集成：AI 路由集成外部 Open WebUI 服务与数据库连接池；时序路由集成 InfluxDB 客户端。
+- 服务集成：AI 路由集成外部 Open WebUI 服务与数据库连接池；时序路由集成 InfluxDB 客户端；系统配置路由集成 LLM API 和配置服务。
 - 版本兼容：服务入口同时挂载 v1 与旧版路由，保障迁移期间的兼容性。
 
 ```mermaid
@@ -283,10 +309,15 @@ R4["timeseries.js"]
 R5["documents.js"]
 R6["ai.js"]
 R7["users.js"]
+R8["system-config.js"]
 end
 subgraph "中间件层"
 M1["auth.js"]
 M2["error-handler.js"]
+end
+subgraph "服务层"
+S1["config-service.js"]
+S2["openwebui-service.js"]
 end
 R1 --> M1
 R2 --> M1
@@ -295,6 +326,7 @@ R4 --> M1
 R5 --> M1
 R6 --> M1
 R7 --> M1
+R8 --> M1
 R1 --> M2
 R2 --> M2
 R3 --> M2
@@ -302,6 +334,9 @@ R4 --> M2
 R5 --> M2
 R6 --> M2
 R7 --> M2
+R8 --> M2
+R8 --> S1
+R6 --> S2
 ```
 
 图表来源
@@ -312,6 +347,7 @@ R7 --> M2
 - [server/routes/v1/documents.js](file://server/routes/v1/documents.js#L54-L98)
 - [server/routes/v1/ai.js](file://server/routes/v1/ai.js#L19-L415)
 - [server/routes/v1/users.js](file://server/routes/v1/users.js#L1-L37)
+- [server/routes/v1/system-config.js](file://server/routes/v1/system-config.js#L14-L16)
 - [server/middleware/auth.js](file://server/middleware/auth.js#L12-L54)
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js#L55-L108)
 
@@ -340,7 +376,7 @@ R7 --> M2
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js#L55-L108)
 
 ## 结论
-v1 路由架构采用模块化设计，清晰划分资产、空间、模型、时序、文档、AI、认证与用户等业务领域，遵循 RESTful 设计原则，统一版本前缀与中间件注入方式，形成一致的错误处理与权限控制机制。服务入口同时保留旧版路由以保障兼容性，为未来版本演进与扩展提供了稳定基础。
+v1 路由架构采用模块化设计，清晰划分资产、空间、模型、时序、文档、AI、认证、用户与系统配置等业务领域，遵循 RESTful 设计原则，统一版本前缀与中间件注入方式，形成一致的错误处理与权限控制机制。服务入口同时保留旧版路由以保障兼容性，为未来版本演进与扩展提供了稳定基础。
 
 ## 附录
 - 版本控制策略：统一使用 /api/v1 前缀，新增功能优先在此版本下开发，旧版路由逐步迁移。

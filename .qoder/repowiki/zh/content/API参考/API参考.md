@@ -1,7 +1,7 @@
 # API参考
 
 <cite>
-**本文档中引用的文件**   
+**本文档中引用的文件**
 - [ai.js](file://server/routes/v1/ai.js)
 - [assets.js](file://server/routes/v1/assets.js)
 - [auth.js](file://server/routes/v1/auth.js)
@@ -10,6 +10,7 @@
 - [spaces.js](file://server/routes/v1/spaces.js)
 - [timeseries.js](file://server/routes/v1/timeseries.js)
 - [users.js](file://server/routes/v1/users.js)
+- [system-config.js](file://server/routes/v1/system-config.js)
 - [index.js](file://server/routes/v1/index.js)
 - [auth.js](file://server/config/auth.js)
 - [validate.js](file://server/middleware/validate.js)
@@ -18,6 +19,7 @@
 - [asset.js](file://server/models/asset.js)
 - [space.js](file://server/models/space.js)
 - [document.js](file://server/models/document.js)
+- [config-service.js](file://server/services/config-service.js)
 </cite>
 
 ## 目录
@@ -30,7 +32,8 @@
 7. [空间管理](#spaces)
 8. [时序数据](#timeseries)
 9. [用户管理](#users)
-10. [健康检查](#健康检查)
+10. [系统配置](#system-config)
+11. [健康检查](#健康检查)
 
 ## API版本控制策略
 
@@ -1133,22 +1136,301 @@ AI服务提供知识库管理和智能分析功能，支持基于文档内容的
 - [users.js](file://server/routes/v1/users.js#L1-L178)
 - [user.js](file://server/models/user.js#L1-L252)
 
+## 系统配置
+
+提供系统级配置的管理功能，包括 LLM、InfluxDB、Open WebUI、n8n 等服务的配置。所有端点需要系统管理员权限。
+
+### 获取所有配置（按分类分组）
+**HTTP方法**: GET
+**URL路径**: `/api/v1/system-config`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "data": {
+    "general": [
+      {
+        "key": "string",
+        "value": "string",
+        "label": "string",
+        "description": "string",
+        "type": "string|number|boolean",
+        "isEncrypted": "boolean"
+      }
+    ]
+  }
+}
+```
+**错误状态码**: 500 (获取配置失败)
+
+### 获取指定分类的配置
+**HTTP方法**: GET
+**URL路径**: `/api/v1/system-config/{category}`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**路径参数**: `category` (llm, influx, openwebui, n8n 等)
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "key": "string",
+      "value": "string",
+      "label": "string"
+    }
+  ]
+}
+```
+**错误状态码**: 500 (获取配置失败)
+
+### 批量更新配置
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "configs": [
+    {
+      "key": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "配置已更新"
+}
+```
+**错误状态码**: 400 (参数错误), 500 (更新失败)
+
+### 测试 InfluxDB 连接
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config/test-influx`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "url": "string",
+  "org": "string",
+  "bucket": "string",
+  "token": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "连接成功 (发现 X 个 Bucket)",
+  "data": {
+    "status": "healthy",
+    "bucketsFound": "integer"
+  }
+}
+```
+**错误状态码**: 400 (参数缺失), 401 (Token无效), 500 (连接异常)
+
+### 测试 Open WebUI 连接
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config/test-openwebui`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "url": "string",
+  "apiKey": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "连接成功",
+  "data": {
+    "status": "healthy"
+  }
+}
+```
+**错误状态码**: 400 (参数缺失), 500 (连接异常)
+
+### 测试 n8n 连接
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config/test-n8n`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "webhookUrl": "string",
+  "apiKey": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "连接成功 (API Key 有效)",
+  "data": {
+    "status": "authenticated",
+    "apiKeyValid": "boolean"
+  }
+}
+```
+**错误状态码**: 400 (参数缺失), 500 (连接异常)
+
+### 获取 LLM 提供商列表
+**HTTP方法**: GET
+**URL路径**: `/api/v1/system-config/llm/providers`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "gemini|qwen|deepseek",
+      "name": "string",
+      "baseUrl": "string"
+    }
+  ]
+}
+```
+
+### 获取 LLM 配置
+**HTTP方法**: GET
+**URL路径**: `/api/v1/system-config/llm`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "data": {
+    "provider": "string",
+    "hasApiKey": "boolean",
+    "apiKeyMasked": "string",
+    "baseUrl": "string",
+    "model": "string"
+  }
+}
+```
+**错误状态码**: 500 (获取配置失败)
+
+### 更新 LLM 配置
+**HTTP方法**: PUT
+**URL路径**: `/api/v1/system-config/llm`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "provider": "string",
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "LLM 配置已更新"
+}
+```
+**错误状态码**: 500 (更新失败)
+
+### 获取 LLM 模型列表
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config/llm/models`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "provider": "string",
+  "apiKey": "string",
+  "baseUrl": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "string",
+      "name": "string",
+      "owned_by": "string"
+    }
+  ]
+}
+```
+**错误状态码**: 400 (参数缺失), 500 (获取失败)
+
+### 测试 LLM 连接
+**HTTP方法**: POST
+**URL路径**: `/api/v1/system-config/llm/test`
+**请求头**: `Authorization: Bearer <token>`
+**权限要求**: 系统管理员
+**请求体**:
+```json
+{
+  "provider": "string",
+  "apiKey": "string",
+  "baseUrl": "string",
+  "model": "string"
+}
+```
+**成功响应 (200)**:
+```json
+{
+  "success": true,
+  "message": "连接测试成功",
+  "response": "string"
+}
+```
+**错误状态码**: 400 (参数缺失), 500 (连接失败)
+
+**Section sources**
+- [system-config.js](file://server/routes/v1/system-config.js#L1-L554)
+- [config-service.js](file://server/services/config-service.js)
+
 ## 健康检查
 
-提供API服务的健康状态检查。
+提供API服务的健康状态检查，包含数据库连接测试。
 
 ### 健康检查
-**HTTP方法**: GET  
-**URL路径**: `/api/v1/health`  
+**HTTP方法**: GET
+**URL路径**: `/api/v1/health`
 **成功响应 (200)**:
 ```json
 {
   "success": true,
   "message": "API v1 is running",
+  "database": "connected",
   "version": "1.0.0",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
+**错误响应 (503)** - 数据库连接失败:
+```json
+{
+  "success": false,
+  "message": "Service Unavailable: Database connection failed",
+  "error": "string",
   "timestamp": "2024-01-01T00:00:00.000Z"
 }
 ```
 
 **Section sources**
-- [index.js](file://server/routes/v1/index.js#L1-L42)
+- [index.js](file://server/routes/v1/index.js#L1-L60)
