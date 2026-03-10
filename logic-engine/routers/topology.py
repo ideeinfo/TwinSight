@@ -16,11 +16,19 @@ from models.schemas import TraceRequest, TraceNode, TraceResponse
 
 router = APIRouter()
 
-# 数据库连接
-DATABASE_URL = os.getenv(
-    'DATABASE_URL', 
-    'postgresql://postgres:password@localhost:5432/twinsight'
-)
+import urllib.parse
+
+# 优先读取完整的 DATABASE_URL，如果未提供，则收集各个环境变量自己构建
+_db_url = os.getenv('DATABASE_URL')
+if not _db_url:
+    _user = urllib.parse.quote_plus(os.getenv('DB_USER', 'postgres'))
+    _password = urllib.parse.quote_plus(os.getenv('DB_PASSWORD', 'postgres'))
+    _host = os.getenv('DB_HOST', 'localhost')
+    _port = os.getenv('DB_PORT', '5432')
+    _name = os.getenv('DB_NAME', 'twinsight')
+    DATABASE_URL = f"postgresql://{_user}:{_password}@{_host}:{_port}/{_name}"
+else:
+    DATABASE_URL = _db_url
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

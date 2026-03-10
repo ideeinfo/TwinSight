@@ -104,9 +104,12 @@ services:
     container_name: twinsight-logic-engine
     restart: unless-stopped
     environment:
-      # 使用容器名 twinsight-postgres 或宿主机 IP
-      # 服务器上 postgres 容器名为 twinsight-postgres
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@twinsight-postgres:5432/${DB_NAME:-twinsight}
+      # 使用拆分的变量，让 Python 代码自行组装编码安全的 DATABASE_URL
+      DB_HOST: twinsight-postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-twinsight}
       TZ: Asia/Shanghai
     ports:
       - "8000:8000"

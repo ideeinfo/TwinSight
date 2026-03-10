@@ -10,9 +10,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 from services import importer
 
+import urllib.parse
 # 数据库连接
-# 尝试从环境变量或 .env 读取，默认 postgres:postgres
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/twinsight')
+# 优先读取完整的 DATABASE_URL，如果未提供，则收集各个环境变量自己构建
+_db_url = os.environ.get('DATABASE_URL')
+if not _db_url:
+    _user = urllib.parse.quote_plus(os.environ.get('DB_USER', 'postgres'))
+    _password = urllib.parse.quote_plus(os.environ.get('DB_PASSWORD', 'postgres'))
+    _host = os.environ.get('DB_HOST', 'localhost')
+    _port = os.environ.get('DB_PORT', '5432')
+    _name = os.environ.get('DB_NAME', 'twinsight')
+    DATABASE_URL = f"postgresql://{_user}:{_password}@{_host}:{_port}/{_name}"
+else:
+    DATABASE_URL = _db_url
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
