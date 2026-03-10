@@ -28,6 +28,9 @@ import v1Router from './routes/v1/index.js';
 // 新版 v2 路由 (文档管理模块)
 import v2Router from './routes/v2/index.js';
 
+// Atomic API 路由（AI Hub 专用）
+import atomicRouter from './routes/atomic/index.js';
+
 // 中间件
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 
@@ -119,6 +122,11 @@ app.use('/api/v1', v1Router);
 app.use('/api/v2', v2Router);
 
 // ========================================
+// Atomic API（AI Hub 服务间调用专用）
+// ========================================
+app.use('/api/atomic', atomicRouter);
+
+// ========================================
 // 旧版 API 路由（保留兼容，逐步废弃）
 // ========================================
 app.use('/api', apiRoutes);
@@ -205,6 +213,16 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
     // 启动文档同步后台服务（每 5 分钟检查一次）
     startSyncService(5 * 60 * 1000);
+
+    // 初始化 WebSocket 控制通道
+    import('./services/ws-control-channel.js').then(async ({ initControlChannel }) => {
+        const io = await initControlChannel(server);
+        if (io) {
+            app.set('io', io); // 供 UI command 端点使用
+        }
+    }).catch(err => {
+        console.warn('⚠️  WebSocket 控制通道初始化失败:', err.message);
+    });
 });
 
 // 修复 Nginx / Aliyun SLB 下的 502 Bad Gateway 问题

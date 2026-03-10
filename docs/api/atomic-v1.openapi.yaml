@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: TwinSight Atomic API
+  description: |
+    AI Hub 专用的原子能力接口。AI Hub 仅通过这些端点调用 TwinSight Core 的核心能力。
+    所有请求必须携带 `Authorization` (用户 JWT) 和 `X-Service-Token` (M2M 服务令牌)。
+    所有请求必须携带 `X-Project-Id` 头以标识项目作用域。
+  version: 1.0.0
+  contact:
+    name: TwinSight Team
+
+servers:
+  - url: http://localhost:3001
+    description: 本地开发
+
+# ============================================================
+# 公共请求头定义
+# ============================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 用户 JWT（前端/Claude 发起请求时携带）
+    serviceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: M2M 服务间认证令牌（AI Hub -> TwinSight）
+
+  parameters:
+    X-Request-Id:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 请求唯一标识（用于追踪和审计）
+    X-Trace-Id:
+      name: X-Trace-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 链路追踪 ID（跨服务传递）
+    X-Project-Id:
+      name: X-Project-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: 项目 ID（必填，作用域隔离）
+    X-Facility-Id:
+      name: X-Facility-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 设施 ID（可选，预留）
+    X-File-Id:
+      name: X-File-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 文件/模型 ID（可选）
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: SCOPE_DENIED
+            message:
+              type: string
+              example: project scope not allowed
+            request_id:
+              type: string
+              example: req_xxx
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          type: object
+          properties:
+            request_id:
+              type: string
+            duration_ms:
+              type: integer
+
+security:
+  - bearerAuth: []
+    serviceToken: []
+
+# ============================================================
+# 端点定义
+# ============================================================
+paths:
+  /api/atomic/v1/assets/query:
+    post:
+      summary: 资产查询
+      description: 按 code/name/classification/project/file 查询资产
+      tags: [Assets]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-File-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fileId:
+                  type: integer
+                  description: 模型文件 ID
+                aspectType:
+                  type: string
+                  enum: [function, location, power]
+                  description: 方面类型
+                code:
+                  type: string
+                  description: RDS 编码（模糊匹配）
+                level:
+                  type: integer
+                  description: 最大层级
+              required:
+                - fileId
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未认证
+        '403':
+          description: 无权限
+
+  /api/atomic/v1/power/trace:
+    post:
+      summary: 电源追溯
+      description: 输入节点编码与方向，返回电源拓扑 nodes/edges
+      tags: [Power]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-File-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mcCode:
+                  type: string
+                  description: 主电源编码（如 CP0101）
+                direction:
+                  type: string
+                  enum: [upstream, downstream]
+                  description: 追溯方向
+                fileId:
+                  type: integer
+                  description: 模型文件 ID
+              required:
+                - mcCode
+                - direction
+      responses:
+        '200':
+          description: 追溯成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/atomic/v1/timeseries/query:
+    post:
+      summary: 时序数据查询
+      description: 按房间编码和时间范围查询 InfluxDB 时序数据
+      tags: [Timeseries]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roomCodes:
+                  type: array
+                  items:
+                    type: string
+                  description: 房间编码列表
+                startMs:
+                  type: integer
+                  format: int64
+                  description: 起始时间戳（毫秒）
+                endMs:
+                  type: integer
+                  format: int64
+                  description: 结束时间戳（毫秒）
+                fileId:
+                  type: integer
+                  description: 模型文件 ID
+                queryType:
+                  type: string
+                  enum: [range, latest, average]
+                  default: range
+                  description: 查询类型
+              required:
+                - roomCodes
+                - fileId
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/atomic/v1/knowledge/rag-search:
+    post:
+      summary: RAG 知识库检索
+      description: 通过 Open WebUI 进行 RAG 检索并返回结果
+      tags: [Knowledge]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: 检索查询文本
+                fileId:
+                  type: integer
+                  description: 模型文件 ID（用于定位知识库）
+                kbId:
+                  type: string
+                  description: 知识库 ID（可选，直接指定）
+                topK:
+                  type: integer
+                  default: 5
+                  description: 返回结果数量
+              required:
+                - query
+      responses:
+        '200':
+          description: 检索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/atomic/v1/ui/command:
+    post:
+      summary: UI 控制指令
+      description: 向前端发送 navigate/highlight/isolate 等 UI 指令
+      tags: [UI Control]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [navigate, highlight, isolate, reset]
+                  description: 指令类型
+                target:
+                  type: string
+                  description: 目标对象编码（如 =A1.FAN01）
+                sessionId:
+                  type: string
+                  description: 目标会话 ID（定向推送）
+                params:
+                  type: object
+                  description: 附加参数
+              required:
+                - type
+                - target
+      responses:
+        '200':
+          description: 指令已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/atomic/v1/alarm/create:
+    post:
+      summary: 创建报警事件
+      description: 写入标准报警事件记录
+      tags: [Alarm]
+      parameters:
+        - $ref: '#/components/parameters/X-Request-Id'
+        - $ref: '#/components/parameters/X-Trace-Id'
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                severity:
+                  type: string
+                  enum: [critical, warning, info]
+                  description: 严重程度
+                source:
+                  type: string
+                  description: 报警来源（rule/manual/iot）
+                objectCode:
+                  type: string
+                  description: 相关对象编码
+                message:
+                  type: string
+                  description: 报警描述
+                metadata:
+                  type: object
+                  description: 附加元数据
+              required:
+                - severity
+                - source
+                - message
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          alarmId:
+                            type: string
