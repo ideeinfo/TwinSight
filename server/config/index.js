@@ -32,9 +32,10 @@ const config = {
     get database() {
         // 优先使用 DATABASE_URL（Railway 推荐的方式）
         if (process.env.DATABASE_URL) {
+            const isInternalNetwork = process.env.DATABASE_URL.includes('.railway.internal') || process.env.DATABASE_URL.includes('@postgres');
             return {
                 connectionString: process.env.DATABASE_URL,
-                ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+                ssl: (process.env.NODE_ENV === 'production' && !isInternalNetwork) ? { rejectUnauthorized: false } : false,
             };
         }
         // 回退到单独的环境变量

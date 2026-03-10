@@ -35,11 +35,14 @@ const getDbConfig = () => {
         };
     }
 
-    // 生产环境或云服务通常需要 SSL
-    if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL) {
-        config.ssl = {
-            rejectUnauthorized: false // 允许自签名证书（Railway 内部连接通常需要）
-        };
+    // 云服务外部连接通常需要 SSL（例如 Railway 外部连接）
+    if (process.env.DATABASE_URL) {
+        const isInternalNetwork = process.env.DATABASE_URL.includes('.railway.internal');
+        if (!isInternalNetwork) {
+            config.ssl = {
+                rejectUnauthorized: false // 允许自签名证书
+            };
+        }
     }
 
     return config;
