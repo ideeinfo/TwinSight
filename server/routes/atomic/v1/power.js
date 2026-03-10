@@ -35,10 +35,18 @@ router.post('/trace', async (req, res) => {
             });
         }
 
+        // 遵循项目规范：Python Logic Engine 期望 snake_case
+        // Logic Engine Pydantic 模型使用 object_id 而非 mc_code
+        const logicEnginePayload = {
+            object_id: mcCode,
+            direction: direction,
+            file_id: fileId
+        };
+
         // 转发到 Logic Engine
         const response = await axios.post(
             `${LOGIC_ENGINE_URL}/api/topology/trace`,
-            req.body,
+            logicEnginePayload,
             { timeout: 10000 }
         );
 
@@ -52,12 +60,17 @@ router.post('/trace', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('❌ [atomic/power/trace]', error.message);
+        if (error.response) {
+            console.error('❌ [atomic/power/trace] Logic Engine Error:', error.response.status, JSON.stringify(error.response.data));
+        } else {
+            console.error('❌ [atomic/power/trace] Network/Other Error:', error.message);
+        }
+
         res.status(error.response?.status || 500).json({
             success: false,
             error: {
                 code: 'POWER_TRACE_FAILED',
-                message: error.response?.data?.detail || error.message,
+                message: error.response?.data?.detail || error.response?.data || error.message,
                 request_id: req.tracing?.requestId
             }
         });

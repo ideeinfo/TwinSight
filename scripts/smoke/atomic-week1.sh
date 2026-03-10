@@ -112,7 +112,7 @@ test_endpoint "API Health" "GET" "/api/health"
 # ========== 2. Power Trace ==========
 echo -e "${YELLOW}[2/7] 电源追溯${NC}"
 test_endpoint "Power Trace" "POST" "/api/atomic/v1/power/trace" \
-  '{"mcCode":"CP0101","direction":"upstream"}'
+  '{"mcCode":"CP0101","direction":"upstream","fileId":1}'
 
 # ========== 3. Timeseries Query ==========
 echo -e "${YELLOW}[3/7] 时序查询${NC}"
