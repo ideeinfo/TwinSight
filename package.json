@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .vue,.js,.ts",
-    "lint:fix": "eslint src --ext .vue,.js,.ts --fix"
+    "lint:fix": "eslint src --ext .vue,.js,.ts --fix",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@antv/g6": "^5.0.51",
@@ -25,6 +27,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^25.3.5",
     "@vitejs/plugin-vue": "^6.0.1",
     "eslint": "^9.39.2",
     "eslint-plugin-vue": "^10.6.2",

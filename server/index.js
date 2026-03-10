@@ -40,8 +40,8 @@ import appConfig from './config/index.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 加载项目根目录的 .env.local（统一配置管理）
-config({ path: path.join(__dirname, '../.env.local') });
+// 加载项目根目录的统一环境变量配置 (.env)
+config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
