@@ -91,8 +91,9 @@ router.post('/query', async (req, res) => {
             case 'range':
             default: {
                 // 调用现有 GET /api/v1/timeseries/query/room
+                // 注意：旧端点使用 roomCode（单数），这里取数组的第一个元素
                 const params = new URLSearchParams({
-                    roomCodes: roomCodes.join(','),
+                    roomCode: roomCodes[0],
                     fileId: String(fileId),
                     ...(startMs && { startMs: String(startMs) }),
                     ...(endMs && { endMs: String(endMs) })
