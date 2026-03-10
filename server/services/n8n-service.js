@@ -4,7 +4,7 @@
  */
 
 // n8n Webhook URL（需要在 n8n 中创建 Webhook 节点后获取）
-import { server } from '../config/index.js';
+import { server, ai as aiConfig } from '../config/index.js';
 import { getConfig, getApiBaseUrl } from './config-service.js';
 
 /**
@@ -36,7 +36,7 @@ function calculateSeverity(alertData) {
  * @param {string} [webhookPath] - 可选：自定义 Webhook 路径 (覆盖默认)
  */
 export async function triggerTemperatureAlert(alertData, webhookPath = '/webhook/temperature-alert') {
-    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', aiConfig.n8nWebhookUrl);
     // const webhookPath = '/webhook/temperature-alert'; // Used default parameter instead
 
     try {
@@ -89,7 +89,7 @@ export async function triggerTemperatureAlert(alertData, webhookPath = '/webhook
  * @param {number} analysisRequest.fileId - 关联的模型文件ID
  */
 export async function triggerManualAnalysis(analysisRequest) {
-    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+    const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', aiConfig.n8nWebhookUrl);
     const webhookPath = '/webhook/manual-analysis';
 
     try {
@@ -135,7 +135,7 @@ export async function triggerManualAnalysis(analysisRequest) {
  */
 export async function checkN8nHealth() {
     try {
-        const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', '');
+        const n8nBaseUrl = await getConfig('N8N_WEBHOOK_URL', aiConfig.n8nWebhookUrl);
         const response = await fetch(`${n8nBaseUrl}/healthz`, {
             method: 'GET',
             timeout: 5000,

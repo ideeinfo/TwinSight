@@ -2,7 +2,7 @@
  * Time Series Service
  * Encapsulates InfluxDB query logic
  */
-import { InfluxDB } from '@influxdata/influxdb-client';
+import { InfluxDB, Point } from '@influxdata/influxdb-client';
 import config from '../config/index.js';
 import { getConfig } from './config-service.js';
 
@@ -13,11 +13,12 @@ let queryApi = null;
 
 const getInfluxConfig = async () => {
     try {
-        const url = await getConfig('INFLUXDB_URL', 'http://localhost');
-        const port = await getConfig('INFLUXDB_PORT', '8086');
-        const org = await getConfig('INFLUXDB_ORG', 'demo');
-        const bucket = await getConfig('INFLUXDB_BUCKET', 'twinsight');
-        const token = await getConfig('INFLUXDB_TOKEN', '');
+        // 先从数据库读取配置，若未设置则回退到环境变量配置（支持被 docker-compose 覆盖）
+        const url = await getConfig('INFLUXDB_URL', config.influx.url);
+        const port = await getConfig('INFLUXDB_PORT', '8086'); // Assuming URL has port or handles it, but keeping the old logic if isolated
+        const org = await getConfig('INFLUXDB_ORG', config.influx.org);
+        const bucket = await getConfig('INFLUXDB_BUCKET', config.influx.bucket);
+        const token = await getConfig('INFLUXDB_TOKEN', config.influx.token);
         const enabled = await getConfig('INFLUXDB_ENABLED', 'true');
 
         // Safely construct URL

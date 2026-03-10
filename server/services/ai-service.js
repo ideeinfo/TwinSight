@@ -6,7 +6,7 @@ import pool from '../db/index.js';
 import * as timeseriesService from './timeseries-service.js';
 import { chatWithRAG } from './openwebui-service.js';
 import { getConfig, getApiBaseUrl } from './config-service.js';
-import { server } from '../config/index.js';
+import { server, ai as aiConfig } from '../config/index.js';
 import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
 
 import fs from 'fs';
@@ -26,7 +26,7 @@ function logToFile(...args) {
 // Configuration - Most values now dynamically fetched from DB via getConfig
 const getAiConfig = async () => {
     const useN8n = await getConfig('USE_N8N', 'false');
-    const baseUrl = await getConfig('N8N_WEBHOOK_URL', 'http://localhost:5678');
+    const baseUrl = await getConfig('N8N_WEBHOOK_URL', aiConfig.n8nWebhookUrl);
     const tempWebhook = await getConfig('N8N_TEMPERATURE_ALERT_WEBHOOK', '/webhook/temperature-alert');
 
     return {
@@ -325,7 +325,7 @@ ${contextDocs && contextDocs.length > 0 ? contextDocs.map(d => `- ${d.file_name}
 
     // 3. Call Open WebUI
     // Dynamic Model Selection
-    let llmModel = await getConfig('LLM_MODEL', '');
+    let llmModel = await getConfig('LLM_MODEL', process.env.LLM_MODEL || 'gemini-2.0-flash');
     if (!llmModel) {
         try {
             const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
@@ -818,7 +818,7 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
     }
 
     // 4. Call RAG
-    let llmModel = await getConfig('LLM_MODEL', '');
+    let llmModel = await getConfig('LLM_MODEL', process.env.LLM_MODEL || 'gemini-2.0-flash');
     if (!llmModel) {
         try {
             const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());
@@ -1084,7 +1084,7 @@ ${contextData.documents && contextData.documents.length > 0 ? contextData.docume
     }
 
     // 6. Call RAG (Knowledge Base + Integrated Real-time Data)
-    let llmModel = await getConfig('LLM_MODEL', '');
+    let llmModel = await getConfig('LLM_MODEL', process.env.LLM_MODEL || 'gemini-2.0-flash');
     if (!llmModel) {
         try {
             const models = await import('./openwebui-service.js').then(m => m.getAvailableModels());

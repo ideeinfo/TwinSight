@@ -28,8 +28,8 @@ const MIME_TYPES = {
 // 动态读取配置（避免 ES Modules 静态导入时环境变量未加载的问题）
 // 每次调用时都从 openwebuiConfig 读取最新值，而不是在模块加载时固定
 // 动态读取配置（优先使用系统配置，不使用 env.local）
-const getBaseUrl = async () => await getConfig('OPENWEBUI_URL', '');
-const getApiKey = async () => await getConfig('OPENWEBUI_API_KEY', '');
+const getBaseUrl = async () => await getConfig('OPENWEBUI_URL', openwebuiConfig.apiUrl);
+const getApiKey = async () => await getConfig('OPENWEBUI_API_KEY', openwebuiConfig.apiKey);
 const { endpoints, supportedFormats } = openwebuiConfig;
 
 /**
