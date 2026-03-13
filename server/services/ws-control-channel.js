@@ -6,12 +6,14 @@
  * 
  * 安全:
  * - 握手时校验 JWT
- * - 连接后加入 rooms: user:{userId}, project:{projectId}, session:{socketId}
+ * - 握手时校验 fileId 存在性（model_files 表）
+ * - 连接后加入 rooms: user:{userId}, file:{fileId}, session:{socketId}
  * - 禁止全局广播 (io.emit)，仅允许 io.to(room).emit
  */
 
 import jwt from 'jsonwebtoken';
 import config from '../config/index.js';
+import modelFileModel from '../models/model-file.js';
 
 /**
  * 初始化 WebSocket 控制通道
@@ -42,65 +44,73 @@ export async function initControlChannel(httpServer) {
     });
 
     // ========== 握手鉴权 ==========
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         const token = socket.handshake.auth?.token;
-        const projectId = socket.handshake.auth?.projectId;
+        const fileId = socket.handshake.auth?.fileId;
 
         if (!token) {
             // 开发模式下允许匿名连接
             if (config.server.env === 'development') {
                 socket.user = { id: 0, username: 'dev-guest' };
-                socket.projectId = projectId || 'dev-project';
+                socket.fileId = fileId || 'dev-file';
                 console.warn('⚠️  [ws-control] 开发模式：匿名连接已允许');
                 return next();
             }
             return next(new Error('Authentication required: token missing'));
         }
 
+        // JWT 校验
+        let decoded;
         try {
-            const decoded = jwt.verify(token, config.jwt.secret);
-            socket.user = decoded;
-            socket.projectId = projectId;
-            next();
+            decoded = jwt.verify(token, config.jwt.secret);
         } catch (err) {
-            next(new Error(`Authentication failed: ${err.message}`));
+            return next(new Error(`Authentication failed: ${err.message}`));
         }
+
+        // fileId 必须为正整数
+        const parsedFileId = parseInt(fileId, 10);
+        if (!fileId || !Number.isInteger(parsedFileId) || parsedFileId <= 0) {
+            return next(new Error('Authentication failed: fileId must be a positive integer'));
+        }
+
+        // 校验 fileId 对应的模型文件是否存在
+        try {
+            const modelFile = await modelFileModel.getModelFileById(parsedFileId);
+            if (!modelFile) {
+                return next(new Error(`Authentication failed: fileId ${parsedFileId} not found`));
+            }
+        } catch (err) {
+            console.error(`❌ [ws-control] fileId 校验失败:`, err.message);
+            return next(new Error('Authentication failed: fileId validation error'));
+        }
+
+        socket.user = decoded;
+        socket.fileId = parsedFileId;
+        next();
     });
 
     // ========== 连接处理 ==========
     io.on('connection', (socket) => {
-        const userId = socket.user?.id || 'unknown';
-        const projectId = socket.projectId || 'unknown';
+        // Access token uses `sub` as canonical user id; keep `id` as legacy fallback.
+        const userId = socket.user?.sub ?? socket.user?.id ?? 'unknown';
+        const fileId = socket.fileId || 'unknown';
 
-        // 加入 rooms
+        // 加入 rooms：只加入 user / session / file
         socket.join(`user:${userId}`);
         socket.join(`session:${socket.id}`);
-        if (projectId) {
-            socket.join(`project:${projectId}`);
-        }
+        socket.join(`file:${fileId}`);
 
         console.log(
             `🔌 [ws-control] 连接建立` +
             ` | user=${userId}` +
-            ` | project=${projectId}` +
+            ` | file=${fileId}` +
             ` | session=${socket.id}` +
             ` | rooms=${Array.from(socket.rooms).join(',')}`
         );
 
-        // 允许客户端切换项目 room
-        socket.on('join:project', (newProjectId) => {
-            // 先离开旧项目 room
-            if (socket.projectId) {
-                socket.leave(`project:${socket.projectId}`);
-            }
-            socket.projectId = newProjectId;
-            socket.join(`project:${newProjectId}`);
-            console.log(`🔄 [ws-control] user=${userId} 切换到项目 ${newProjectId}`);
-        });
-
         // 断开连接
         socket.on('disconnect', (reason) => {
-            console.log(`🔌 [ws-control] 连接断开 | user=${userId} | reason=${reason}`);
+            console.log(`🔌 [ws-control] 连接断开 | user=${userId} | file=${fileId} | reason=${reason}`);
         });
     });
 

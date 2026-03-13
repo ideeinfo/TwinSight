@@ -71,14 +71,33 @@ router.post('/command', async (req, res) => {
         // 当前最小实现：记录日志并返回确认
         console.log(`🎮 [ui-command] ${type} -> ${target}`, JSON.stringify(command));
 
+        // 先确定目标房间，确保无论 WS 是否启用都执行一致的参数校验
+        let targetRoom;
+        if (sessionId) {
+            targetRoom = `session:${sessionId}`;
+        } else {
+            // 优先 scope 中的 fileId，其次请求体中的 fileId
+            const resolvedFileId = req.scope?.fileId || req.body?.fileId;
+            if (!resolvedFileId) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        code: 'MISSING_FILE_ID',
+                        message: 'fileId is required when sessionId is not provided (via X-File-Id header or request body)',
+                        request_id: req.tracing?.requestId
+                    }
+                });
+            }
+            targetRoom = `file:${resolvedFileId}`;
+        }
+
         // 尝试通过 WebSocket 推送（如果已初始化）
         const io = req.app.get('io');
         if (io) {
-            const targetRoom = sessionId
-                ? `session:${sessionId}`
-                : `project:${req.scope.projectId}`;
             io.to(targetRoom).emit('ui:command', command);
             console.log(`📡 [ui-command] Pushed to room: ${targetRoom}`);
+        } else {
+            console.warn(`[ui-command] WebSocket channel unavailable, skipped emit to room: ${targetRoom}`);
         }
 
         res.json({

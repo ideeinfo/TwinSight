@@ -4,8 +4,13 @@ info:
   description: |
     AI Hub 专用的原子能力接口。AI Hub 仅通过这些端点调用 TwinSight Core 的核心能力。
     所有请求必须携带 `Authorization` (用户 JWT) 和 `X-Service-Token` (M2M 服务令牌)。
-    所有请求必须携带 `X-Project-Id` 头以标识项目作用域。
-  version: 1.0.0
+    所有请求必须携带 `X-Project-Id` 头（当前仅作审计/兼容字段）。
+
+    > **重要**：当前系统的真实执行目标是 `fileId`（模型文件 ID），而非 `projectId`。
+    > `X-Project-Id` 保留为作用域头供审计日志使用，但实际的 WebSocket 房间隔离、
+    > 知识库映射、时序数据查询等均以 `fileId` 为准。
+
+  version: 1.1.0
   contact:
     name: TwinSight Team
 
@@ -50,7 +55,10 @@ components:
       required: true
       schema:
         type: string
-      description: 项目 ID（必填，作用域隔离）
+      description: |
+        项目 ID（必填，作用域隔离）。
+        **注意**：当前仅作审计/兼容字段。实际执行目标是 `fileId`（模型文件 ID），
+        通过 `X-File-Id` 头或请求体中的 `fileId` 字段传入。
     X-Facility-Id:
       name: X-Facility-Id
       in: header
@@ -64,7 +72,10 @@ components:
       required: false
       schema:
         type: string
-      description: 文件/模型 ID（可选）
+      description: |
+        文件/模型 ID（推荐传入）。
+        作为当前系统真正的执行目标，用于 WebSocket 房间绑定、知识库映射、
+        时序数据查询等。也可通过请求体中的 `fileId` 字段传入。
 
   schemas:
     ErrorResponse:
@@ -129,7 +140,7 @@ paths:
               properties:
                 fileId:
                   type: integer
-                  description: 模型文件 ID
+                  description: 模型文件 ID（当前执行目标）
                 aspectType:
                   type: string
                   enum: [function, location, power]
@@ -186,7 +197,7 @@ paths:
                   description: 追溯方向
                 fileId:
                   type: integer
-                  description: 模型文件 ID
+                  description: 模型文件 ID（当前执行目标）
               required:
                 - mcCode
                 - direction
@@ -201,7 +212,14 @@ paths:
   /api/atomic/v1/timeseries/query:
     post:
       summary: 时序数据查询
-      description: 按房间编码和时间范围查询 InfluxDB 时序数据
+      description: |
+        按房间编码和时间范围查询 InfluxDB 时序数据。
+        - `range`: 返回指定房间的原始时序点（支持多房间拼接）
+        - `latest`: 返回各房间最新一条数据
+        - `average`: 返回指定房间集合的时间桶平均时序点列表（非单值）。
+          在 Atomic 层对每个 roomCode 分别拉取时序，按统一时间桶做算术平均。
+          某房间在某时间桶缺值时不参与该桶平均。
+          **`average` 类型下 `startMs` 和 `endMs` 为必填**。
       tags: [Timeseries]
       parameters:
         - $ref: '#/components/parameters/X-Request-Id'
@@ -218,18 +236,22 @@ paths:
                   type: array
                   items:
                     type: string
-                  description: 房间编码列表
+                  description: 房间编码列表（非空数组）
                 startMs:
                   type: integer
                   format: int64
-                  description: 起始时间戳（毫秒）
+                  description: |
+                    起始时间戳（毫秒）。
+                    `average` 类型下为必填，`range` 类型下为可选。
                 endMs:
                   type: integer
                   format: int64
-                  description: 结束时间戳（毫秒）
+                  description: |
+                    结束时间戳（毫秒）。
+                    `average` 类型下为必填，`range` 类型下为可选。
                 fileId:
                   type: integer
-                  description: 模型文件 ID
+                  description: 模型文件 ID（当前执行目标，必填）
                 queryType:
                   type: string
                   enum: [range, latest, average]
@@ -245,16 +267,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 参数错误（如 average 缺少 startMs/endMs）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/atomic/v1/knowledge/rag-search:
     post:
       summary: RAG 知识库检索
-      description: 通过 Open WebUI 进行 RAG 检索并返回结果
+      description: |
+        通过 Open WebUI 进行 RAG 检索并返回结果。
+        
+        **知识库解析优先级**：
+        1. 如果显式传入 `kbId`，直接使用
+        2. 否则使用 `fileId`（请求体或 `X-File-Id` 头），查询 `knowledge_bases` 表
+           获取 `openwebui_kb_id`
+        3. 都没有 → 返回 `400`
+        4. 有 `fileId` 但查不到映射 → 返回 `404 KNOWLEDGE_BASE_NOT_FOUND`
       tags: [Knowledge]
       parameters:
         - $ref: '#/components/parameters/X-Request-Id'
         - $ref: '#/components/parameters/X-Trace-Id'
         - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-File-Id'
       requestBody:
         required: true
         content:
@@ -267,14 +304,16 @@ paths:
                   description: 检索查询文本
                 fileId:
                   type: integer
-                  description: 模型文件 ID（用于定位知识库）
+                  description: |
+                    模型文件 ID（当前执行目标）。
+                    用于从 knowledge_bases 表查询对应的 openwebui_kb_id。
                 kbId:
                   type: string
-                  description: 知识库 ID（可选，直接指定）
+                  description: 知识库 ID（可选，直接指定，优先级最高）
                 topK:
                   type: integer
                   default: 5
-                  description: 返回结果数量
+                  description: 返回结果数量（兼容字段，暂未下沉到底层检索深度控制）
               required:
                 - query
       responses:
@@ -284,16 +323,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 参数错误（缺少 kbId 和 fileId）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 知识库未找到
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: KNOWLEDGE_BASE_NOT_FOUND
+                      message:
+                        type: string
+                        example: "No knowledge base mapping found for fileId 123"
 
   /api/atomic/v1/ui/command:
     post:
       summary: UI 控制指令
-      description: 向前端发送 navigate/highlight/isolate 等 UI 指令
+      description: |
+        向前端发送 navigate/highlight/isolate 等 UI 指令。
+        
+        **投递规则**：
+        - 有 `sessionId` → 投递到 `session:${sessionId}`
+        - 无 `sessionId` → 需要 `fileId`（通过 `X-File-Id` 头或请求体），
+          投递到 `file:${fileId}`
+        - 无 `sessionId` 且无 `fileId` → 返回 `400`
       tags: [UI Control]
       parameters:
         - $ref: '#/components/parameters/X-Request-Id'
         - $ref: '#/components/parameters/X-Trace-Id'
         - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-File-Id'
       requestBody:
         required: true
         content:
@@ -310,7 +382,10 @@ paths:
                   description: 目标对象编码（如 =A1.FAN01）
                 sessionId:
                   type: string
-                  description: 目标会话 ID（定向推送）
+                  description: 目标会话 ID（定向推送，优先级最高）
+                fileId:
+                  type: integer
+                  description: 文件 ID（当无 sessionId 时作为投递目标）
                 params:
                   type: object
                   description: 附加参数
@@ -324,6 +399,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: 参数错误（如缺少 fileId 且无 sessionId）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/atomic/v1/alarm/create:
     post:

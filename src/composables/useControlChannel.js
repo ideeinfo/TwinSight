@@ -9,12 +9,13 @@
  */
 
 import { ref, onUnmounted, watch } from 'vue';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/stores/auth';
 
 // 单例状态（跨组件共享）
 const isConnected = ref(false);
 const lastCommand = ref(null);
 const connectionError = ref(null);
+const currentFileId = ref(null);
 
 let socket = null;
 let reconnectTimer = null;
@@ -22,16 +23,29 @@ let reconnectTimer = null;
 /**
  * 连接到 WebSocket 控制通道
  * @param {Object} options
- * @param {string} options.projectId - 项目 ID
  * @param {Function} options.onCommand - 收到指令时的回调
  */
 export function useControlChannel(options = {}) {
     const authStore = useAuthStore();
 
-    const connect = async (projectId) => {
-        // 避免重复连接
-        if (socket && isConnected.value) {
+    /**
+     * 建立 WebSocket 连接
+     * @param {number} fileId - 当前文件 ID（必填）
+     */
+    const connect = async (fileId) => {
+        if (!fileId) {
+            console.warn('[control-channel] fileId 未提供，跳过连接');
             return;
+        }
+
+        // 避免重复连接到同一个 fileId
+        if (socket && isConnected.value && currentFileId.value === fileId) {
+            return;
+        }
+
+        // 如果已有连接但 fileId 不同，先断开
+        if (socket && isConnected.value) {
+            disconnect();
         }
 
         // 动态导入 socket.io-client（仅在需要时加载）
@@ -58,7 +72,7 @@ export function useControlChannel(options = {}) {
             path: '/ws/control',
             auth: {
                 token,
-                projectId: projectId || options.projectId
+                fileId
             },
             reconnection: true,
             reconnectionAttempts: 5,
@@ -69,7 +83,8 @@ export function useControlChannel(options = {}) {
         socket.on('connect', () => {
             isConnected.value = true;
             connectionError.value = null;
-            console.log(`🔌 [control-channel] 已连接 | session=${socket.id}`);
+            currentFileId.value = fileId;
+            console.log(`🔌 [control-channel] 已连接 | file=${fileId} | session=${socket.id}`);
         });
 
         // 断开连接
@@ -103,6 +118,7 @@ export function useControlChannel(options = {}) {
             socket = null;
         }
         isConnected.value = false;
+        currentFileId.value = null;
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -110,12 +126,19 @@ export function useControlChannel(options = {}) {
     };
 
     /**
-     * 切换项目 room
+     * 切换到新的文件房间（断开旧连接，建立新连接）
+     * @param {number} newFileId - 新的文件 ID
      */
-    const switchProject = (newProjectId) => {
-        if (socket && isConnected.value) {
-            socket.emit('join:project', newProjectId);
+    const switchFile = async (newFileId) => {
+        if (!newFileId) {
+            console.warn('[control-channel] switchFile: newFileId 不能为空');
+            return;
         }
+        if (currentFileId.value === newFileId) {
+            return;
+        }
+        disconnect();
+        await connect(newFileId);
     };
 
     // 组件卸载时不断开（单例模式，保持全局连接）
@@ -125,9 +148,10 @@ export function useControlChannel(options = {}) {
         isConnected,
         lastCommand,
         connectionError,
+        currentFileId,
         connect,
         disconnect,
-        switchProject
+        switchFile
     };
 }
 
