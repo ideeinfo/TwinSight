@@ -136,28 +136,19 @@
     <!-- 上下文菜单 -->
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="context-menu" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
-        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleEdit">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-          {{ t('filePanel.edit') }}
-        </div>
-        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleUploadRDS">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="14 2 14 8 20 8" />
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <line x1="12" y1="18" x2="12" y2="12" />
-            <line x1="9" y1="15" x2="15" y2="15" />
-          </svg>
-          {{ t('filePanel.uploadRDS') }}
-        </div>
         <div v-if="authStore.hasPermission('model:activate')" class="context-menu-item" @click="handleActivate">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           {{ t('filePanel.activate') }}
+        </div>
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleEdit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+          {{ t('filePanel.edit') }}
         </div>
         <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleExtract">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -182,15 +173,14 @@
           </svg>
           {{ t('filePanel.syncKB') }}
         </div>
-
-        <div class="context-menu-item" @click="handlePanoCompare">
+        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleUploadRDS">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7" />
-            <circle cx="12" cy="12" r="3" />
-            <path d="M16 16l4 4" />
-            <path d="M16 20l4-4" />
+            <polyline points="14 2 14 8 20 8" />
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <line x1="12" y1="18" x2="12" y2="12" />
+            <line x1="9" y1="15" x2="15" y2="15" />
           </svg>
-          {{ t('filePanel.panoCompare') }}
+          {{ t('filePanel.uploadRDS') }}
         </div>
         <div v-if="authStore.hasPermission('model:delete')" class="context-menu-divider"></div>
         <div v-if="authStore.hasPermission('model:delete')" class="context-menu-item danger" @click="handleDelete">
