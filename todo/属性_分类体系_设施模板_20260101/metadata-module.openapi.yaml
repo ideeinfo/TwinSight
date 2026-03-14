@@ -1,0 +1,323 @@
+openapi: 3.0.3
+info:
+  title: TwinSight Metadata Module API
+  version: 0.1.0-draft
+  description: |
+    属性库、分类体系、设施模板模块接口草案。
+    用于支撑基础数据管理、模板配置、资产联动和设施页局部编辑。
+
+servers:
+  - url: http://localhost:3001
+    description: 本地开发
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    X-Project-Id:
+      name: X-Project-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: 项目作用域，当前用于审计和兼容。
+    X-Facility-Id:
+      name: X-Facility-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 设施作用域，预留。
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    Property:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        propertyKey:
+          type: string
+        name:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        context:
+          type: string
+          enum: [Element, Specification]
+        dataType:
+          type: string
+          enum: [Text, Integer, Number, Boolean, DateTime, Link, Tag]
+        unitCode:
+          type: string
+          nullable: true
+        precision:
+          type: integer
+          nullable: true
+
+    ClassificationImportPreviewResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              rowNo:
+                type: integer
+              column:
+                type: string
+              message:
+                type: string
+        previewRows:
+          type: array
+          items:
+            type: object
+
+    TemplateNodeProperty:
+      type: object
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        context:
+          type: string
+          enum: [Element, Specification]
+        assignedDirectly:
+          type: boolean
+        inheritedFromNodeId:
+          type: string
+          format: uuid
+          nullable: true
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/properties:
+    get:
+      summary: 获取属性列表
+      tags: [Properties]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+    post:
+      summary: 创建属性
+      tags: [Properties]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Property'
+      responses:
+        '201':
+          description: 创建成功
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/properties/{id}/usage:
+    get:
+      summary: 获取属性使用情况
+      tags: [Properties]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+
+  /api/v1/classification-schemas/import/preview:
+    post:
+      summary: 分类体系导入预览
+      tags: [ClassificationSchemas]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                fileToken:
+                  type: string
+      responses:
+        '200':
+          description: 预览结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassificationImportPreviewResponse'
+
+  /api/v1/classification-schemas/import/commit:
+    post:
+      summary: 确认导入分类体系
+      tags: [ClassificationSchemas]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '201':
+          description: 导入成功
+
+  /api/v1/classification-schemas/{id}/tree:
+    get:
+      summary: 获取分类体系树
+      tags: [ClassificationSchemas]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+
+  /api/v1/facility-templates:
+    get:
+      summary: 获取设施模板列表
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+    post:
+      summary: 创建设施模板
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '201':
+          description: 创建成功
+
+  /api/v1/facility-templates/{id}/nodes/{nodeId}/properties:
+    get:
+      summary: 获取节点有效属性
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  directCount:
+                    type: integer
+                  effectiveCount:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TemplateNodeProperty'
+
+  /api/v1/facility-templates/{id}/nodes/{nodeId}/assign:
+    post:
+      summary: 为节点分配属性
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                propertyIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: 分配成功
+        '409':
+          description: 与继承规则冲突
+
+  /api/v1/facility-templates/{id}/nodes/{nodeId}/copy-to:
+    post:
+      summary: 将节点属性复制到其他节点
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetNodeIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: 复制结果
+
+  /api/v1/facility-templates/{id}/property-view:
+    get:
+      summary: 获取属性反向视图
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+      responses:
+        '200':
+          description: 成功
+
+  /api/v1/facility-templates/{id}/grouped-properties:
+    get:
+      summary: 按类别获取模板属性
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-Facility-Id'
+      responses:
+        '200':
+          description: 成功
+
+  /api/v1/facility-templates/{id}/sync-status:
+    get:
+      summary: 获取模板与设施同步状态
+      tags: [FacilityTemplates]
+      parameters:
+        - $ref: '#/components/parameters/X-Project-Id'
+        - $ref: '#/components/parameters/X-Facility-Id'
+      responses:
+        '200':
+          description: 成功
