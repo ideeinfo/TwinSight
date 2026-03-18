@@ -178,7 +178,7 @@ const showLoginDialog = ref(false);
 // 处理启动查看器按钮点击
 const handleLaunchViewer = () => {
   if (authStore.isAuthenticated) {
-    router.push('/viewer');
+    router.push('/home');
   } else {
     showLoginDialog.value = true;
   }
@@ -186,7 +186,7 @@ const handleLaunchViewer = () => {
 
 // 登录成功回调
 const onLoginSuccess = () => {
-  router.push('/viewer');
+  router.push('/home');
 };
 
 // Quick Stats

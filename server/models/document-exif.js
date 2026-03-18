@@ -120,6 +120,10 @@ const documentExifModel = {
             query += ` AND d.spec_code = $${paramIndex++}`;
             params.push(filter.specCode);
         }
+        if (filter.facilityId) {
+            query += ` AND d.facility_id = $${paramIndex++}`;
+            params.push(filter.facilityId);
+        }
 
         query += ' ORDER BY d.created_at DESC';
 

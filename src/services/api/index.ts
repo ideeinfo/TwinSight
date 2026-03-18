@@ -4,11 +4,11 @@
  */
 
 export * from './assets';
+export * from './facilities';
 export * from './spaces';
 export * from './models';
 export * from './timeseries';
 
 // 未来扩展
 // export * from './auth';
-// export * from './facilities';
 // export * from './properties';

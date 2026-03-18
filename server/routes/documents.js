@@ -177,7 +177,7 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.DOCUMENT_CREATE), upl
             return res.status(400).json({ success: false, error: '没有上传文件' });
         }
 
-        const { assetCode, spaceCode, specCode, viewId, title } = req.body;
+        const { assetCode, spaceCode, specCode, viewId, facilityId, title } = req.body;
 
         // 验证必须有一个关联对象
         if (!assetCode && !spaceCode && !specCode && !viewId) {
@@ -210,7 +210,8 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.DOCUMENT_CREATE), upl
             assetCode: assetCode || null,
             spaceCode: spaceCode || null,
             specCode: specCode || null,
-            viewId: viewId || null
+            viewId: viewId || null,
+            facilityId: facilityId || null
         };
 
         const result = await documentModel.createDocument(doc);
@@ -257,13 +258,14 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.DOCUMENT_CREATE), upl
  */
 router.get('/', authenticate, authorize(PERMISSIONS.DOCUMENT_READ), async (req, res) => {
     try {
-        const { assetCode, spaceCode, specCode } = req.query;
+        const { assetCode, spaceCode, specCode, facilityId } = req.query;
 
         // 使用带有 EXIF 信息的查询
         const documents = await documentExifModel.getDocumentsWithExif({
             assetCode,
             spaceCode,
-            specCode
+            specCode,
+            facilityId
         });
 
         res.json({ success: true, data: documents });

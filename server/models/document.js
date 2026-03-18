@@ -4,13 +4,98 @@ import { query } from '../db/index.js';
  * 文档数据访问层
  */
 
+async function resolveDocumentFacilityId(params = {}) {
+    const { facilityId, assetCode, spaceCode, specCode, viewId } = params;
+
+    if (facilityId !== undefined && facilityId !== null && facilityId !== '') {
+        const parsedId = Number.parseInt(facilityId, 10);
+        if (!Number.isInteger(parsedId) || parsedId <= 0) {
+            throw new Error('facilityId 必须是正整数');
+        }
+
+        const facilityResult = await query(
+            'SELECT id FROM facilities WHERE id = $1',
+            [parsedId]
+        );
+        if (facilityResult.rows.length === 0) {
+            throw new Error('指定的 facility 不存在');
+        }
+
+        return parsedId;
+    }
+
+    const lookups = [
+        {
+            enabled: !!assetCode,
+            sql: `
+                SELECT mf.facility_id
+                FROM assets a
+                JOIN model_files mf ON mf.id = a.file_id
+                WHERE a.asset_code = $1
+                  AND mf.facility_id IS NOT NULL
+                ORDER BY mf.is_active DESC, a.updated_at DESC NULLS LAST, a.id DESC
+                LIMIT 1
+            `,
+            value: assetCode,
+        },
+        {
+            enabled: !!spaceCode,
+            sql: `
+                SELECT mf.facility_id
+                FROM spaces s
+                JOIN model_files mf ON mf.id = s.file_id
+                WHERE s.space_code = $1
+                  AND mf.facility_id IS NOT NULL
+                ORDER BY mf.is_active DESC, s.updated_at DESC NULLS LAST, s.id DESC
+                LIMIT 1
+            `,
+            value: spaceCode,
+        },
+        {
+            enabled: !!specCode,
+            sql: `
+                SELECT mf.facility_id
+                FROM asset_specs s
+                JOIN model_files mf ON mf.id = s.file_id
+                WHERE s.spec_code = $1
+                  AND mf.facility_id IS NOT NULL
+                ORDER BY mf.is_active DESC, s.updated_at DESC NULLS LAST, s.id DESC
+                LIMIT 1
+            `,
+            value: specCode,
+        },
+        {
+            enabled: !!viewId,
+            sql: `
+                SELECT mf.facility_id
+                FROM public.views v
+                JOIN model_files mf ON mf.id = v.file_id
+                WHERE v.id = $1
+                  AND mf.facility_id IS NOT NULL
+                LIMIT 1
+            `,
+            value: Number.parseInt(viewId, 10),
+        },
+    ];
+
+    for (const lookup of lookups) {
+        if (!lookup.enabled) continue;
+        const result = await query(lookup.sql, [lookup.value]);
+        if (result.rows.length > 0) {
+            return result.rows[0].facility_id;
+        }
+    }
+
+    return null;
+}
+
 /**
  * 获取关联对象的文档列表
- * @param {Object} params - 查询参数 { assetCode, spaceCode, specCode }
+ * @param {Object} params - 查询参数 { assetCode, spaceCode, specCode, viewId, facilityId }
  * @returns {Promise<Array>}
  */
 async function getDocuments(params) {
-    const { assetCode, spaceCode, specCode, viewId } = params;
+    const { assetCode, spaceCode, specCode, viewId, facilityId } = params;
 
     let sql = 'SELECT * FROM documents WHERE ';
     let values = [];
@@ -27,8 +112,11 @@ async function getDocuments(params) {
     } else if (viewId) {
         sql += 'view_id = $1';
         values.push(viewId);
+    } else if (facilityId) {
+        sql += 'facility_id = $1';
+        values.push(facilityId);
     } else {
-        throw new Error('必须提供 assetCode, spaceCode, specCode 或 viewId 之一');
+        throw new Error('必须提供 assetCode, spaceCode, specCode, viewId 或 facilityId 之一');
     }
 
     sql += ' ORDER BY created_at DESC';
@@ -66,16 +154,25 @@ async function createDocument(doc) {
         assetCode,
         spaceCode,
         specCode,
-        viewId
+        viewId,
+        facilityId
     } = doc;
+
+    const resolvedFacilityId = await resolveDocumentFacilityId({
+        facilityId,
+        assetCode,
+        spaceCode,
+        specCode,
+        viewId,
+    });
 
     const result = await query(
         `INSERT INTO documents (
             title, file_name, file_path, file_size, file_type, mime_type,
-            asset_code, space_code, spec_code, view_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            asset_code, space_code, spec_code, view_id, facility_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`,
-        [title, fileName, filePath, fileSize, fileType, mimeType, assetCode, spaceCode, specCode, viewId]
+        [title, fileName, filePath, fileSize, fileType, mimeType, assetCode, spaceCode, specCode, viewId, resolvedFacilityId]
     );
 
     return result.rows[0];
@@ -115,11 +212,11 @@ async function deleteDocument(id) {
 
 /**
  * 获取文档统计信息
- * @param {Object} params - { assetCode, spaceCode, specCode }
+ * @param {Object} params - { assetCode, spaceCode, specCode, facilityId }
  * @returns {Promise<Object>}
  */
 async function getDocumentStats(params) {
-    const { assetCode, spaceCode, specCode } = params;
+    const { assetCode, spaceCode, specCode, facilityId } = params;
 
     let sql = `
         SELECT 
@@ -139,8 +236,11 @@ async function getDocumentStats(params) {
     } else if (specCode) {
         sql += 'spec_code = $1';
         values.push(specCode);
+    } else if (facilityId) {
+        sql += 'facility_id = $1';
+        values.push(facilityId);
     } else {
-        throw new Error('必须提供 assetCode, spaceCode 或 specCode 之一');
+        throw new Error('必须提供 assetCode, spaceCode, specCode 或 facilityId 之一');
     }
 
     const result = await query(sql, values);
@@ -148,6 +248,7 @@ async function getDocumentStats(params) {
 }
 
 export {
+    resolveDocumentFacilityId,
     getDocuments,
     getDocumentById,
     createDocument,
@@ -157,6 +258,7 @@ export {
 };
 
 export default {
+    resolveDocumentFacilityId,
     getDocuments,
     getDocumentById,
     createDocument,

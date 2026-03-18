@@ -17,6 +17,8 @@ import pg from 'pg';
 import config from '../config/index.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/auth.js';
+import facilityModel from '../models/facility.js';
+import { ApiError } from '../middleware/error-handler.js';
 
 
 const { Pool } = pg;
@@ -30,6 +32,24 @@ function getDbPool() {
         _dbPool = new Pool(config.database);
     }
     return _dbPool;
+}
+
+async function ensureFacilityExists(facilityId) {
+    if (facilityId === undefined || facilityId === null || facilityId === '') {
+        return null;
+    }
+
+    const parsedId = Number.parseInt(facilityId, 10);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+        throw ApiError.badRequest('facilityId 必须是正整数');
+    }
+
+    const facility = await facilityModel.getFacilityById(parsedId);
+    if (!facility) {
+        throw ApiError.notFound('指定的 facility 不存在');
+    }
+
+    return parsedId;
 }
 
 /**
@@ -161,7 +181,7 @@ const upload = multer({
  */
 router.post('/upload', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload.single('file'), async (req, res) => {
     try {
-        const { title } = req.body;
+        const { title, facilityId, displayOrder } = req.body;
         const file = req.file;
 
         if (!title) {
@@ -172,6 +192,16 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload
 
         if (!file) {
             return res.status(400).json({ success: false, error: '请选择要上传的文件' });
+        }
+
+        const resolvedFacilityId = await ensureFacilityExists(facilityId);
+        const resolvedDisplayOrder = displayOrder === undefined || displayOrder === null || displayOrder === ''
+            ? 0
+            : Number.parseInt(displayOrder, 10);
+
+        if (!Number.isInteger(resolvedDisplayOrder) || resolvedDisplayOrder < 0) {
+            if (file) fs.unlinkSync(file.path);
+            return res.status(400).json({ success: false, error: 'displayOrder 必须是大于等于 0 的整数' });
         }
 
         // 生成唯一文件编码
@@ -190,7 +220,9 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload
             originalName: file.originalname,
             filePath: `/files/${newFileName}`,
             fileSize: file.size,
-            status: 'uploaded'
+            status: 'uploaded',
+            facilityId: resolvedFacilityId,
+            displayOrder: resolvedDisplayOrder,
         });
 
         // 异步创建 Open WebUI 知识库（不阻塞响应）
@@ -211,7 +243,8 @@ router.post('/upload', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload
 
     } catch (error) {
         console.error('文件上传失败:', error);
-        res.status(500).json({ success: false, error: error.message });
+        const status = error instanceof ApiError ? error.statusCode : 500;
+        res.status(status).json({ success: false, error: error.message });
     }
 });
 
@@ -241,12 +274,22 @@ router.get('/upload/check/:identifier', authenticate, authorize(PERMISSIONS.MODE
  */
 router.post('/upload/chunk', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), upload.single('chunk'), async (req, res) => {
     try {
-        const { identifier, chunkIndex, totalChunks, fileName, title } = req.body;
+        const { identifier, chunkIndex, totalChunks, fileName, title, facilityId, displayOrder } = req.body;
         const chunk = req.file;
 
         if (!chunk || !identifier || chunkIndex === undefined) {
             if (chunk) fs.unlinkSync(chunk.path);
             return res.status(400).json({ success: false, error: '缺少必要参数' });
+        }
+
+        const resolvedFacilityId = await ensureFacilityExists(facilityId);
+        const resolvedDisplayOrder = displayOrder === undefined || displayOrder === null || displayOrder === ''
+            ? 0
+            : Number.parseInt(displayOrder, 10);
+
+        if (!Number.isInteger(resolvedDisplayOrder) || resolvedDisplayOrder < 0) {
+            if (chunk) fs.unlinkSync(chunk.path);
+            return res.status(400).json({ success: false, error: 'displayOrder 必须是大于等于 0 的整数' });
         }
 
         // 创建分片目录
@@ -298,7 +341,9 @@ router.post('/upload/chunk', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), 
                 originalName: fileName,
                 filePath: `/files/${newFileName}`,
                 fileSize: stats.size,
-                status: 'uploaded'
+                status: 'uploaded',
+                facilityId: resolvedFacilityId,
+                displayOrder: resolvedDisplayOrder,
             });
 
             // 异步创建 Open WebUI 知识库（不阻塞响应）
@@ -321,7 +366,8 @@ router.post('/upload/chunk', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), 
 
     } catch (error) {
         console.error('分片上传失败:', error);
-        res.status(500).json({ success: false, error: error.message });
+        const status = error instanceof ApiError ? error.statusCode : 500;
+        res.status(status).json({ success: false, error: error.message });
     }
 });
 
@@ -335,10 +381,16 @@ router.post('/upload/chunk', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), 
  */
 router.get('/', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, res) => {
     try {
-        const files = await modelFileModel.getAllModelFiles();
+        const facilityId = req.query.facilityId ? Number.parseInt(req.query.facilityId, 10) : undefined;
+        if (req.query.facilityId && (!Number.isInteger(facilityId) || facilityId <= 0)) {
+            return res.status(400).json({ success: false, error: 'facilityId 必须是正整数' });
+        }
+
+        const files = await modelFileModel.getAllModelFiles({ facilityId });
         res.json({ success: true, data: files });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        const status = error instanceof ApiError ? error.statusCode : 500;
+        res.status(status).json({ success: false, error: error.message });
     }
 });
 
@@ -377,9 +429,9 @@ router.get('/:id', authenticate, authorize(PERMISSIONS.MODEL_READ), async (req, 
  */
 router.put('/:id', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req, res) => {
     try {
-        const { title } = req.body;
-        if (!title) {
-            return res.status(400).json({ success: false, error: '请提供文件标题' });
+        const { title, facilityId, displayOrder } = req.body;
+        if (!title && facilityId === undefined && displayOrder === undefined) {
+            return res.status(400).json({ success: false, error: '请至少提供一个更新字段' });
         }
 
         const file = await modelFileModel.getModelFileById(req.params.id);
@@ -387,12 +439,25 @@ router.put('/:id', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), async (req
             return res.status(404).json({ success: false, error: '文件不存在' });
         }
 
-        const updatedFile = await modelFileModel.updateModelFileTitle(req.params.id, title);
+        const updates = {};
+        if (title) updates.title = title;
+        if (facilityId !== undefined) {
+            updates.facilityId = await ensureFacilityExists(facilityId);
+        }
+        if (displayOrder !== undefined) {
+            const resolvedDisplayOrder = Number.parseInt(displayOrder, 10);
+            if (!Number.isInteger(resolvedDisplayOrder) || resolvedDisplayOrder < 0) {
+                return res.status(400).json({ success: false, error: 'displayOrder 必须是大于等于 0 的整数' });
+            }
+            updates.displayOrder = resolvedDisplayOrder;
+        }
+
+        const updatedFile = await modelFileModel.updateModelFile(req.params.id, updates);
 
         res.json({
             success: true,
             data: updatedFile,
-            message: '标题更新成功'
+            message: '文件信息更新成功'
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

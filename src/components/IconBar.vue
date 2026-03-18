@@ -114,8 +114,8 @@ defineEmits(['switch-view', 'toggle-streams', 'toggle-ai']);
 </script>
 
 <style scoped>
-.icon-bar { 
-  width: 48px; 
+ .icon-bar { 
+  width: 64px; 
   flex-shrink: 0; 
   background: var(--md-sys-color-surface-container); 
   border-right: 1px solid var(--md-sys-color-outline-variant); 

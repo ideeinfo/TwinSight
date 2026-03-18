@@ -135,7 +135,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { WarningFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
@@ -152,7 +151,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const router = useRouter();
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
 
@@ -259,8 +257,6 @@ const handleSubmit = async () => {
         visible.value = false;
         emit('success');
         
-        // 跳转到查看器
-        router.push('/viewer');
       } else {
         errorMessage.value = result.error || t('auth.loginFailed');
       }

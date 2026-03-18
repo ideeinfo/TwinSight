@@ -35,6 +35,9 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <span class="title">{{ t('documents.title') }}</span>
+          <span v-if="isFacilityScoped" class="scope-chip">
+            {{ t('documents.facilityScope', { name: facilityScopeName }) }}
+          </span>
           <!-- 选中工具栏 -->
           <template v-if="selectedIds.length > 0">
             <el-divider direction="vertical" />
@@ -473,6 +476,7 @@
       v-model:visible="isAssociationDialogOpen"
       :files="associationFiles"
       :folder-id="currentFolderId"
+      :facility-id="props.facilityId"
       @success="handleAssociationSuccess"
       @skip="handleAssociationSkip"
     />
@@ -503,6 +507,11 @@ watch(() => themeStore.isDark, () => {
 });
 
 const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+
+const props = defineProps({
+  facilityId: { type: Number, default: null },
+  facilityName: { type: String, default: '' }
+});
 
 // Headers
 const getHeaders = () => {
@@ -578,6 +587,9 @@ const selectedTagIds = ref([]);  // 单文档标签编辑用
 const isBatchTagDialogOpen = ref(false);
 const batchSelectedTagIds = ref([]);
 
+const isFacilityScoped = computed(() => Number.isInteger(props.facilityId) && props.facilityId > 0);
+const facilityScopeName = computed(() => props.facilityName || t('documents.scopeFallback'));
+
 // ========================================
 // 计算属性
 // ========================================
@@ -641,6 +653,7 @@ const loadDocuments = async (append = false) => {
   try {
     const params = new URLSearchParams();
     if (currentFolderId.value) params.set('folderId', currentFolderId.value);
+    if (isFacilityScoped.value) params.set('facilityId', String(props.facilityId));
     // 多标签筛选
     if (filterTagIds.value.length > 0) {
       params.set('tagIds', filterTagIds.value.join(','));
@@ -682,7 +695,11 @@ const loadDocuments = async (append = false) => {
 
 const loadFolders = async () => {
   try {
-    const res = await fetch(`${API_BASE}/api/v2/documents/folders/tree`, { headers: getHeaders() });
+    const params = new URLSearchParams();
+    if (isFacilityScoped.value) {
+      params.set('facilityId', String(props.facilityId));
+    }
+    const res = await fetch(`${API_BASE}/api/v2/documents/folders/tree${params.toString() ? `?${params.toString()}` : ''}`, { headers: getHeaders() });
     const data = await res.json();
     if (data.success) {
       folders.value = flattenTree(data.data);
@@ -1006,6 +1023,7 @@ const directUploadFiles = async (files) => {
   try {
     const formData = new FormData();
     if (currentFolderId.value) formData.append('folderId', currentFolderId.value);
+    if (isFacilityScoped.value) formData.append('facilityId', String(props.facilityId));
     
     for (const f of files) formData.append('files', f.raw || f);
     
@@ -1047,7 +1065,11 @@ const confirmCreateFolder = async () => {
     const res = await fetch(`${API_BASE}/api/v2/documents/folders`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ name: newFolderName.value, parentId })
+      body: JSON.stringify({
+        name: newFolderName.value,
+        parentId,
+        facilityId: isFacilityScoped.value ? props.facilityId : null
+      })
     });
     const data = await res.json();
     if (data.success) {
@@ -1343,6 +1365,13 @@ onMounted(() => {
   loadFolders();
   loadTags();
 });
+
+watch(() => props.facilityId, () => {
+  currentFolderId.value = 'root';
+  selectedIds.value = [];
+  loadDocuments();
+  loadFolders();
+});
 </script>
 
 <style scoped>
@@ -1502,6 +1531,18 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.scope-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  color: var(--md-sys-color-primary);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* 选中的筛选标签 */

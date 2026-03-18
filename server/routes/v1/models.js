@@ -27,14 +27,9 @@ router.get('/',
         try {
             const { facilityId } = req.query;
 
-            let models;
-            if (facilityId) {
-                // 预留：按设施筛选
-                models = await modelFileModel.getAllModelFiles();
-                models = models.filter(m => m.facility_id === facilityId);
-            } else {
-                models = await modelFileModel.getAllModelFiles();
-            }
+            const models = await modelFileModel.getAllModelFiles({
+                facilityId,
+            });
 
             res.json({ success: true, data: models });
         } catch (error) {

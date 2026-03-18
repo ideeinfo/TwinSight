@@ -13,17 +13,34 @@
     </div>
 
     <div class="center-section">
-    <div class="center-section">
-      <!-- Search bar removed -->
-    </div>
+      <slot v-if="hasCenterSlot" name="center"></slot>
+      <nav v-else-if="showConsoleNav" class="console-nav">
+        <button
+          v-for="item in navItems"
+          :key="item.key"
+          type="button"
+          class="console-nav-link"
+          :class="{ active: activeConsoleNav === item.key }"
+          @click="handleConsoleNav(item.path)"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
     </div>
 
     <div class="right-section">
       <!-- 当前视图名称 -->
-      <span v-if="currentViewName" class="current-view-label">{{ currentViewName }}</span>
+      <span v-if="showViewsButton && currentViewName" class="current-view-label">{{ currentViewName }}</span>
 
       <!-- 视图按钮 -->
-      <el-button text class="icon-btn-el" :class="{ active: isViewsPanelOpen }" :title="$t('views.title')" @click="$emit('toggle-views')">
+      <el-button
+        v-if="showViewsButton"
+        text
+        class="icon-btn-el"
+        :class="{ active: isViewsPanelOpen }"
+        :title="$t('views.title')"
+        @click="$emit('toggle-views')"
+      >
         <el-icon :size="18">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7" />
@@ -65,10 +82,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, useSlots } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
-import { useThemeStore } from '../stores/theme';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 import UserDropdown from './UserDropdown.vue';
 import UserManualPanel from './UserManualPanel.vue';
@@ -77,7 +94,9 @@ import UserManualPanel from './UserManualPanel.vue';
 const props = defineProps({
   isViewsPanelOpen: { type: Boolean, default: false },
   currentViewName: { type: String, default: '' },
-  activeFileName: { type: String, default: '' }
+  activeFileName: { type: String, default: '' },
+  showViewsButton: { type: Boolean, default: true },
+  showConsoleNav: { type: Boolean, default: false }
 });
 
 // 计算属性：显示名称（优先使用激活文件名，否则使用默认名称）
@@ -86,18 +105,38 @@ const displayName = computed(() => props.activeFileName || '乐龄汇');
 // 定义事件
 defineEmits(['open-data-export', 'toggle-views']);
 
+const slots = useSlots();
+const route = useRoute();
 const router = useRouter();
-const themeStore = useThemeStore();
-const isDarkTheme = computed(() => themeStore.isDark);
+const authStore = useAuthStore();
+const { t } = useI18n();
 const showManual = ref(false);
 
-const toggleTheme = () => {
-  themeStore.toggleTheme();
-};
+const hasCenterSlot = computed(() => Boolean(slots.center));
+
+const navItems = computed(() => [
+  { key: 'home', label: t('consoleNav.home'), path: '/home' },
+  { key: 'facilities', label: t('consoleNav.facilities'), path: '/facilities' },
+  { key: 'manage', label: t('consoleNav.manage'), path: '/manage' }
+]);
+
+const activeConsoleNav = computed(() => {
+  if (route.path.startsWith('/manage')) return 'manage';
+  if (route.path.startsWith('/facilities')) return 'facilities';
+  if (route.path.startsWith('/home')) return 'home';
+  return '';
+});
 
 // 返回首页
 const goToHome = () => {
-  router.push('/');
+  router.push(authStore.isAuthenticated ? '/home' : '/');
+};
+
+const handleConsoleNav = (path) => {
+  if (route.path === path) {
+    return;
+  }
+  router.push(path);
 };
 </script>
 
@@ -118,6 +157,46 @@ const goToHome = () => {
 .left-section, .center-section, .right-section {
   display: flex;
   align-items: center;
+}
+
+.center-section {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.console-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.console-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.console-nav-link:hover {
+  color: var(--md-sys-color-on-surface);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+}
+
+.console-nav-link.active {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 18%, var(--md-sys-color-surface-container-high));
+  color: var(--md-sys-color-primary);
 }
 
 .right-section {

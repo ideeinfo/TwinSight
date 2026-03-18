@@ -19,8 +19,17 @@ export function generateFileCode() {
 export async function createModelFile(data) {
     const fileCode = data.fileCode || generateFileCode();
     const sql = `
-    INSERT INTO model_files (file_code, title, original_name, file_path, file_size, status)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO model_files (
+      file_code,
+      title,
+      original_name,
+      file_path,
+      file_size,
+      status,
+      facility_id,
+      display_order
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
   `;
     const result = await query(sql, [
@@ -29,7 +38,9 @@ export async function createModelFile(data) {
         data.originalName,
         data.filePath,
         data.fileSize,
-        data.status || 'uploaded'
+        data.status || 'uploaded',
+        data.facilityId || null,
+        data.displayOrder || 0,
     ]);
     return result.rows[0];
 }
@@ -37,12 +48,22 @@ export async function createModelFile(data) {
 /**
  * 获取所有模型文件
  */
-export async function getAllModelFiles() {
+export async function getAllModelFiles(options = {}) {
+    const { facilityId } = options;
+    const params = [];
+    const whereClauses = [];
+
+    if (facilityId) {
+        params.push(facilityId);
+        whereClauses.push(`facility_id = $${params.length}`);
+    }
+
     const sql = `
     SELECT * FROM model_files
-    ORDER BY created_at DESC
+    ${whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+    ORDER BY display_order ASC, created_at DESC, id DESC
   `;
-    const result = await query(sql);
+    const result = await query(sql, params);
     return result.rows;
 }
 
@@ -163,6 +184,47 @@ export async function updateModelFileTitle(id, title) {
     return result.rows[0];
 }
 
+/**
+ * 更新模型文件扩展字段
+ */
+export async function updateModelFile(id, updates) {
+    const allowedFields = {
+        title: 'title',
+        facilityId: 'facility_id',
+        facility_id: 'facility_id',
+        displayOrder: 'display_order',
+        display_order: 'display_order',
+    };
+
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    for (const [key, rawValue] of Object.entries(updates)) {
+        const field = allowedFields[key];
+        if (!field) continue;
+
+        setClauses.push(`${field} = $${paramIndex}`);
+        values.push(rawValue);
+        paramIndex++;
+    }
+
+    if (setClauses.length === 0) {
+        return getModelFileById(id);
+    }
+
+    values.push(id);
+
+    const sql = `
+    UPDATE model_files
+    SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $${paramIndex}
+    RETURNING *
+  `;
+    const result = await query(sql, values);
+    return result.rows[0];
+}
+
 export default {
     generateFileCode,
     createModelFile,
@@ -174,5 +236,6 @@ export default {
     activateModelFile,
     deleteModelFile,
     updateModelFilePath,
-    updateModelFileTitle
+    updateModelFileTitle,
+    updateModelFile,
 };

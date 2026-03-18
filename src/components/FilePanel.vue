@@ -272,6 +272,13 @@ import { importExcelToDb } from '../api/rds';
 const authStore = useAuthStore();
 const { t } = useI18n();
 
+const props = defineProps({
+  facilityId: {
+    type: Number,
+    default: null
+  }
+});
+
 // Helper to get auth headers
 const getHeaders = () => {
   const headers = {};
@@ -391,7 +398,12 @@ const getStatusText = (status) => {
 const loadFiles = async () => {
   isLoading.value = true;
   try {
-    const response = await fetch(`${API_BASE}/api/files`, {
+    const params = new URLSearchParams();
+    if (Number.isInteger(props.facilityId) && props.facilityId > 0) {
+      params.set('facilityId', String(props.facilityId));
+    }
+
+    const response = await fetch(`${API_BASE}/api/files${params.toString() ? `?${params.toString()}` : ''}`, {
       headers: getHeaders()
     });
     const data = await response.json();
@@ -461,6 +473,9 @@ const uploadFile = async () => {
     const formData = new FormData();
     formData.append('title', uploadForm.value.title);
     formData.append('file', uploadForm.value.file);
+    if (Number.isInteger(props.facilityId) && props.facilityId > 0) {
+      formData.append('facilityId', String(props.facilityId));
+    }
 
     const xhr = new XMLHttpRequest();
     

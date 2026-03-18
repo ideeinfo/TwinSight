@@ -10,7 +10,14 @@
 
     <!-- 正常模式 -->
     <div v-else class="app-layout" @mouseup="stopResize" @mouseleave="stopResize">
-      <TopBar :is-views-panel-open="isViewsPanelOpen" :current-view-name="currentViewName" :active-file-name="activeFileName" @open-data-export="openDataExportPanel" @toggle-views="toggleViewsPanel" />
+      <TopBar
+        :is-views-panel-open="isViewsPanelOpen"
+        :current-view-name="currentViewName"
+        :active-file-name="activeFileName"
+        :show-console-nav="true"
+        @open-data-export="openDataExportPanel"
+        @toggle-views="toggleViewsPanel"
+      />
 
       <div ref="mainBody" class="main-body" @mousemove="onMouseMove">
         <!-- 左侧区域：IconBar + 内容面板 -->
@@ -56,6 +63,7 @@
             />
             <FilePanel
               v-else-if="currentView === 'models'"
+              :facility-id="requestedRouteFacilityId"
               @file-activated="onFileActivated"
               @open-data-export="openDataExportPanel"
             />
@@ -72,7 +80,12 @@
         </div>
 
         <!-- 文档管理视图(独立全屏布局) -->
-        <DocumentManager v-if="currentView === 'documents'" class="document-manager-fullscreen" />
+        <DocumentManager
+          v-if="currentView === 'documents'"
+          class="document-manager-fullscreen"
+          :facility-id="requestedRouteFacilityId"
+          :facility-name="requestedRouteFacilityName"
+        />
 
         <div v-if="currentView !== 'documents'" class="resizer" @mousedown="startResize($event, 'left')"></div>
 
@@ -94,6 +107,22 @@
               @model-selection-changed="onModelSelectionChanged"
               @trigger-ai-alert="handleAIAlert"
             />
+            <div v-if="showFacilityEmptyState" class="model-empty-state">
+              <div class="model-empty-card">
+                <div class="model-empty-illustration" aria-hidden="true">
+                  <svg viewBox="0 0 240 180" fill="none">
+                    <rect x="34" y="32" width="172" height="112" rx="18" fill="rgba(135, 209, 235, 0.08)" stroke="rgba(135, 209, 235, 0.42)" stroke-width="2" />
+                    <path d="M66 118L102 86L126 104L162 72L190 96" stroke="rgba(135, 209, 235, 0.8)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                    <rect x="76" y="54" width="88" height="14" rx="7" fill="rgba(255,255,255,0.08)" />
+                    <rect x="76" y="76" width="58" height="10" rx="5" fill="rgba(255,255,255,0.08)" />
+                    <path d="M170 120h26" stroke="rgba(255,255,255,0.18)" stroke-width="4" stroke-linecap="round" />
+                    <path d="M183 108v24" stroke="rgba(255,255,255,0.18)" stroke-width="4" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <strong>{{ $t('viewerEmpty.noModelTitle') }}</strong>
+                <p>{{ $t('viewerEmpty.noModelDescription', { facility: requestedRouteFacilityName || $t('facilities.selectedFacility') }) }}</p>
+              </div>
+            </div>
           </div>
 
           <!-- 底部图表高度调节拖拽条 -->
@@ -202,6 +231,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import AIChatPanel from './components/ai/AIChatPanel.vue';
 import AIAnalysisModal from './components/viewer/AIAnalysisModal.vue';
 import { useAuthStore } from './stores/auth';
@@ -230,6 +260,7 @@ import { triggerTemperatureAlert } from './services/ai-analysis';
 const { getPropertiesFromSelection, formatAssetProperties, formatSpaceProperties } = usePropertySelection();
 
 const authStore = useAuthStore();
+const route = useRoute();
 
 // Helper to get auth headers
 const getHeaders = () => {
@@ -264,9 +295,8 @@ const initPanoCompareMode = async () => {
     
     if (panoFileId.value) {
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
         console.log('🔍 [App] 获取文件列表...');
-        const response = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
+        const response = await fetch(filesApiUrl.value, { headers: getHeaders() });
         const data = await response.json();
         
         if (data.success) {
@@ -351,6 +381,69 @@ const activeFileId = ref(null);
 const activeFileName = ref('');
 const currentViewName = ref('');
 
+const requestedRouteFileId = computed(() => {
+  const raw = route.query.fileId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+});
+
+const requestedRouteViewId = computed(() => {
+  const raw = route.query.viewId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+});
+
+const requestedRoutePanel = computed(() => {
+  const raw = route.query.panel;
+  return Array.isArray(raw) ? raw[0] : raw;
+});
+
+const requestedRouteFacilityId = computed(() => {
+  const raw = route.query.facilityId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+});
+
+const requestedRouteFacilityName = computed(() => {
+  const raw = route.query.facilityName;
+  return Array.isArray(raw) ? raw[0] : raw || '';
+});
+
+const filesApiUrl = computed(() => {
+  const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+  if (requestedRouteFacilityId.value) {
+    return `${API_BASE}/api/files?facilityId=${requestedRouteFacilityId.value}`;
+  }
+  return `${API_BASE}/api/files`;
+});
+
+const pickRequestedOrActiveFile = (files) => {
+  if (!Array.isArray(files) || files.length === 0) {
+    return null;
+  }
+
+  if (requestedRouteFileId.value) {
+    const requestedFile = files.find((file) => file.id === requestedRouteFileId.value);
+    if (requestedFile) {
+      return requestedFile;
+    }
+  }
+
+  return files.find((file) => file.is_active) || null;
+};
+
+const showFacilityEmptyState = computed(() => (
+  Boolean(requestedRouteFacilityId.value) &&
+  !activeFileId.value &&
+  !pendingActiveFile.value &&
+  !currentLoadedModelPath.value &&
+  !isModelLoading.value &&
+  currentView.value !== 'documents'
+));
+
 // 视图面板方法
 const toggleViewsPanel = () => {
   isViewsPanelOpen.value = !isViewsPanelOpen.value;
@@ -376,6 +469,37 @@ const handleCaptureScreenshot = (callback) => {
 const handleRestoreView = (viewData) => {
   if (mainViewRef.value && mainViewRef.value.restoreViewState) {
     mainViewRef.value.restoreViewState(viewData);
+  }
+};
+
+const restoreRequestedRouteView = async (fileId) => {
+  const targetViewId = requestedRouteViewId.value;
+  if (!targetViewId || requestedRouteFileId.value !== fileId) {
+    return false;
+  }
+
+  try {
+    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const viewRes = await fetch(`${API_BASE}/api/views/${targetViewId}`, { headers: getHeaders() });
+    const viewData = await viewRes.json();
+    if (!viewData.success || !viewData.data || !mainViewRef.value?.restoreViewState) {
+      return false;
+    }
+
+    currentViewName.value = viewData.data.name || '';
+
+    if (mainViewRef.value?.onModelReady) {
+      mainViewRef.value.onModelReady(() => {
+        mainViewRef.value.restoreViewState(viewData.data);
+      });
+    } else {
+      mainViewRef.value.restoreViewState(viewData.data);
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('⚠️ [App] 恢复路由指定视图失败:', error);
+    return false;
   }
 };
 
@@ -568,13 +692,13 @@ const onViewerReady = async () => {
       console.log('🔍 [App] 开始获取文件列表...');
       try {
         const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
-        const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
+        const filesRes = await fetch(filesApiUrl.value, { headers: getHeaders() });
         const filesData = await filesRes.json();
         
         if (filesData.success && filesData.data.length > 0) {
-          const activeFile = filesData.data.find(f => f.is_active);
+          const activeFile = pickRequestedOrActiveFile(filesData.data);
           if (activeFile) {
-            console.log('🔍 [App] 找到激活文件:', activeFile.title);
+            console.log('🔍 [App] 找到目标文件:', activeFile.title);
             
             // 🔑 检查是否已经在加载或已加载同一个模型
             if (currentLoadedModelPath.value === activeFile.extracted_path) {
@@ -644,40 +768,39 @@ const onViewerReady = async () => {
               await mainViewRef.value.loadNewModel(activeFile.extracted_path);
               console.log('✅ [App] loadNewModel 返回（Promise resolved）');
               
-              // 🏠 检查并恢复默认视图
+              // 🏠 优先恢复路由指定视图，其次恢复默认视图
               try {
-                const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`, { headers: getHeaders() });
-                const defaultViewData = await defaultViewRes.json();
-                if (defaultViewData.success && defaultViewData.data) {
-                  console.log('🏠 [App] 找到默认视图，正在恢复:', defaultViewData.data.name);
-                  
-                  // 🔑 更新 currentViewName 让 TopBar 显示视图名称
-                  currentViewName.value = defaultViewData.data.name;
-                  
-                  // 🔑 更新激活文件信息让 ViewsPanel 同步
-                  activeFileId.value = activeFile.id;
-                  activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
-                  
-                  // 获取完整视图数据
-                  const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
-                  const fullViewData = await fullViewRes.json();
-                  if (fullViewData.success && mainViewRef.value?.restoreViewState) {
-                    // 使用事件驱动的方式恢复视图，确保模型完全就绪
-                    if (mainViewRef.value?.onModelReady) {
-                      console.log('⏳ [App] 等待模型就绪后恢复视图...');
-                      mainViewRef.value.onModelReady(() => {
-                        console.log('🔄 [App] 模型已就绪，正在恢复默认视图...');
+                const restoredRouteView = await restoreRequestedRouteView(activeFile.id);
+                if (!restoredRouteView) {
+                  const defaultViewRes = await fetch(`${API_BASE}/api/views/default?fileId=${activeFile.id}`, { headers: getHeaders() });
+                  const defaultViewData = await defaultViewRes.json();
+                  if (defaultViewData.success && defaultViewData.data) {
+                    console.log('🏠 [App] 找到默认视图，正在恢复:', defaultViewData.data.name);
+                    
+                    currentViewName.value = defaultViewData.data.name;
+                    activeFileId.value = activeFile.id;
+                    activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
+                    
+                    const fullViewRes = await fetch(`${API_BASE}/api/views/${defaultViewData.data.id}`, { headers: getHeaders() });
+                    const fullViewData = await fullViewRes.json();
+                    if (fullViewData.success && mainViewRef.value?.restoreViewState) {
+                      if (mainViewRef.value?.onModelReady) {
+                        console.log('⏳ [App] 等待模型就绪后恢复视图...');
+                        mainViewRef.value.onModelReady(() => {
+                          console.log('🔄 [App] 模型已就绪，正在恢复默认视图...');
+                          mainViewRef.value.restoreViewState(fullViewData.data);
+                          console.log('✅ [App] 默认视图已恢复');
+                        });
+                      } else {
                         mainViewRef.value.restoreViewState(fullViewData.data);
-                        console.log('✅ [App] 默认视图已恢复');
-                      });
-                    } else {
-                      // 后备方案：直接恢复
-                      mainViewRef.value.restoreViewState(fullViewData.data);
+                      }
                     }
+                  } else {
+                    console.log('ℹ️ [App] 没有设置默认视图，使用模型默认状态');
+                    activeFileId.value = activeFile.id;
+                    activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
                   }
                 } else {
-                  console.log('ℹ️ [App] 没有设置默认视图，使用模型默认状态');
-                  // 没有默认视图时也更新激活文件信息
                   activeFileId.value = activeFile.id;
                   activeFileName.value = activeFile.title || activeFile.name || 'Untitled';
                 }
@@ -690,6 +813,12 @@ const onViewerReady = async () => {
               return;
             }
           }
+        } else if (requestedRouteFacilityId.value) {
+          console.log('ℹ️ [App] 当前设施暂无模型文件，显示空状态');
+          activeFileId.value = null;
+          activeFileName.value = requestedRouteFacilityName.value || '';
+          isModelLoading.value = false;
+          return;
         }
       } catch (e) {
         console.warn('⚠️ 无法获取激活文件，加载默认模型', e);
@@ -1059,6 +1188,16 @@ const switchView = (view, preserveSelection = false) => {
   // 温度标签和热力图按钮现在是全局的，不受视图切换影响
   // 由用户通过按钮控制显示/隐藏
 };
+
+watch(
+  () => requestedRoutePanel.value,
+  (panel) => {
+    if (typeof panel === 'string' && ['documents', 'models', 'assets', 'spaces', 'connect', 'rds'].includes(panel) && currentView.value !== panel) {
+      switchView(panel);
+    }
+  },
+  { immediate: true }
+);
 
 // 重新加载当前文件的资产（用于删除资产后刷新）
 const reloadCurrentFileAssets = async () => {
@@ -2084,12 +2223,13 @@ watch(isChartPanelOpen, () => {
 
 // 组件挂载时加载激活的文件及其数据
 onMounted(async () => {
+  document.documentElement.classList.add('viewer-page');
+  document.body.classList.add('viewer-page-body');
+  document.getElementById('app')?.classList.add('viewer-app');
+
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
-    
     // 获取所有文件列表，找到激活的文件
-    // 获取所有文件列表，找到激活的文件
-    const filesRes = await fetch(`${API_BASE}/api/files`, { headers: getHeaders() });
+    const filesRes = await fetch(filesApiUrl.value, { headers: getHeaders() });
     const filesData = await filesRes.json();
     
     if (filesData.success && filesData.data.length > 0) {
@@ -2097,29 +2237,52 @@ onMounted(async () => {
       const activeFile = filesData.data.find(f => f.is_active);
       
       if (activeFile) {
-        console.log('📦 发现激活的文件:', activeFile.title || activeFile.filename);
+        console.log('📦 发现目标文件:', activeFile.title || activeFile.filename);
         
         // 加载该文件的数据
         await onFileActivated(activeFile);
         
         console.log('✅ 已加载激活文件的数据');
       } else {
-        console.log('⚠️ 没有激活的文件，加载默认数据');
-        await loadDataFromDatabase();
+        console.log('⚠️ 没有激活的文件');
+        if (requestedRouteFacilityId.value) {
+          activeFileId.value = null;
+          activeFileName.value = requestedRouteFacilityName.value || '';
+          isModelLoading.value = false;
+        } else {
+          console.log('⚠️ 加载默认数据');
+          await loadDataFromDatabase();
+        }
       }
     } else {
-      console.log('⚠️ 没有文件，加载默认数据');
-      await loadDataFromDatabase();
+      console.log('⚠️ 没有文件');
+      if (requestedRouteFacilityId.value) {
+        activeFileId.value = null;
+        activeFileName.value = requestedRouteFacilityName.value || '';
+        isModelLoading.value = false;
+      } else {
+        console.log('⚠️ 加载默认数据');
+        await loadDataFromDatabase();
+      }
     }
   } catch (error) {
     console.error('❌ 初始化加载失败:', error);
     // 回退到默认加载
-    await loadDataFromDatabase();
+    if (requestedRouteFacilityId.value) {
+      activeFileId.value = null;
+      activeFileName.value = requestedRouteFacilityName.value || '';
+      isModelLoading.value = false;
+    } else {
+      await loadDataFromDatabase();
+    }
   }
 });
 
 onUnmounted(() => {
   stopResize();
+  document.documentElement.classList.remove('viewer-page');
+  document.body.classList.remove('viewer-page-body');
+  document.getElementById('app')?.classList.remove('viewer-app');
 });
 </script>
 
@@ -2134,8 +2297,26 @@ onUnmounted(() => {
 }
 
 * { box-sizing: border-box; }
-body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #1e1e1e; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-#app { height: 100vh; width: 100vw; display: flex; flex-direction: column; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+html.viewer-page,
+body.viewer-page-body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #1e1e1e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#app.viewer-app {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
 .app-layout { display: flex; flex-direction: column; height: 100%; width: 100%; }
 .main-body { display: flex; flex: 1; overflow: hidden; position: relative; width: 100%; }
 .panel-wrapper { flex-shrink: 0; height: 100%; overflow: hidden; position: relative; z-index: 20; transition: width 0.05s ease-out; }
@@ -2144,6 +2325,62 @@ body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden;
 .main-content { flex: 1; min-width: 0; height: 100%; position: relative; z-index: 10; display: flex; flex-direction: column; }
 .document-manager-fullscreen { flex: 1; min-width: 0; height: 100%; overflow: hidden; }
 .viewer-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; }
+.model-empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, rgba(135, 209, 235, 0.08), transparent 42%);
+  pointer-events: none;
+}
+.model-empty-card {
+  width: min(520px, 100%);
+  padding: 28px 28px 24px;
+  border-radius: 18px;
+  background: rgba(20, 23, 26, 0.82);
+  border: 1px solid rgba(135, 209, 235, 0.16);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  text-align: center;
+  color: #e7e7e7;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+.model-empty-illustration {
+  width: min(240px, 100%);
+  margin: 0 auto 18px;
+}
+.model-empty-illustration svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.model-empty-card strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+.model-empty-card p {
+  margin: 0 0 20px;
+  color: rgba(227, 227, 227, 0.78);
+  line-height: 1.6;
+}
+.model-empty-action {
+  min-width: 140px;
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: #87d1eb;
+  color: #10212a;
+  font-weight: 700;
+  cursor: pointer;
+}
+.model-empty-action:hover {
+  filter: brightness(1.05);
+}
 .bottom-chart-wrapper { width: 100%; overflow: hidden; transition: height 0.3s ease; border-top: 1px solid #333; }
 .resizer { width: 5px; background: #111; cursor: col-resize; flex-shrink: 0; z-index: 50; transition: background 0.2s; }
 .resizer:hover, .resizer:active { background: #0078d4; }

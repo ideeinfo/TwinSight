@@ -151,6 +151,10 @@ const props = defineProps({
   folderId: {
     type: [Number, String],
     default: null
+  },
+  facilityId: {
+    type: [Number, String],
+    default: null
   }
 });
 
@@ -338,6 +342,9 @@ async function handleConfirm() {
     const formData = new FormData();
     if (props.folderId) {
       formData.append('folderId', props.folderId);
+    }
+    if (props.facilityId) {
+      formData.append('facilityId', props.facilityId);
     }
     for (const file of props.files) {
       // 支持 Element Plus Upload 的 file 对象 (有 raw 属性) 或原生 File 对象

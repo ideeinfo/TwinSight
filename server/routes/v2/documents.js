@@ -12,8 +12,22 @@ import { PERMISSIONS } from '../../config/auth.js';
 import appConfig from '../../config/index.js';
 import { processNewDocument, processExistingDocuments } from '../../services/document-intelligence-service.js';
 import { matchFileNames, searchObjects } from '../../services/document-matching-service.js';
+import documentModel from '../../models/document.js';
 
 const router = Router();
+
+function parseOptionalFacilityId(rawValue) {
+    if (rawValue === undefined || rawValue === null || rawValue === '') {
+        return null;
+    }
+    const parsed = parseInt(rawValue, 10);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+        const error = new Error('facilityId 必须是正整数');
+        error.statusCode = 400;
+        throw error;
+    }
+    return parsed;
+}
 
 // 文件上传配置
 const storage = multer.diskStorage({
@@ -51,9 +65,10 @@ router.get('/',
         try {
             const {
                 objectType, objectCode,
-                folderId, businessType, tagId, tagIds,
+                folderId, businessType, tagId, tagIds, facilityId,
                 page = 1, pageSize = 50
             } = req.query;
+            const parsedFacilityId = parseOptionalFacilityId(facilityId);
 
             console.log('[Documents V2 GET] Query params:', { objectType, objectCode, folderId, businessType, tagId, tagIds });
 
@@ -163,6 +178,11 @@ router.get('/',
                 values.push(businessType);
             }
 
+            if (parsedFacilityId) {
+                conditions.push(`d.facility_id = $${paramIndex++}`);
+                values.push(parsedFacilityId);
+            }
+
             // 按标签筛选 (仅在标签表存在时，支持多标签)
             if (hasTagFilter && hasTagsTable) {
                 sql = sql.replace('FROM documents d', 
@@ -230,6 +250,11 @@ router.get('/',
                 countSql += countSql.includes('WHERE') ? ` AND d.business_type = $${countParamIndex++}` : ` WHERE d.business_type = $${countParamIndex++}`;
                 countValues.push(businessType);
             }
+
+            if (parsedFacilityId) {
+                countSql += countSql.includes('WHERE') ? ` AND d.facility_id = $${countParamIndex++}` : ` WHERE d.facility_id = $${countParamIndex++}`;
+                countValues.push(parsedFacilityId);
+            }
             
             console.log('[Documents V2 GET] Count SQL:', countSql);
             console.log('[Documents V2 GET] Count values:', countValues);
@@ -239,17 +264,61 @@ router.get('/',
             // 获取当前文件夹下的子文件夹 (标签筛选时不显示子文件夹)
             let subfolders = [];
             if (!hasTagFilter) {
-                const folderCondition = folderId && folderId !== 'root'
-                    ? `parent_id = $1`
-                    : `parent_id IS NULL`;
-                const folderValues = folderId && folderId !== 'root' ? [parseInt(folderId)] : [];
+                const folderValues = [];
+                const folderConditions = [];
+                let folderParamIndex = 1;
+
+                if (folderId && folderId !== 'root') {
+                    folderConditions.push(`f.parent_id = $${folderParamIndex++}`);
+                    folderValues.push(parseInt(folderId));
+                } else {
+                    folderConditions.push(`f.parent_id IS NULL`);
+                }
+
+                let documentCountFilter = '';
+                let subfolderCountFilter = '';
+
+                if (parsedFacilityId) {
+                    folderValues.push(parsedFacilityId);
+                    const facilityParam = `$${folderParamIndex++}`;
+                    folderConditions.push(`
+                        (
+                            f.facility_id = ${facilityParam}
+                            OR (
+                                f.facility_id IS NULL
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM documents d_scope
+                                    WHERE d_scope.folder_id = f.id
+                                      AND d_scope.facility_id = ${facilityParam}
+                                )
+                            )
+                        )
+                    `);
+                    documentCountFilter = `AND d.facility_id = ${facilityParam}`;
+                    subfolderCountFilter = `
+                        AND (
+                            cf.facility_id = ${facilityParam}
+                            OR (
+                                cf.facility_id IS NULL
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM documents d_sub
+                                    WHERE d_sub.folder_id = cf.id
+                                      AND d_sub.facility_id = ${facilityParam}
+                                )
+                            )
+                        )
+                    `;
+                }
+
                 const subfoldersResult = await query(`
                     SELECT 
                         id, name, parent_id, created_at,
-                        (SELECT COUNT(*) FROM documents WHERE folder_id = f.id) as document_count,
-                        (SELECT COUNT(*) FROM document_folders WHERE parent_id = f.id) as subfolder_count
+                        (SELECT COUNT(*) FROM documents d WHERE d.folder_id = f.id ${documentCountFilter}) as document_count,
+                        (SELECT COUNT(*) FROM document_folders cf WHERE cf.parent_id = f.id ${subfolderCountFilter}) as subfolder_count
                     FROM document_folders f
-                    WHERE ${folderCondition}
+                    WHERE ${folderConditions.join(' AND ')}
                     ORDER BY name ASC
                 `, folderValues);
                 subfolders = subfoldersResult.rows;
@@ -386,16 +455,33 @@ router.post('/',
                 return res.status(400).json({ success: false, error: '请上传文件' });
             }
 
-            const { title, folderId, businessType, associations } = req.body;
+            const { title, folderId, businessType, associations, facilityId } = req.body;
             // 处理文件名乱码 (multer 默认 latin1)
             const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
             const fileType = path.extname(originalName).slice(1).toLowerCase();
             const relativePath = '/data/documents/' + file.filename;
+            let resolvedFacilityId = facilityId ? parseInt(facilityId) : null;
+
+            if (!resolvedFacilityId && associations) {
+                try {
+                    const assocArray = JSON.parse(associations);
+                    const firstResolvable = assocArray.find(item => ['asset', 'space', 'spec'].includes(item.type));
+                    if (firstResolvable) {
+                        resolvedFacilityId = await documentModel.resolveDocumentFacilityId({
+                            assetCode: firstResolvable.type === 'asset' ? firstResolvable.code : null,
+                            spaceCode: firstResolvable.type === 'space' ? firstResolvable.code : null,
+                            specCode: firstResolvable.type === 'spec' ? firstResolvable.code : null,
+                        });
+                    }
+                } catch (error) {
+                    console.warn('[Documents V2] Failed to resolve facility from associations:', error.message);
+                }
+            }
 
             // 创建文档记录
             const docResult = await query(`
-        INSERT INTO documents (title, file_name, file_path, file_size, file_type, mime_type, folder_id, business_type)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO documents (title, file_name, file_path, file_size, file_type, mime_type, folder_id, business_type, facility_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `, [
                 title || originalName,
@@ -405,7 +491,8 @@ router.post('/',
                 fileType,
                 file.mimetype,
                 folderId ? parseInt(folderId) : null,
-                businessType || null
+                businessType || null,
+                resolvedFacilityId
             ]);
 
             const doc = docResult.rows[0];
@@ -554,10 +641,12 @@ router.post('/batch',
                 return res.status(400).json({ success: false, error: '请上传文件' });
             }
 
-            const { folderId, associations } = req.body;
+            const { folderId, associations, facilityId } = req.body;
             // 安全解析 folderId，确保是有效整数或 null
             const parsedFolderId = folderId ? parseInt(folderId, 10) : null;
             const safeFolderId = Number.isNaN(parsedFolderId) ? null : parsedFolderId;
+            const parsedFacilityId = facilityId ? parseInt(facilityId, 10) : null;
+            const safeFacilityId = Number.isNaN(parsedFacilityId) ? null : parsedFacilityId;
             const results = [];
 
             for (const file of files) {
@@ -567,8 +656,8 @@ router.post('/batch',
                 const relativePath = '/data/documents/' + file.filename;
 
                 const docResult = await query(`
-          INSERT INTO documents (title, file_name, file_path, file_size, file_type, mime_type, folder_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO documents (title, file_name, file_path, file_size, file_type, mime_type, folder_id, facility_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *
         `, [
                     originalName,
@@ -577,7 +666,8 @@ router.post('/batch',
                     file.size,
                     fileType,
                     file.mimetype,
-                    safeFolderId
+                    safeFolderId,
+                    safeFacilityId
                 ]);
 
                 results.push(docResult.rows[0]);
@@ -627,7 +717,7 @@ router.patch('/:id',
             const checkResult = await query('SELECT id, title, folder_id FROM documents WHERE id = $1', [docId]);
             console.log('[PATCH /documents/:id] Document check result:', checkResult.rows);
 
-            const { title, folderId, businessType } = req.body;
+            const { title, folderId, businessType, facilityId } = req.body;
 
             const updates = [];
             const values = [];
@@ -644,6 +734,10 @@ router.patch('/:id',
             if (businessType !== undefined) {
                 updates.push(`business_type = $${idx++}`);
                 values.push(businessType);
+            }
+            if (facilityId !== undefined) {
+                updates.push(`facility_id = $${idx++}`);
+                values.push(facilityId ? parseInt(facilityId) : null);
             }
 
             if (updates.length === 0) {
@@ -767,13 +861,53 @@ router.get('/folders/tree',
     authenticate,
     async (req, res, next) => {
         try {
+            const facilityId = parseOptionalFacilityId(req.query.facilityId);
+            const values = [];
+            let whereClause = '';
+            let documentCountFilter = '';
+            let subfolderCountFilter = '';
+
+            if (facilityId) {
+                values.push(facilityId);
+                whereClause = `
+                    WHERE (
+                        f.facility_id = $1
+                        OR (
+                            f.facility_id IS NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM documents d_scope
+                                WHERE d_scope.folder_id = f.id
+                                  AND d_scope.facility_id = $1
+                            )
+                        )
+                    )
+                `;
+                documentCountFilter = 'AND d.facility_id = $1';
+                subfolderCountFilter = `
+                    AND (
+                        cf.facility_id = $1
+                        OR (
+                            cf.facility_id IS NULL
+                            AND EXISTS (
+                                SELECT 1
+                                FROM documents d_sub
+                                WHERE d_sub.folder_id = cf.id
+                                  AND d_sub.facility_id = $1
+                            )
+                        )
+                    )
+                `;
+            }
+
             const result = await query(`
         SELECT f.*, 
-          (SELECT COUNT(*) FROM documents d WHERE d.folder_id = f.id) as document_count,
-          (SELECT COUNT(*) FROM document_folders cf WHERE cf.parent_id = f.id) as subfolder_count
+          (SELECT COUNT(*) FROM documents d WHERE d.folder_id = f.id ${documentCountFilter}) as document_count,
+          (SELECT COUNT(*) FROM document_folders cf WHERE cf.parent_id = f.id ${subfolderCountFilter}) as subfolder_count
         FROM document_folders f
+        ${whereClause}
         ORDER BY f.name
-      `);
+      `, values);
 
             // 构建树结构
             const folders = result.rows;
@@ -808,6 +942,7 @@ router.post('/folders',
     async (req, res, next) => {
         try {
             const { name, parentId } = req.body;
+            const facilityId = parseOptionalFacilityId(req.body.facilityId);
 
             if (!name) {
                 return res.status(400).json({ success: false, error: '请提供文件夹名称' });
@@ -815,18 +950,24 @@ router.post('/folders',
 
             // 构建路径
             let folderPath = '/' + name;
+            let resolvedFacilityId = facilityId;
             if (parentId) {
-                const parentResult = await query('SELECT path FROM document_folders WHERE id = $1', [parentId]);
+                const parentResult = await query('SELECT path, facility_id FROM document_folders WHERE id = $1', [parentId]);
                 if (parentResult.rows.length > 0) {
                     folderPath = parentResult.rows[0].path + '/' + name;
+                    const parentFacilityId = parentResult.rows[0].facility_id;
+                    if (facilityId && parentFacilityId && facilityId !== parentFacilityId) {
+                        return res.status(400).json({ success: false, error: '不能跨设施创建文件夹层级' });
+                    }
+                    resolvedFacilityId = facilityId || parentFacilityId || null;
                 }
             }
 
             const result = await query(`
-        INSERT INTO document_folders (name, parent_id, path)
-        VALUES ($1, $2, $3)
+        INSERT INTO document_folders (name, parent_id, path, facility_id)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
-      `, [name, parentId || null, folderPath]);
+      `, [name, parentId || null, folderPath, resolvedFacilityId]);
 
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
@@ -845,6 +986,11 @@ router.patch('/folders/:id',
     async (req, res, next) => {
         try {
             const { name, parentId } = req.body;
+            const currentFolderResult = await query('SELECT facility_id FROM document_folders WHERE id = $1', [req.params.id]);
+            if (currentFolderResult.rows.length === 0) {
+                return res.status(404).json({ success: false, error: '文件夹不存在' });
+            }
+            const currentFacilityId = currentFolderResult.rows[0].facility_id;
 
             const updates = [];
             const values = [];
@@ -855,6 +1001,16 @@ router.patch('/folders/:id',
                 values.push(name);
             }
             if (parentId !== undefined) {
+                if (parentId) {
+                    const parentResult = await query('SELECT facility_id FROM document_folders WHERE id = $1', [parentId]);
+                    if (parentResult.rows.length === 0) {
+                        return res.status(404).json({ success: false, error: '目标文件夹不存在' });
+                    }
+                    const parentFacilityId = parentResult.rows[0].facility_id;
+                    if ((currentFacilityId || null) !== (parentFacilityId || null)) {
+                        return res.status(400).json({ success: false, error: '不能移动到其他设施的文件夹中' });
+                    }
+                }
                 updates.push(`parent_id = $${idx++}`);
                 values.push(parentId || null);
             }
