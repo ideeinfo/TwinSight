@@ -11,8 +11,7 @@ dist
 dist-ssr
 
 # Environment Variables (CRITICAL: Do not uncomment)
-.env
-.env.*
+.env*
 !.env.example
 
 # Editor directories and files
@@ -33,6 +32,19 @@ server/temp
 .agent
 
 # 用户上传的数据（不提交到 Git）
+public/*
+!public/TS_dark_appstore_1024.png
+!public/TS_light_appstore_1024.png
+!public/vite.svg
+!public/docs/
+!public/docs/.gitkeep
+!public/models/
+!public/models/.gitkeep
+!public/files/
+!public/files/.gitkeep
+!public/data/
+!public/data/.gitkeep
+
 public/models/*
 public/docs/*
 public/files/*
