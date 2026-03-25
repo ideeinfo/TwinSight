@@ -1,0 +1,19 @@
+{
+  "buttonBlacklist": [
+    "Delete", "Remove", "Reset", "Confirm", "Submit",
+    "Save", "Apply", "OK", "Yes", "No", "Publish",
+    "Logout", "Sign Out", "Log Out",
+    "Update", "Cancel"
+  ],
+  "maxModalsPerPage": 15,
+  "maxRowClicks": 3,
+  "clickTableRows": true,
+  "modalCloseStrategies": [
+    "button:has-text('Cancel')",
+    "button:has-text('Close')",
+    "[aria-label='Close']",
+    "Escape"
+  ],
+  "waitAfterClick": 2000,
+  "screenshotOnCapture": true
+}

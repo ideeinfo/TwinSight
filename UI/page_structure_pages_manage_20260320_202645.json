@@ -1,0 +1,813 @@
+{
+  "url": "https://tandem.autodesk.com/pages/manage",
+  "title": "Autodesk Tandem",
+  "timestamp": "2026-03-20T20:26:45.096937+08:00",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "elements": {
+    "inputs": [
+      {
+        "tagName": "INPUT",
+        "type": "search",
+        "innerText": "",
+        "value": "",
+        "placeholder": "Search",
+        "id": "",
+        "name": "",
+        "className": "StyledTextInput-sc-1x30a0s-0 ecXXwX sc-dibcMh lSjPb",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "9px 9px 9px 40px",
+          "margin": "0px",
+          "borderRadius": "2px",
+          "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 2px 2px",
+          "position": "static",
+          "display": "inline-block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1581,
+          "y": 287,
+          "width": 318,
+          "height": 34
+        }
+      }
+    ],
+    "buttons": [
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 jInfLe",
+        "role": "",
+        "ariaLabel": "Open Drop",
+        "dataTestId": "notifications-button",
+        "href": "",
+        "disabled": true,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "8px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1759.5,
+          "y": 0,
+          "width": 40,
+          "height": 52
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 dKGSeA",
+        "role": "",
+        "ariaLabel": "Open Drop",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "8px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1802,
+          "y": 0,
+          "width": 40,
+          "height": 52
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "韦翟",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 dKGSeA",
+        "role": "",
+        "ariaLabel": "User Menu",
+        "dataTestId": "user-menu-button",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1852,
+          "y": 0,
+          "width": 58,
+          "height": 52
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 folFnk",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "10px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1850,
+          "y": 154,
+          "width": 38,
+          "height": 38
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "Add Facility Template",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kooaYo",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgb(56, 171, 223)",
+          "fontSize": "12px",
+          "border": "1px solid rgb(56, 171, 223)",
+          "color": "rgb(0, 0, 0)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "3px 18px",
+          "margin": "0px",
+          "borderRadius": "2px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 89,
+          "y": 286,
+          "width": 158.75,
+          "height": 24
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "Name",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kMBvcS Header__StyledHeaderCellButton-sc-1baku5q-0 cIlEKP",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 94,
+          "y": 347,
+          "width": 416.11,
+          "height": 24
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "Description",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kMBvcS Header__StyledHeaderCellButton-sc-1baku5q-0 cIlEKP",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 520.11,
+          "y": 349,
+          "width": 416.11,
+          "height": 20
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "In Use",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kMBvcS Header__StyledHeaderCellButton-sc-1baku5q-0 cIlEKP",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 946.22,
+          "y": 349,
+          "width": 203.05,
+          "height": 20
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "Classification",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kMBvcS Header__StyledHeaderCellButton-sc-1baku5q-0 cIlEKP",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1159.27,
+          "y": 349,
+          "width": 416.11,
+          "height": 20
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "Parameters",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 kMBvcS Header__StyledHeaderCellButton-sc-1baku5q-0 cIlEKP",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1585.38,
+          "y": 349,
+          "width": 203.05,
+          "height": 20
+        }
+      },
+      {
+        "tagName": "BUTTON",
+        "type": "button",
+        "innerText": "",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledButton-sc-323bzc-0 fZCFaf",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": true,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(220, 220, 220)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "static",
+          "display": "block",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 1874,
+          "y": 433.5,
+          "width": 16,
+          "height": 16
+        }
+      }
+    ],
+    "selects": [],
+    "tables": [
+      {
+        "tagName": "TABLE",
+        "type": "",
+        "innerText": "Name\n\t\nDescription\n\t\nIn Use\n\t\nClassification\n\t\nParameters\n\t\n\n\n测试\n\t\n\t\n0\n\t\nCAClass-20241024\n\t\n0\n\t\n\n\nCAClass-20241024\n\t\n\t\n1\n\t\nCAClass-20241024\n\t\n18\n\t\n\n\ndemo\n\t\ndemo\n\t\n1\n\t\ndemo\n\t\n3\n\t\n\n\nREC Sample - TC\n\t\nTandem Connect Test\n\t\n1\n\t\nReal Estate Core\n\t\n16\n\t\n\n\nSample Template - Eptura\n\t\n\t\n0\n\t\nEptura\n\t\n12\n\t\n\n\nSample Template - Eptura Asset (Legacy)\n\t\n\t\n0\n\t\nEptura Asset (Legacy)\n\t\n8\n\t\n\n\nSample Template - Masterformat\n\t\n\t\n0\n\t\nMasterformat\n\t\n22\n\t\n\n\nSample Template - REC\n\t\nReal Estate Core\n\t\n1\n\t\nReal Estate Cor",
+        "value": "",
+        "placeholder": "",
+        "id": "",
+        "name": "",
+        "className": "StyledTable-sc-1m3u5g-6 gCgSrX StyledDataTable-sc-xrlyjm-0 WEKbg sc-kDXjwZ bURKdX",
+        "role": "",
+        "ariaLabel": "",
+        "dataTestId": "",
+        "href": "",
+        "disabled": false,
+        "readOnly": false,
+        "styles": {
+          "backgroundColor": "rgba(0, 0, 0, 0)",
+          "fontSize": "12px",
+          "border": "0px none rgb(128, 128, 128)",
+          "color": "rgb(220, 220, 220)",
+          "fontFamily": "ArtifaktElement",
+          "fontWeight": "500",
+          "padding": "0px",
+          "margin": "0px",
+          "borderRadius": "0px",
+          "boxShadow": "none",
+          "position": "relative",
+          "display": "table",
+          "zIndex": "auto"
+        },
+        "boundingBox": {
+          "x": 89,
+          "y": 337,
+          "width": 1811,
+          "height": 445
+        },
+        "tableInfo": {
+          "rowCount": 11,
+          "colCount": 6,
+          "headers": [
+            "Name",
+            "Description",
+            "In Use",
+            "Classification",
+            "Parameters",
+            ""
+          ],
+          "caption": ""
+        }
+      }
+    ],
+    "modals": []
+  },
+  "dynamicElements": {
+    "modals": [
+      {
+        "trigger": "Add Facility Template",
+        "modal": {
+          "title": "",
+          "fields": [
+            {
+              "label": "Name",
+              "required": true,
+              "type": "text",
+              "placeholder": "Name",
+              "value": "",
+              "tagName": "INPUT",
+              "role": ""
+            },
+            {
+              "label": "Classification",
+              "required": false,
+              "type": "text",
+              "placeholder": "Select classification",
+              "value": "Tandem Categories (built-in)",
+              "tagName": "INPUT",
+              "role": ""
+            },
+            {
+              "label": "Description",
+              "required": false,
+              "type": "textarea",
+              "placeholder": "Description",
+              "value": "",
+              "tagName": "TEXTAREA",
+              "role": ""
+            }
+          ],
+          "buttons": [
+            {
+              "text": "Cancel",
+              "type": "secondary",
+              "disabled": false,
+              "className": "StyledButton-sc-323bzc-0 dSjeeL sc-frmfij bxDLXF"
+            },
+            {
+              "text": "Add",
+              "type": "primary",
+              "disabled": false,
+              "className": "StyledButton-sc-323bzc-0 jmpvwj sc-frmfij bxDLXF"
+            }
+          ],
+          "rawElements": {
+            "inputs": [
+              {
+                "tagName": "INPUT",
+                "type": "text",
+                "innerText": "",
+                "value": "",
+                "placeholder": "Name",
+                "id": "",
+                "name": "name",
+                "className": "StyledTextInput-sc-1x30a0s-0 kJsRr",
+                "role": "",
+                "ariaLabel": "",
+                "dataTestId": "",
+                "href": "",
+                "disabled": false,
+                "readOnly": false,
+                "styles": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontSize": "12px",
+                  "border": "0px none rgb(220, 220, 220)",
+                  "color": "rgb(220, 220, 220)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "9px",
+                  "margin": "0px",
+                  "borderRadius": "2px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "inline-block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 781,
+                  "y": 446.5,
+                  "width": 358,
+                  "height": 35
+                }
+              },
+              {
+                "tagName": "INPUT",
+                "type": "text",
+                "innerText": "",
+                "value": "Tandem Categories (built-in)",
+                "placeholder": "Select classification",
+                "id": "",
+                "name": "classification",
+                "className": "StyledTextInput-sc-1x30a0s-0 homaoY StyledSelect__SelectTextInput-sc-znp66n-4 fMUyIY",
+                "role": "",
+                "ariaLabel": "",
+                "dataTestId": "select-classification",
+                "href": "",
+                "disabled": false,
+                "readOnly": true,
+                "styles": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontSize": "12px",
+                  "border": "0px none rgb(220, 220, 220)",
+                  "color": "rgb(220, 220, 220)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "9px",
+                  "margin": "0px",
+                  "borderRadius": "2px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "inline-block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 781,
+                  "y": 520,
+                  "width": 322,
+                  "height": 35
+                }
+              },
+              {
+                "tagName": "TEXTAREA",
+                "type": "textarea",
+                "innerText": "",
+                "value": "",
+                "placeholder": "Description",
+                "id": "",
+                "name": "description",
+                "className": "StyledTextArea-sc-17i3mwp-0 gtRMYd",
+                "role": "",
+                "ariaLabel": "",
+                "dataTestId": "",
+                "href": "",
+                "disabled": false,
+                "readOnly": false,
+                "styles": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontSize": "12px",
+                  "border": "0px none rgb(220, 220, 220)",
+                  "color": "rgb(220, 220, 220)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "9px",
+                  "margin": "0px",
+                  "borderRadius": "2px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 781,
+                  "y": 593.5,
+                  "width": 358,
+                  "height": 52
+                }
+              }
+            ],
+            "buttons": [
+              {
+                "tagName": "BUTTON",
+                "type": "button",
+                "innerText": "",
+                "value": "",
+                "placeholder": "",
+                "id": "",
+                "name": "",
+                "className": "StyledButton-sc-323bzc-0 dKGSeA StyledSelect__StyledSelectDropButton-sc-znp66n-5 jhAIgO",
+                "role": "",
+                "ariaLabel": "Select classification; Selected: Tandem Categories (built-in)",
+                "dataTestId": "",
+                "href": "",
+                "disabled": false,
+                "readOnly": false,
+                "styles": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontSize": "12px",
+                  "border": "0px none rgb(220, 220, 220)",
+                  "color": "rgb(220, 220, 220)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "0px",
+                  "margin": "0px",
+                  "borderRadius": "0px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 781,
+                  "y": 519.5,
+                  "width": 358,
+                  "height": 36
+                }
+              },
+              {
+                "tagName": "BUTTON",
+                "type": "button",
+                "innerText": "Cancel",
+                "value": "",
+                "placeholder": "",
+                "id": "",
+                "name": "",
+                "className": "StyledButton-sc-323bzc-0 dSjeeL sc-frmfij bxDLXF",
+                "role": "",
+                "ariaLabel": "",
+                "dataTestId": "",
+                "href": "",
+                "disabled": false,
+                "readOnly": false,
+                "styles": {
+                  "backgroundColor": "rgba(0, 0, 0, 0)",
+                  "fontSize": "12px",
+                  "border": "1px solid rgb(220, 220, 220)",
+                  "color": "rgb(220, 220, 220)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "3px 18px",
+                  "margin": "0px",
+                  "borderRadius": "2px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 980.56,
+                  "y": 707.5,
+                  "width": 74.89,
+                  "height": 24
+                }
+              },
+              {
+                "tagName": "BUTTON",
+                "type": "submit",
+                "innerText": "Add",
+                "value": "",
+                "placeholder": "",
+                "id": "",
+                "name": "primary",
+                "className": "StyledButton-sc-323bzc-0 jmpvwj sc-frmfij bxDLXF",
+                "role": "",
+                "ariaLabel": "",
+                "dataTestId": "confirm-form-modal-button",
+                "href": "",
+                "disabled": false,
+                "readOnly": false,
+                "styles": {
+                  "backgroundColor": "rgb(56, 171, 223)",
+                  "fontSize": "12px",
+                  "border": "1px solid rgb(56, 171, 223)",
+                  "color": "rgb(0, 0, 0)",
+                  "fontFamily": "ArtifaktElement",
+                  "fontWeight": "500",
+                  "padding": "3px 18px",
+                  "margin": "0px",
+                  "borderRadius": "2px",
+                  "boxShadow": "none",
+                  "position": "static",
+                  "display": "block",
+                  "zIndex": "auto"
+                },
+                "boundingBox": {
+                  "x": 1065.45,
+                  "y": 707.5,
+                  "width": 74.55,
+                  "height": 24
+                }
+              }
+            ],
+            "selects": [],
+            "tables": [],
+            "modals": []
+          }
+        },
+        "screenshot": "./screenshots/fullpage_Add_Facility_Template_1774009607317.png"
+      }
+    ],
+    "dropdowns": [],
+    "datePickers": []
+  },
+  "iframes": [],
+  "summary": {
+    "totalMainElements": 13,
+    "totalIframeElements": 0,
+    "totalDynamicElements": 1,
+    "breakdown": {
+      "inputs": 1,
+      "buttons": 11,
+      "selects": 0,
+      "tables": 1,
+      "modals": 0
+    }
+  }
+}

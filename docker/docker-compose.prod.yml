@@ -1,7 +1,7 @@
-# Tandem Demo 生产环境 Docker Compose 配置
+# Twinsight 生产环境 Docker Compose 配置
 # 包含完整服务栈：核心应用 + AI 服务 + IoT 服务 + 监控
 
-name: tandem-prod
+name: twinsight-prod
 
 services:
   # ==================== 核心服务 ====================
@@ -9,18 +9,18 @@ services:
   # PostgreSQL 数据库 (带 PGVector 扩展)
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: tandem-postgres
+    container_name: twinsight-postgres
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
-      POSTGRES_DB: ${DB_NAME:-tandem}
+      POSTGRES_DB: ${DB_NAME:-twinsight}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - tandem-network
+      - twinsight-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-tandem}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-twinsight}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    container_name: tandem-api
+    container_name: twinsight-api
     restart: always
     environment:
       NODE_ENV: production
@@ -38,13 +38,13 @@ services:
       # 数据库配置
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-tandem}
+      DB_NAME: ${DB_NAME:-twinsight}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
       # InfluxDB 配置
       INFLUX_URL: http://influxdb:8086
       INFLUX_ORG: ${INFLUX_ORG:-demo}
-      INFLUX_BUCKET: ${INFLUX_BUCKET:-tandem}
+      INFLUX_BUCKET: ${INFLUX_BUCKET:-twinsight}
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       # AI 服务配置
       OPENWEBUI_URL: http://open-webui:8080
@@ -53,7 +53,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - tandem-network
+      - twinsight-network
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health" ]
       interval: 30s
@@ -63,7 +63,7 @@ services:
   # Nginx 反向代理
   nginx:
     image: nginx:alpine
-    container_name: tandem-nginx
+    container_name: twinsight-nginx
     restart: always
     ports:
       - "80:80"
@@ -76,27 +76,27 @@ services:
       - open-webui
       - n8n
     networks:
-      - tandem-network
+      - twinsight-network
 
   # ==================== 数据库服务 ====================
 
   # InfluxDB 2.x - 时序数据库
   influxdb:
     image: influxdb:2.7-alpine
-    container_name: tandem-influxdb
+    container_name: twinsight-influxdb
     restart: always
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER:-admin}
       DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD:-adminpassword}
       DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG:-demo}
-      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-tandem}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET:-twinsight}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
     volumes:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
     networks:
-      - tandem-network
+      - twinsight-network
     # 仅内部访问，不暴露端口
 
 
@@ -106,7 +106,7 @@ services:
     # n8n 工作流自动化平台
   n8n:
     image: n8nio/n8n:latest
-    container_name: tandem-n8n
+    container_name: twinsight-n8n
     restart: unless-stopped
     environment:
       # 基础配置
@@ -136,7 +136,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
-      - tandem-network
+      - twinsight-network
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678" ]
       interval: 30s
@@ -146,11 +146,11 @@ services:
   # Open WebUI - AI 对话界面
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
-    container_name: tandem-open-webui
+    container_name: twinsight-open-webui
     restart: unless-stopped
     environment:
       # 基础配置
-      WEBUI_NAME: ${WEBUI_NAME:-Tandem AI}
+      WEBUI_NAME: ${WEBUI_NAME:-Twinsight AI}
       DEFAULT_LOCALE: zh-CN
       # 安全配置
       ENABLE_API_KEYS: "true"
@@ -167,14 +167,14 @@ services:
     volumes:
       - open_webui_data:/app/backend/data
     networks:
-      - tandem-network
+      - twinsight-network
 
   # ==================== IoT 服务 ====================
 
   # Node-RED - IoT 数据流处理
   nodered:
     image: nodered/node-red:latest
-    container_name: tandem-nodered
+    container_name: twinsight-nodered
     restart: always
     environment:
       TZ: ${TZ:-Asia/Shanghai}
@@ -185,7 +185,7 @@ services:
       - influxdb
       - postgres
     networks:
-      - tandem-network
+      - twinsight-network
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1880" ]
       interval: 30s
@@ -195,7 +195,7 @@ services:
   # Grafana - 数据可视化
   grafana:
     image: grafana/grafana-enterprise
-    container_name: tandem-grafana
+    container_name: twinsight-grafana
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
@@ -209,7 +209,7 @@ services:
       - influxdb
       - postgres
     networks:
-      - tandem-network
+      - twinsight-network
 
 # ==================== 卷定义 ====================
 
@@ -226,7 +226,7 @@ volumes:
     # ==================== 网络定义 ====================
 
 networks:
-  tandem-network:
+  twinsight-network:
     driver: bridge
 
 # ============================================
