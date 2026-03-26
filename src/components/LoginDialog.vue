@@ -244,6 +244,7 @@ const handleSubmit = async () => {
             id: result.data.user.id,
             username: result.data.user.name,
             email: result.data.user.email,
+            avatarUrl: result.data.user.avatarUrl,
             roles: result.data.user.roles
           },
           result.data.accessToken,

@@ -19,10 +19,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 // 注册插件
-app.use(pinia)
-app.use(router)
-app.use(i18n)
-app.use(ElementPlus);
+app.use(pinia);
 
 // 初始化 Auth Store（尝试从 localStorage 恢复登录状态）
 // 使用异步 IIFE 确保权限加载完成后再挂载应用
@@ -34,7 +31,11 @@ app.use(ElementPlus);
     const themeStore = useThemeStore();
     themeStore.init();
 
+    // 关键：在登录态恢复后再安装路由，避免首次守卫误判跳回首页
+    app.use(router);
+    app.use(i18n);
+    app.use(ElementPlus);
+
     // 挂载应用
     app.mount('#app');
 })();
-
