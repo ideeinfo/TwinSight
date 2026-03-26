@@ -6,6 +6,28 @@
 import { useAuthStore } from '../stores/auth';
 
 const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const STATUS_CACHE_TTL_MS = 10_000;
+
+type InfluxStatus = {
+  configured?: boolean;
+  enabled?: boolean;
+  url?: string;
+  org?: string;
+  bucket?: string;
+} | null;
+
+type StatusCacheEntry = {
+  value: InfluxStatus;
+  expiresAt: number;
+};
+
+const statusCache = new Map<string, StatusCacheEntry>();
+const statusInFlight = new Map<string, Promise<InfluxStatus>>();
+const averageInFlight = new Map<string, Promise<Point[]>>();
+const roomInFlight = new Map<string, Promise<Point[]>>();
+const latestInFlight = new Map<string, Promise<Record<string, number>>>();
+
+const getStatusCacheKey = (fileId?: number) => (fileId ? `file:${fileId}` : 'global');
 
 // Helper to get auth headers
 const getHeaders = (contentType?: string) => {
@@ -27,15 +49,8 @@ export type Point = { timestamp: number; value: number };
  */
 export async function isInfluxConfigured(fileId?: number): Promise<boolean> {
   try {
-    const url = fileId
-      ? `${API_BASE}/api/v1/timeseries/status?fileId=${fileId}`
-      : `${API_BASE}/api/v1/timeseries/status`;
-
-    const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return false;
-
-    const data = await resp.json();
-    return data.success && data.data?.configured && data.data?.enabled;
+    const status = await getInfluxStatus(fileId);
+    return !!(status?.configured && status?.enabled);
   } catch {
     return false;
   }
@@ -61,26 +76,37 @@ export async function queryAverageSeries(
   windowMs: number,
   fileId?: number
 ): Promise<Point[]> {
-  try {
-    const params = new URLSearchParams({
-      startMs: startMs.toString(),
-      endMs: endMs.toString(),
-      windowMs: windowMs.toString()
-    });
+  const key = `avg:${startMs}:${endMs}:${windowMs}:${fileId ?? 'global'}`;
+  const pending = averageInFlight.get(key);
+  if (pending) return await pending;
 
-    if (fileId) {
-      params.append('fileId', fileId.toString());
+  const req = (async (): Promise<Point[]> => {
+    try {
+      const params = new URLSearchParams({
+        startMs: startMs.toString(),
+        endMs: endMs.toString(),
+        windowMs: windowMs.toString()
+      });
+
+      if (fileId) {
+        params.append('fileId', fileId.toString());
+      }
+
+      const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/average?${params}`, { headers: getHeaders() });
+      if (!resp.ok) return [];
+
+      const data = await resp.json();
+      return data.success ? data.data : [];
+    } catch (error) {
+      console.error('查询平均值失败:', error);
+      return [];
+    } finally {
+      averageInFlight.delete(key);
     }
+  })();
 
-    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/average?${params}`, { headers: getHeaders() });
-    if (!resp.ok) return [];
-
-    const data = await resp.json();
-    return data.success ? data.data : [];
-  } catch (error) {
-    console.error('查询平均值失败:', error);
-    return [];
-  }
+  averageInFlight.set(key, req);
+  return await req;
 }
 
 /**
@@ -93,27 +119,38 @@ export async function queryRoomSeries(
   windowMs: number,
   fileId?: number
 ): Promise<Point[]> {
-  try {
-    const params = new URLSearchParams({
-      roomCode,
-      startMs: startMs.toString(),
-      endMs: endMs.toString(),
-      windowMs: windowMs.toString()
-    });
+  const key = `room:${roomCode}:${startMs}:${endMs}:${windowMs}:${fileId ?? 'global'}`;
+  const pending = roomInFlight.get(key);
+  if (pending) return await pending;
 
-    if (fileId) {
-      params.append('fileId', fileId.toString());
+  const req = (async (): Promise<Point[]> => {
+    try {
+      const params = new URLSearchParams({
+        roomCode,
+        startMs: startMs.toString(),
+        endMs: endMs.toString(),
+        windowMs: windowMs.toString()
+      });
+
+      if (fileId) {
+        params.append('fileId', fileId.toString());
+      }
+
+      const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/room?${params}`, { headers: getHeaders() });
+      if (!resp.ok) return [];
+
+      const data = await resp.json();
+      return data.success ? data.data : [];
+    } catch (error) {
+      console.error('查询房间数据失败:', error);
+      return [];
+    } finally {
+      roomInFlight.delete(key);
     }
+  })();
 
-    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/room?${params}`, { headers: getHeaders() });
-    if (!resp.ok) return [];
-
-    const data = await resp.json();
-    return data.success ? data.data : [];
-  } catch (error) {
-    console.error('查询房间数据失败:', error);
-    return [];
-  }
+  roomInFlight.set(key, req);
+  return await req;
 }
 
 /**
@@ -126,27 +163,99 @@ export async function queryLatestByRooms(
 ): Promise<Record<string, number>> {
   if (!roomCodes?.length) return {};
 
-  try {
-    const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/latest`, {
-      method: 'POST',
-      headers: getHeaders('application/json'),
-      body: JSON.stringify({ roomCodes, lookbackMs, fileId })
-    });
+  const codeKey = [...roomCodes].sort().join(',');
+  const key = `latest:${codeKey}:${lookbackMs}:${fileId ?? 'global'}`;
+  const pending = latestInFlight.get(key);
+  if (pending) return await pending;
 
-    if (!resp.ok) return {};
+  const req = (async (): Promise<Record<string, number>> => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/v1/timeseries/query/latest`, {
+        method: 'POST',
+        headers: getHeaders('application/json'),
+        body: JSON.stringify({ roomCodes, lookbackMs, fileId })
+      });
 
-    const data = await resp.json();
-    return data.success ? data.data : {};
-  } catch (error) {
-    console.error('查询最新值失败:', error);
-    return {};
-  }
+      if (!resp.ok) return {};
+
+      const data = await resp.json();
+      return data.success ? data.data : {};
+    } catch (error) {
+      console.error('查询最新值失败:', error);
+      return {};
+    } finally {
+      latestInFlight.delete(key);
+    }
+  })();
+
+  latestInFlight.set(key, req);
+  return await req;
 }
 
 /**
  * 获取 InfluxDB 配置状态
  */
 export async function getInfluxStatus(fileId?: number) {
+  const key = getStatusCacheKey(fileId);
+  const now = Date.now();
+  const cached = statusCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+
+  const inFlight = statusInFlight.get(key);
+  if (inFlight) {
+    return await inFlight;
+  }
+
+  const req = (async (): Promise<InfluxStatus> => {
+    try {
+      const url = fileId
+        ? `${API_BASE}/api/v1/timeseries/status?fileId=${fileId}`
+        : `${API_BASE}/api/v1/timeseries/status`;
+
+      const resp = await fetch(url, { headers: getHeaders() });
+      if (!resp.ok) {
+        statusCache.set(key, { value: null, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+        return null;
+      }
+
+      const data = await resp.json();
+      const value = data.success ? data.data : null;
+      statusCache.set(key, { value, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+      return value;
+    } catch {
+      statusCache.set(key, { value: null, expiresAt: Date.now() + STATUS_CACHE_TTL_MS });
+      return null;
+    } finally {
+      statusInFlight.delete(key);
+    }
+  })();
+
+  statusInFlight.set(key, req);
+
+  return await req;
+}
+
+/**
+ * 清理 Influx 状态缓存
+ * - 不传 fileId: 清空所有缓存
+ * - 传 fileId: 只清理对应模型缓存
+ */
+export function clearInfluxStatusCache(fileId?: number) {
+  if (typeof fileId === 'number') {
+    const key = getStatusCacheKey(fileId);
+    statusCache.delete(key);
+    statusInFlight.delete(key);
+    return;
+  }
+
+  statusCache.clear();
+  statusInFlight.clear();
+}
+
+export async function getInfluxStatusUncached(fileId?: number) {
   try {
     const url = fileId
       ? `${API_BASE}/api/v1/timeseries/status?fileId=${fileId}`

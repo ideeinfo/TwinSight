@@ -48,6 +48,7 @@ if (process.env.DATABASE_URL) {
 }
 
 const pool = new Pool(poolConfig);
+const SLOW_SQL_MS = parseInt(process.env.SLOW_SQL_MS || '200', 10);
 
 // 连接事件（禁用日志）
 pool.on('connect', () => {
@@ -69,8 +70,14 @@ export const query = async (text, params) => {
     try {
         const result = await pool.query(text, params);
         const duration = Date.now() - start;
-        // 禁用查询日志（太多）
-        // console.log('📊 执行查询:', { text: text.substring(0, 50), duration, rows: result.rowCount });
+        if (duration >= SLOW_SQL_MS) {
+            const compactSql = String(text || '').replace(/\s+/g, ' ').trim();
+            console.warn('🐢 Slow SQL:', {
+                durationMs: duration,
+                rows: result.rowCount,
+                sql: compactSql.substring(0, 300)
+            });
+        }
         return result;
     } catch (error) {
         console.error('❌ 查询错误:', error.message);

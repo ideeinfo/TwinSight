@@ -2,6 +2,7 @@
 
 # 将 192.168.2.183 上的 twinsight PostgreSQL 数据完整覆盖到远端 Docker PostgreSQL。
 # 密码不写入仓库，优先从环境变量读取；未提供时会交互输入。
+# 会在覆盖前自动备份并在覆盖后回写“系统配置 + 用户/角色/权限相关表”。
 
 set -Eeuo pipefail
 
@@ -34,6 +35,10 @@ REMOTE_BACKUP_DIR="${REMOTE_BACKUP_DIR:-/root/twinsight-db-backups}"
 ASSUME_YES=0
 KEEP_LOCAL_DUMP=0
 SKIP_REMOTE_BACKUP=0
+ENFORCE_REMOTE_INTERNAL_URLS="${ENFORCE_REMOTE_INTERNAL_URLS:-1}"
+
+PROTECTED_TABLES=()
+PROTECTED_DUMP_FILE=""
 
 usage() {
   cat <<'EOF'
@@ -63,6 +68,9 @@ usage() {
   REMOTE_DB_USER          默认 postgres
   REMOTE_DB_PASSWORD      远端库密码
   REMOTE_DB_CONTAINER     远端 PostgreSQL 容器名；未设置时自动探测
+  ENFORCE_REMOTE_INTERNAL_URLS
+                          默认 1。同步后自动修正云端内部服务 URL
+                          (INFLUXDB_URL/OPENWEBUI_URL/N8N_WEBHOOK_URL + influx_configs)
 
 示例:
   export SOURCE_DB_PASSWORD='***'
@@ -74,6 +82,7 @@ usage() {
   1. 该脚本会完整替换远端数据库内容。
   2. 当前仓库里的生产 compose 默认容器名是 twinsight-postgres。
   3. 若线上还是旧配置（例如库名仍是 tandem），请显式设置 REMOTE_DB_NAME。
+  4. 会自动保护并回写以下数据: system_config + 用户/角色/权限相关表。
 EOF
 }
 
@@ -215,6 +224,40 @@ detect_remote_container() {
   success "远端 PostgreSQL 容器: $REMOTE_DB_CONTAINER"
 }
 
+detect_protected_tables() {
+  local q_password q_user q_db q_container
+  q_password="$(quote "$REMOTE_DB_PASSWORD")"
+  q_user="$(quote "$REMOTE_DB_USER")"
+  q_db="$(quote "$REMOTE_DB_NAME")"
+  q_container="$(quote "$REMOTE_DB_CONTAINER")"
+
+  log "探测需保护的系统配置/用户权限相关表..."
+  mapfile -t PROTECTED_TABLES < <(
+    remote_exec "
+      docker exec -e PGPASSWORD=$q_password $q_container psql -At -U $q_user -d $q_db -c \"
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_type = 'BASE TABLE'
+          AND (
+            table_name = 'system_config'
+            OR table_name = 'influx_configs'
+            OR table_name IN ('users', 'user_roles', 'user_identities', 'refresh_tokens', 'roles', 'permissions', 'role_permissions', 'user_permissions')
+            OR table_name ~ '(^|_)(user|users|role|roles|permission|permissions)($|_)'
+          )
+        ORDER BY table_name;
+      \"
+    "
+  )
+
+  if [[ "${#PROTECTED_TABLES[@]}" -eq 0 ]]; then
+    warn "未检测到可保护的系统配置/用户权限相关表，将跳过该步骤"
+    return
+  fi
+
+  success "将保护以下表: ${PROTECTED_TABLES[*]}"
+}
+
 confirm_overwrite() {
   if [[ "$ASSUME_YES" -eq 1 ]]; then
     return
@@ -253,6 +296,7 @@ prepare() {
 
   setup_ssh
   detect_remote_container
+  detect_protected_tables
   confirm_overwrite
 }
 
@@ -318,6 +362,30 @@ backup_remote_db() {
   success "远端备份完成: $remote_backup_file"
 }
 
+backup_remote_protected_tables() {
+  local timestamp="$1"
+  local table table_args q_password q_user q_db q_container
+
+  if [[ "${#PROTECTED_TABLES[@]}" -eq 0 ]]; then
+    return
+  fi
+
+  PROTECTED_DUMP_FILE="$WORK_DIR/protected-before-sync-${timestamp}.sql"
+  table_args=""
+  for table in "${PROTECTED_TABLES[@]}"; do
+    table_args+=" --table=$(quote "public.${table}")"
+  done
+
+  q_password="$(quote "$REMOTE_DB_PASSWORD")"
+  q_user="$(quote "$REMOTE_DB_USER")"
+  q_db="$(quote "$REMOTE_DB_NAME")"
+  q_container="$(quote "$REMOTE_DB_CONTAINER")"
+
+  log "备份远端受保护表(系统配置/用户权限)..."
+  "${SSH_BASE[@]}" "$REMOTE_TARGET" "bash -lc $(quote "docker exec -e PGPASSWORD=$q_password $q_container pg_dump -U $q_user -d $q_db --format=plain --clean --if-exists --no-owner --no-privileges $table_args")" > "$PROTECTED_DUMP_FILE"
+  success "受保护表备份完成: $PROTECTED_DUMP_FILE"
+}
+
 restore_remote_db() {
   local q_password q_user q_container
 
@@ -328,6 +396,24 @@ restore_remote_db() {
   log "将源库 SQL 导入远端容器内 PostgreSQL..."
   cat "$LOCAL_DUMP_FILE" | "${SSH_BASE[@]}" "$REMOTE_TARGET" "bash -lc $(quote "docker exec -i -e PGPASSWORD=$q_password $q_container psql -v ON_ERROR_STOP=1 -U $q_user -d postgres")"
   success "远端覆盖完成"
+}
+
+restore_remote_protected_tables() {
+  local q_password q_user q_db q_container
+
+  if [[ -z "${PROTECTED_DUMP_FILE:-}" || ! -s "${PROTECTED_DUMP_FILE:-}" ]]; then
+    warn "未找到受保护表备份文件，跳过回写"
+    return
+  fi
+
+  q_password="$(quote "$REMOTE_DB_PASSWORD")"
+  q_user="$(quote "$REMOTE_DB_USER")"
+  q_db="$(quote "$REMOTE_DB_NAME")"
+  q_container="$(quote "$REMOTE_DB_CONTAINER")"
+
+  log "回写远端受保护表(系统配置/用户权限)..."
+  cat "$PROTECTED_DUMP_FILE" | "${SSH_BASE[@]}" "$REMOTE_TARGET" "bash -lc $(quote "docker exec -i -e PGPASSWORD=$q_password $q_container psql -v ON_ERROR_STOP=1 -U $q_user -d $q_db")"
+  success "受保护表回写完成"
 }
 
 verify_remote_db() {
@@ -342,9 +428,54 @@ verify_remote_db() {
   remote_exec "docker exec -e PGPASSWORD=$q_password $q_container psql -At -U $q_user -d $q_db -c \"SELECT 'public_tables=' || count(*) FROM information_schema.tables WHERE table_schema = 'public';\""
 }
 
+normalize_remote_internal_urls() {
+  local q_password q_user q_db q_container
+
+  if [[ "$ENFORCE_REMOTE_INTERNAL_URLS" != "1" ]]; then
+    warn "已跳过云端内部 URL 自动修正 (ENFORCE_REMOTE_INTERNAL_URLS=$ENFORCE_REMOTE_INTERNAL_URLS)"
+    return
+  fi
+
+  q_password="$(quote "$REMOTE_DB_PASSWORD")"
+  q_user="$(quote "$REMOTE_DB_USER")"
+  q_db="$(quote "$REMOTE_DB_NAME")"
+  q_container="$(quote "$REMOTE_DB_CONTAINER")"
+
+  log "修正云端容器内部服务 URL..."
+  remote_exec "
+    docker exec -e PGPASSWORD=$q_password $q_container psql -v ON_ERROR_STOP=1 -U $q_user -d $q_db -c \"
+      UPDATE system_config
+      SET config_value = CASE config_key
+        WHEN 'INFLUXDB_URL' THEN 'http://influxdb:8086'
+        WHEN 'OPENWEBUI_URL' THEN 'http://open-webui:8080'
+        WHEN 'N8N_WEBHOOK_URL' THEN 'http://n8n:5678'
+        ELSE config_value
+      END
+      WHERE config_key IN ('INFLUXDB_URL', 'OPENWEBUI_URL', 'N8N_WEBHOOK_URL');
+
+      UPDATE influx_configs
+      SET
+        influx_url = 'http://influxdb',
+        influx_port = 8086,
+        updated_at = NOW()
+      WHERE
+        influx_url IS NULL
+        OR influx_url ~* '^(https?://)?localhost(:[0-9]+)?/?$'
+        OR influx_url ~* '^(https?://)?127\\\\.0\\\\.0\\\\.1(:[0-9]+)?/?$'
+        OR influx_url ~* '^(https?://)?192\\\\.168\\\\.[0-9]+\\\\.[0-9]+(:[0-9]+)?/?$'
+        OR influx_url ~* '^(https?://)?10\\\\.[0-9]+\\\\.[0-9]+\\\\.[0-9]+(:[0-9]+)?/?$'
+        OR influx_url ~* '^(https?://)?172\\\\.(1[6-9]|2[0-9]|3[0-1])\\\\.[0-9]+\\\\.[0-9]+(:[0-9]+)?/?$';
+    \"
+  "
+  success "云端内部 URL 修正完成"
+}
+
 cleanup() {
   if [[ -n "${LOCAL_DUMP_FILE:-}" && -f "${LOCAL_DUMP_FILE:-}" && "$KEEP_LOCAL_DUMP" -ne 1 ]]; then
     rm -f "$LOCAL_DUMP_FILE"
+  fi
+  if [[ -n "${PROTECTED_DUMP_FILE:-}" && -f "${PROTECTED_DUMP_FILE:-}" && "$KEEP_LOCAL_DUMP" -ne 1 ]]; then
+    rm -f "$PROTECTED_DUMP_FILE"
   fi
 }
 
@@ -372,7 +503,10 @@ main() {
     warn "已跳过远端备份"
   fi
 
+  backup_remote_protected_tables "$timestamp"
   restore_remote_db
+  restore_remote_protected_tables
+  normalize_remote_internal_urls
   verify_remote_db
   success "数据库同步完成"
 }

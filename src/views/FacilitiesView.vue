@@ -1178,12 +1178,13 @@ function removeCoverImage() {
 
 .facility-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 30%);
+  grid-template-columns: minmax(0, 1fr) clamp(132px, 30%, 220px);
   gap: 14px;
   padding: 12px;
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 16px;
   background: var(--md-sys-color-surface-container);
+  overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
@@ -1206,7 +1207,7 @@ function removeCoverImage() {
 
 .facility-card.grid .thumb-frame {
   order: -1;
-  min-height: 196px;
+  max-height: 196px;
 }
 
 .facility-copy {
@@ -1367,8 +1368,11 @@ function removeCoverImage() {
 .thumb-frame {
   position: relative;
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
-  min-height: 128px;
+  min-height: 0;
   border-radius: 12px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-primary) 26%, var(--md-sys-color-surface-container-high)), var(--md-sys-color-surface-container-high));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-outline-variant) 72%, transparent);

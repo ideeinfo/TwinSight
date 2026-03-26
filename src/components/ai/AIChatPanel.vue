@@ -266,6 +266,8 @@ const suggestions = [
   "查找空调的维修手册"
 ];
 
+const POWER_TRACE_KEYWORDS = ['追溯', '供电路径', '上游供电', '供电来源', '电源追溯', '谁给它供电', '查看供电'];
+
 // 1. Draggable Logic (Main Panel)
 const { x, y } = useDraggable(panelRef, {
   initialValue: { x: window.innerWidth - 420, y: window.innerHeight - 620 },
@@ -359,6 +361,20 @@ const clearHistory = () => {
 
 const isValidInput = computed(() => inputText.value.trim().length > 0);
 
+const resolveContextMcCode = () => {
+  const p = props.currentContext?.properties || {};
+  const raw = p.mcCode || p.deviceCode || p.code || p.asset_code || null;
+  if (raw === null || raw === undefined) return null;
+  const mcCode = String(raw).trim();
+  return mcCode || null;
+};
+
+const shouldOptimisticPowerTrace = (text) => {
+  const mcCode = resolveContextMcCode();
+  if (!mcCode) return false;
+  return POWER_TRACE_KEYWORDS.some((kw) => text.includes(kw));
+};
+
 const sendMessage = async () => {
   // ... (send logic)
   if (!isValidInput.value || loading.value) return;
@@ -371,6 +387,18 @@ const sendMessage = async () => {
   scrollToBottom();
   loading.value = true;
 
+  // 异步优化：意图命中后先执行电源追溯，再等待知识库检索与回复生成
+  // 这样模型中的供电节点/箭头可以先渲染，提升体感速度。
+  const optimisticPowerTraceMcCode = shouldOptimisticPowerTrace(text) ? resolveContextMcCode() : null;
+  if (optimisticPowerTraceMcCode) {
+    console.log('⚡ [AIChat] Optimistic power trace:', optimisticPowerTraceMcCode);
+    emit('execute-action', {
+      action: 'power_trace_upstream',
+      params: { mcCode: optimisticPowerTraceMcCode },
+      meta: { source: 'optimistic' }
+    });
+  }
+
   emit('send-message', {
     text,
     context: props.currentContext,
@@ -382,6 +410,20 @@ const sendMessage = async () => {
     // Trigger Actions if present
     if (response.actions && Array.isArray(response.actions)) {
         response.actions.forEach(action => {
+             const actionType = action?.action || action?.type;
+             const actionMcCode = action?.params?.mcCode || action?.mcCode || null;
+
+             // 同一轮消息中，如果已执行过 optimistic power trace，跳过重复动作
+             if (
+               optimisticPowerTraceMcCode &&
+               actionType === 'power_trace_upstream' &&
+               actionMcCode &&
+               String(actionMcCode) === String(optimisticPowerTraceMcCode)
+             ) {
+               console.log('⏭️ [AIChat] Skip duplicated power_trace_upstream action:', actionMcCode);
+               return;
+             }
+
              console.log('🤖 Trigger AI Action:', action);
              emit('execute-action', action);
         });

@@ -48,6 +48,8 @@ config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
+const SLOW_REQUEST_MS = Number.parseInt(process.env.SLOW_REQUEST_MS || '800', 10);
+const SLOW_REQUEST_LOG_ENABLED = process.env.SLOW_REQUEST_LOG_ENABLED !== 'false';
 
 // 中间件
 const allowedOrigins = [
@@ -73,6 +75,27 @@ app.use(cors({
 app.use(express.json({ limit: '200mb' }));
 app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use(cookieParser());
+
+if (SLOW_REQUEST_LOG_ENABLED) {
+    app.use((req, res, next) => {
+        const startedAt = Date.now();
+        res.on('finish', () => {
+            const durationMs = Date.now() - startedAt;
+            if (durationMs < SLOW_REQUEST_MS) return;
+
+            const fullPath = `${req.path}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+            const compactPath = fullPath.length > 200 ? `${fullPath.slice(0, 200)}...` : fullPath;
+            console.warn('🐢 Slow HTTP:', {
+                method: req.method,
+                path: compactPath,
+                status: res.statusCode,
+                durationMs,
+                ip: req.ip,
+            });
+        });
+        next();
+    });
+}
 
 // 静态文件服务 - 使用配置路径（本地开发用 public/，生产环境用 /app/uploads）
 // 添加显式 CORS 头确保 Forge Viewer Web Worker 可以正确加载文件
@@ -235,4 +258,3 @@ server.headersTimeout = 76000;
 server.timeout = 300000; // 5 minutes
 
 export default app;
-

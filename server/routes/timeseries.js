@@ -16,6 +16,25 @@ import { PERMISSIONS } from '../config/auth.js';
 
 // 用于生成和验证 API Key 的密钥
 const API_KEY_SECRET = process.env.API_KEY_SECRET || 'tandem-timeseries-secret-2024';
+const INFLUX_TIMEOUT_MS = parseInt(process.env.INFLUX_TIMEOUT_MS || '3000', 10);
+const TIMESERIES_DEBUG = process.env.TIMESERIES_DEBUG === 'true';
+const LOG_THROTTLE_MS = parseInt(process.env.TIMESERIES_LOG_THROTTLE_MS || '5000', 10);
+const LOG_LAST_AT = new Map();
+
+function debugLog(...args) {
+    if (TIMESERIES_DEBUG) {
+        console.log(...args);
+    }
+}
+
+function throttledLog(level, key, ...args) {
+    const now = Date.now();
+    const last = LOG_LAST_AT.get(key) || 0;
+    if (now - last >= LOG_THROTTLE_MS) {
+        console[level](...args);
+        LOG_LAST_AT.set(key, now);
+    }
+}
 
 /**
  * 生成 Stream 的 API Key（包含 fileId 以支持多模型）
@@ -261,18 +280,18 @@ async function writeToInflux(config, fileId, spaceCode, data, timestamp = Date.n
             method: 'POST',
             headers,
             body,
-            signal: AbortSignal.timeout(10000) // 10秒超时
+            signal: AbortSignal.timeout(INFLUX_TIMEOUT_MS)
         });
 
         if (resp.ok) {
             return { ok: true };
         } else {
             const errorText = await resp.text();
-            console.error(`❌ InfluxDB 写入失败: ${resp.status} - ${errorText}`);
+            throttledLog('error', `influx_write_status_${resp.status}`, `❌ InfluxDB 写入失败: ${resp.status} - ${errorText}`);
             return { ok: false, status: resp.status, error: errorText };
         }
     } catch (error) {
-        console.error('❌ InfluxDB 连接错误:', error.message);
+        throttledLog('error', 'influx_write_connection', '❌ InfluxDB 连接错误:', error.message);
         return { ok: false, error: error.message };
     }
 }
@@ -295,20 +314,20 @@ async function queryInflux(config, flux) {
                 method: 'POST',
                 headers,
                 body: flux,
-                signal: AbortSignal.timeout(10000) // 10秒超时
+                signal: AbortSignal.timeout(INFLUX_TIMEOUT_MS)
             }
         );
 
         if (!resp.ok) {
             const errorText = await resp.text();
-            console.error(`❌ InfluxDB 查询失败: ${resp.status} - ${errorText}`);
+            throttledLog('error', `influx_query_status_${resp.status}`, `❌ InfluxDB 查询失败: ${resp.status} - ${errorText}`);
             return { ok: false, status: resp.status, error: errorText, data: [] };
         }
 
         const csv = await resp.text();
         return { ok: true, csv };
     } catch (error) {
-        console.error('❌ InfluxDB 查询错误:', error.message);
+        throttledLog('error', 'influx_query_connection', '❌ InfluxDB 查询错误:', error.message);
         return { ok: false, error: error.message, data: [] };
     }
 }
@@ -387,15 +406,15 @@ router.post('/streams/:fileId/:spaceCode', async (req, res) => {
             });
         }
 
-        console.log(`🔑 [API Key 验证] fileId=${fileId}, spaceCode=${spaceCode}, providedKey=${apiKey?.substring(0, 8)}...`);
+        debugLog(`🔑 [API Key 验证] fileId=${fileId}, spaceCode=${spaceCode}, providedKey=${apiKey?.substring(0, 8)}...`);
 
         try {
             const isValid = validateStreamApiKey(fileId, spaceCode, apiKey);
-            console.log(`🔑 [API Key 验证结果] isValid=${isValid}`);
+            debugLog(`🔑 [API Key 验证结果] isValid=${isValid}`);
             if (!isValid) {
                 // 打印期望的 key 用于调试
                 const expectedKey = generateStreamApiKey(fileId, spaceCode);
-                console.log(`🔑 [期望 Key] ${expectedKey} vs [提供 Key] ${apiKey?.substring(0, 22)}`);
+                debugLog(`🔑 [期望 Key] ${expectedKey} vs [提供 Key] ${apiKey?.substring(0, 22)}`);
                 return res.status(403).json({ success: false, error: 'Invalid API Key' });
             }
         } catch (e) {
@@ -428,7 +447,7 @@ router.post('/streams/:fileId/:spaceCode', async (req, res) => {
         if (result.ok) {
             // 异步执行触发器评估，不阻塞响应
             import('../services/iot-trigger-service.js').then(({ evaluateTriggers }) => {
-                console.log(`📊 [Timeseries] Calling evaluateTriggers for ${spaceCode}`);
+                debugLog(`📊 [Timeseries] Calling evaluateTriggers for ${spaceCode}`);
                 evaluateTriggers(dataFields, { fileId, spaceCode });
             }).catch(err => console.error('Failed to load trigger service:', err));
 
@@ -519,7 +538,7 @@ router.post('/streams/:spaceCode', async (req, res) => {
         if (result.ok) {
             // 异步执行触发器评估，不阻塞响应
             import('../services/iot-trigger-service.js').then(({ evaluateTriggers }) => {
-                console.log(`📊 [Timeseries] Calling evaluateTriggers (legacy) for ${spaceCode}`);
+                debugLog(`📊 [Timeseries] Calling evaluateTriggers (legacy) for ${spaceCode}`);
                 evaluateTriggers(dataFields, { fileId, spaceCode });
             }).catch(err => console.error('Failed to load trigger service:', err));
 
@@ -549,15 +568,15 @@ router.post('/streams/:spaceCode', async (req, res) => {
 router.get('/query/average', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { startMs, endMs, windowMs, fileId } = req.query;
-        console.log(`📊 [query/average] 收到请求: fileId=${fileId || '未传递'}`);
+        debugLog(`📊 [query/average] 收到请求: fileId=${fileId || '未传递'}`);
 
         // 获取配置
         let config;
         if (fileId) {
-            console.log(`📊 [query/average] 使用 fileId=${fileId} 获取配置`);
+            debugLog(`📊 [query/average] 使用 fileId=${fileId} 获取配置`);
             config = await getInfluxConfigByFileId(parseInt(fileId));
         } else {
-            console.log(`📊 [query/average] 未传递 fileId，使用激活模型配置`);
+            debugLog(`📊 [query/average] 未传递 fileId，使用激活模型配置`);
             config = await getActiveInfluxConfig();
         }
 

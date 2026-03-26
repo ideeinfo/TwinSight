@@ -37,6 +37,13 @@ services:
       LOGIC_ENGINE_URL: http://logic-engine:8000
       # LLM
       LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
+      # 诊断与超时
+      INFLUX_TIMEOUT_MS: ${INFLUX_TIMEOUT_MS:-3000}
+      TIMESERIES_DEBUG: ${TIMESERIES_DEBUG:-false}
+      TIMESERIES_LOG_THROTTLE_MS: ${TIMESERIES_LOG_THROTTLE_MS:-30000}
+      SLOW_SQL_MS: ${SLOW_SQL_MS:-200}
+      SLOW_REQUEST_MS: ${SLOW_REQUEST_MS:-800}
+      SLOW_REQUEST_LOG_ENABLED: ${SLOW_REQUEST_LOG_ENABLED:-true}
       # 显式指向静态资源目录（匹配 .dockerignore 后的 volumes 挂载）
       DATA_PATH: /app/public
       # GEMINI_API_KEY: ${GEMINI_API_KEY}

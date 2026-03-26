@@ -306,6 +306,7 @@ const selectedTimeRangeLabel = computed(() => {
 const chartData = ref([]);
 const overlaySeries = ref([]);
 const isCacheReady = ref(false);
+const suppressRangeWatchLoad = ref(false);
 let heatmapTimer = null;
 let uiObserver = null;
 const selectedRoomCodes = ref([]);
@@ -322,7 +323,7 @@ const loadChartData = async () => {
   // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
   const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
   console.log(`  📈 加载图表数据: ${new Date(start).toLocaleTimeString()} - ${new Date(end).toLocaleTimeString()}, fileId=${currentFileId}`);
-  if (isInfluxConfigured()) {
+  if (await isInfluxConfigured(currentFileId)) {
     try {
       const pts = await queryAverageSeries(start, end, windowMs, currentFileId);
       chartData.value = pts || [];
@@ -339,12 +340,12 @@ const loadChartData = async () => {
 
 const refreshRoomSeriesCache = async (codes) => {
   isCacheReady.value = false;
-  if (!isInfluxConfigured()) { roomSeriesCache = {}; overlaySeries.value = []; isCacheReady.value = true; return; }
+  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+  if (!(await isInfluxConfigured(currentFileId))) { roomSeriesCache = {}; overlaySeries.value = []; isCacheReady.value = true; return; }
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
-  // 获取当前模型的 fileId（优先使用 roomTags，否则使用 props.rooms）
-  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
   const targetCodes = (codes && codes.length ? codes : roomTags.value.map(t => t.code).filter(Boolean));
   const list = await Promise.all(targetCodes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId).then(pts => ({ code: c, pts })).catch(() => ({ code: c, pts: [] }))));
   const cache = {};
@@ -1944,7 +1945,10 @@ const onScrubEnd = () => { isDragging.value = false; };
 const openTimeline = () => isTimelineOpen.value=true;
 const closeTimeline = () => { isTimelineOpen.value=false; isPlaying.value=false; };
 watch(isTimelineOpen, () => { setTimeout(() => { if(viewer) { viewer.resize(); updateAllTagPositions(); } }, 300); });
-watch([startDate, endDate], () => { loadChartData(); });
+watch([startDate, endDate], () => {
+  if (suppressRangeWatchLoad.value) return;
+  loadChartData();
+});
 
 // 监听语言切换，更新 Viewer 语言
 // 注意：Forge Viewer 的语言切换需要重新初始化，所以我们提示用户刷新页面
@@ -1967,7 +1971,8 @@ const startAutoRefresh = () => {
   
   // 定义刷新函数
   const doRefresh = async () => {
-    if (!isInfluxConfigured()) return;
+    const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+    if (!(await isInfluxConfigured(currentFileId))) return;
     
     const now = new Date();
     console.log(`🔄 自动刷新数据... [${now.toLocaleTimeString()}]`);
@@ -1975,8 +1980,10 @@ const startAutoRefresh = () => {
     try {
       // 更新时间范围到当前时间（保持同样的时间跨度）
       const duration = endDate.value.getTime() - startDate.value.getTime();
+      suppressRangeWatchLoad.value = true;
       endDate.value = now;
       startDate.value = new Date(now.getTime() - duration);
+      suppressRangeWatchLoad.value = false;
       
       // 刷新图表数据
       await loadChartData();
@@ -1988,7 +1995,6 @@ const startAutoRefresh = () => {
         await refreshRoomSeriesCache(codes).catch(() => {});
         
         // 获取当前模型的 fileId（使用第一个 room 的 fileId）
-        const currentFileId = roomTags.value[0]?.fileId;
         const map = await queryLatestByRooms(codes, 60 * 60 * 1000, currentFileId).catch((err) => {
           console.warn('  ⚠️ queryLatestByRooms 失败:', err);
           return {};
@@ -2044,12 +2050,14 @@ onMounted(() => {
   loadChartData();
   
   // 启动自动刷新（无论 InfluxDB 是否配置，定时器会在内部检查）
-  if (isInfluxConfigured()) {
-    startAutoRefresh();
-  }
+  const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+  isInfluxConfigured(currentFileId).then((ok) => {
+    if (ok) startAutoRefresh();
+  });
   
-  setTimeout(() => {
-    if (isInfluxConfigured()) {
+  setTimeout(async () => {
+    const currentTimeoutFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+    if (await isInfluxConfigured(currentTimeoutFileId)) {
       const codes = roomTags.value.map(t => t.code).filter(Boolean);
       if (codes.length) {
         refreshRoomSeriesCache(codes).catch(() => {});
@@ -2634,7 +2642,8 @@ defineExpose({
   syncTimelineHover,
   refreshTimeSeriesData,
   setSelectedRooms: async (codes) => {
-    if (!isInfluxConfigured() || !codes?.length) {
+    const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
+    if (!(await isInfluxConfigured(currentFileId)) || !codes?.length) {
       overlaySeries.value = [];
       await refreshRoomSeriesCache().catch(() => {});
       setTagTempsAtCurrentTime();
@@ -2644,7 +2653,6 @@ defineExpose({
     const end = endDate.value.getTime();
     const windowMs = 0; // 不聚合，显示原始数据点
     // 获取当前模型的 fileId
-    const currentFileId = roomTags.value[0]?.fileId || props.rooms[0]?.fileId;
     const promises = codes.map(c => queryRoomSeries(c, start, end, windowMs, currentFileId));
     const list = await Promise.all(promises);
     overlaySeries.value = list;

@@ -24,6 +24,132 @@ const router = express.Router();
 
 // Python Logic Engine 服务地址
 const LOGIC_ENGINE_URL = process.env.LOGIC_ENGINE_URL || 'http://localhost:8000';
+const POWER_GRAPH_CACHE_TTL_MS = parseInt(process.env.POWER_GRAPH_CACHE_TTL_MS || '60000', 10);
+
+// 电源图缓存（fileId 级，仅缓存完整图：不带 nodeType/maxLevel）
+const powerGraphCache = new Map(); // key: fileId, value: { data, expiresAt }
+const powerGraphInFlight = new Map(); // key: fileId, value: Promise<data>
+
+function getPowerGraphCache(fileId) {
+    const cached = powerGraphCache.get(fileId);
+    if (!cached) return null;
+    if (cached.expiresAt <= Date.now()) {
+        powerGraphCache.delete(fileId);
+        return null;
+    }
+    return cached.data;
+}
+
+function setPowerGraphCache(fileId, data) {
+    powerGraphCache.set(fileId, {
+        data,
+        expiresAt: Date.now() + POWER_GRAPH_CACHE_TTL_MS
+    });
+}
+
+function formatPowerGraphRows(nodeRows, edgeRows) {
+    const nodes = nodeRows.map(row => ({
+        id: row.id,
+        label: row.label || row.short_code,
+        code: row.code,
+        shortCode: row.short_code,
+        parentCode: row.parent_code,
+        level: row.level,
+        nodeType: row.type,
+        objectId: row.object_id,
+        bimGuid: row.bim_guid,
+        mcCode: row.mc_code,
+        objectName: row.object_name,
+        aspects: row.aspects || [],
+        style: {
+            fill: getNodeColor(row.type),
+        }
+    }));
+
+    const edges = edgeRows.map(row => ({
+        id: row.id,
+        source: row.source,
+        target: row.target,
+        type: row.type,
+        properties: row.properties
+    }));
+
+    return {
+        success: true,
+        nodes,
+        edges,
+        stats: {
+            totalNodes: nodes.length,
+            totalEdges: edges.length
+        }
+    };
+}
+
+async function queryPowerGraphData(fileId, nodeType, maxLevel) {
+    // 查询节点（包含关联对象的所有方面编码）
+    let nodeQuery = `
+        SELECT 
+            pn.id,
+            pn.full_code as code,
+            pn.short_code,
+            pn.parent_code,
+            pn.label,
+            pn.level,
+            pn.node_type as type,
+            pn.object_id,
+            o.bim_guid,
+            o.ref_code as mc_code,
+            o.name as object_name,
+            -- 查询关联对象的所有方面编码
+            (
+                SELECT json_agg(json_build_object(
+                    'aspectType', a.aspect_type,
+                    'fullCode', a.full_code,
+                    'prefix', a.prefix,
+                    'level', a.hierarchy_level
+                ) ORDER BY a.aspect_type, a.hierarchy_level DESC)
+                FROM rds_aspects a 
+                WHERE a.object_id = pn.object_id
+            ) as aspects
+        FROM rds_power_nodes pn
+        LEFT JOIN rds_objects o ON pn.object_id = o.id
+        WHERE pn.file_id = $1
+    `;
+    const nodeParams = [fileId];
+    let paramIndex = 2;
+
+    if (nodeType) {
+        nodeQuery += ` AND pn.node_type = $${paramIndex}`;
+        nodeParams.push(nodeType);
+        paramIndex++;
+    }
+
+    if (maxLevel) {
+        nodeQuery += ` AND pn.level <= $${paramIndex}`;
+        nodeParams.push(parseInt(maxLevel));
+        paramIndex++;
+    }
+
+    nodeQuery += ' ORDER BY pn.level, pn.full_code';
+
+    const nodeResult = await db.query(nodeQuery, nodeParams);
+
+    // 查询边
+    const edgeQuery = `
+        SELECT 
+            pe.id,
+            pe.source_node_id as source,
+            pe.target_node_id as target,
+            pe.relation_type as type,
+            pe.properties
+        FROM rds_power_edges pe
+        WHERE pe.file_id = $1
+        ORDER BY pe.relation_type
+    `;
+    const edgeResult = await db.query(edgeQuery, [fileId]);
+
+    return formatPowerGraphRows(nodeResult.rows, edgeResult.rows);
+}
 
 // ==================== 方面树查询接口 ====================
 
@@ -517,111 +643,43 @@ router.get('/import/:fileId/stats', async (req, res) => {
  */
 router.get('/power-graph/:fileId', async (req, res) => {
     const { fileId } = req.params;
-    const { nodeType, maxLevel } = req.query;
+    const { nodeType, maxLevel, noCache } = req.query;
+    const useFileCache = !nodeType && !maxLevel;
+    const skipCache = String(noCache).toLowerCase() === 'true';
 
     try {
-        // 查询节点（包含关联对象的所有方面编码）
-        let nodeQuery = `
-            SELECT 
-                pn.id,
-                pn.full_code as code,
-                pn.short_code,
-                pn.parent_code,
-                pn.label,
-                pn.level,
-                pn.node_type as type,
-                pn.object_id,
-                o.bim_guid,
-                o.ref_code as mc_code,
-                o.name as object_name,
-                -- 查询关联对象的所有方面编码
-                (
-                    SELECT json_agg(json_build_object(
-                        'aspectType', a.aspect_type,
-                        'fullCode', a.full_code,
-                        'prefix', a.prefix,
-                        'level', a.hierarchy_level
-                    ) ORDER BY a.aspect_type, a.hierarchy_level DESC)
-                    FROM rds_aspects a 
-                    WHERE a.object_id = pn.object_id
-                ) as aspects
-            FROM rds_power_nodes pn
-            LEFT JOIN rds_objects o ON pn.object_id = o.id
-            WHERE pn.file_id = $1
-        `;
-        const nodeParams = [fileId];
-        let paramIndex = 2;
+        if (useFileCache && !skipCache) {
+            const cached = getPowerGraphCache(fileId);
+            if (cached) {
+                return res.json(cached);
+            }
 
-        if (nodeType) {
-            nodeQuery += ` AND pn.node_type = $${paramIndex}`;
-            nodeParams.push(nodeType);
-            paramIndex++;
+            const inFlight = powerGraphInFlight.get(fileId);
+            if (inFlight) {
+                const shared = await inFlight;
+                return res.json(shared);
+            }
         }
 
-        if (maxLevel) {
-            nodeQuery += ` AND pn.level <= $${paramIndex}`;
-            nodeParams.push(parseInt(maxLevel));
-            paramIndex++;
+        const queryPromise = queryPowerGraphData(fileId, nodeType, maxLevel);
+
+        if (useFileCache && !skipCache) {
+            powerGraphInFlight.set(fileId, queryPromise);
         }
 
-        nodeQuery += ' ORDER BY pn.level, pn.full_code';
+        const payload = await queryPromise;
 
-        const nodeResult = await db.query(nodeQuery, nodeParams);
+        if (useFileCache && !skipCache) {
+            setPowerGraphCache(fileId, payload);
+            powerGraphInFlight.delete(fileId);
+        }
 
-        // 查询边
-        const edgeQuery = `
-            SELECT 
-                pe.id,
-                pe.source_node_id as source,
-                pe.target_node_id as target,
-                pe.relation_type as type,
-                pe.properties
-            FROM rds_power_edges pe
-            WHERE pe.file_id = $1
-            ORDER BY pe.relation_type
-        `;
-        const edgeResult = await db.query(edgeQuery, [fileId]);
-
-        // 格式化为 G6 格式
-        const nodes = nodeResult.rows.map(row => ({
-            id: row.id,
-            label: row.label || row.short_code,
-            code: row.code,
-            shortCode: row.short_code,
-            parentCode: row.parent_code,
-            level: row.level,
-            nodeType: row.type,
-            objectId: row.object_id,
-            bimGuid: row.bim_guid,
-            mcCode: row.mc_code,
-            objectName: row.object_name,
-            // 方面编码数组（用于悬浮面板显示）
-            aspects: row.aspects || [],
-            // G6 特有属性
-            style: {
-                fill: getNodeColor(row.type),
-            }
-        }));
-
-        const edges = edgeResult.rows.map(row => ({
-            id: row.id,
-            source: row.source,
-            target: row.target,
-            type: row.type,
-            properties: row.properties
-        }));
-
-        res.json({
-            success: true,
-            nodes,
-            edges,
-            stats: {
-                totalNodes: nodes.length,
-                totalEdges: edges.length
-            }
-        });
+        res.json(payload);
 
     } catch (error) {
+        if (useFileCache && !skipCache) {
+            powerGraphInFlight.delete(fileId);
+        }
         console.error('获取电源图失败:', error);
         res.status(500).json({
             success: false,
@@ -775,4 +833,3 @@ router.get('/power-trace/:fileId/:nodeCode', async (req, res) => {
 
 
 export default router;
-
