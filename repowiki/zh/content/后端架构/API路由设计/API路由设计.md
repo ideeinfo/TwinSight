@@ -13,10 +13,20 @@
 - [server/routes/v1/ai.js](file://server/routes/v1/ai.js)
 - [server/routes/v1/system-config.js](file://server/routes/v1/system-config.js)
 - [server/routes/v1/facilities.js](file://server/routes/v1/facilities.js)
+- [server/routes/atomic/v1/index.js](file://server/routes/atomic/v1/index.js)
+- [server/routes/atomic/v1/power.js](file://server/routes/atomic/v1/power.js)
+- [server/routes/atomic/v1/timeseries.js](file://server/routes/atomic/v1/timeseries.js)
+- [server/routes/atomic/v1/assets.js](file://server/routes/atomic/v1/assets.js)
+- [server/routes/atomic/v1/knowledge.js](file://server/routes/atomic/v1/knowledge.js)
+- [server/routes/atomic/v1/ui.js](file://server/routes/atomic/v1/ui.js)
+- [server/routes/atomic/v1/alarm.js](file://server/routes/atomic/v1/alarm.js)
 - [server/middleware/auth.js](file://server/middleware/auth.js)
+- [server/middleware/service-auth.js](file://server/middleware/service-auth.js)
+- [server/middleware/scope-guard.js](file://server/middleware/scope-guard.js)
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js)
 - [server/config/auth.js](file://server/config/auth.js)
 - [server/services/config-service.js](file://server/services/config-service.js)
+- [server/services/ws-control-channel.js](file://server/services/ws-control-channel.js)
 - [server/models/facility.js](file://server/models/facility.js)
 </cite>
 
@@ -36,13 +46,15 @@
 本文件聚焦于 API v1 版本的路由架构设计与实现，系统性解析 index.js 如何聚合资产、空间、模型、时序、文档、AI、认证、用户与系统配置等子路由；阐述 RESTful 设计原则在实际路由中的应用（资源命名、HTTP 方法映射、版本控制策略）；说明中间件注入方式与错误传播机制；并讨论未来版本兼容性与扩展性设计建议。
 
 ## 项目结构
-- 服务入口通过 Express 应用启动，统一挂载新版 v1 路由与旧版兼容路由。
+- 服务入口通过 Express 应用启动，统一挂载新版 v1 路由、Atomic API 路由与旧版兼容路由。
 - v1 路由采用模块化设计，每个领域（资产、空间、模型、时序、文档、AI、认证、用户、系统配置）独立文件，最终在 v1 聚合器中统一挂载。
+- Atomic API 提供原子化服务能力，支持服务间认证(M2M)和作用域校验，用于外部系统集成。
 - 中间件层提供认证、授权、参数校验与全局错误处理。
 
 ```mermaid
 graph TB
 A["Express 应用<br/>server/index.js"] --> B["v1 路由聚合<br/>server/routes/v1/index.js"]
+A --> AT["Atomic API<br/>server/routes/atomic/"]
 B --> C["资产路由<br/>assets.js"]
 B --> D["空间路由<br/>spaces.js"]
 B --> E["模型路由<br/>models.js"]
@@ -53,6 +65,12 @@ B --> I["认证路由<br/>auth.js"]
 B --> J["用户路由<br/>users.js"]
 B --> K["系统配置路由<br/>system-config.js"]
 B --> FA["设施路由<br/>facilities.js"]
+AT --> ATP["电源拓扑<br/>power.js"]
+AT --> ATT["时序数据<br/>timeseries.js"]
+AT --> ATA["资产查询<br/>assets.js"]
+AT --> ATK["知识检索<br/>knowledge.js"]
+AT --> ATU["UI 控制<br/>ui.js"]
+AT --> ATAL["报警事件<br/>alarm.js"]
 A --> L["全局错误处理<br/>error-handler.js"]
 A --> M["认证中间件<br/>auth.js"]
 A --> N["参数校验中间件<br/>validate.js"]
@@ -317,6 +335,54 @@ Err-->>Client : "标准化错误响应"
 章节来源
 - [server/middleware/error-handler.js](file://server/middleware/error-handler.js#L1-L115)
 
+### Atomic API 路由（atomic/v1/）
+Atomic API 提供原子化的服务能力，采用三层认证机制（用户认证 + 服务间认证 + 作用域校验），用于外部系统集成和微服务间通信。
+
+**中间件链**：
+- `authenticate`：JWT 用户认证
+- `serviceAuth`：服务间 M2M 认证
+- `scopeGuard`：作用域校验（File ID 等）
+
+**子路由模块**：
+- **power.js**：电源拓扑追溯
+  - `POST /api/atomic/v1/power/trace` - 电源拓扑追溯（转发到 Logic Engine）
+  - 参数：`{ mcCode, direction, fileId? }`
+  - 返回：`{ nodes, edges, startNode }`
+
+- **timeseries.js**：时序数据查询
+  - `POST /api/atomic/v1/timeseries/query` - 查询单房间时序数据
+  - `POST /api/atomic/v1/timeseries/query/batch` - 批量查询多房间时序数据
+  - `POST /api/atomic/v1/timeseries/latest` - 获取多房间最新温度值
+
+- **assets.js**：资产查询
+  - `GET /api/atomic/v1/assets` - 查询资产列表（支持 fileId 过滤）
+  - `GET /api/atomic/v1/assets/:code` - 按编码获取资产详情
+  - `GET /api/atomic/v1/assets/:code/related` - 获取关联资产
+
+- **knowledge.js**：RAG 知识库检索
+  - `POST /api/atomic/v1/knowledge/rag-search` - 执行 RAG 检索
+  - 参数：`{ query, fileId?, kbId?, topK? }`
+  - 通过 fileId -> knowledge_bases 映射调用 Open WebUI
+
+- **ui.js**：UI 控制指令
+  - `POST /api/atomic/v1/ui/command` - 发送 UI 控制指令
+  - 支持指令：`navigate`, `highlight`, `isolate`, `reset`
+  - 通过 WebSocket 控制通道分发到前端
+
+- **alarm.js**：报警事件
+  - `GET /api/atomic/v1/alarm/events` - 获取报警事件列表
+  - `POST /api/atomic/v1/alarm/events` - 创建报警事件
+  - `PATCH /api/atomic/v1/alarm/events/:id` - 更新报警状态
+
+章节来源
+- [server/routes/atomic/v1/index.js](file://server/routes/atomic/v1/index.js)
+- [server/routes/atomic/v1/power.js](file://server/routes/atomic/v1/power.js)
+- [server/routes/atomic/v1/timeseries.js](file://server/routes/atomic/v1/timeseries.js)
+- [server/routes/atomic/v1/assets.js](file://server/routes/atomic/v1/assets.js)
+- [server/routes/atomic/v1/knowledge.js](file://server/routes/atomic/v1/knowledge.js)
+- [server/routes/atomic/v1/ui.js](file://server/routes/atomic/v1/ui.js)
+- [server/routes/atomic/v1/alarm.js](file://server/routes/atomic/v1/alarm.js)
+
 ## 依赖分析
 - 路由与中间件耦合：各路由文件依赖认证与授权中间件，参数校验中间件，以及统一的错误处理。
 - 权限与角色：权限常量与角色映射集中定义，路由通过 authorize 中间件进行权限检查。
@@ -325,7 +391,7 @@ Err-->>Client : "标准化错误响应"
 
 ```mermaid
 graph LR
-subgraph "路由层"
+subgraph "v1 路由层"
 R1["assets.js"]
 R2["spaces.js"]
 R3["models.js"]
@@ -336,13 +402,24 @@ R7["users.js"]
 R8["system-config.js"]
 R9["facilities.js"]
 end
+subgraph "Atomic API 路由层"
+A1["atomic/assets.js"]
+A2["atomic/timeseries.js"]
+A3["atomic/power.js"]
+A4["atomic/knowledge.js"]
+A5["atomic/ui.js"]
+A6["atomic/alarm.js"]
+end
 subgraph "中间件层"
 M1["auth.js"]
 M2["error-handler.js"]
+M3["service-auth.js"]
+M4["scope-guard.js"]
 end
 subgraph "服务层"
 S1["config-service.js"]
 S2["openwebui-service.js"]
+S3["ws-control-channel.js"]
 end
 R1 --> M1
 R2 --> M1
@@ -364,6 +441,26 @@ R8 --> M2
 R9 --> M2
 R8 --> S1
 R6 --> S2
+A1 --> M1
+A2 --> M1
+A3 --> M1
+A4 --> M1
+A5 --> M1
+A6 --> M1
+A1 --> M3
+A2 --> M3
+A3 --> M3
+A4 --> M3
+A5 --> M3
+A6 --> M3
+A1 --> M4
+A2 --> M4
+A3 --> M4
+A4 --> M4
+A5 --> M4
+A6 --> M4
+A4 --> S2
+A5 --> S3
 ```
 
 图表来源
