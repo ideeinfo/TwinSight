@@ -58,6 +58,12 @@
         @marker-click="emit('ticket-marker-click', $event)"
       />
 
+      <PointOverlayTags
+        :points="pointOverlayMarkers"
+        :selected-point-id="selectedPointId"
+        @point-click="emit('point-marker-click', $event)"
+      />
+
 
       <!-- 控制按钮已集成到 Viewer 工具栏 -->
     </div>
@@ -92,6 +98,7 @@ import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
 import OverlayTags from './viewer/OverlayTags.vue';
 import TicketOverlayTags from './viewer/TicketOverlayTags.vue';
+import PointOverlayTags from './viewer/PointOverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import DocumentPreview from './DocumentPreview.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
@@ -122,11 +129,14 @@ const props = defineProps({
   rooms: { type: Array, default: () => [] },   // 从数据库加载的空间列表
   isAIEnabled: { type: Boolean, default: true }, // AI 分析功能开关
   ticketMarkers: { type: Array, default: () => [] },
-  isTicketOverlayVisible: { type: Boolean, default: false }
+  isTicketOverlayVisible: { type: Boolean, default: false },
+  pointMarkers: { type: Array, default: () => [] },
+  isPointOverlayVisible: { type: Boolean, default: false },
+  selectedPointId: { type: Number, default: null }
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert', 'ticket-marker-click']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert', 'ticket-marker-click', 'point-marker-click']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -141,6 +151,7 @@ const progress = ref(95);
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
 const ticketOverlayMarkers = ref([]);
+const pointOverlayMarkers = ref([]);
 const areTagsVisible = ref(false); // 温度标签显示状态，默认不显示
 const isSettingsPanelOpen = ref(false); // 设置面板打开状态
 let foundRoomDbIds = [];
@@ -1485,6 +1496,7 @@ const updateAllTagPositions = () => {
   }
 
   updateTicketMarkerPositions();
+  updatePointMarkerPositions();
 };
 
 const updateTicketMarkerPositions = () => {
@@ -1516,11 +1528,55 @@ const updateTicketMarkerPositions = () => {
   });
 };
 
+const updatePointMarkerPositions = () => {
+  if (!props.isPointOverlayVisible || !viewer || !viewer.model) {
+    pointOverlayMarkers.value = [];
+    return;
+  }
+
+  pointOverlayMarkers.value = props.pointMarkers.map((point) => {
+    const dbId = point.targetDbId;
+    if (!dbId) {
+      return { ...point, visible: false };
+    }
+
+    const bounds = getComponentBounds(dbId);
+    if (!bounds) {
+      return { ...point, visible: false };
+    }
+
+    const worldPos = new window.THREE.Vector3(
+      (bounds.min.x + bounds.max.x) / 2,
+      bounds.max.y,
+      (bounds.min.z + bounds.max.z) / 2
+    );
+    const screenPos = viewer.worldToClient(worldPos);
+
+    return {
+      ...point,
+      worldPos,
+      x: screenPos.x,
+      y: screenPos.y,
+      visible: screenPos.z <= 1
+    };
+  });
+};
+
 watch(
   () => [props.ticketMarkers, props.isTicketOverlayVisible, props.currentView],
   () => {
     nextTick(() => {
       updateTicketMarkerPositions();
+    });
+  },
+  { deep: true }
+);
+
+watch(
+  () => [props.pointMarkers, props.isPointOverlayVisible, props.currentView],
+  () => {
+    nextTick(() => {
+      updatePointMarkerPositions();
     });
   },
   { deep: true }

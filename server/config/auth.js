@@ -52,6 +52,10 @@ export const PERMISSIONS = {
     TICKET_UPDATE: 'ticket:update',
     TICKET_DELETE: 'ticket:delete',
 
+    // 点位权限
+    POINT_READ: 'point:read',
+    POINT_MANAGE: 'point:manage',
+
     // InfluxDB 配置权限
     INFLUX_READ: 'influx:read',
     INFLUX_MANAGE: 'influx:manage',
@@ -90,6 +94,8 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.TICKET_CREATE,
         PERMISSIONS.TICKET_UPDATE,
         PERMISSIONS.TICKET_DELETE,
+        PERMISSIONS.POINT_READ,
+        PERMISSIONS.POINT_MANAGE,
         PERMISSIONS.INFLUX_READ,
         PERMISSIONS.INFLUX_MANAGE,
     ],
@@ -109,6 +115,8 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.TICKET_READ,
         PERMISSIONS.TICKET_CREATE,
         PERMISSIONS.TICKET_UPDATE,
+        PERMISSIONS.POINT_READ,
+        PERMISSIONS.POINT_MANAGE,
         PERMISSIONS.INFLUX_READ,
     ],
 
@@ -120,6 +128,7 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.FACILITY_READ,
         PERMISSIONS.DOCUMENT_READ,
         PERMISSIONS.TICKET_READ,
+        PERMISSIONS.POINT_READ,
         PERMISSIONS.INFLUX_READ,
     ],
 

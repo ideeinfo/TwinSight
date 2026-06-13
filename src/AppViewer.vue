@@ -35,13 +35,20 @@
         
           <!-- 内容面板(文档视图时隐藏) -->
           <div v-if="currentView !== 'documents'" class="panel-content">
-            <LeftPanel
+            <PointPanel
               v-if="currentView === 'connect'"
-              :rooms="roomList"
-              :selected-db-ids="savedRoomSelections"
-              @open-properties="openRightPanel"
-              @rooms-selected="onRoomsSelected"
-              @rooms-deleted="reloadCurrentFileSpaces"
+              :points="pointList"
+              :spaces="roomList"
+              :assets="assetList"
+              :latest-values="pointLatestValues"
+              :loading="pointsLoading"
+              :selected-point-id="selectedPointId"
+              @filters-change="handlePointFiltersChange"
+              @select-point="handlePointLocate"
+              @create-point="handlePointCreate"
+              @update-point="handlePointUpdate"
+              @delete-point="handlePointDelete"
+              @copy-stream-url="handlePointCopyStreamUrl"
             />
             <AssetPanel
               v-else-if="currentView === 'assets'"
@@ -124,6 +131,9 @@
               :is-a-i-enabled="isAIAnalysisEnabled"
               :ticket-markers="ticketMarkers"
               :is-ticket-overlay-visible="currentView === 'tickets'"
+              :point-markers="pointMarkers"
+              :is-point-overlay-visible="currentView === 'connect'"
+              :selected-point-id="selectedPointId"
               @rooms-loaded="onRoomsLoaded"
               @assets-loaded="onAssetsLoaded"
               @viewer-ready="onViewerReady"
@@ -132,6 +142,7 @@
               @model-selection-changed="onModelSelectionChanged"
               @trigger-ai-alert="handleAIAlert"
               @ticket-marker-click="onTicketMarkerClick"
+              @point-marker-click="handlePointLocate"
             />
             <div v-if="showFacilityEmptyState" class="model-empty-state">
               <div class="model-empty-card">
@@ -290,7 +301,7 @@ import AIAnalysisModal from './components/viewer/AIAnalysisModal.vue';
 import { useAuthStore } from './stores/auth';
 import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
-import LeftPanel from './components/LeftPanel.vue';
+import PointPanel from './components/PointPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import SpacePanel from './components/SpacePanel.vue';
 import FilePanel from './components/FilePanel.vue';
@@ -311,6 +322,7 @@ import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
 import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
+import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, updatePoint } from './services/points';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
 import { triggerTemperatureAlert } from './services/ai-analysis';
@@ -485,6 +497,26 @@ const ticketDialogSubmitting = ref(false);
 const ticketDetailSubmitting = ref(false);
 const selectedTicket = computed(() => (
   ticketList.value.find((ticket) => ticket.id === selectedTicketId.value) || null
+));
+const pointList = ref([]);
+const pointLatestValues = ref({});
+const pointFilters = ref({});
+const pointsLoading = ref(false);
+const selectedPointId = ref(null);
+const selectedPoint = computed(() => (
+  pointList.value.find((point) => point.id === selectedPointId.value) || null
+));
+const pointMarkers = computed(() => (
+  pointList.value
+    .filter((point) => point.isEnabled && point.targetDbId)
+    .map((point) => {
+      const latest = pointLatestValues.value?.[point.pointCode];
+      return {
+        ...point,
+        latestValue: latest?.value ?? null,
+        latestTimestamp: latest?.timestamp ?? null
+      };
+    })
 ));
 
 const showRightSidePanel = computed(() => (
@@ -756,6 +788,59 @@ const refreshTicketData = async () => {
   ]);
 };
 
+const loadPointList = async () => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    pointList.value = [];
+    return;
+  }
+
+  pointsLoading.value = true;
+  try {
+    pointList.value = await listPoints({
+      facilityId: requestedRouteFacilityId.value,
+      fileId: activeFileId.value,
+      ...pointFilters.value
+    });
+    if (selectedPointId.value && !pointList.value.some((point) => point.id === selectedPointId.value)) {
+      selectedPointId.value = null;
+    }
+  } catch (error) {
+    console.error('加载点位列表失败:', error);
+    pointList.value = [];
+  } finally {
+    pointsLoading.value = false;
+  }
+};
+
+const loadPointLatestValues = async () => {
+  if (!activeFileId.value || pointList.value.length === 0) {
+    pointLatestValues.value = {};
+    return;
+  }
+
+  try {
+    const pointCodes = pointList.value
+      .filter((point) => point.dataKind !== 'video')
+      .map((point) => point.pointCode);
+    if (pointCodes.length === 0) {
+      pointLatestValues.value = {};
+      return;
+    }
+    pointLatestValues.value = await queryLatestPoints({
+      fileId: activeFileId.value,
+      pointCodes: pointCodes.join(',')
+    });
+  } catch (error) {
+    console.error('加载点位最新值失败:', error);
+    pointLatestValues.value = {};
+  }
+};
+
+const refreshPointData = async () => {
+  await loadPointList();
+  await loadPointLatestValues();
+};
+
 const closeTicketDialog = () => {
   isTicketDialogVisible.value = false;
   editingTicket.value = null;
@@ -965,6 +1050,112 @@ const onTicketMarkerClick = async (marker) => {
   }
 
   await loadTicketList();
+};
+
+const handlePointFiltersChange = async (filters) => {
+  pointFilters.value = {
+    ...pointFilters.value,
+    keyword: filters.keyword,
+    pointType: filters.pointType,
+    targetType: filters.targetType
+  };
+  await refreshPointData();
+};
+
+const locatePointTarget = (point) => {
+  if (!point?.targetDbId) return;
+
+  if (point.targetType === 'asset') {
+    currentSelectionType.value = 'asset';
+    onAssetsSelected([point.targetDbId]);
+    return;
+  }
+
+  currentSelectionType.value = 'space';
+  onSpacesSelected([point.targetDbId]);
+};
+
+const handlePointLocate = (point) => {
+  if (!point) return;
+  selectedPointId.value = point.id;
+  locatePointTarget(point);
+};
+
+const buildPointPayload = (payload) => ({
+  ...payload,
+  facilityId: requestedRouteFacilityId.value,
+  fileId: activeFileId.value
+});
+
+const handlePointCreate = async (payload) => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    ElMessage.warning('当前没有可用的设施或模型文件');
+    return;
+  }
+
+  try {
+    const point = await createPoint(buildPointPayload(payload));
+    selectedPointId.value = point.id;
+    ElMessage.success('点位已创建');
+    await refreshPointData();
+  } catch (error) {
+    console.error('创建点位失败:', error);
+    ElMessage.error(error.message || '创建点位失败');
+  }
+};
+
+const handlePointUpdate = async (id, payload) => {
+  if (!id) return;
+
+  try {
+    const point = await updatePoint(id, buildPointPayload(payload));
+    selectedPointId.value = point.id;
+    ElMessage.success('点位已更新');
+    await refreshPointData();
+  } catch (error) {
+    console.error('更新点位失败:', error);
+    ElMessage.error(error.message || '更新点位失败');
+  }
+};
+
+const handlePointDelete = async (point) => {
+  if (!point) return;
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除点位 ${point.pointCode} 吗？`,
+      '删除点位',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      }
+    );
+    await deletePoint(point.id);
+    if (selectedPointId.value === point.id) {
+      selectedPointId.value = null;
+    }
+    ElMessage.success('点位已删除');
+    await refreshPointData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除点位失败:', error);
+      ElMessage.error(error.message || '删除点位失败');
+    }
+  }
+};
+
+const handlePointCopyStreamUrl = async (point) => {
+  if (!point) return;
+
+  try {
+    const data = await getPointStreamUrl(point.id);
+    await navigator.clipboard.writeText(data.streamUrl);
+    ElMessage.success('点位接入 URL 已复制');
+  } catch (error) {
+    console.error('复制点位接入 URL 失败:', error);
+    ElMessage.error(error.message || '复制点位接入 URL 失败');
+  }
 };
 
 // 视图面板方法
@@ -1867,12 +2058,19 @@ watch(
     ticketFilters.value = {};
     selectedTicketId.value = null;
     selectedTicketIds.value = [];
+    pointFilters.value = {};
+    selectedPointId.value = null;
 
     if (fileId && facilityId) {
-      await refreshTicketData();
+      await Promise.all([
+        refreshTicketData(),
+        refreshPointData()
+      ]);
     } else {
       ticketList.value = [];
       ticketMarkers.value = [];
+      pointList.value = [];
+      pointLatestValues.value = {};
     }
   },
   { immediate: true }
@@ -2064,9 +2262,14 @@ const onFileActivated = async (file) => {
       }
     }
 
-    // 如果路由明确要求文档页，保留当前文档视图，不要被文件激活流程覆盖。
-    if (requestedRoutePanel.value !== 'documents' && currentView.value !== 'documents') {
-      switchView('assets');
+    // 如果路由明确要求某个业务页，文件激活完成后应回到该页。
+    if (currentView.value !== 'documents') {
+      const requestedPanel = requestedRoutePanel.value;
+      if (typeof requestedPanel === 'string' && ['models', 'assets', 'spaces', 'connect', 'rds', 'tickets'].includes(requestedPanel)) {
+        switchView(requestedPanel);
+      } else {
+        switchView('assets');
+      }
     }
     
   } catch (error) {
