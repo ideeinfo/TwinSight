@@ -55,102 +55,6 @@
       </button>
     </div>
 
-    <div v-if="editingPoint?.id" class="detail-panel">
-      <div class="detail-header">
-        <span>{{ t('points.detailTitle') }}</span>
-        <el-button v-if="canManage" text type="danger" size="small" :icon="Delete" @click="requestDelete">
-          {{ t('common.delete') }}
-        </el-button>
-      </div>
-
-      <div class="detail-body">
-        <div class="form-row">
-          <label>{{ t('points.codeLabel') }}</label>
-          <el-input v-model="form.pointCode" :disabled="!canManage" />
-        </div>
-        <div class="form-row">
-          <label>{{ t('points.nameLabel') }}</label>
-          <el-input v-model="form.name" :disabled="!canManage" />
-        </div>
-        <div class="form-row">
-          <label>{{ t('points.typeLabel') }}</label>
-          <el-select v-model="form.pointType" :disabled="!canManage" style="width: 100%;" @change="syncDataKind">
-            <el-option
-              v-for="type in pointTypes"
-              :key="type.value"
-              :label="type.label"
-              :value="type.value"
-            />
-          </el-select>
-        </div>
-        <div class="form-row">
-          <label>{{ t('points.targetTypeLabel') }}</label>
-          <el-select v-model="form.targetType" :disabled="!canManage" style="width: 100%;" @change="form.targetCode = ''">
-            <el-option :label="t('points.spaceTarget')" value="space" />
-            <el-option :label="t('points.assetTarget')" value="asset" />
-          </el-select>
-        </div>
-        <div class="form-row">
-          <label>{{ t('points.targetLabel') }}</label>
-          <el-select v-model="form.targetCode" filterable :disabled="!canManage" style="width: 100%;">
-            <el-option
-              v-for="target in targetOptions"
-              :key="target.code"
-              :label="target.label"
-              :value="target.code"
-            />
-          </el-select>
-        </div>
-        <div class="form-row two-cols">
-          <div>
-            <label>{{ t('points.unitLabel') }}</label>
-            <el-input v-model="form.unit" :disabled="!canManage || form.dataKind === 'video'" />
-          </div>
-          <div>
-            <label>{{ t('points.multiplierLabel') }}</label>
-            <el-input-number v-model="form.multiplier" :disabled="!canManage || form.dataKind === 'video'" :min="0" :step="0.1" controls-position="right" />
-          </div>
-        </div>
-        <div v-if="form.dataKind === 'video'" class="form-row">
-          <label>{{ t('points.sourceUrlLabel') }}</label>
-          <el-input v-model="form.sourceUrl" :disabled="!canManage" placeholder="HLS / FLV / WebRTC URL" />
-        </div>
-        <div class="form-row two-cols">
-          <div>
-            <label>{{ t('points.minLabel') }}</label>
-            <el-input-number v-model="form.thresholdMin" :disabled="!canManage || form.dataKind === 'video'" controls-position="right" />
-          </div>
-          <div>
-            <label>{{ t('points.maxLabel') }}</label>
-            <el-input-number v-model="form.thresholdMax" :disabled="!canManage || form.dataKind === 'video'" controls-position="right" />
-          </div>
-        </div>
-        <div class="form-row switch-row">
-          <label>{{ t('points.enabledLabel') }}</label>
-          <el-switch v-model="form.isEnabled" :disabled="!canManage" />
-        </div>
-      </div>
-
-      <div class="detail-actions">
-        <el-button
-          v-if="editingPoint.dataKind !== 'video'"
-          :icon="Link"
-          size="small"
-          @click="$emit('copy-stream-url', editingPoint)"
-        >
-          {{ t('points.copyStreamUrl') }}
-        </el-button>
-        <el-button type="primary" size="small" :disabled="!canManage || !canSubmit" @click="submit">
-          {{ t('common.save') }}
-        </el-button>
-      </div>
-    </div>
-
-    <div v-else class="detail-empty">
-      <strong>{{ t('points.detailTitle') }}</strong>
-      <span>选择列表中的点位后，可在这里查看并编辑详细信息。</span>
-    </div>
-
     <el-dialog
       v-model="createDialogVisible"
       :title="t('points.newTitle')"
@@ -238,7 +142,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { Delete, Link, Plus } from '@element-plus/icons-vue';
+import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '../stores/auth';
 
@@ -251,12 +155,11 @@ const props = defineProps({
   selectedPointId: { type: Number, default: null }
 });
 
-const emit = defineEmits(['create-point', 'delete-point', 'filters-change', 'select-point', 'copy-stream-url', 'update-point']);
+const emit = defineEmits(['create-point', 'filters-change', 'select-point']);
 const { t } = useI18n();
 const authStore = useAuthStore();
 
 const canManage = computed(() => authStore.hasPermission('point:manage'));
-const editingPoint = ref(null);
 const createDialogVisible = ref(false);
 
 const filters = reactive({
@@ -330,39 +233,11 @@ watch(filters, () => {
   });
 }, { deep: true });
 
-watch(
-  () => props.selectedPointId,
-  (id) => {
-    const point = props.points.find((item) => item.id === id);
-    if (point) applyPoint(point);
-  }
-);
-
 const resetForm = (next = defaultForm()) => {
   Object.assign(form, defaultForm(), next);
 };
 
-const applyPoint = (point) => {
-  editingPoint.value = point;
-  resetForm({
-    pointCode: point.pointCode || '',
-    name: point.name || '',
-    pointType: point.pointType || 'temperature',
-    dataKind: point.dataKind || (point.pointType === 'video' ? 'video' : 'scalar'),
-    targetType: point.targetType || 'space',
-    targetCode: point.targetCode || '',
-    unit: point.unit || '',
-    multiplier: Number(point.multiplier || 1),
-    protocol: point.protocol || 'http',
-    sourceUrl: point.sourceUrl || '',
-    thresholdMin: point.thresholdMin,
-    thresholdMax: point.thresholdMax,
-    isEnabled: point.isEnabled !== false
-  });
-};
-
 const startCreate = () => {
-  editingPoint.value = null;
   resetForm();
   createDialogVisible.value = true;
 };
@@ -388,12 +263,6 @@ const formatLatest = (point) => {
   return `${Number(latest.value).toFixed(1)}${point.unit || ''}`;
 };
 
-const requestDelete = () => {
-  if (editingPoint.value) {
-    emit('delete-point', editingPoint.value);
-  }
-};
-
 const submit = () => {
   const payload = {
     pointCode: form.pointCode.trim(),
@@ -411,12 +280,8 @@ const submit = () => {
     isEnabled: form.isEnabled
   };
 
-  if (editingPoint.value?.id) {
-    emit('update-point', editingPoint.value.id, payload);
-  } else {
-    emit('create-point', payload);
-    createDialogVisible.value = false;
-  }
+  emit('create-point', payload);
+  createDialogVisible.value = false;
 };
 </script>
 
@@ -457,7 +322,6 @@ const submit = () => {
   flex: 1;
   min-height: 180px;
   overflow-y: auto;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .empty-state {
@@ -518,30 +382,6 @@ const submit = () => {
   font-weight: 700;
 }
 
-.detail-panel {
-  flex: 0 0 380px;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--md-sys-color-surface);
-}
-
-.detail-header {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  font-weight: 700;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.detail-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-}
-
 .form-row {
   margin-bottom: 10px;
 }
@@ -563,34 +403,6 @@ const submit = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.detail-actions {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.detail-empty {
-  flex: 0 0 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px 12px;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 12px;
-}
-
-.detail-empty strong {
-  color: var(--md-sys-color-on-surface);
-  font-size: 13px;
 }
 
 .dialog-form {

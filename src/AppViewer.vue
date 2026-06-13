@@ -46,9 +46,6 @@
               @filters-change="handlePointFiltersChange"
               @select-point="handlePointLocate"
               @create-point="handlePointCreate"
-              @update-point="handlePointUpdate"
-              @delete-point="handlePointDelete"
-              @copy-stream-url="handlePointCopyStreamUrl"
             />
             <AssetPanel
               v-else-if="currentView === 'assets'"
@@ -210,6 +207,17 @@
             :submitting="ticketDetailSubmitting"
             @save-ticket="handleTicketDetailSave"
           />
+          <PointDetailPanel
+            v-else-if="isPointView"
+            :point="selectedPoint"
+            :spaces="roomList"
+            :assets="assetList"
+            :latest-values="pointLatestValues"
+            :submitting="pointDetailSubmitting"
+            @save-point="handlePointDetailSave"
+            @delete-point="handlePointDelete"
+            @copy-stream-url="handlePointCopyStreamUrl"
+          />
           <RightPanel
             v-else
             :room-properties="selectedRoomProperties"
@@ -302,6 +310,7 @@ import { useAuthStore } from './stores/auth';
 import TopBar from './components/TopBar.vue';
 import IconBar from './components/IconBar.vue';
 import PointPanel from './components/PointPanel.vue';
+import PointDetailPanel from './components/PointDetailPanel.vue';
 import AssetPanel from './components/AssetPanel.vue';
 import SpacePanel from './components/SpacePanel.vue';
 import FilePanel from './components/FilePanel.vue';
@@ -442,6 +451,7 @@ const currentView = ref('assets'); // 'connect' or 'assets' or 'spaces' - 默认
 // 新增状态：记录当前选中的对象类型（用于跨模块联动）
 const currentSelectionType = ref(null); // 'asset', 'space', or null
 const isTicketView = computed(() => currentView.value === 'tickets');
+const isPointView = computed(() => currentView.value === 'connect');
 
 // 计算右侧面板的显示模式：优先使用当前选中的对象类型，没有则回退到当前视图模式
 const rightPanelViewMode = computed(() => {
@@ -502,6 +512,7 @@ const pointList = ref([]);
 const pointLatestValues = ref({});
 const pointFilters = ref({});
 const pointsLoading = ref(false);
+const pointDetailSubmitting = ref(false);
 const selectedPointId = ref(null);
 const selectedPoint = computed(() => (
   pointList.value.find((point) => point.id === selectedPointId.value) || null
@@ -520,7 +531,7 @@ const pointMarkers = computed(() => (
 ));
 
 const showRightSidePanel = computed(() => (
-  currentView.value !== 'documents' && (isTicketView.value || isRightPanelOpen.value)
+  currentView.value !== 'documents' && (isTicketView.value || isPointView.value || isRightPanelOpen.value)
 ));
 
 const showLeftResizer = computed(() => currentView.value !== 'documents');
@@ -528,7 +539,7 @@ const showLeftResizer = computed(() => currentView.value !== 'documents');
 const showRightResizer = computed(() => showRightSidePanel.value);
 
 const currentRightPanelWidth = computed(() => (
-  isTicketView.value ? ticketDetailWidth.value : rightWidth.value
+  (isTicketView.value || isPointView.value) ? ticketDetailWidth.value : rightWidth.value
 ));
 
 const getTicketAvailableWidth = () => {
@@ -1115,6 +1126,17 @@ const handlePointUpdate = async (id, payload) => {
   } catch (error) {
     console.error('更新点位失败:', error);
     ElMessage.error(error.message || '更新点位失败');
+  }
+};
+
+const handlePointDetailSave = async ({ id, payload }) => {
+  if (!id) return;
+
+  pointDetailSubmitting.value = true;
+  try {
+    await handlePointUpdate(id, payload);
+  } finally {
+    pointDetailSubmitting.value = false;
   }
 };
 
@@ -2847,7 +2869,7 @@ const onMouseMove = (event) => {
       }
     } else if (currentResizeSide === 'right') {
       const newWidth = startWidth - dx;
-      if (isTicketView.value) {
+      if (isTicketView.value || isPointView.value) {
         if (newWidth > MIN_TICKET_DETAIL_WIDTH && newWidth < MAX_TICKET_DETAIL_WIDTH) {
           ticketDetailWidth.value = newWidth;
         }
