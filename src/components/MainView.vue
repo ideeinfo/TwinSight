@@ -1074,6 +1074,7 @@ const performLoadNewModel = async (modelPath) => {
                   try { cb(); } catch (e) { console.error('回调执行失败:', e); }
                 });
                 modelReadyCallbacks = [];
+                updateAllTagPositions();
                 resolve(true);
              }, 500);
         });
