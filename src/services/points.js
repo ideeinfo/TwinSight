@@ -80,11 +80,19 @@ export async function queryLatestPoints(params = {}) {
   return parseResponse(response, '获取点位最新值失败');
 }
 
+export async function queryPointTrend(params = {}) {
+  const response = await fetch(buildUrl('/points/query/trend', params), {
+    headers: getHeaders()
+  });
+  return parseResponse(response, '获取点位趋势失败');
+}
+
 export default {
   createPoint,
   deletePoint,
   getPointStreamUrl,
   listPoints,
   queryLatestPoints,
+  queryPointTrend,
   updatePoint
 };

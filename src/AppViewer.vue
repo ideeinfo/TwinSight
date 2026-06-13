@@ -164,7 +164,20 @@
 
           <!-- 底部图表面板 -->
           <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
-            <template v-if="selectedRoomSeries.length">
+            <ChartPanel
+              v-if="activePointChart"
+              :data="selectedPointSeries"
+              :range="currentRange"
+              :label-text="pointChartLabel"
+              :unit="pointChartConfig.unit"
+              :min-y="pointChartConfig.minY"
+              :max-y="pointChartConfig.maxY"
+              :low-threshold="pointChartConfig.lowThreshold"
+              :high-threshold="pointChartConfig.highThreshold"
+              @close="closeChartPanel"
+              @hover-sync="onHoverSync"
+            />
+            <template v-else-if="selectedRoomSeries.length">
               <ChartPanel
                 v-if="selectedRoomSeries.length === 1"
                 :data="selectedRoomSeries[0].points"
@@ -331,7 +344,7 @@ import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
 import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
-import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, updatePoint } from './services/points';
+import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, queryPointTrend, updatePoint } from './services/points';
 import { API_BASE_URL } from './utils/apiBase';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
@@ -461,6 +474,7 @@ const rightPanelViewMode = computed(() => {
   return currentView.value;
 });
 const selectedRoomSeries = ref([]);
+const selectedPointSeries = ref([]);
 const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
@@ -518,6 +532,42 @@ const selectedPointId = ref(null);
 const selectedPoint = computed(() => (
   pointList.value.find((point) => point.id === selectedPointId.value) || null
 ));
+const activePointChart = computed(() => (
+  isPointView.value && selectedPoint.value && selectedPoint.value.dataKind !== 'video'
+));
+const pointChartLabel = computed(() => {
+  if (!selectedPoint.value) return '点位趋势';
+  return `${selectedPoint.value.name || selectedPoint.value.pointCode} · ${selectedPoint.value.pointType}`;
+});
+const pointChartConfig = computed(() => {
+  const point = selectedPoint.value;
+  const unit = point?.unit || '';
+  const low = Number(point?.thresholdMin);
+  const high = Number(point?.thresholdMax);
+  const hasLow = Number.isFinite(low);
+  const hasHigh = Number.isFinite(high);
+  const values = selectedPointSeries.value.map((item) => Number(item.value)).filter(Number.isFinite);
+  const typeDefaults = {
+    humidity: { minY: 0, maxY: 100, lowThreshold: hasLow ? low : 30, highThreshold: hasHigh ? high : 70 },
+    temperature: { minY: -20, maxY: 40, lowThreshold: hasLow ? low : 10, highThreshold: hasHigh ? high : 28 },
+    energy: { minY: 0, maxY: Math.max(100, ...values, 0), lowThreshold: NaN, highThreshold: hasHigh ? high : NaN },
+    electricity: { minY: 0, maxY: Math.max(100, ...values, 0), lowThreshold: NaN, highThreshold: hasHigh ? high : NaN },
+    water: { minY: 0, maxY: Math.max(100, ...values, 0), lowThreshold: NaN, highThreshold: hasHigh ? high : NaN },
+    gas: { minY: 0, maxY: Math.max(100, ...values, 0), lowThreshold: NaN, highThreshold: hasHigh ? high : NaN },
+  };
+  const fallbackMax = values.length ? Math.max(...values) : 1;
+  const fallbackMin = values.length ? Math.min(...values) : 0;
+  const fallbackPad = Math.max(1, (fallbackMax - fallbackMin) * 0.2);
+  return {
+    unit,
+    ...(typeDefaults[point?.pointType] || {
+      minY: Math.floor(fallbackMin - fallbackPad),
+      maxY: Math.ceil(fallbackMax + fallbackPad),
+      lowThreshold: hasLow ? low : NaN,
+      highThreshold: hasHigh ? high : NaN,
+    })
+  };
+});
 const pointMarkers = computed(() => (
   pointList.value
     .filter((point) => point.isEnabled && point.targetDbId)
@@ -847,9 +897,49 @@ const loadPointLatestValues = async () => {
   }
 };
 
+const getActiveTimeRange = () => {
+  if (mainViewRef.value?.getTimeRange) {
+    return mainViewRef.value.getTimeRange();
+  }
+  if (currentRange.value?.startMs && currentRange.value?.endMs) {
+    return currentRange.value;
+  }
+  const endMs = Date.now();
+  const startMs = endMs - 24 * 60 * 60 * 1000;
+  return {
+    startMs,
+    endMs,
+    windowMs: Math.max(60_000, Math.round((endMs - startMs) / 300))
+  };
+};
+
+const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
+  if (!selectedPoint.value || selectedPoint.value.dataKind === 'video' || !activeFileId.value) {
+    selectedPointSeries.value = [];
+    return;
+  }
+
+  currentRange.value = range;
+  try {
+    selectedPointSeries.value = await queryPointTrend({
+      fileId: activeFileId.value,
+      pointCode: selectedPoint.value.pointCode,
+      startMs: range.startMs,
+      endMs: range.endMs,
+      windowMs: range.windowMs || Math.max(60_000, Math.round((range.endMs - range.startMs) / 300))
+    });
+  } catch (error) {
+    console.error('加载点位趋势失败:', error);
+    selectedPointSeries.value = [];
+  }
+};
+
 const refreshPointData = async () => {
   await loadPointList();
   await loadPointLatestValues();
+  if (activePointChart.value) {
+    await refreshSelectedPointSeries();
+  }
 };
 
 const closeTicketDialog = () => {
@@ -1089,7 +1179,11 @@ const locatePointTarget = (point) => {
 const handlePointLocate = (point) => {
   if (!point) return;
   selectedPointId.value = point.id;
+  selectedRoomSeries.value = [];
   locatePointTarget(point);
+  if (isChartPanelOpen.value) {
+    refreshSelectedPointSeries();
+  }
 };
 
 const buildPointPayload = (payload) => ({
@@ -2758,6 +2852,9 @@ const openRightPanel = () => {
 const toggleChartPanel = (isOpen) => {
   // 如果没有传参数，则切换状态；否则使用传入的值
   isChartPanelOpen.value = isOpen !== undefined ? isOpen : !isChartPanelOpen.value;
+  if (isChartPanelOpen.value && activePointChart.value) {
+    refreshSelectedPointSeries();
+  }
   // 使用 nextTick 确保 DOM 更新后再 resize
   nextTick(() => {
     if (mainViewRef.value?.resizeViewer) {
@@ -2906,6 +3003,10 @@ const onHoverSync = ({ time, percent }) => {
 
 const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
   currentRange.value = { startMs, endMs, windowMs };
+  if (activePointChart.value) {
+    refreshSelectedPointSeries(currentRange.value);
+    return;
+  }
   if (!selectedRoomSeries.value.length) return;
   const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name, fileId: s.fileId }));
   console.log('🔄 [App] 时间范围变化，更新图表:', { range: { startMs, endMs }, rooms: rooms.map(r => ({ code: r.room, fileId: r.fileId })) });

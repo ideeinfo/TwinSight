@@ -7,15 +7,16 @@
 
     <!-- 图表主体区域 -->
     <div class="chart-main">
-      <!-- Y轴标签 (范围: -20°C 到 40°C) -->
+      <!-- Y轴标签 -->
       <div class="y-axis">
-        <span class="y-label" style="bottom: 100%">40°C</span>
-        <span class="y-label" style="bottom: 83.3%">30°C</span>
-        <span class="y-label" style="bottom: 66.7%">20°C</span>
-        <span class="y-label" style="bottom: 50%">10°C</span>
-        <span class="y-label" style="bottom: 33.3%">0°C</span>
-        <span class="y-label" style="bottom: 16.7%">-10°C</span>
-        <span class="y-label" style="bottom: 0%">-20°C</span>
+        <span
+          v-for="label in yLabels"
+          :key="label.bottom"
+          class="y-label"
+          :style="{ bottom: label.bottom + '%' }"
+        >
+          {{ label.text }}
+        </span>
       </div>
       
       <!-- 图表绘制区域 -->
@@ -28,12 +29,12 @@
         <div class="grid-line" style="bottom: 83.3%"></div>
 
         <!-- 高温阈值线 -->
-        <div class="threshold-line high" :style="{ bottom: highThresholdBottom + '%' }">
-          <span class="threshold-label high">28°C {{ t('chartPanel.alert') }}</span>
+        <div v-if="hasHighThreshold" class="threshold-line high" :style="{ bottom: highThresholdBottom + '%' }">
+          <span class="threshold-label high">{{ formatAxisValue(highThreshold) }} {{ t('chartPanel.alert') }}</span>
         </div>
         <!-- 低温阈值线 -->
-        <div class="threshold-line low" :style="{ bottom: lowThresholdBottom + '%' }">
-          <span class="threshold-label low">10°C {{ t('chartPanel.lowAlert') }}</span>
+        <div v-if="hasLowThreshold" class="threshold-line low" :style="{ bottom: lowThresholdBottom + '%' }">
+          <span class="threshold-label low">{{ formatAxisValue(lowThreshold) }} {{ t('chartPanel.lowAlert') }}</span>
         </div>
 
         <!-- SVG 曲线 -->
@@ -55,8 +56,8 @@
             <circle
               v-for="i in overSegments"
               :key="'m'+i"
-              :cx="(i / (displayData.length - 1)) * 1000"
-              :cy="100 - (((displayData[i].value - MIN_Y) / (MAX_Y - MIN_Y)) * 100)"
+              :cx="getPointX(displayData[i], i, displayData.length)"
+              :cy="getPointY(displayData[i].value)"
               r="3"
               fill="#ff4d4d"
               stroke="#fff"
@@ -75,8 +76,8 @@
         <!-- Tooltip -->
         <div v-if="hoverX > 0" class="tooltip-box" :style="{ left: tooltipLeft, top: tooltipTop }">
           <div class="val" :class="getValueClass(parseFloat(hoverValue))">
-            {{ hoverValue }} °C
-            <span v-if="parseFloat(hoverValue) >= HIGH_THRESHOLD || parseFloat(hoverValue) <= LOW_THRESHOLD" class="alert-badge">!</span>
+            {{ hoverValue }}{{ unit }}
+            <span v-if="isAlertValue(parseFloat(hoverValue))" class="alert-badge">!</span>
           </div>
           <div class="time">{{ hoverTime }}</div>
         </div>
@@ -94,8 +95,8 @@
         </div>
       </div>
       <div class="legend">
-        <span class="warn red">🔥 {{ t('chartPanel.alertHigh') }} ({{ highAlertCount }})</span>
-        <span class="warn cyan">❄️ {{ t('chartPanel.alertLow') }} ({{ lowAlertCount }})</span>
+        <span v-if="hasHighThreshold" class="warn red">🔥 {{ t('chartPanel.alertHigh') }} ({{ highAlertCount }})</span>
+        <span v-if="hasLowThreshold" class="warn cyan">❄️ {{ t('chartPanel.alertLow') }} ({{ lowAlertCount }})</span>
         <span class="warn blue">● {{ t('chartPanel.normal') }}</span>
       </div>
     </div>
@@ -112,18 +113,17 @@ const { t } = useI18n();
 const props = defineProps({
   data: { type: Array, default: () => [] },
   range: { type: Object, default: null },
-  labelText: { type: String, default: '' }
+  labelText: { type: String, default: '' },
+  unit: { type: String, default: '°C' },
+  minY: { type: Number, default: -20 },
+  maxY: { type: Number, default: 40 },
+  highThreshold: { type: Number, default: 28 },
+  lowThreshold: { type: Number, default: 10 }
 });
 
 const emit = defineEmits(['close','hover-sync']);
 
 const { data: displayData } = toRefs(props);
-
-// === 配置 ===
-const MIN_Y = -20;
-const MAX_Y = 40;
-const HIGH_THRESHOLD = 28;
-const LOW_THRESHOLD = 10;
 
 // === 状态 ===
 const chartRef = ref(null);
@@ -135,17 +135,57 @@ const tooltipPxX = ref(0);
 const tooltipPxY = ref(0);
 
 // === 计算属性 ===
-const highThresholdRatio = computed(() => 1 - (HIGH_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y));
-const highThresholdBottom = computed(() => ((HIGH_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) * 100);
-const lowThresholdBottom = computed(() => ((LOW_THRESHOLD - MIN_Y) / (MAX_Y - MIN_Y)) * 100);
+const minY = computed(() => Number.isFinite(props.minY) ? props.minY : -20);
+const maxY = computed(() => {
+  if (Number.isFinite(props.maxY) && props.maxY > minY.value) return props.maxY;
+  return minY.value + 1;
+});
+const highThreshold = computed(() => Number(props.highThreshold));
+const lowThreshold = computed(() => Number(props.lowThreshold));
+const hasHighThreshold = computed(() => Number.isFinite(highThreshold.value));
+const hasLowThreshold = computed(() => Number.isFinite(lowThreshold.value));
+const ySpan = computed(() => Math.max(1, maxY.value - minY.value));
+const highThresholdRatio = computed(() => hasHighThreshold.value ? 1 - (highThreshold.value - minY.value) / ySpan.value : 0);
+const highThresholdBottom = computed(() => ((highThreshold.value - minY.value) / ySpan.value) * 100);
+const lowThresholdBottom = computed(() => ((lowThreshold.value - minY.value) / ySpan.value) * 100);
+
+const formatAxisValue = (value) => `${Number(value).toFixed(Number.isInteger(value) ? 0 : 1)}${props.unit}`;
+
+const yLabels = computed(() => {
+  const count = 7;
+  return Array.from({ length: count }, (_, index) => {
+    const ratio = index / (count - 1);
+    const value = maxY.value - ySpan.value * ratio;
+    return {
+      bottom: (1 - ratio) * 100,
+      text: formatAxisValue(value)
+    };
+  });
+});
+
+const getRangeStart = () => props.range?.startMs || displayData.value[0]?.timestamp || 0;
+const getRangeEnd = () => props.range?.endMs || displayData.value[displayData.value.length - 1]?.timestamp || 0;
+
+const getPointX = (point, index, len) => {
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (start && end && end > start && point?.timestamp) {
+    return Math.max(0, Math.min(1000, ((point.timestamp - start) / (end - start)) * 1000));
+  }
+  return len > 1 ? (index / (len - 1)) * 1000 : 500;
+};
+
+const getPointY = (value) => {
+  const ratio = (Number(value) - minY.value) / ySpan.value;
+  return 100 - (Math.max(0, Math.min(1, ratio)) * 100);
+};
 
 const linePath = computed(() => {
   if (!displayData.value.length) return '';
   const len = displayData.value.length;
   return displayData.value.map((point, index) => {
-    const x = len > 1 ? (index / (len - 1)) * 1000 : 500;
-    const ratio = (point.value - MIN_Y) / (MAX_Y - MIN_Y);
-    const y = 100 - (ratio * 100);
+    const x = getPointX(point, index, len);
+    const y = getPointY(point.value);
     const safeX = isNaN(x) ? 0 : x;
     const safeY = isNaN(y) ? 50 : y;
     return `${index === 0 ? 'M' : 'L'} ${safeX.toFixed(1)} ${safeY.toFixed(1)}`;
@@ -158,13 +198,13 @@ const areaPath = computed(() => {
 });
 
 const highAlertCount = computed(() => {
-  if (!displayData.value.length) return 0;
-  return displayData.value.filter(p => p.value >= HIGH_THRESHOLD).length;
+  if (!displayData.value.length || !hasHighThreshold.value) return 0;
+  return displayData.value.filter(p => p.value >= highThreshold.value).length;
 });
 
 const lowAlertCount = computed(() => {
-  if (!displayData.value.length) return 0;
-  return displayData.value.filter(p => p.value <= LOW_THRESHOLD).length;
+  if (!displayData.value.length || !hasLowThreshold.value) return 0;
+  return displayData.value.filter(p => p.value <= lowThreshold.value).length;
 });
 
 const overSegments = computed(() => {
@@ -173,34 +213,44 @@ const overSegments = computed(() => {
   for (let i = 1; i < displayData.value.length; i++) {
     const prev = displayData.value[i-1];
     const cur = displayData.value[i];
-    if (prev.value < HIGH_THRESHOLD && cur.value >= HIGH_THRESHOLD) res.push(i);
+    if (hasHighThreshold.value && prev.value < highThreshold.value && cur.value >= highThreshold.value) res.push(i);
   }
   return res;
 });
 
+const isAlertValue = (value) => (
+  (hasHighThreshold.value && value >= highThreshold.value) ||
+  (hasLowThreshold.value && value <= lowThreshold.value)
+);
+
 // 获取点的颜色
 const getPointColor = (value) => {
-  if (value >= HIGH_THRESHOLD) return '#ff4d4d';
-  if (value <= LOW_THRESHOLD) return '#00bcd4';
+  if (hasHighThreshold.value && value >= highThreshold.value) return '#ff4d4d';
+  if (hasLowThreshold.value && value <= lowThreshold.value) return '#00bcd4';
   return '#00b0ff';
 };
 
 // 获取值的样式类
 const getValueClass = (value) => {
-  if (value >= HIGH_THRESHOLD) return 'alert-val-high';
-  if (value <= LOW_THRESHOLD) return 'alert-val-low';
+  if (hasHighThreshold.value && value >= highThreshold.value) return 'alert-val-high';
+  if (hasLowThreshold.value && value <= lowThreshold.value) return 'alert-val-low';
   return '';
 };
 
 
 const xLabels = computed(() => {
-  if (!displayData.value.length) return [];
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (!start || !end) return [];
   const labels = [];
   const count = 7;
   for (let i=0; i<count; i++) {
-    const idx = Math.floor((i/(count-1)) * (displayData.value.length - 1));
-    const dt = new Date(displayData.value[idx].timestamp);
-    labels.push(dt.getHours() + ':' + dt.getMinutes().toString().padStart(2,'0'));
+    const dt = new Date(start + ((end - start) * i / (count - 1)));
+    const showDate = end - start > 36 * 60 * 60 * 1000;
+    labels.push(showDate
+      ? `${dt.getMonth() + 1}/${dt.getDate()}`
+      : `${dt.getHours()}:${dt.getMinutes().toString().padStart(2,'0')}`
+    );
   }
   return labels;
 });
@@ -212,13 +262,24 @@ const onMouseMove = (e) => {
   const mouseX = e.clientX - rect.left;
   const svgX = (mouseX / rect.width) * 1000;
   const percent = Math.max(0, Math.min(1, svgX / 1000));
-  const index = Math.round(percent * (displayData.value.length - 1));
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  const targetTime = start && end && end > start ? start + percent * (end - start) : null;
+  const index = targetTime
+    ? displayData.value.reduce((bestIndex, point, currentIndex) => {
+        const currentDelta = Math.abs(point.timestamp - targetTime);
+        const bestDelta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
+        return currentDelta < bestDelta ? currentIndex : bestIndex;
+      }, 0)
+    : Math.round(percent * (displayData.value.length - 1));
   const point = displayData.value[index];
 
-  const ratio = (point.value - MIN_Y) / (MAX_Y - MIN_Y);
-  const svgY = 100 - (ratio * 100);
+  const ratio = (Number(point.value) - minY.value) / ySpan.value;
+  const svgY = getPointY(point.value);
 
-  const anchorPercent = index / (displayData.value.length - 1);
+  const anchorPercent = start && end && end > start
+    ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
+    : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
   hoverX.value = anchorPercent * 1000;
   hoverY.value = svgY;
 
@@ -465,4 +526,3 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
   color: #00bcd4;
 }
 </style>
-
