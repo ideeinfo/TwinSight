@@ -92,6 +92,9 @@ const parsePointCsv = (csv) => {
     const idxTime = columns.indexOf('_time');
     const idxValue = columns.indexOf('_value');
     const idxPoint = columns.indexOf('point_code');
+    const idxMeasurement = columns.indexOf('_measurement');
+    const idxCode = columns.indexOf('code');
+    const idxRoom = columns.indexOf('room');
     const points = [];
 
     for (const line of lines) {
@@ -105,11 +108,23 @@ const parsePointCsv = (csv) => {
                 timestamp,
                 value,
                 pointCode: idxPoint >= 0 ? parts[idxPoint] : undefined,
+                measurement: idxMeasurement >= 0 ? parts[idxMeasurement] : undefined,
+                code: idxCode >= 0 ? parts[idxCode] : undefined,
+                room: idxRoom >= 0 ? parts[idxRoom] : undefined,
             });
         }
     }
 
     return points;
+};
+
+const parseLegacyPointCode = (pointCode) => {
+    const match = String(pointCode || '').match(/^legacy_(temperature|humidity)_(.+)$/);
+    if (!match) return null;
+    return {
+        pointType: match[1],
+        targetCode: match[2],
+    };
 };
 
 const writePointValue = async (influxConfig, point, value, timestamp) => {
@@ -311,6 +326,33 @@ router.get('/query/latest',
             for (const point of points) {
                 if (point.pointCode && (!requestedCodes || requestedCodes.has(point.pointCode))) {
                     data[point.pointCode] = { value: point.value, timestamp: point.timestamp };
+                }
+            }
+
+            const legacyRequests = requestedCodes
+                ? [...requestedCodes].map(parseLegacyPointCode).filter(Boolean)
+                : [];
+            const missingLegacyCodes = legacyRequests
+                .map(({ pointType, targetCode }) => `legacy_${pointType}_${targetCode}`)
+                .filter((pointCode) => !data[pointCode]);
+
+            if (missingLegacyCodes.length > 0) {
+                const legacyTargetCodes = [...new Set(legacyRequests.map(({ targetCode }) => targetCode))];
+                const codeSet = legacyTargetCodes.map((code) => `"${String(code).replace(/"/g, '\\"')}"`).join(', ');
+                const legacyFlux = `from(bucket: "${influxConfig.influx_bucket}")
+  |> range(start: -3650d)
+  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature" or r._measurement == "humidity") and r._field == "value" and r["file_id"] == "${fileId}")
+  |> filter(fn: (r) => contains(value: r["code"], set: [${codeSet}]) or contains(value: r["room"], set: [${codeSet}]))
+  |> group(columns: ["_measurement", "code", "room"])
+  |> last()`;
+                const legacyPoints = parsePointCsv(await queryInflux(influxConfig, legacyFlux));
+                for (const point of legacyPoints) {
+                    const targetCode = point.code || point.room;
+                    const pointType = point.measurement === 'humidity' ? 'humidity' : 'temperature';
+                    const pointCode = `legacy_${pointType}_${targetCode}`;
+                    if (missingLegacyCodes.includes(pointCode)) {
+                        data[pointCode] = { value: point.value, timestamp: point.timestamp };
+                    }
                 }
             }
             res.json({ success: true, data });
