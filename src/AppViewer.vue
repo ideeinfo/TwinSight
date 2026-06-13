@@ -346,6 +346,7 @@ import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './se
 import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
 import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, queryPointTrend, updatePoint } from './services/points';
 import { API_BASE_URL } from './utils/apiBase';
+import { copyTextToClipboard } from './utils/clipboard';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
 import { triggerTemperatureAlert } from './services/ai-analysis';
@@ -1266,7 +1267,7 @@ const handlePointCopyStreamUrl = async (point) => {
 
   try {
     const data = await getPointStreamUrl(point.id);
-    await navigator.clipboard.writeText(data.streamUrl);
+    await copyTextToClipboard(data.streamUrl);
     ElMessage.success('点位接入 URL 已复制');
   } catch (error) {
     console.error('复制点位接入 URL 失败:', error);

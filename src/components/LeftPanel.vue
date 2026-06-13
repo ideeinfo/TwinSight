@@ -95,6 +95,7 @@ import { ElMessageBox, ElMessage } from 'element-plus';
 import { Search, Delete } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
 import { deleteSpaces } from '../services/postgres.js';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -192,8 +193,7 @@ const copyStreamUrl = async (fileId, spaceCode) => {
     const result = await response.json();
     
     if (result.success && result.data?.streamUrl) {
-      // 复制到剪贴板
-      await navigator.clipboard.writeText(result.data.streamUrl);
+      await copyTextToClipboard(result.data.streamUrl);
       
       // 显示成功提示
       showCopyToast.value = true;
