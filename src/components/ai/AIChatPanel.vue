@@ -121,6 +121,16 @@
                    :sources="msg.sources" 
                    @open-source="$emit('open-source', $event)" 
                 />
+                <div v-if="msg.actions && msg.actions.length" class="message-actions">
+                  <button
+                    v-for="(action, actionIndex) in msg.actions"
+                    :key="`${action.label || action.action || action.type}-${actionIndex}`"
+                    class="alert-action-btn"
+                    @click="$emit('execute-action', action)"
+                  >
+                    {{ action.label || '执行操作' }}
+                  </button>
+                </div>
                 <!-- Chart Wrapper -->
                 <div v-if="msg.chartData" class="chart-wrapper">
                   <ChartPanel 
@@ -412,6 +422,10 @@ const sendMessage = async () => {
         response.actions.forEach(action => {
              const actionType = action?.action || action?.type;
              const actionMcCode = action?.params?.mcCode || action?.mcCode || null;
+
+             if (action?.autoExecute === false) {
+               return;
+             }
 
              // 同一轮消息中，如果已执行过 optimistic power trace，跳过重复动作
              if (
@@ -1183,6 +1197,13 @@ textarea::placeholder {
   background: rgba(255, 100, 100, 0.2);
   border-color: #ff6b6b;
   color: #ff6b6b;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .ai-chart-window .chart-content {

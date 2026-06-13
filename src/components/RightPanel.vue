@@ -8,9 +8,9 @@
     </div>
     <div class="breadcrumb-row"><span class="breadcrumb-text">{{ breadcrumbText }}</span><svg class="link-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg></div>
     <div class="tabs">
-      <div v-if="activeTab === 'ELEMENT' || activeTab === 'TYPE'" class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">{{ t('rightPanel.element') }}</div>
-      <div v-if="activeTab === 'ELEMENT' || activeTab === 'TYPE'" class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">{{ t('rightPanel.type') }}</div>
-      <div v-if="activeTab !== 'ELEMENT' && activeTab !== 'TYPE'" class="add-action">+ {{ t('common.add') }} <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg></div>
+      <div class="tab" :class="{ active: activeTab === 'ELEMENT' }" @click="activeTab = 'ELEMENT'">{{ t('rightPanel.element') }}</div>
+      <div class="tab" :class="{ active: activeTab === 'TYPE' }" @click="activeTab = 'TYPE'">{{ t('rightPanel.type') }}</div>
+      <div v-if="showWorkorderTab" class="tab" :class="{ active: activeTab === 'WORKORDER' }" @click="activeTab = 'WORKORDER'">{{ t('rightPanel.workorders') }}</div>
     </div>
     <div class="scroll-content">
       <div v-if="activeTab === 'ELEMENT'">
@@ -97,6 +97,14 @@
           :spec-code="validSpecCode"
         />
       </div>
+      <div v-else-if="activeTab === 'WORKORDER'" class="ticket-tab-section">
+        <TicketPropertyTab
+          :asset-code="isAssetMode ? localProperties.mcCode : ''"
+          :space-code="!isAssetMode ? localProperties.code : ''"
+          :file-id="activeFileId"
+          @locate-ticket="emit('locate-ticket', $event)"
+        />
+      </div>
     </div>
 
     <!-- Confirm/Alert Dialog removed, using ElMessageBox -->
@@ -110,6 +118,7 @@ import { ElMessageBox } from 'element-plus';
 import EditableField from './EditableField.vue';
 import DocumentList from './DocumentList.vue';
 import QRCodeDisplay from './QRCodeDisplay.vue';
+import TicketPropertyTab from './TicketPropertyTab.vue';
 import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
@@ -125,13 +134,17 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  activeFileId: {
+    type: Number,
+    default: null
+  },
   viewMode: {
     type: String,
     default: 'connect' // 'connect' or 'assets'
   }
 });
 
-const emit = defineEmits(['close-properties', 'property-changed']);
+const emit = defineEmits(['close-properties', 'property-changed', 'locate-ticket']);
 const activeTab = ref('ELEMENT');
 const collapsedState = reactive({ element_asset: false, element_rel: false, type_asset: false, type_design: true });
 const toggleGroup = (key) => collapsedState[key] = !collapsedState[key];
@@ -182,6 +195,20 @@ const validSpecCode = computed(() => {
     return specCode;
   }
   return null;
+});
+
+const showWorkorderTab = computed(() => {
+  if (localProperties.value?.isMultiple) return false;
+  if (isAssetMode.value) {
+    return Boolean(localProperties.value?.mcCode);
+  }
+  return Boolean(localProperties.value?.code);
+});
+
+watch(showWorkorderTab, (visible) => {
+  if (!visible && activeTab.value === 'WORKORDER') {
+    activeTab.value = 'ELEMENT';
+  }
 });
 
 // 定义字段及其类型
@@ -497,10 +524,10 @@ const breadcrumbText = computed(() => {
 .header-icons { display: flex; gap: 12px; } .icon-btn { cursor: pointer; color: var(--icon-btn-color); } .icon-btn:hover { color: var(--icon-btn-hover-color); } .close-icon:hover { color: var(--color-error, #ff6b6b); }
 .breadcrumb-row { padding: 4px 12px 10px 12px; font-size: 11px; color: var(--md-sys-color-on-surface); display: flex; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); }
 .breadcrumb-text { margin-right: 6px; } .link-icon { cursor: pointer; stroke: var(--md-sys-color-secondary); }
-.tabs { display: flex; border-bottom: 1px solid var(--md-sys-color-outline-variant); height: 32px; flex-shrink: 0; background: var(--md-sys-color-surface-container-low); }
+.tabs { display: flex; border-bottom: 1px solid var(--md-sys-color-outline-variant); min-height: 32px; flex-shrink: 0; background: var(--md-sys-color-surface-container-low); }
 .tab { flex: 0 0 auto; padding: 0 16px; display: flex; align-items: center; cursor: pointer; color: var(--md-sys-color-on-surface-variant); font-weight: 600; border-bottom: 2px solid transparent; transition: color 0.2s; }
 .tab:hover { color: var(--md-sys-color-on-surface); } .tab.active { color: var(--md-sys-color-primary); border-bottom-color: var(--md-sys-color-primary); }
-.add-action { margin-left: auto; padding-right: 12px; color: var(--md-sys-color-primary); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.ticket-tab-section { padding: 12px; }
 .scroll-content { flex: 1; overflow-y: auto; overflow-x: hidden; }
 .group-header { background: var(--md-sys-color-surface-container); padding: 8px 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--md-sys-color-outline-variant); border-top: 1px solid var(--md-sys-color-outline-variant); margin-top: -1px; cursor: pointer; color: var(--md-sys-color-on-surface); }
 .group-header:hover { background: var(--md-sys-color-surface-container-high); }

@@ -4,6 +4,7 @@
 import http from '../http';
 import type {
     FacilityDetail,
+    FacilityKnowledgeBaseSummary,
     FacilityPayload,
     FacilitySummary,
     FacilityModelSummary,
@@ -167,6 +168,24 @@ export async function deleteFacility(id: number): Promise<void> {
     }
 }
 
+export async function getFacilityKnowledgeBase(id: number): Promise<FacilityKnowledgeBaseSummary> {
+    const response = await http.get<FacilityKnowledgeBaseSummary>(`${BASE_PATH}/${id}/knowledge-base`);
+    if (!response.success || !response.data) {
+        throw new Error(response.error || '加载 Facility 知识库失败');
+    }
+    return response.data;
+}
+
+export async function createFacilityKnowledgeBase(id: number, force = false): Promise<{ success: boolean; code?: string; data?: unknown; error?: string; message?: string; }> {
+    return http.post(`${BASE_PATH}/${id}/knowledge-base`, undefined, {
+        params: force ? { force: 'true' } : undefined,
+    });
+}
+
+export async function syncFacilityKnowledgeBase(id: number): Promise<{ success: boolean; data?: { total: number; synced: number; failed: number; skipped: number }; message?: string; error?: string; }> {
+    return http.post(`${BASE_PATH}/${id}/knowledge-base/sync`);
+}
+
 export const facilityApi = {
     getFacilities,
     getFacilityDetail,
@@ -174,4 +193,7 @@ export const facilityApi = {
     updateFacility,
     uploadFacilityCover,
     deleteFacility,
+    getFacilityKnowledgeBase,
+    createFacilityKnowledgeBase,
+    syncFacilityKnowledgeBase,
 };

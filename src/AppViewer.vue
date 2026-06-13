@@ -19,9 +19,9 @@
         @toggle-views="toggleViewsPanel"
       />
 
-      <div ref="mainBody" class="main-body" @mousemove="onMouseMove">
-        <!-- 左侧区域：IconBar + 内容面板 -->
-        <div class="left-section" :style="currentView === 'documents' ? { width: '56px' } : { width: leftWidth + 'px' }">
+        <div ref="mainBody" class="main-body" @mousemove="onMouseMove">
+          <!-- 左侧区域：IconBar + 内容面板 -->
+          <div class="left-section" :style="leftSectionStyle">
           <!-- 全局导航栏 -->
           <IconBar
             :current-view="currentView"
@@ -48,18 +48,24 @@
               ref="assetPanelRef"
               :assets="assetList"
               :selected-db-ids="savedAssetSelections"
+              :can-create-ticket="canCreateTicket"
+              :create-ticket-hint="ticketToolbarHint"
               @open-properties="openRightPanel"
               @assets-selected="onAssetsSelected"
               @assets-deleted="reloadCurrentFileAssets"
+              @create-ticket="openCreateTicketDialog"
             />
             <SpacePanel
               v-else-if="currentView === 'spaces'"
               ref="spacePanelRef"
               :spaces="roomList"
               :selected-db-ids="savedSpaceSelections"
+              :can-create-ticket="canCreateTicket"
+              :create-ticket-hint="ticketToolbarHint"
               @open-properties="openRightPanel"
               @spaces-selected="onSpacesSelected"
               @spaces-deleted="reloadCurrentFileSpaces"
+              @create-ticket="openCreateTicketDialog"
             />
             <FilePanel
               v-else-if="currentView === 'models'"
@@ -76,6 +82,23 @@
               @trace-complete="onTraceComplete"
               @trace-clear="onTraceClear"
             />
+            <TicketPanel
+              v-else-if="currentView === 'tickets'"
+              :tickets="ticketList"
+              :assignees="ticketAssignees"
+              :loading="ticketsLoading"
+              :selected-ticket-id="selectedTicketId"
+              :selected-ticket-ids="selectedTicketIds"
+              :marker-filter-label="markerFilterLabel"
+              :can-create="canCreateTicket"
+              :create-ticket-hint="ticketToolbarHint"
+              @create-ticket="openCreateTicketDialog"
+              @filters-change="handleTicketFiltersChange"
+              @selection-change="handleTicketSelectionChange"
+              @select-ticket="handleTicketLocate"
+              @delete-selected="handleTicketBatchDelete"
+              @clear-marker-filter="clearTicketMarkerFilter"
+            />
           </div>
         </div>
 
@@ -87,10 +110,10 @@
           :facility-name="requestedRouteFacilityName"
         />
 
-        <div v-if="currentView !== 'documents'" class="resizer" @mousedown="startResize($event, 'left')"></div>
+        <div v-if="showLeftResizer" class="resizer" @mousedown="startResize($event, 'left')"></div>
 
         <!-- 中间主视图区域(文档视图时隐藏) -->
-        <div v-if="currentView !== 'documents'" class="main-content">
+        <div v-if="currentView !== 'documents'" class="main-content" :style="mainContentStyle">
           <!-- 3D 视图 -->
           <div class="viewer-wrapper" :style="{ height: isChartPanelOpen ? `calc(100% - ${chartPanelHeight}px)` : '100%' }">
             <MainView
@@ -99,6 +122,8 @@
               :assets="assetList"
               :rooms="roomList"
               :is-a-i-enabled="isAIAnalysisEnabled"
+              :ticket-markers="ticketMarkers"
+              :is-ticket-overlay-visible="currentView === 'tickets'"
               @rooms-loaded="onRoomsLoaded"
               @assets-loaded="onAssetsLoaded"
               @viewer-ready="onViewerReady"
@@ -106,6 +131,7 @@
               @time-range-changed="onTimeRangeChanged"
               @model-selection-changed="onModelSelectionChanged"
               @trigger-ai-alert="handleAIAlert"
+              @ticket-marker-click="onTicketMarkerClick"
             />
             <div v-if="showFacilityEmptyState" class="model-empty-state">
               <div class="model-empty-card">
@@ -153,23 +179,35 @@
 
         <!-- 右侧拖拽条(文档视图时隐藏) -->
         <div
-          v-if="isRightPanelOpen && currentView !== 'documents'"
+          v-if="showRightResizer"
           class="resizer"
           @mousedown="startResize($event, 'right')"
         ></div>
 
         <!-- 右侧面板(文档视图时隐藏) -->
         <div
-          v-if="isRightPanelOpen && currentView !== 'documents'"
+          v-if="showRightSidePanel"
           class="panel-wrapper"
-          :style="{ width: rightWidth + 'px' }"
+          :style="rightPanelStyle"
         >
+          <TicketDetailPanel
+            v-if="isTicketView"
+            :ticket="selectedTicket"
+            :spaces="roomList"
+            :assets="assetList"
+            :assignees="ticketAssignees"
+            :submitting="ticketDetailSubmitting"
+            @save-ticket="handleTicketDetailSave"
+          />
           <RightPanel
+            v-else
             :room-properties="selectedRoomProperties"
             :selected-ids="selectedObjectIds"
             :view-mode="rightPanelViewMode"
+            :active-file-id="activeFileId"
             @close-properties="closeRightPanel"
             @property-changed="onPropertyChanged"
+            @locate-ticket="handleTicketLocate"
           />
         </div>
       </div>
@@ -180,6 +218,7 @@
           <div class="modal-container">
             <DataExportPanel
               :file-id="currentExportFileId"
+              :initial-asset-property-options="preparedAssetPropertyOptions"
               :get-full-asset-data="getFullAssetDataFromMainView"
               :get-full-space-data="getFullSpaceDataFromMainView"
               :get-asset-property-list="getAssetPropertyListFromMainView"
@@ -225,6 +264,19 @@
         @close="previewVisible = false"
       />
 
+      <TicketDialog
+        :visible="isTicketDialogVisible"
+        :mode="ticketDialogMode"
+        :ticket="editingTicket"
+        :context="ticketDialogContext"
+        :spaces="roomList"
+        :assets="assetList"
+        :assignees="ticketAssignees"
+        :submitting="ticketDialogSubmitting"
+        @close="closeTicketDialog"
+        @submit="submitTicketDialog"
+      />
+
     </div>
   </div>
 </template>
@@ -232,6 +284,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import AIChatPanel from './components/ai/AIChatPanel.vue';
 import AIAnalysisModal from './components/viewer/AIAnalysisModal.vue';
 import { useAuthStore } from './stores/auth';
@@ -243,6 +296,9 @@ import SpacePanel from './components/SpacePanel.vue';
 import FilePanel from './components/FilePanel.vue';
 import AspectTreePanel from './components/AspectTreePanel.vue';
 import DocumentManager from './components/DocumentManager.vue';
+import TicketPanel from './components/TicketPanel.vue';
+import TicketDetailPanel from './components/TicketDetailPanel.vue';
+import TicketDialog from './components/TicketDialog.vue';
 import RightPanel from './components/RightPanel.vue';
 import MainView from './components/MainView.vue';
 import ChartPanel from './components/ChartPanel.vue';
@@ -254,6 +310,8 @@ import ViewsPanel from './components/ViewsPanel.vue';
 import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
+import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
+import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
 import { triggerTemperatureAlert } from './services/ai-analysis';
 
@@ -319,13 +377,42 @@ const initPanoCompareMode = async () => {
   }
 };
 
+const MAIN_RESIZER_WIDTH = 5;
+const TICKET_NAV_WIDTH = 56;
+const DEFAULT_RIGHT_PANEL_WIDTH = 320;
+const DEFAULT_TICKET_DETAIL_WIDTH = 260;
+const MIN_TICKET_DETAIL_WIDTH = 240;
+const MAX_TICKET_DETAIL_WIDTH = 360;
+const MIN_TICKET_LIST_WIDTH = 540;
+const MIN_TICKET_VIEWER_WIDTH = 500;
+
+const mainBody = ref(null);
+const mainBodyWidth = ref(0);
+const ticketSplitRatio = ref(0.56);
+let mainBodyResizeObserver = null;
+
+const syncMainBodyWidth = () => {
+  mainBodyWidth.value = mainBody.value?.clientWidth || 0;
+};
+
 onMounted(() => {
   initPanoCompareMode();
+  loadTicketAssigneeOptions();
+  nextTick(() => {
+    syncMainBodyWidth();
+    if (mainBody.value) {
+      mainBodyResizeObserver = new ResizeObserver(() => {
+        syncMainBodyWidth();
+      });
+      mainBodyResizeObserver.observe(mainBody.value);
+    }
+  });
 });
 
 const leftWidth = ref(368);
-const rightWidth = ref(320);
-const isRightPanelOpen = ref(true);
+const rightWidth = ref(DEFAULT_RIGHT_PANEL_WIDTH);
+const ticketDetailWidth = ref(DEFAULT_TICKET_DETAIL_WIDTH);
+const isRightPanelOpen = ref(false);
 const isChartPanelOpen = ref(false);
 const isAIAnalysisEnabled = ref(false); // AI 分析功能开关，默认关闭
 const chartPanelHeight = ref(300);
@@ -342,6 +429,7 @@ const chartData = ref([]);
 const currentView = ref('assets'); // 'connect' or 'assets' or 'spaces' - 默认加载资产页面
 // 新增状态：记录当前选中的对象类型（用于跨模块联动）
 const currentSelectionType = ref(null); // 'asset', 'space', or null
+const isTicketView = computed(() => currentView.value === 'tickets');
 
 // 计算右侧面板的显示模式：优先使用当前选中的对象类型，没有则回退到当前视图模式
 const rightPanelViewMode = computed(() => {
@@ -355,6 +443,7 @@ const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
 const savedSpaceSelections = ref([]);
 const isDataExportOpen = ref(false);
+const preparedAssetPropertyOptions = ref(null);
 const isLoadingFromDb = ref(false);
 const dbDataLoaded = ref(false);
 // 追踪当前加载的模型路径，防止重复加载
@@ -380,6 +469,80 @@ const isViewsPanelOpen = ref(false);
 const activeFileId = ref(null);
 const activeFileName = ref('');
 const currentViewName = ref('');
+const ticketList = ref([]);
+const ticketMarkers = ref([]);
+const ticketAssignees = ref([]);
+const ticketsLoading = ref(false);
+const selectedTicketId = ref(null);
+const selectedTicketIds = ref([]);
+const markerFilterLabel = ref('');
+const ticketFilters = ref({});
+const isTicketDialogVisible = ref(false);
+const ticketDialogMode = ref('create');
+const editingTicket = ref(null);
+const ticketDialogContext = ref(null);
+const ticketDialogSubmitting = ref(false);
+const ticketDetailSubmitting = ref(false);
+const selectedTicket = computed(() => (
+  ticketList.value.find((ticket) => ticket.id === selectedTicketId.value) || null
+));
+
+const showRightSidePanel = computed(() => (
+  currentView.value !== 'documents' && (isTicketView.value || isRightPanelOpen.value)
+));
+
+const showLeftResizer = computed(() => currentView.value !== 'documents');
+
+const showRightResizer = computed(() => showRightSidePanel.value);
+
+const currentRightPanelWidth = computed(() => (
+  isTicketView.value ? ticketDetailWidth.value : rightWidth.value
+));
+
+const getTicketAvailableWidth = () => {
+  const reservedWidth = showRightSidePanel.value ? currentRightPanelWidth.value + MAIN_RESIZER_WIDTH : 0;
+  const available = mainBodyWidth.value - reservedWidth - TICKET_NAV_WIDTH - MAIN_RESIZER_WIDTH;
+  return Math.max(available, MIN_TICKET_LIST_WIDTH + MIN_TICKET_VIEWER_WIDTH);
+};
+
+const ticketAvailableWidth = computed(() => getTicketAvailableWidth());
+
+const ticketListWidth = computed(() => {
+  const maxWidth = Math.max(ticketAvailableWidth.value - MIN_TICKET_VIEWER_WIDTH, MIN_TICKET_LIST_WIDTH);
+  const rawWidth = Math.round(ticketAvailableWidth.value * ticketSplitRatio.value);
+  return Math.min(Math.max(rawWidth, MIN_TICKET_LIST_WIDTH), maxWidth);
+});
+
+const ticketViewerWidth = computed(() => {
+  return Math.max(ticketAvailableWidth.value - ticketListWidth.value, MIN_TICKET_VIEWER_WIDTH);
+});
+
+const leftSectionStyle = computed(() => {
+  if (currentView.value === 'documents') {
+    return { width: '56px' };
+  }
+  if (isTicketView.value) {
+    return { width: `${ticketListWidth.value + TICKET_NAV_WIDTH}px` };
+  }
+  return { width: `${leftWidth.value}px` };
+});
+
+const mainContentStyle = computed(() => {
+  if (!isTicketView.value) return {};
+  return {
+    flex: '0 0 auto',
+    width: `${ticketViewerWidth.value}px`,
+  };
+});
+
+const rightPanelStyle = computed(() => ({
+  width: `${currentRightPanelWidth.value}px`,
+}));
+
+const collapsePropertiesForModelLoad = () => {
+  isRightPanelOpen.value = false;
+  triggerResize();
+};
 
 const requestedRouteFileId = computed(() => {
   const raw = route.query.fileId;
@@ -410,6 +573,95 @@ const requestedRouteFacilityId = computed(() => {
 const requestedRouteFacilityName = computed(() => {
   const raw = route.query.facilityName;
   return Array.isArray(raw) ? raw[0] : raw || '';
+});
+
+const resolveSpaceForAsset = (asset) => {
+  if (!asset) return null;
+  return resolveAssetSpace(asset, roomList.value);
+};
+
+const ticketCreationContext = computed(() => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    return { valid: false, reason: '请先激活当前设施的模型文件' };
+  }
+
+  if (currentView.value === 'tickets') {
+    return { valid: true, spaceCode: '', assetCodes: [] };
+  }
+
+  if (currentView.value === 'assets') {
+    const selectedAssets = assetList.value.filter((asset) => savedAssetSelections.value.includes(asset.dbId));
+    if (selectedAssets.length === 0) {
+      return { valid: false, reason: '请先选择资产' };
+    }
+
+    const resolvedSelections = selectedAssets.map((asset) => ({
+      asset,
+      space: resolveSpaceForAsset(asset),
+    }));
+    const resolvedSpaceCodes = [...new Set(
+      resolvedSelections.map(({ space }) => space?.code).filter(Boolean)
+    )];
+    const unresolvedCount = resolvedSelections.filter(({ space }) => !space?.code).length;
+    const assetCodes = selectedAssets.map((asset) => asset.mcCode).filter(Boolean);
+
+    if (assetCodes.length === 0) {
+      return { valid: false, reason: '所选资产缺少编码，暂时无法创建工单' };
+    }
+
+    if (selectedAssets.length === 1) {
+      return {
+        valid: true,
+        spaceCode: resolvedSpaceCodes[0] || '',
+        assetCodes,
+      };
+    }
+
+    if (resolvedSpaceCodes.length !== 1 || unresolvedCount > 0) {
+      return { valid: false, reason: '合并工单仅支持同一空间内的资产' };
+    }
+
+    return {
+      valid: true,
+      spaceCode: resolvedSpaceCodes[0],
+      assetCodes,
+    };
+  }
+
+  if (currentView.value === 'spaces') {
+    const selectedSpaces = roomList.value.filter((space) => savedSpaceSelections.value.includes(space.dbId));
+    if (selectedSpaces.length !== 1) {
+      return { valid: false, reason: '请先选择一个空间' };
+    }
+
+    return {
+      valid: true,
+      spaceCode: selectedSpaces[0].code,
+      assetCodes: []
+    };
+  }
+
+  return { valid: false, reason: '' };
+});
+
+const canCreateTicket = computed(() => ticketCreationContext.value.valid);
+
+const ticketToolbarHint = computed(() => {
+  if (ticketCreationContext.value.valid) {
+    if (currentView.value === 'assets' && ticketCreationContext.value.assetCodes.length > 1) {
+      return `已选 ${ticketCreationContext.value.assetCodes.length} 个同空间资产，可生成一张合并工单`;
+    }
+    if (currentView.value === 'assets' && ticketCreationContext.value.assetCodes.length === 1 && !ticketCreationContext.value.spaceCode) {
+      return '已选 1 个资产，创建时请确认所属空间';
+    }
+    if (currentView.value === 'spaces' && ticketCreationContext.value.spaceCode) {
+      const space = roomList.value.find((item) => item.code === ticketCreationContext.value.spaceCode);
+      return space?.name ? `将为“${space.name}”创建工单` : '';
+    }
+    return '';
+  }
+
+  return ticketCreationContext.value.reason;
 });
 
 const filesApiUrl = computed(() => {
@@ -443,6 +695,277 @@ const showFacilityEmptyState = computed(() => (
   !isModelLoading.value &&
   currentView.value !== 'documents'
 ));
+
+const loadTicketAssigneeOptions = async () => {
+  try {
+    ticketAssignees.value = await listTicketAssignees();
+  } catch (error) {
+    console.error('加载工单处理人失败:', error);
+    ticketAssignees.value = [];
+  }
+};
+
+const loadTicketList = async () => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    ticketList.value = [];
+    return;
+  }
+
+  ticketsLoading.value = true;
+  try {
+    ticketList.value = await listTickets({
+      facilityId: requestedRouteFacilityId.value,
+      fileId: activeFileId.value,
+      ...ticketFilters.value
+    });
+    const validIds = new Set(ticketList.value.map((ticket) => ticket.id));
+    selectedTicketIds.value = selectedTicketIds.value.filter((id) => validIds.has(id));
+    if (selectedTicketId.value && !validIds.has(selectedTicketId.value)) {
+      selectedTicketId.value = null;
+    }
+  } catch (error) {
+    console.error('加载工单列表失败:', error);
+    ticketList.value = [];
+    selectedTicketIds.value = [];
+  } finally {
+    ticketsLoading.value = false;
+  }
+};
+
+const loadTicketMarkerList = async () => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    ticketMarkers.value = [];
+    return;
+  }
+
+  try {
+    ticketMarkers.value = await listTicketMarkers({
+      facilityId: requestedRouteFacilityId.value,
+      fileId: activeFileId.value
+    });
+  } catch (error) {
+    console.error('加载工单气泡失败:', error);
+    ticketMarkers.value = [];
+  }
+};
+
+const refreshTicketData = async () => {
+  await Promise.all([
+    loadTicketList(),
+    loadTicketMarkerList()
+  ]);
+};
+
+const closeTicketDialog = () => {
+  isTicketDialogVisible.value = false;
+  editingTicket.value = null;
+  ticketDialogContext.value = null;
+};
+
+const openCreateTicketDialog = () => {
+  if (!ticketCreationContext.value.valid) {
+    if (ticketCreationContext.value.reason) {
+      ElMessage.warning(ticketCreationContext.value.reason);
+    }
+    return;
+  }
+
+  ticketDialogMode.value = 'create';
+  editingTicket.value = null;
+  ticketDialogContext.value = {
+    spaceCode: ticketCreationContext.value.spaceCode,
+    assetCodes: ticketCreationContext.value.assetCodes
+  };
+  isTicketDialogVisible.value = true;
+};
+
+const openEditTicketDialog = (ticket) => {
+  ticketDialogMode.value = 'edit';
+  editingTicket.value = ticket;
+  ticketDialogContext.value = {
+    spaceCode: ticket.sourceSpaceCode,
+    assetCodes: (ticket.assets || []).map((asset) => asset.assetCode)
+  };
+  isTicketDialogVisible.value = true;
+};
+
+const submitTicketDialog = async ({ payload, files }) => {
+  if (!requestedRouteFacilityId.value || !activeFileId.value) {
+    ElMessage.warning('当前没有可用的设施或模型文件');
+    return;
+  }
+
+  ticketDialogSubmitting.value = true;
+  try {
+    const ticketPayload = {
+      ...payload,
+      facilityId: requestedRouteFacilityId.value,
+      fileId: activeFileId.value
+    };
+
+    const savedTicket = ticketDialogMode.value === 'edit' && editingTicket.value
+      ? await updateTicket(editingTicket.value.id, ticketPayload, files)
+      : await createTicket(ticketPayload, files);
+
+    ElMessage.success(ticketDialogMode.value === 'edit' ? '工单已更新' : '工单已创建');
+    closeTicketDialog();
+    await refreshTicketData();
+    switchView('tickets', true);
+    handleTicketLocate(savedTicket);
+  } catch (error) {
+    console.error('提交工单失败:', error);
+    ElMessage.error(error.message || '提交工单失败');
+  } finally {
+    ticketDialogSubmitting.value = false;
+  }
+};
+
+const handleTicketFiltersChange = async (filters) => {
+  ticketFilters.value = {
+    ...ticketFilters.value,
+    keyword: filters.keyword,
+    status: filters.status,
+    assigneeUserId: filters.assigneeUserId
+  };
+  await loadTicketList();
+};
+
+const clearTicketMarkerFilter = async () => {
+  markerFilterLabel.value = '';
+  ticketFilters.value = {
+    ...ticketFilters.value,
+    markerDbId: undefined
+  };
+  await loadTicketList();
+};
+
+const handleTicketLocate = async (ticket) => {
+  if (!ticket) return;
+
+  selectedTicketId.value = ticket.id;
+  openRightPanel();
+
+  const assetDbIds = (ticket.assets || []).map((asset) => asset.dbId).filter(Boolean);
+  if (assetDbIds.length > 0) {
+    currentSelectionType.value = 'asset';
+    await onAssetsSelected(assetDbIds);
+    return;
+  }
+
+  if (ticket.spaceDbId) {
+    currentSelectionType.value = 'space';
+    onSpacesSelected([ticket.spaceDbId]);
+  }
+};
+
+const handleTicketSelectionChange = (ids) => {
+  selectedTicketIds.value = ids;
+};
+
+const handleTicketDelete = async (ticket) => {
+  if (!ticket) return;
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除工单 ${ticket.ticketNo} 吗？`,
+      '删除工单',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      }
+    );
+
+    await deleteTicket(ticket.id);
+    if (selectedTicketId.value === ticket.id) {
+      selectedTicketId.value = null;
+    }
+    selectedTicketIds.value = selectedTicketIds.value.filter((id) => id !== ticket.id);
+    ElMessage.success('工单已删除');
+    await refreshTicketData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除工单失败:', error);
+      ElMessage.error(error.message || '删除工单失败');
+    }
+  }
+};
+
+const handleTicketBatchDelete = async (tickets) => {
+  const rows = Array.isArray(tickets) ? tickets : [];
+  if (rows.length === 0) return;
+
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${rows.length} 条工单吗？`,
+      '批量删除工单',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消'
+      }
+    );
+
+    for (const ticket of rows) {
+      await deleteTicket(ticket.id);
+    }
+
+    if (rows.some((ticket) => ticket.id === selectedTicketId.value)) {
+      selectedTicketId.value = null;
+    }
+    selectedTicketIds.value = [];
+    ElMessage.success('选中工单已删除');
+    await refreshTicketData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除工单失败:', error);
+      ElMessage.error(error.message || '批量删除工单失败');
+    }
+  }
+};
+
+const mergeUpdatedTicketIntoList = (updatedTicket) => {
+  if (!updatedTicket?.id) return;
+
+  const currentIndex = ticketList.value.findIndex((ticket) => ticket.id === updatedTicket.id);
+  if (currentIndex >= 0) {
+    ticketList.value.splice(currentIndex, 1, updatedTicket);
+  }
+};
+
+const handleTicketDetailSave = async ({ id, payload, silent = false }) => {
+  if (!id) return;
+
+  ticketDetailSubmitting.value = true;
+  try {
+    const updatedTicket = await updateTicket(id, payload, []);
+    mergeUpdatedTicketIntoList(updatedTicket);
+    selectedTicketId.value = updatedTicket?.id || id;
+    if (!silent) {
+      ElMessage.success('工单已更新');
+    }
+    await refreshTicketData();
+  } catch (error) {
+    console.error('更新工单失败:', error);
+    ElMessage.error(error.message || '更新工单失败');
+  } finally {
+    ticketDetailSubmitting.value = false;
+  }
+};
+
+const onTicketMarkerClick = async (marker) => {
+  markerFilterLabel.value = marker.label || '';
+  ticketFilters.value = {
+    ...ticketFilters.value,
+    markerDbId: marker.dbId
+  };
+
+  if (currentView.value !== 'tickets') {
+    switchView('tickets', true);
+  }
+
+  await loadTicketList();
+};
 
 // 视图面板方法
 const toggleViewsPanel = () => {
@@ -505,39 +1028,59 @@ const restoreRequestedRouteView = async (fileId) => {
 
 // 数据导出面板方法
 const openDataExportPanel = async (file) => {
+  let loadingMessage = null;
+
   if (file && file.id) {
     currentExportFileId.value = file.id;
+    preparedAssetPropertyOptions.value = null;
     // 注意：不更新 activeFileId/activeFileName，保持视图面板不变
     // 数据导出只是临时加载模型，不应影响视图面板
-    
-    // 方案 C：如果当前加载的模型不是目标文件，自动加载目标模型
-    if (file.extracted_path && currentLoadedModelPath.value !== file.extracted_path) {
-      console.log('📂 导出面板：需要加载目标模型', file.extracted_path);
-      
-      if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
-        try {
+
+    try {
+      loadingMessage = ElMessage({
+        message: '正在加载模型与属性，请稍候...',
+        type: 'info',
+        duration: 0,
+        showClose: false
+      });
+
+      // 方案 C：如果当前加载的模型不是目标文件，自动加载目标模型
+      if (file.extracted_path && currentLoadedModelPath.value !== file.extracted_path) {
+        console.log('📂 导出面板：需要加载目标模型', file.extracted_path);
+
+        if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
           // 保存原模型路径，以便关闭时恢复
           previousModelPath.value = currentLoadedModelPath.value;
           currentLoadedModelPath.value = file.extracted_path;
           console.log('📦 开始加载模型...');
+          collapsePropertiesForModelLoad();
           await mainViewRef.value.loadNewModel(file.extracted_path);
           console.log('✅ 模型加载完成，可以提取数据');
-        } catch (error) {
-          console.error('❌ 模型加载失败:', error);
-          // 即使失败也打开面板，让用户看到错误信息
+        } else {
+          throw new Error('Viewer 尚未准备好，无法加载模型');
         }
       } else {
-        console.warn('⚠️ Viewer 尚未准备好，无法加载模型');
+        console.log('📂 导出面板：模型已加载或无需加载');
       }
-    } else {
-      console.log('📂 导出面板：模型已加载或无需加载');
+
+      if (file.extracted_path && viewerReady.value && mainViewRef.value?.onModelReady) {
+        console.log('⏳ 导出面板：等待模型与资产属性完全就绪后再打开');
+        preparedAssetPropertyOptions.value = await waitForAssetPropertyOptionsReady({ strict: true });
+        console.log('✅ 导出面板：模型与资产属性已完全就绪');
+      }
+
+      isDataExportOpen.value = true;
+    } catch (error) {
+      console.error('❌ 导出面板准备失败:', error);
+      ElMessage.error(error?.message || '加载模型属性失败，请稍后重试');
+    } finally {
+      loadingMessage?.close();
     }
   } else {
     currentExportFileId.value = null;
+    preparedAssetPropertyOptions.value = null;
+    isDataExportOpen.value = true;
   }
-  
-  // 最后打开面板
-  isDataExportOpen.value = true;
 };
 
 const closeDataExportPanel = async () => {
@@ -549,6 +1092,7 @@ const closeDataExportPanel = async () => {
     if (viewerReady.value && mainViewRef.value && mainViewRef.value.loadNewModel) {
       try {
         currentLoadedModelPath.value = previousModelPath.value;
+        collapsePropertiesForModelLoad();
         await mainViewRef.value.loadNewModel(previousModelPath.value);
         console.log('✅ 原模型已恢复');
       } catch (error) {
@@ -559,9 +1103,71 @@ const closeDataExportPanel = async () => {
   }
 };
 
+const waitForMainViewModelReady = async () => {
+  if (!mainViewRef.value?.onModelReady) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve(true);
+    };
+
+    try {
+      mainViewRef.value.onModelReady(finish);
+    } catch (error) {
+      console.warn('⚠️ 等待模型就绪失败，继续执行:', error);
+      finish();
+    }
+  });
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const hasUsablePropertyOptions = (options) => {
+  return Object.entries(options || {}).some(([category, properties]) => (
+    category !== '元数据' &&
+    Array.isArray(properties) &&
+    properties.length > 0
+  ));
+};
+
+const waitForAssetPropertyOptionsReady = async ({ maxAttempts = 30, intervalMs = 1000, strict = false } = {}) => {
+  if (!mainViewRef.value?.getAssetPropertyList) {
+    return {};
+  }
+
+  await waitForMainViewModelReady();
+
+  let lastOptions = {};
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    lastOptions = await mainViewRef.value.getAssetPropertyList();
+
+    if (hasUsablePropertyOptions(lastOptions)) {
+      console.log(`✅ 导出面板：第 ${attempt} 次检测到资产属性已就绪`);
+      return lastOptions;
+    }
+
+    if (attempt < maxAttempts) {
+      console.log(`⏳ 导出面板：资产属性尚未就绪，第 ${attempt}/${maxAttempts} 次重试...`);
+      await sleep(intervalMs);
+    }
+  }
+
+  console.warn('⚠️ 导出面板：等待资产属性列表超时');
+  if (strict) {
+    throw new Error('等待资产属性加载超时，请稍后重试');
+  }
+  return lastOptions;
+};
+
 // 从 MainView 获取完整资产数据
 const getFullAssetDataFromMainView = async () => {
   if (mainViewRef.value && mainViewRef.value.getFullAssetData) {
+    await waitForMainViewModelReady();
     return await mainViewRef.value.getFullAssetData();
   }
   return [];
@@ -570,6 +1176,7 @@ const getFullAssetDataFromMainView = async () => {
 // 从 MainView 获取完整空间数据
 const getFullSpaceDataFromMainView = async () => {
   if (mainViewRef.value && mainViewRef.value.getFullSpaceData) {
+    await waitForMainViewModelReady();
     return await mainViewRef.value.getFullSpaceData();
   }
   return [];
@@ -578,7 +1185,7 @@ const getFullSpaceDataFromMainView = async () => {
 // 从 MainView 获取资产属性列表（用于字段映射配置）
 const getAssetPropertyListFromMainView = async () => {
   if (mainViewRef.value && mainViewRef.value.getAssetPropertyList) {
-    return await mainViewRef.value.getAssetPropertyList();
+    return await waitForAssetPropertyOptionsReady();
   }
   return { categories: {}, count: 0 };
 };
@@ -586,6 +1193,7 @@ const getAssetPropertyListFromMainView = async () => {
 // 从 MainView 获取空间属性列表（用于字段映射配置）
 const getSpacePropertyListFromMainView = async () => {
   if (mainViewRef.value && mainViewRef.value.getSpacePropertyList) {
+    await waitForMainViewModelReady();
     return await mainViewRef.value.getSpacePropertyList();
   }
   return { categories: {}, count: 0 };
@@ -594,6 +1202,7 @@ const getSpacePropertyListFromMainView = async () => {
 // 从 MainView 获取资产数据（使用自定义映射）
 const getFullAssetDataWithMappingFromMainView = async (mapping) => {
   if (mainViewRef.value && mainViewRef.value.getFullAssetDataWithMapping) {
+    await waitForMainViewModelReady();
     return await mainViewRef.value.getFullAssetDataWithMapping(mapping);
   }
   return [];
@@ -602,6 +1211,7 @@ const getFullAssetDataWithMappingFromMainView = async (mapping) => {
 // 从 MainView 获取空间数据（使用自定义映射）
 const getFullSpaceDataWithMappingFromMainView = async (mapping) => {
   if (mainViewRef.value && mainViewRef.value.getFullSpaceDataWithMapping) {
+    await waitForMainViewModelReady();
     return await mainViewRef.value.getFullSpaceDataWithMapping(mapping);
   }
   return [];
@@ -683,6 +1293,7 @@ const onViewerReady = async () => {
       if (file.extracted_path) {
         console.log('📦 [App] 加载待加载的模型:', file.extracted_path);
         currentLoadedModelPath.value = file.extracted_path;
+        collapsePropertiesForModelLoad();
         await mainViewRef.value.loadNewModel(file.extracted_path);
         console.log('✅ [App] 待加载模型加载完毕');
       }
@@ -765,6 +1376,7 @@ const onViewerReady = async () => {
             if (activeFile.extracted_path && mainViewRef.value && mainViewRef.value.loadNewModel) {
               console.log('📦 [App] 开始调用 loadNewModel:', activeFile.extracted_path);
               currentLoadedModelPath.value = activeFile.extracted_path;
+              collapsePropertiesForModelLoad();
               await mainViewRef.value.loadNewModel(activeFile.extracted_path);
               console.log('✅ [App] loadNewModel 返回（Promise resolved）');
               
@@ -830,6 +1442,7 @@ const onViewerReady = async () => {
         if (defaultPath) {
           console.log('📦 加载默认模型');
           currentLoadedModelPath.value = defaultPath;
+          collapsePropertiesForModelLoad();
           await mainViewRef.value.loadNewModel(defaultPath);
         } else {
           console.log('📝 没有激活的模型文件，请先上传并激活模型');
@@ -1015,6 +1628,36 @@ const executeAIAction = async (payload) => {
       const { module } = params;
       if (module) switchView(module);
   }
+  else if (actionType === 'navigate_to_view') {
+      const { viewId, name } = params;
+      if (!viewId) return;
+
+      try {
+          const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+          const response = await fetch(`${API_BASE}/api/views/${viewId}`, { headers: getHeaders() });
+          const data = await response.json();
+
+          if (!data.success || !data.data) {
+              console.warn('⚠️ 视图不存在或加载失败:', viewId);
+              return;
+          }
+
+          const restore = () => {
+              if (mainViewRef.value?.restoreViewState) {
+                  mainViewRef.value.restoreViewState(data.data);
+                  currentViewName.value = name || data.data.name || currentViewName.value;
+              }
+          };
+
+          if (mainViewRef.value?.onModelReady) {
+              mainViewRef.value.onModelReady(restore);
+          } else {
+              restore();
+          }
+      } catch (error) {
+          console.error('❌ [AppViewer] 导览视图恢复失败:', error);
+      }
+  }
   else if (actionType === 'power_trace_upstream') {
       await handlePowerTraceAction(params);
   }
@@ -1166,6 +1809,7 @@ const handlePowerTraceAction = async (params) => {
 
 
 const switchView = (view, preserveSelection = false) => {
+  const previousView = currentView.value;
   currentView.value = view;
   
   // 切换视图时默认清除选择，除非显式指定保留 (如 AI 联动场景)
@@ -1184,6 +1828,23 @@ const switchView = (view, preserveSelection = false) => {
 
   // 注意：不在这里立即调用 showAllAssets/showAllRooms
   // 因为可能模型还没加载完成，让 onAssetsLoaded/onRoomsLoaded 处理
+
+  if (view === 'tickets' && previousView !== 'tickets' && mainViewRef.value?.onModelReady) {
+    mainViewRef.value.onModelReady(() => {
+      nextTick(() => {
+        triggerResize();
+        requestAnimationFrame(() => {
+          mainViewRef.value?.resizeViewer?.();
+          setTimeout(() => {
+            mainViewRef.value?.resizeViewer?.();
+            mainViewRef.value?.showAllAssets?.();
+            mainViewRef.value?.showAllRooms?.();
+            mainViewRef.value?.focusModelOverview?.();
+          }, 120);
+        });
+      });
+    });
+  }
   
   // 温度标签和热力图按钮现在是全局的，不受视图切换影响
   // 由用户通过按钮控制显示/隐藏
@@ -1192,8 +1853,26 @@ const switchView = (view, preserveSelection = false) => {
 watch(
   () => requestedRoutePanel.value,
   (panel) => {
-    if (typeof panel === 'string' && ['documents', 'models', 'assets', 'spaces', 'connect', 'rds'].includes(panel) && currentView.value !== panel) {
+    if (typeof panel === 'string' && ['documents', 'models', 'assets', 'spaces', 'connect', 'rds', 'tickets'].includes(panel) && currentView.value !== panel) {
       switchView(panel);
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => [activeFileId.value, requestedRouteFacilityId.value],
+  async ([fileId, facilityId]) => {
+    markerFilterLabel.value = '';
+    ticketFilters.value = {};
+    selectedTicketId.value = null;
+    selectedTicketIds.value = [];
+
+    if (fileId && facilityId) {
+      await refreshTicketData();
+    } else {
+      ticketList.value = [];
+      ticketMarkers.value = [];
     }
   },
   { immediate: true }
@@ -1367,6 +2046,7 @@ const onFileActivated = async (file) => {
         currentLoadedModelPath.value = file.extracted_path;
         console.log('📦 等待模型加载完成...');
         try {
+          collapsePropertiesForModelLoad();
           await mainViewRef.value.loadNewModel(file.extracted_path);
           console.log('📦 模型加载完成');
         } catch (e) {
@@ -1384,8 +2064,10 @@ const onFileActivated = async (file) => {
       }
     }
 
-    // 切换到资产视图
-    switchView('assets');
+    // 如果路由明确要求文档页，保留当前文档视图，不要被文件激活流程覆盖。
+    if (requestedRoutePanel.value !== 'documents' && currentView.value !== 'documents') {
+      switchView('assets');
+    }
     
   } catch (error) {
     console.error('加载文件数据失败:', error);
@@ -1394,6 +2076,7 @@ const onFileActivated = async (file) => {
 
 const onRoomsSelected = (dbIds) => {
   savedRoomSelections.value = dbIds.slice();
+  currentSelectionType.value = dbIds.length > 0 ? 'space' : null;
   // 调用 MainView 的方法来孤立并定位房间
   if (mainViewRef.value) {
     if (dbIds.length === 0) {
@@ -1528,6 +2211,7 @@ const onRoomsSelected = (dbIds) => {
 
 const onAssetsSelected = async (dbIds) => {
   savedAssetSelections.value = dbIds.slice();
+  currentSelectionType.value = dbIds.length > 0 ? 'asset' : null;
   
   // 更新选中的对象ID列表（使用 mcCode）
   selectedObjectIds.value = dbIds.map(dbId => {
@@ -1568,6 +2252,7 @@ const onAssetsSelected = async (dbIds) => {
 // 处理空间选择事件
 const onSpacesSelected = async (dbIds) => {
   savedSpaceSelections.value = dbIds.slice();
+  currentSelectionType.value = dbIds.length > 0 ? 'space' : null;
   
   // 更新选中的对象ID列表（使用 space code）
   selectedObjectIds.value = dbIds.map(dbId => {
@@ -1914,9 +2599,9 @@ const startResize = (event, side) => {
   startY = event.clientY;
   
   if (side === 'left') {
-    startWidth = leftWidth.value;
+    startWidth = isTicketView.value ? ticketListWidth.value : leftWidth.value;
   } else if (side === 'right') {
-    startWidth = rightWidth.value;
+    startWidth = currentRightPanelWidth.value;
   } else if (side === 'chart') {
     startHeight = chartPanelHeight.value;
   }
@@ -1944,14 +2629,26 @@ const onMouseMove = (event) => {
   } else {
     const dx = event.clientX - startX;
     if (currentResizeSide === 'left') {
-      const newWidth = startWidth + dx;
-      const maxWidth = window.innerWidth * 0.6; // 允许最大拖拽至屏幕宽度的 60%
-      if (newWidth > 200 && newWidth < maxWidth) {
-        leftWidth.value = newWidth;
+      if (isTicketView.value) {
+        const availableWidth = getTicketAvailableWidth();
+        const minWidth = MIN_TICKET_LIST_WIDTH;
+        const maxWidth = Math.max(availableWidth - MIN_TICKET_VIEWER_WIDTH, minWidth);
+        const newWidth = Math.min(Math.max(startWidth + dx, minWidth), maxWidth);
+        ticketSplitRatio.value = availableWidth > 0 ? newWidth / availableWidth : 0.5;
+      } else {
+        const newWidth = startWidth + dx;
+        const maxWidth = window.innerWidth * 0.6; // 允许最大拖拽至屏幕宽度的 60%
+        if (newWidth > 200 && newWidth < maxWidth) {
+          leftWidth.value = newWidth;
+        }
       }
     } else if (currentResizeSide === 'right') {
       const newWidth = startWidth - dx;
-      if (newWidth > 250 && newWidth < 800) {
+      if (isTicketView.value) {
+        if (newWidth > MIN_TICKET_DETAIL_WIDTH && newWidth < MAX_TICKET_DETAIL_WIDTH) {
+          ticketDetailWidth.value = newWidth;
+        }
+      } else if (newWidth > 250 && newWidth < 800) {
         rightWidth.value = newWidth;
       }
     }
@@ -2233,8 +2930,8 @@ onMounted(async () => {
     const filesData = await filesRes.json();
     
     if (filesData.success && filesData.data.length > 0) {
-      // 找到激活的文件
-      const activeFile = filesData.data.find(f => f.is_active);
+      // Facility/route 场景优先使用请求指定文件，其次才回退到当前激活文件
+      const activeFile = pickRequestedOrActiveFile(filesData.data);
       
       if (activeFile) {
         console.log('📦 发现目标文件:', activeFile.title || activeFile.filename);
@@ -2280,6 +2977,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopResize();
+  mainBodyResizeObserver?.disconnect();
   document.documentElement.classList.remove('viewer-page');
   document.body.classList.remove('viewer-page-body');
   document.getElementById('app')?.classList.remove('viewer-app');

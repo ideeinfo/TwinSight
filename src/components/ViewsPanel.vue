@@ -141,6 +141,7 @@
 
     <!-- Context menu -->
     <div v-if="contextMenu.visible" class="context-menu" :style="contextMenu.style" @click.stop>
+      <div class="menu-item" @click.stop="openNavigationDialog">{{ t('views.navigationConfig') }}</div>
       <div class="menu-item" @click.stop="toggleDefaultView">
         {{ contextMenu.view?.is_default ? $t('views.removeDefault') : $t('views.setAsDefault') }}
       </div>
@@ -149,12 +150,73 @@
       <div class="menu-item danger" @click.stop="deleteView">{{ $t('views.delete') }}</div>
     </div>
 
-    <!-- General Confirm/Prompt Dialog removed, using ElMessageBox -->
+    <el-dialog
+      v-model="navigationDialog.visible"
+      :title="t('views.navigationConfig')"
+      width="460px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      class="navigation-dialog"
+    >
+      <el-form label-position="top" @submit.prevent="saveNavigationConfig">
+        <el-form-item>
+          <el-switch
+            v-model="navigationDialog.form.enabled"
+            :active-text="t('views.navigationEnabled')"
+            :inactive-text="t('views.navigationDisabled')"
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('views.navigationName')">
+          <el-input
+            v-model="navigationDialog.form.name"
+            :placeholder="t('views.navigationNamePlaceholder')"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('views.navigationAliases')">
+          <el-input
+            v-model="navigationDialog.form.aliasesText"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('views.navigationAliasesPlaceholder')"
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('views.navigationKeywords')">
+          <el-input
+            v-model="navigationDialog.form.keywordsText"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('views.navigationKeywordsPlaceholder')"
+          />
+        </el-form-item>
+
+        <el-form-item :label="t('views.navigationDescription')">
+          <el-input
+            v-model="navigationDialog.form.description"
+            type="textarea"
+            :rows="3"
+            :placeholder="t('views.navigationDescriptionPlaceholder')"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="navigationDialog.visible = false">{{ t('common.cancel') }}</el-button>
+          <el-button type="primary" :loading="navigationDialog.saving" @click="saveNavigationConfig">
+            {{ t('common.save') }}
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import { Close, Plus, Search, MoreFilled } from '@element-plus/icons-vue';
@@ -241,6 +303,23 @@ const contextMenu = ref({
   visible: false,
   style: {},
   view: null
+});
+
+const createEmptyNavigationForm = () => ({
+  viewId: null,
+  viewName: '',
+  enabled: true,
+  name: '',
+  aliasesText: '',
+  keywordsText: '',
+  description: '',
+  otherSettings: {}
+});
+
+const navigationDialog = reactive({
+  visible: false,
+  saving: false,
+  form: createEmptyNavigationForm()
 });
 
 // Load views
@@ -467,6 +546,104 @@ const showViewMenu = (view, event) => {
 // Close context menu
 const closeContextMenu = () => {
   contextMenu.value.visible = false;
+};
+
+const parseCommaSeparatedValues = (value) => {
+  if (!value) return [];
+
+  return String(value)
+    .split(/[\n,，、]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+};
+
+const openNavigationDialog = async () => {
+  const view = contextMenu.value.view;
+  closeContextMenu();
+
+  if (!view?.id) return;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/views/${view.id}`, { headers: getHeaders() });
+    const data = await response.json();
+
+    if (!data.success || !data.data) {
+      await showAlert(t('views.navigationLoadFailed'));
+      return;
+    }
+
+    const detail = data.data;
+    const otherSettings = detail.other_settings || detail.otherSettings || {};
+    const navigation = otherSettings.navigation || {};
+
+    navigationDialog.form = {
+      viewId: detail.id,
+      viewName: detail.name || view.name || '',
+      enabled: navigation.enabled !== false,
+      name: navigation.name || detail.name || view.name || '',
+      aliasesText: Array.isArray(navigation.aliases) ? navigation.aliases.join(', ') : '',
+      keywordsText: Array.isArray(navigation.keywords) ? navigation.keywords.join(', ') : '',
+      description: navigation.description || '',
+      otherSettings
+    };
+    navigationDialog.visible = true;
+  } catch (error) {
+    console.error('Failed to load navigation config:', error);
+    await showAlert(t('views.navigationLoadFailed'));
+  }
+};
+
+const saveNavigationConfig = async () => {
+  if (!navigationDialog.form.viewId) return;
+
+  const navigationName = navigationDialog.form.name.trim() || navigationDialog.form.viewName;
+  if (!navigationName) {
+    await showAlert(t('views.navigationNameRequired'));
+    return;
+  }
+
+  const nextNavigation = {
+    enabled: navigationDialog.form.enabled,
+    name: navigationName,
+    aliases: parseCommaSeparatedValues(navigationDialog.form.aliasesText),
+    keywords: parseCommaSeparatedValues(navigationDialog.form.keywordsText),
+    description: navigationDialog.form.description.trim()
+  };
+
+  const nextOtherSettings = {
+    ...navigationDialog.form.otherSettings,
+    navigation: nextNavigation
+  };
+
+  navigationDialog.saving = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/views/${navigationDialog.form.viewId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}`
+      },
+      body: JSON.stringify({
+        other_settings: nextOtherSettings
+      })
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      await showAlert(t('views.navigationSaveFailed'));
+      return;
+    }
+
+    navigationDialog.visible = false;
+    navigationDialog.form = createEmptyNavigationForm();
+    await loadViews();
+  } catch (error) {
+    console.error('Failed to save navigation config:', error);
+    await showAlert(t('views.navigationSaveFailed'));
+  } finally {
+    navigationDialog.saving = false;
+  }
 };
 
 // Rename view
@@ -840,5 +1017,13 @@ onUnmounted(() => {
   color: var(--md-sys-color-on-error-container);
 }
 
-/* Old Dialog Styles Removed */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+:deep(.navigation-dialog .el-textarea__inner) {
+  resize: vertical;
+}
 </style>

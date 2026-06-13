@@ -52,6 +52,12 @@
         :visible="areTagsVisible && !isSettingsPanelOpen"
       />
 
+      <TicketOverlayTags
+        :markers="ticketOverlayMarkers"
+        :visible="isTicketOverlayVisible"
+        @marker-click="emit('ticket-marker-click', $event)"
+      />
+
 
       <!-- 控制按钮已集成到 Viewer 工具栏 -->
     </div>
@@ -85,6 +91,7 @@ import { isInfluxConfigured, queryAverageSeries, queryLatestByRooms, queryRoomSe
 import { triggerTemperatureAlert } from '../services/ai-analysis';
 import { useI18n } from 'vue-i18n';
 import OverlayTags from './viewer/OverlayTags.vue';
+import TicketOverlayTags from './viewer/TicketOverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import DocumentPreview from './DocumentPreview.vue';
 import TimelineControl from './viewer/TimelineControl.vue';
@@ -113,11 +120,13 @@ const props = defineProps({
   currentView: { type: String, default: 'connect' },
   assets: { type: Array, default: () => [] }, // 从数据库加载的资产列表
   rooms: { type: Array, default: () => [] },   // 从数据库加载的空间列表
-  isAIEnabled: { type: Boolean, default: true } // AI 分析功能开关
+  isAIEnabled: { type: Boolean, default: true }, // AI 分析功能开关
+  ticketMarkers: { type: Array, default: () => [] },
+  isTicketOverlayVisible: { type: Boolean, default: false }
 });
 
 // 定义事件发射
-const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert']);
+const emit = defineEmits(['rooms-loaded', 'assets-loaded', 'chart-data-update', 'time-range-changed', 'viewer-ready', 'model-selection-changed', 'trigger-ai-alert', 'ticket-marker-click']);
 
 // ================== 1. 所有响应式状态 (Top Level) ==================
 
@@ -131,11 +140,15 @@ const progress = ref(95);
 
 // 标签与房间状态
 const roomTags = ref([]); // 存储所有房间标签对象
+const ticketOverlayMarkers = ref([]);
 const areTagsVisible = ref(false); // 温度标签显示状态，默认不显示
 const isSettingsPanelOpen = ref(false); // 设置面板打开状态
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
 let isManualSelection = false; // 防止递归调用的标志
+let isolatedRoomDbIds = [];
+const DEFAULT_ROOM_COLOR = 0x4F9DFF;
+const DEFAULT_ROOM_OPACITY = 0.35;
 
 // 初始化热力图 Composable
 const heatmap = useHeatmap({ opacity: 0.8, changeThreshold: 0.3, debounceDelay: 400 });
@@ -259,6 +272,31 @@ const animateToDefaultView = (duration = 800) => {
     if (t < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
+};
+
+const focusModelOverview = (duration = 800) => {
+  if (!viewer) return;
+
+  setManualSelection();
+  enforceForgePropertyPanelClosed();
+  viewer.clearSelection();
+  viewer.resize?.();
+
+  requestAnimationFrame(() => {
+    if (viewer.model && typeof viewer.fitToView === 'function') {
+      viewer.fitToView(undefined, viewer.model);
+      if (defaultView?.up && viewer.navigation?.setWorldUpVector) {
+        viewer.navigation.setWorldUpVector(defaultView.up.clone());
+      }
+    } else if (defaultView) {
+      animateToDefaultView(duration);
+    }
+
+    setTimeout(() => {
+      updateAllTagPositions();
+      viewer.impl?.invalidate?.(true, true, true);
+    }, duration + 60);
+  });
 };
 
 // 时间状态
@@ -575,6 +613,31 @@ const acknowledgeAlert = () => {
 
 // ================== 3. Viewer 逻辑 ==================
 
+const closeForgePropertyPanel = () => {
+  if (!viewer) return;
+
+  if (typeof viewer.setPropertiesOnSelect === 'function') {
+    viewer.setPropertiesOnSelect(false);
+  }
+
+  const propertyPanel = typeof viewer.getPropertyPanel === 'function'
+    ? viewer.getPropertyPanel()
+    : viewer.propertyPanel;
+
+  propertyPanel?.setVisible?.(false);
+
+  const propertiesButton = viewer.toolbar?.getControl?.('toolbar-propertiesTool');
+  propertiesButton?.setState?.(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
+};
+
+const enforceForgePropertyPanelClosed = () => {
+  closeForgePropertyPanel();
+  requestAnimationFrame(() => closeForgePropertyPanel());
+  setTimeout(() => closeForgePropertyPanel(), 0);
+  setTimeout(() => closeForgePropertyPanel(), 120);
+  setTimeout(() => closeForgePropertyPanel(), 360);
+};
+
 const initViewer = () => {
   if (!window.Autodesk) return;
   // 将 Viewer 语言与系统语言同步
@@ -600,6 +663,7 @@ const initViewer = () => {
     viewer.setLightPreset(17); // Field environment
     if (viewer.setProgressiveRendering) viewer.setProgressiveRendering(false);
     if (viewer.setQualityLevel) viewer.setQualityLevel(false, false);
+    if (viewer.setGhosting) viewer.setGhosting(true);
     
     // 反转鼠标缩放方向（滚轮向上放大）
     if (viewer.navigation) {
@@ -612,7 +676,7 @@ const initViewer = () => {
       console.log('🧭 已设置默认 WorldUpVector 为 Z 轴向上');
     }
     
-    // TODO: 修复属性面板自动弹出问题（与 viewer.isolate 相关）
+    enforceForgePropertyPanelClosed();
     
     // 添加 IoT 控制按钮到 Viewer 工具栏右侧
     let iotTempLabelBtn = null;
@@ -726,6 +790,7 @@ const initViewer = () => {
       
       // 初始化按钮状态
       updateIoTButtonsState();
+      enforceForgePropertyPanelClosed();
       
       console.log('🎛️ IoT 控制按钮已添加到工具栏');
     };
@@ -740,6 +805,7 @@ const initViewer = () => {
     // 监听页面切换，更新按钮状态
     watch(() => props.currentView, () => {
       updateIoTButtonsState();
+      enforceForgePropertyPanelClosed();
     });
     
     // 监听系统主题变化，实时更新 Forge Viewer 主题
@@ -978,14 +1044,15 @@ const performLoadNewModel = async (modelPath) => {
         }
 
         // 等待所有条件满足
-        Promise.all(pendingPromises).then(() => {
-             console.log('🎉 模型几何体与对象树均已就绪');
-             
-             // 额外的稳定时间，确保渲染帧完成且 Viewer 内部状态同步
-             setTimeout(() => {
-                modelFullyReady = true;
-                isLoadingModel = false;
-                console.log('📦 模型完全交互就绪，执行回调:', modelReadyCallbacks.length);
+	        Promise.all(pendingPromises).then(() => {
+	             console.log('🎉 模型几何体与对象树均已就绪');
+	             
+	             // 额外的稳定时间，确保渲染帧完成且 Viewer 内部状态同步
+	             setTimeout(() => {
+	                modelFullyReady = true;
+	                isLoadingModel = false;
+	                closeForgePropertyPanel();
+	                console.log('📦 模型完全交互就绪，执行回调:', modelReadyCallbacks.length);
                 
                 // 再次确保 WorldUpVector 正确
                 if (viewer.navigation && viewer.navigation.setWorldUpVector) {
@@ -1004,22 +1071,76 @@ const performLoadNewModel = async (modelPath) => {
   });
 };
 
-// 自定义材质单例
 let customRoomMat = null;
 const getRoomMaterial = () => {
   if (customRoomMat) return customRoomMat;
-  // 青绿色：#43ABC9 (RGB: 67, 171, 201)
+
   customRoomMat = new window.THREE.MeshBasicMaterial({
-    color: 0x43ABC9, opacity: 0.5, transparent: true,
-    side: window.THREE.DoubleSide, depthWrite: false, depthTest: true
+    color: DEFAULT_ROOM_COLOR,
+    opacity: DEFAULT_ROOM_OPACITY,
+    transparent: true,
+    side: window.THREE.FrontSide,
+    depthWrite: true,
+    depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
   });
   viewer.impl.matman().addMaterial('custom-room-mat', customRoomMat, true);
   return customRoomMat;
 };
 
+const getAllRoomDbIds = () => {
+  if (props.rooms && props.rooms.length > 0) {
+    return props.rooms.map(r => r.dbId).filter(Boolean);
+  }
+  return foundRoomDbIds.length > 0 ? foundRoomDbIds : [];
+};
+
+const applyRoomMaterial = (dbIds) => {
+  if (!viewer || !viewer.model || !dbIds || dbIds.length === 0) return;
+
+  const mat = getRoomMaterial();
+  const tree = viewer.model.getInstanceTree();
+  const fragList = viewer.model.getFragmentList();
+
+  dbIds.forEach(dbId => {
+    tree.enumNodeFragments(dbId, (fragId) => {
+      fragList.setMaterial(fragId, mat);
+    });
+  });
+};
+
+const restoreRoomMaterials = (dbIds = getAllRoomDbIds()) => {
+  if (!viewer || !viewer.model || !dbIds || dbIds.length === 0) return;
+
+  const tree = viewer.model.getInstanceTree();
+  const fragList = viewer.model.getFragmentList();
+
+  dbIds.forEach(dbId => {
+    tree.enumNodeFragments(dbId, (fragId) => {
+      const originalMaterial = roomFragData[fragId];
+      if (originalMaterial) {
+        fragList.setMaterial(fragId, originalMaterial);
+      }
+    });
+  });
+};
+
+const restoreDefaultRoomVisualState = () => {
+  restoreRoomMaterials();
+
+  if (!isHeatmapEnabled.value && isolatedRoomDbIds.length > 0) {
+    applyRoomMaterial(isolatedRoomDbIds);
+  }
+
+  viewer.impl.invalidate(true, true, true);
+};
+
 // 1. 模型加载
 const onModelLoaded = () => {
   console.log('🎯 onModelLoaded 被触发');
+  enforceForgePropertyPanelClosed();
   
   // 关键：再次强制设置 WorldUpVector，确保模型加载后也是正确的坐标系
   if (viewer && viewer.navigation && viewer.navigation.setWorldUpVector) {
@@ -1041,6 +1162,8 @@ const onModelLoaded = () => {
   roomFragData = {};
   foundRoomDbIds = [];
   foundAssetDbIds = [];
+  isolatedRoomDbIds = [];
+  customRoomMat = null;
   // 模型已加载（通过 modelFullyReady 标志控制）
   console.log('🧹 状态已重置');
   
@@ -1124,7 +1247,7 @@ const onModelLoaded = () => {
   extractAssets();
 };
 
-// 2. 处理房间 (缓存材质 + 生成标签 + 获取属性)
+// 2. 处理房间 (生成标签 + 获取属性)
 const processRooms = (dbIds) => {
   foundRoomDbIds = dbIds || [];
   
@@ -1141,7 +1264,7 @@ const processRooms = (dbIds) => {
   let pendingProps = dbIds.length;
 
   dbIds.forEach(dbId => {
-    // A. 缓存材质 (重要：保留原始引用)
+    // A. 缓存房间原始材质，供孤立高亮后恢复
     tree.enumNodeFragments(dbId, (fragId) => {
       if (roomFragData[fragId] === undefined) {
         roomFragData[fragId] = fragList.getMaterial(fragId);
@@ -1231,22 +1354,13 @@ emit('rooms-loaded', roomList);
         const allCodes = roomList.map(r => r.code).filter(Boolean);
         refreshRoomSeriesCache(allCodes).then(() => setTagTempsAtCurrentTime()).catch(() => {});
 
-        // 应用房间样式（青绿色）- 适用于所有视图
-        setTimeout(() => {
-          console.log(`🎯 模型加载完成，应用房间青绿色样式 (当前视图: ${props.currentView})`);
-          applyRoomStyleOnly(); // 只上色，不孤立
-        }, 100);
+        console.log(`🎯 模型加载完成，房间保持默认原始材质 (当前视图: ${props.currentView})`);
       }
     }, () => {
       // 属性获取失败，跳过该房间（没有编号）
       pendingProps--;
       if (pendingProps === 0) {
         emit('rooms-loaded', roomList);
-
-        // 应用房间样式（青绿色）- 适用于所有视图
-        setTimeout(() => {
-          applyRoomStyleOnly(); // 只上色，不孤立
-        }, 100);
       }
     });
   });
@@ -1315,42 +1429,10 @@ const extractAssets = () => {
   });
 };
 
-// 3.5 应用青绿色样式到所有房间（只上色，不孤立，适用于所有视图）
-const applyRoomStyleOnly = () => {
-  if (!viewer || !viewer.model) return;
-
-  // 优先使用从数据库传入的空间列表
-  let dbIdsToColor = [];
-  if (props.rooms && props.rooms.length > 0) {
-    dbIdsToColor = props.rooms.map(r => r.dbId).filter(Boolean);
-  } else if (foundRoomDbIds.length > 0) {
-    dbIdsToColor = foundRoomDbIds;
-  }
-
-  if (dbIdsToColor.length === 0) {
-    console.log('⚠️ 没有找到房间数据，跳过上色');
-    return;
-  }
-
-  console.log(`🎨 为 ${dbIdsToColor.length} 个房间应用青绿色样式`);
-
-  const mat = getRoomMaterial();
-  const fragList = viewer.model.getFragmentList();
-  const tree = viewer.model.getInstanceTree();
-
-  dbIdsToColor.forEach(dbId => {
-    tree.enumNodeFragments(dbId, (fragId) => {
-      fragList.setMaterial(fragId, mat);
-    });
-  });
-
-  // 强制刷新渲染（不孤立，所有构件都可见）
-  viewer.impl.invalidate(true, true, true);
-};
-
 // 5. 选择变更（在模型上直接点击时触发）
 const onSelectionChanged = (event) => {
   const dbIds = event.dbIdArray;
+  enforceForgePropertyPanelClosed();
   
   if (viewState.getIsRestoringView()) return;
   
@@ -1371,6 +1453,9 @@ const onSelectionChanged = (event) => {
     // 取消选择：根据当前视图恢复显示
     if (props.currentView === 'assets') {
       showAllAssets();
+    } else if (props.currentView === 'tickets') {
+      showAllAssets();
+      showAllRooms();
     } else {
       showAllRooms();
     }
@@ -1382,22 +1467,64 @@ const onSelectionChanged = (event) => {
 
 // 6. 更新所有标签位置
 const updateAllTagPositions = () => {
-  if (!areTagsVisible.value) return;
-  roomTags.value.forEach(tag => {
-    const p = viewer.worldToClient(tag.worldPos);
-    if (p.z > 1) {
-      tag.visible = false;
-    } else {
-      // 只更新位置，不改变 visible 状态（由其他逻辑控制）
-      tag.x = p.x;
-      tag.y = p.y;
-      // 如果没有被特殊设置，默认可见
-      if (tag.visible === undefined || tag.visible === null) {
-        tag.visible = true;
+  if (areTagsVisible.value) {
+    roomTags.value.forEach(tag => {
+      const p = viewer.worldToClient(tag.worldPos);
+      if (p.z > 1) {
+        tag.visible = false;
+      } else {
+        // 只更新位置，不改变 visible 状态（由其他逻辑控制）
+        tag.x = p.x;
+        tag.y = p.y;
+        // 如果没有被特殊设置，默认可见
+        if (tag.visible === undefined || tag.visible === null) {
+          tag.visible = true;
+        }
       }
+    });
+  }
+
+  updateTicketMarkerPositions();
+};
+
+const updateTicketMarkerPositions = () => {
+  if (!props.isTicketOverlayVisible || !viewer || !viewer.model) {
+    ticketOverlayMarkers.value = [];
+    return;
+  }
+
+  ticketOverlayMarkers.value = props.ticketMarkers.map((marker) => {
+    const bounds = getComponentBounds(marker.dbId);
+    if (!bounds) {
+      return { ...marker, visible: false };
     }
+
+    const worldPos = new window.THREE.Vector3(
+      (bounds.min.x + bounds.max.x) / 2,
+      bounds.max.y,
+      (bounds.min.z + bounds.max.z) / 2
+    );
+    const screenPos = viewer.worldToClient(worldPos);
+
+    return {
+      ...marker,
+      worldPos,
+      x: screenPos.x,
+      y: screenPos.y,
+      visible: screenPos.z <= 1
+    };
   });
 };
+
+watch(
+  () => [props.ticketMarkers, props.isTicketOverlayVisible, props.currentView],
+  () => {
+    nextTick(() => {
+      updateTicketMarkerPositions();
+    });
+  },
+  { deep: true }
+);
 
 // 7. 孤立并定位到指定房间（支持多选，供外部调用）
 const isolateAndFocusRooms = (dbIds) => {
@@ -1405,21 +1532,25 @@ const isolateAndFocusRooms = (dbIds) => {
 
   // 设置标志，防止 onSelectionChanged 递归调用
   setManualSelection();
+  enforceForgePropertyPanelClosed();
 
   // 清除选择（避免蓝色高亮）
   viewer.clearSelection();
 
-  // 隐藏未选中的房间
-  const roomsToHide = foundRoomDbIds.filter(id => !dbIds.includes(id));
-  if (roomsToHide.length > 0) {
-    viewer.hide(roomsToHide);
+  // 真正孤立选中的房间，并显式保持 Ghosting 开启
+  if (viewer.setGhosting) {
+    viewer.setGhosting(true);
   }
-
-  // 显示选中的房间
-  viewer.show(dbIds);
+  viewer.isolate(dbIds);
+  if (viewer.setGhosting) {
+    viewer.setGhosting(true);
+  }
+  isolatedRoomDbIds = [...dbIds];
 
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
+    restoreRoomMaterials();
+
     // 热力图模式：使用 setThemingColor
     dbIds.forEach(dbId => {
       const tag = roomTags.value.find(t => t.dbId === dbId);
@@ -1459,26 +1590,8 @@ const isolateAndFocusRooms = (dbIds) => {
       viewer.setThemingColor(dbId, color);
     });
   } else {
-    // 普通模式：清除主题颜色，应用浅紫色材质
-    viewer.clearThemingColors();
-
-    const mat = getRoomMaterial();
-    const fragList = viewer.model?.getFragmentList();
-    const tree = viewer.model?.getInstanceTree();
-
-    // 先清除所有房间的主题颜色
-    foundRoomDbIds.forEach(dbId => {
-      viewer.setThemingColor(dbId, null);
-    });
-
-    // 然后只对选中的房间应用浅紫色材质（只有在 tree 可用时）
-    if (tree && fragList) {
-      dbIds.forEach(dbId => {
-        tree.enumNodeFragments(dbId, (fragId) => {
-          fragList.setMaterial(fragId, mat);
-        });
-      });
-    }
+    restoreRoomMaterials();
+    applyRoomMaterial(dbIds);
   }
 
   // 定位到选中的房间
@@ -1523,37 +1636,29 @@ const showAllRooms = () => {
     dbIdsToShow = foundRoomDbIds;
   }
 
-  // 显示所有房间
+  // 清除房间孤立，恢复完整模型显示
+  if (viewer.setGhosting) {
+    viewer.setGhosting(true);
+  }
+  viewer.isolate([]);
+  if (viewer.setGhosting) {
+    viewer.setGhosting(true);
+  }
   if (dbIdsToShow.length > 0) {
     viewer.show(dbIdsToShow);
   }
+  isolatedRoomDbIds = [];
 
   // 清除选择
   viewer.clearSelection();
 
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
+    restoreRoomMaterials(dbIdsToShow);
     applyHeatmapStyle();
   } else {
-    // 清除所有主题颜色
-    viewer.clearThemingColors();
-
-    // 逐个清除房间的主题颜色
-    dbIdsToShow.forEach(dbId => {
-      viewer.setThemingColor(dbId, null);
-    });
-
-    // 应用浅紫色材质
-    const mat = getRoomMaterial();
-    const fragList = viewer.model.getFragmentList();
-    const tree = viewer.model.getInstanceTree();
-
-    dbIdsToShow.forEach(dbId => {
-      tree.enumNodeFragments(dbId, (fragId) => {
-        fragList.setMaterial(fragId, mat);
-      });
-    });
-
+    viewer.clearThemingColors(viewer.model);
+    restoreRoomMaterials(dbIdsToShow);
     viewer.impl.invalidate(true, true, true);
   }
 
@@ -1584,8 +1689,8 @@ const toggleHeatmap = () => {
   const enabled = heatmap.toggle(roomsData);
 
   if (!enabled) {
-    // 关闭热力图时，恢复默认材质
-    heatmap.restoreDefaultMaterial(foundRoomDbIds, getRoomMaterial);
+    // 关闭热力图时，恢复原材质；如果仍是房间孤立态，再仅对孤立房间换蓝色材质
+    heatmap.restoreDefaultMaterial(foundRoomDbIds, restoreDefaultRoomVisualState);
   }
 
   // 显示所有温度标签
@@ -1695,9 +1800,13 @@ const isolateAndFocusAssets = (dbIds) => {
 
   // 设置手动选择标志，防止 onSelectionChanged 干扰
   setManualSelection();
+  enforceForgePropertyPanelClosed();
 
+  // 工单/列表定位时仅隔离和聚焦，不触发 Forge 原生选中，
+  // 否则会重新拉起“特性”面板并遮挡模型视图。
+  viewer.clearSelection();
   viewer.isolate(dbIds);
-  viewer.select(dbIds);
+  enforceForgePropertyPanelClosed();
   
   // 获取选中对象的边界框
   const bounds = new window.THREE.Box3();
@@ -2621,6 +2730,7 @@ defineExpose({
   },
   showAllAssets,
   showAllRooms,
+  focusModelOverview,
   isolateAndFocusAssets,
   isolateAndFocusRooms,
   getAssetProperties,

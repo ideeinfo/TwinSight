@@ -10,7 +10,7 @@ export interface ModelFile {
     displayName: string;
     filePath: string;
     urn?: string;
-    status: 'pending' | 'processing' | 'ready' | 'error';
+    status: 'pending' | 'processing' | 'extracted' | 'ready' | 'error';
     fileSize?: number;
     uploadedAt: string;
     facilityId?: number; // 为设施层预留

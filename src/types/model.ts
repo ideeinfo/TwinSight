@@ -2,7 +2,7 @@
  * 模型相关类型定义
  */
 
-export type ModelStatus = 'pending' | 'processing' | 'ready' | 'error';
+export type ModelStatus = 'pending' | 'processing' | 'extracted' | 'ready' | 'error';
 
 export interface ModelFile {
     id: number;

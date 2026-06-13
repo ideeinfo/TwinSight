@@ -57,6 +57,15 @@
         </svg>
         <span class="label">{{ t('leftPanel.documents') }}</span>
       </div>
+      <div class="nav-item" :class="{ 'active-blue': currentView === 'tickets', 'disabled': isLoading }" @click="!isLoading && $emit('switch-view', 'tickets')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M7 4h10l3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" />
+          <path d="M9 9h6" />
+          <path d="M9 13h6" />
+          <path d="M9 17h4" />
+        </svg>
+        <span class="label">{{ t('leftPanel.tickets') }}</span>
+      </div>
     </div>
 
     <!-- 下部按钮组 -->

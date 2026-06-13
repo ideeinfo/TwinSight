@@ -1,39 +1,68 @@
 /**
  * InfluxDB 配置 API 路由
+ * 兼容旧的按模型接口，但实际统一读写全局 system_config。
  */
 import express from 'express';
-import {
-    getInfluxConfig,
-    saveInfluxConfig,
-    deleteInfluxConfig,
-    testInfluxConnection
-} from '../models/influx-config.js';
+import { testInfluxConnection } from '../models/influx-config.js';
+import { getConfigRaw, setConfig } from '../services/config-service.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { PERMISSIONS } from '../config/auth.js';
 
 const router = express.Router();
 
+async function getGlobalInfluxConfigPayload(fileId = null) {
+    const [
+        influxUrl,
+        influxPort,
+        influxOrg,
+        influxBucket,
+        influxToken,
+        enabled
+    ] = await Promise.all([
+        getConfigRaw('INFLUXDB_URL'),
+        getConfigRaw('INFLUXDB_PORT'),
+        getConfigRaw('INFLUXDB_ORG'),
+        getConfigRaw('INFLUXDB_BUCKET'),
+        getConfigRaw('INFLUXDB_TOKEN'),
+        getConfigRaw('INFLUXDB_ENABLED')
+    ]);
+
+    const hasConfig = !!(influxUrl || influxOrg || influxBucket || influxToken);
+    if (!hasConfig) {
+        return null;
+    }
+
+    return {
+        id: null,
+        file_id: fileId,
+        influx_url: influxUrl || '',
+        influx_port: parseInt(influxPort || '8086', 10),
+        influx_org: influxOrg || '',
+        influx_bucket: influxBucket || '',
+        influx_token: influxToken || '',
+        influx_user: null,
+        influx_password: null,
+        use_basic_auth: false,
+        is_enabled: enabled == null ? true : enabled === 'true',
+        has_password: false,
+        has_token: !!influxToken
+    };
+}
+
 /**
- * 获取模型的 InfluxDB 配置
+ * 获取 InfluxDB 配置
+ * 兼容旧接口：fileId 参数被忽略，统一返回全局配置。
  * GET /api/influx-config/:fileId
  */
 router.get('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (req, res) => {
     try {
         const { fileId } = req.params;
-        const config = await getInfluxConfig(fileId);
+        const config = await getGlobalInfluxConfigPayload(Number(fileId));
 
         if (config) {
-            // 隐藏敏感信息（密码只返回是否有值）
             res.json({
                 success: true,
-                data: {
-                    ...config,
-                    // 前端需要查看 Token，因此不再掩盖 (依靠 INFLUX_READ 权限控制)
-                    // influx_password: config.influx_password ? '******' : null,
-                    // influx_token: config.influx_token ? '******' : null,
-                    has_password: !!config.influx_password,
-                    has_token: !!config.influx_token
-                }
+                data: config
             });
         } else {
             res.json({
@@ -51,12 +80,12 @@ router.get('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_READ), async (
 });
 
 /**
- * 保存模型的 InfluxDB 配置
+ * 保存 InfluxDB 配置
+ * 兼容旧接口：fileId 参数被忽略，统一保存到全局 system_config。
  * POST /api/influx-config/:fileId
  */
 router.post('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), async (req, res) => {
     try {
-        const { fileId } = req.params;
         const config = req.body;
 
         // 验证必填字段
@@ -79,24 +108,43 @@ router.post('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), asyn
             });
         }
 
-        // 如果密码/token 是占位符，获取原有值
-        const existing = await getInfluxConfig(fileId);
-        if (config.influxPassword === '******' && existing) {
-            config.influxPassword = existing.influx_password;
-        }
-        if (config.influxToken === '******' && existing) {
-            config.influxToken = existing.influx_token;
+        if (config.useBasicAuth) {
+            return res.status(400).json({
+                success: false,
+                error: '当前收敛方案仅支持全局 Token 认证，请在系统设置中配置 Token。'
+            });
         }
 
-        const result = await saveInfluxConfig(fileId, config);
+        let influxToken = config.influxToken;
+        if (influxToken === '******' || influxToken == null) {
+            influxToken = await getConfigRaw('INFLUXDB_TOKEN');
+        }
+
+        const updates = [
+            { key: 'INFLUXDB_URL', value: config.influxUrl },
+            { key: 'INFLUXDB_PORT', value: String(config.influxPort || 8086) },
+            { key: 'INFLUXDB_ORG', value: config.influxOrg },
+            { key: 'INFLUXDB_BUCKET', value: config.influxBucket },
+            { key: 'INFLUXDB_ENABLED', value: String(config.isEnabled !== false) }
+        ];
+
+        if (influxToken) {
+            updates.push({ key: 'INFLUXDB_TOKEN', value: influxToken });
+        }
+
+        const results = await Promise.all(
+            updates.map(({ key, value }) => setConfig(key, value))
+        );
+
+        if (results.some(result => !result)) {
+            throw new Error('更新全局 InfluxDB 配置失败');
+        }
+
+        const result = await getGlobalInfluxConfigPayload(null);
 
         res.json({
             success: true,
-            data: {
-                ...result,
-                influx_password: result.influx_password ? '******' : null,
-                influx_token: result.influx_token ? '******' : null
-            }
+            data: result
         });
     } catch (error) {
         console.error('保存 InfluxDB 配置失败:', error);
@@ -108,25 +156,15 @@ router.post('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), asyn
 });
 
 /**
- * 删除模型的 InfluxDB 配置
+ * 删除 InfluxDB 配置
+ * 当前全局模式下不再支持按模型删除。
  * DELETE /api/influx-config/:fileId
  */
 router.delete('/:fileId', authenticate, authorize(PERMISSIONS.INFLUX_MANAGE), async (req, res) => {
-    try {
-        const { fileId } = req.params;
-        const result = await deleteInfluxConfig(fileId);
-
-        res.json({
-            success: true,
-            data: result
-        });
-    } catch (error) {
-        console.error('删除 InfluxDB 配置失败:', error);
-        res.status(500).json({
-            success: false,
-            error: '删除配置失败: ' + error.message
-        });
-    }
+    res.status(410).json({
+        success: false,
+        error: '按模型删除 InfluxDB 配置已弃用，请改用系统设置管理全局 InfluxDB 配置。'
+    });
 });
 
 /**
@@ -137,17 +175,15 @@ router.post('/test/connection', authenticate, authorize(PERMISSIONS.INFLUX_MANAG
     try {
         const config = req.body;
 
-        // 如果是从已保存配置测试，需要获取原有密码/token
-        if (config.fileId && (config.influxPassword === '******' || config.influxToken === '******')) {
-            const existing = await getInfluxConfig(config.fileId);
-            if (existing) {
-                if (config.influxPassword === '******') {
-                    config.influxPassword = existing.influx_password;
-                }
-                if (config.influxToken === '******') {
-                    config.influxToken = existing.influx_token;
-                }
-            }
+        if (config.useBasicAuth) {
+            return res.status(400).json({
+                success: false,
+                error: '当前收敛方案仅支持全局 Token 认证，请在系统设置中配置 Token。'
+            });
+        }
+
+        if (config.influxToken === '******' || !config.influxToken) {
+            config.influxToken = await getConfigRaw('INFLUXDB_TOKEN');
         }
 
         const result = await testInfluxConnection(config);

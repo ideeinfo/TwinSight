@@ -190,6 +190,58 @@
 
             <section class="detail-block">
               <div class="block-header">
+                <h3>{{ t('facilities.knowledgeBaseSection') }}</h3>
+              </div>
+              <div class="document-archive-card knowledge-card">
+                <div v-if="loadingKnowledgeBase" class="empty-inline">
+                  {{ t('facilities.knowledgeBaseLoading') }}
+                </div>
+                <template v-else>
+                  <div class="knowledge-copy">
+                    <strong>{{ kbSummary?.exists ? (kbSummary.kbName || t('facilities.knowledgeBaseReady')) : t('facilities.knowledgeBaseMissing') }}</strong>
+                    <p>
+                      {{
+                        kbSummary?.exists
+                          ? t('facilities.knowledgeBaseSummaryText', {
+                              total: kbSummary.stats.total,
+                              synced: kbSummary.stats.synced,
+                              duplicate: kbSummary.stats.duplicate,
+                              failed: kbSummary.stats.failed
+                            })
+                          : t('facilities.knowledgeBaseEmptyText')
+                      }}
+                    </p>
+                    <div class="detail-summary-chips detail-summary-chips--knowledge">
+                      <span class="summary-chip">{{ t('facilities.kbSynced') }} {{ kbSummary?.stats.synced || 0 }}</span>
+                      <span class="summary-chip">{{ t('facilities.kbPending') }} {{ kbSummary?.pendingDocuments ?? selectedFacility.documentCount }}</span>
+                      <span class="summary-chip">{{ t('facilities.kbDuplicate') }} {{ kbSummary?.stats.duplicate || 0 }}</span>
+                      <span class="summary-chip">{{ t('facilities.kbFailed') }} {{ kbSummary?.stats.failed || 0 }}</span>
+                    </div>
+                  </div>
+                  <div class="knowledge-actions">
+                    <el-button
+                      type="primary"
+                      :disabled="!canManageFacilityKnowledgeBase"
+                      :loading="creatingKnowledgeBase"
+                      @click="handleCreateFacilityKnowledgeBase()"
+                    >
+                      {{ kbSummary?.exists ? t('facilities.recreateKnowledgeBase') : t('facilities.createKnowledgeBase') }}
+                    </el-button>
+                    <el-button
+                      plain
+                      :disabled="!canManageFacilityKnowledgeBase || !(kbSummary?.exists)"
+                      :loading="syncingKnowledgeBase"
+                      @click="handleSyncFacilityKnowledgeBase"
+                    >
+                      {{ t('facilities.syncKnowledgeBase') }}
+                    </el-button>
+                  </div>
+                </template>
+              </div>
+            </section>
+
+            <section class="detail-block">
+              <div class="block-header">
                 <h3>{{ t('facilities.documentsSection') }}</h3>
               </div>
               <div class="document-archive-card">
@@ -436,9 +488,12 @@ import { useI18n } from 'vue-i18n';
 import ConsoleShell from '@/components/dashboard/ConsoleShell.vue';
 import {
   createFacility,
+  createFacilityKnowledgeBase,
   deleteFacility,
   getFacilityDetail,
+  getFacilityKnowledgeBase,
   getFacilities,
+  syncFacilityKnowledgeBase,
   uploadFacilityCover,
   updateFacility,
 } from '@/services/api/facilities';
@@ -447,6 +502,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useModelsStore } from '@/stores/models';
 import type {
   FacilityDetail,
+  FacilityKnowledgeBaseSummary,
   FacilityListMode,
   FacilityModelSummary,
   FacilityModelView,
@@ -466,11 +522,15 @@ const modelsStore = useModelsStore();
 
 const loadingList = ref(false);
 const loadingDetail = ref(false);
+const loadingKnowledgeBase = ref(false);
 const savingFacility = ref(false);
+const creatingKnowledgeBase = ref(false);
+const syncingKnowledgeBase = ref(false);
 const uploadingCover = ref(false);
 const facilities = ref<FacilitySummary[]>([]);
 const selectedFacilityId = ref<number | null>(null);
 const selectedFacility = ref<FacilityDetail | null>(null);
+const kbSummary = ref<FacilityKnowledgeBaseSummary | null>(null);
 const listMode = ref<FacilityListMode>('list');
 const searchQuery = ref('');
 const viewSearchQuery = ref('');
@@ -491,6 +551,11 @@ const facilityForm = reactive<FacilityPayload>({
 const canCreateFacility = computed(() => authStore.hasPermission(FACILITY_CREATE_PERMISSION));
 const canUpdateFacility = computed(() => authStore.hasPermission(FACILITY_UPDATE_PERMISSION));
 const canDeleteFacility = computed(() => authStore.hasPermission(FACILITY_DELETE_PERMISSION));
+const canManageFacilityKnowledgeBase = computed(() => (
+  authStore.hasPermission('model:upload')
+  || authStore.hasPermission('facility:update')
+  || authStore.hasPermission('facility:manage')
+));
 
 const filteredFacilities = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -533,6 +598,7 @@ const totalViews = computed(() => selectedFacility.value?.models.reduce((total, 
 watch(selectedFacilityId, async (facilityId) => {
   if (!facilityId) {
     selectedFacility.value = null;
+    kbSummary.value = null;
     return;
   }
   await loadFacilityDetail(facilityId);
@@ -596,6 +662,7 @@ async function loadFacilityDetail(facilityId: number) {
   try {
     const detail = await getFacilityDetail(facilityId);
     selectedFacility.value = detail;
+    await loadFacilityKnowledgeBase(facilityId);
 
     if (detail) {
       facilities.value = facilities.value.map((facility) => {
@@ -624,6 +691,18 @@ async function loadFacilityDetail(facilityId: number) {
     ElMessage.error((error as Error).message || t('facilities.loadDetailFailed'));
   } finally {
     loadingDetail.value = false;
+  }
+}
+
+async function loadFacilityKnowledgeBase(facilityId: number) {
+  loadingKnowledgeBase.value = true;
+  try {
+    kbSummary.value = await getFacilityKnowledgeBase(facilityId);
+  } catch (error) {
+    console.error('Failed to load facility knowledge base:', error);
+    ElMessage.error((error as Error).message || t('facilities.knowledgeBaseLoadFailed'));
+  } finally {
+    loadingKnowledgeBase.value = false;
   }
 }
 
@@ -679,7 +758,7 @@ async function openFacility(facilityId?: number) {
             }),
       },
     });
-    if (model) {
+    if (model?.status === 'ready') {
       await activateModelFile(model.id);
       modelsStore.setActiveModel(model.id);
     }
@@ -878,6 +957,71 @@ async function reloadCurrentFacility() {
   await Promise.all([loadFacilities(), loadFacilityDetail(selectedFacilityId.value)]);
 }
 
+async function handleCreateFacilityKnowledgeBase(force = false) {
+  if (!selectedFacility.value) return;
+  if (!canManageFacilityKnowledgeBase.value) {
+    ElMessage.warning(t('facilities.noKnowledgeBasePermission'));
+    return;
+  }
+
+  creatingKnowledgeBase.value = true;
+  try {
+    const response = await createFacilityKnowledgeBase(selectedFacility.value.id, force);
+
+    if (response.code === 'KB_EXISTS' && !force) {
+      await ElMessageBox.confirm(
+        ((response.data as { message?: string } | undefined)?.message) || t('facilities.recreateKnowledgeBaseConfirm'),
+        t('facilities.recreateKnowledgeBase'),
+        {
+          type: 'warning',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
+        }
+      );
+      await handleCreateFacilityKnowledgeBase(true);
+      return;
+    }
+
+    if (!response.success) {
+      throw new Error(response.error || t('facilities.knowledgeBaseCreateFailed'));
+    }
+
+    ElMessage.success(force ? t('facilities.knowledgeBaseRecreated') : t('facilities.knowledgeBaseCreated'));
+    await loadFacilityKnowledgeBase(selectedFacility.value.id);
+  } catch (error) {
+    if ((error as Error)?.message === 'cancel' || (error as Error)?.message === 'close') {
+      return;
+    }
+    console.error('Failed to create facility knowledge base:', error);
+    ElMessage.error((error as Error).message || t('facilities.knowledgeBaseCreateFailed'));
+  } finally {
+    creatingKnowledgeBase.value = false;
+  }
+}
+
+async function handleSyncFacilityKnowledgeBase() {
+  if (!selectedFacility.value) return;
+  if (!canManageFacilityKnowledgeBase.value) {
+    ElMessage.warning(t('facilities.noKnowledgeBasePermission'));
+    return;
+  }
+
+  syncingKnowledgeBase.value = true;
+  try {
+    const response = await syncFacilityKnowledgeBase(selectedFacility.value.id);
+    if (!response.success) {
+      throw new Error(response.error || t('facilities.knowledgeBaseSyncFailed'));
+    }
+    ElMessage.success(response.message || t('facilities.knowledgeBaseSynced'));
+    await loadFacilityKnowledgeBase(selectedFacility.value.id);
+  } catch (error) {
+    console.error('Failed to sync facility knowledge base:', error);
+    ElMessage.error((error as Error).message || t('facilities.knowledgeBaseSyncFailed'));
+  } finally {
+    syncingKnowledgeBase.value = false;
+  }
+}
+
 function resolvePreviewSrc(facility: FacilitySummary) {
   return resolveMediaSrc(facility.coverImagePath || facility.previewThumbnail || null);
 }
@@ -919,6 +1063,9 @@ function getModelStatusLabel(status: string) {
   }
   if (status === 'extracting') {
     return t('filePanel.statusExtracting');
+  }
+  if (status === 'extracted') {
+    return t('filePanel.statusExtracted');
   }
   if (status === 'ready') {
     return t('filePanel.statusReady');
@@ -1780,6 +1927,32 @@ function removeCoverImage() {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.knowledge-card {
+  align-items: flex-start;
+}
+
+.knowledge-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.detail-summary-chips--knowledge {
+  margin-top: 12px;
+}
+
+.knowledge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 160px;
+  align-items: stretch;
+}
+
+.knowledge-actions :deep(.el-button) {
+  width: 100%;
+  margin-left: 0;
 }
 
 .empty-inline,

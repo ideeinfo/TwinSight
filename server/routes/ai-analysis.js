@@ -7,6 +7,7 @@ import express from 'express';
 import { checkHealth as checkOpenWebUIHealth } from '../services/openwebui-service.js';
 import aiService from '../services/ai-service.js';
 import pool from '../db/index.js'; // Needed for /context additional queries if not moved to service
+import { resolveKnowledgeBase } from '../services/knowledge-base-service.js';
 
 import { authenticate } from '../middleware/auth.js';
 
@@ -114,8 +115,8 @@ const handleGetContext = async (req, res) => {
 
         if (fileId) {
             try {
-                const kbResult = await pool.query('SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1', [fileId]);
-                if (kbResult.rows.length > 0) kbId = kbResult.rows[0].openwebui_kb_id;
+                const kb = await resolveKnowledgeBase({ fileId });
+                if (kb?.openwebui_kb_id) kbId = kb.openwebui_kb_id;
 
                 // Logic to discover fileIds for context
                 const fileIdsQuery = `

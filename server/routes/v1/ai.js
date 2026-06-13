@@ -5,6 +5,12 @@
 
 import express from 'express';
 import openwebuiService from '../../services/openwebui-service.js';
+import {
+    ensureFacilityKnowledgeBase,
+    getFacilityIdForFile,
+    listKnowledgeBaseDocuments,
+    resolveKnowledgeBase,
+} from '../../services/knowledge-base-service.js';
 import pg from 'pg';
 import config from '../../config/index.js';
 
@@ -49,27 +55,38 @@ router.get('/knowledge-bases', async (req, res) => {
 /**
  * 创建知识库
  * POST /api/v1/ai/knowledge-bases
- * body: { name, description, fileId }
+ * body: { name, description, fileId, facilityId }
  */
 router.post('/knowledge-bases', async (req, res) => {
     try {
-        const { name, description, fileId } = req.body;
+        const { name, description, fileId, facilityId } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, error: '知识库名称不能为空' });
         }
 
-        // 在 Open WebUI 中创建知识库
-        const kb = await openwebuiService.createKnowledgeBase(name, description || '');
+        const resolvedFacilityId = facilityId || await getFacilityIdForFile(fileId);
 
-        // 如果提供了 fileId，保存映射关系
+        if (resolvedFacilityId) {
+            const kb = await ensureFacilityKnowledgeBase(resolvedFacilityId, {
+                sourceFileId: fileId || null,
+                preferredName: name.replace(/^TwinSight-/, ''),
+                description: description || '',
+            });
+            return res.json({ success: true, data: kb });
+        }
+
+        const kb = await openwebuiService.createKnowledgeBase(name, description || '');
         if (fileId) {
             await pool.query(`
-                INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
-                VALUES ($1, $2, $3)
+                INSERT INTO knowledge_bases (file_id, source_file_id, openwebui_kb_id, kb_name, scope_type, status)
+                VALUES ($1, $1, $2, $3, 'file', 'active')
                 ON CONFLICT (file_id) DO UPDATE SET
+                    source_file_id = EXCLUDED.source_file_id,
                     openwebui_kb_id = EXCLUDED.openwebui_kb_id,
                     kb_name = EXCLUDED.kb_name,
+                    scope_type = 'file',
+                    status = 'active',
                     updated_at = CURRENT_TIMESTAMP
             `, [fileId, kb.id, name]);
         }
@@ -95,38 +112,27 @@ router.post('/sync-kb', async (req, res) => {
 
         // 如果提供了 fileId，查找或创建对应的知识库
         if (fileId && !kbId) {
-            const kbResult = await pool.query(
-                'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-                [fileId]
-            );
+            const kb = await resolveKnowledgeBase({ fileId });
 
-            if (kbResult.rows.length === 0) {
+            if (!kb?.openwebui_kb_id) {
                 return res.status(404).json({
                     success: false,
                     error: '未找到该文件对应的知识库，请先创建知识库'
                 });
             }
 
-            targetKbId = kbResult.rows[0].openwebui_kb_id;
+            targetKbId = kb.openwebui_kb_id;
 
-            // 获取该文件关联的所有文档
-            const docsResult = await pool.query(`
-                SELECT d.id, d.file_name, d.file_path
-                FROM documents d
-                JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $1
-                UNION
-                SELECT d.id, d.file_name, d.file_path
-                FROM documents d
-                JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $1
-                UNION
-                SELECT d.id, d.file_name, d.file_path
-                FROM documents d
-                JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $1
-            `, [fileId]);
+            const scopedDocs = await listKnowledgeBaseDocuments({
+                kbId: kb.id,
+                facilityId: kb.scope_type === 'facility' ? kb.facility_id : null,
+                fileId: kb.scope_type === 'facility' ? null : fileId,
+                onlyUnsynced: false,
+            });
 
-            docs = docsResult.rows.map(d => ({
+            docs = scopedDocs.map(d => ({
                 id: d.id,
-                path: `./public${d.file_path}`,
+                path: `./public${d.path}`,
             }));
         } else if (documentIds && documentIds.length > 0) {
             // 根据文档 ID 获取文档信息
@@ -173,6 +179,16 @@ router.post('/sync-kb', async (req, res) => {
                         sync_status = 'failed',
                         sync_error = EXCLUDED.sync_error
                 `, [r.id, r.error, targetKbId]);
+            } else if (r.status === 'duplicate') {
+                await pool.query(`
+                    INSERT INTO kb_documents (kb_id, document_id, sync_status, sync_error, synced_at)
+                    SELECT kb.id, $1, 'duplicate', $2, CURRENT_TIMESTAMP
+                    FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $3
+                    ON CONFLICT (document_id) DO UPDATE SET
+                        sync_status = 'duplicate',
+                        sync_error = EXCLUDED.sync_error,
+                        synced_at = CURRENT_TIMESTAMP
+                `, [r.id, r.reason || 'duplicate_content', targetKbId]);
             }
         }
 
@@ -182,6 +198,7 @@ router.post('/sync-kb', async (req, res) => {
                 total: docs.length,
                 synced: result.success,
                 failed: result.failed,
+                skipped: result.skipped || 0,
                 results: result.results,
             }
         });
@@ -208,14 +225,8 @@ router.post('/query', async (req, res) => {
 
         // 如果提供了 fileId，查找对应的知识库
         if (fileId && !kbId) {
-            const kbResult = await pool.query(
-                'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-                [fileId]
-            );
-
-            if (kbResult.rows.length > 0) {
-                targetKbId = kbResult.rows[0].openwebui_kb_id;
-            }
+            const kb = await resolveKnowledgeBase({ fileId });
+            if (kb?.openwebui_kb_id) targetKbId = kb.openwebui_kb_id;
         }
 
         const result = await openwebuiService.chatWithRAG({
@@ -310,14 +321,10 @@ router.get('/context', async (req, res) => {
         );
 
         // 4. 获取知识库 ID
-        const kbResult = await pool.query(
-            'SELECT openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
-            [targetFileId]
-        );
-
-        const knowledgeBase = kbResult.rows.length > 0 ? {
-            id: kbResult.rows[0].openwebui_kb_id,
-            name: kbResult.rows[0].kb_name
+        const kb = await resolveKnowledgeBase({ fileId: targetFileId });
+        const knowledgeBase = kb ? {
+            id: kb.openwebui_kb_id,
+            name: kb.kb_name
         } : null;
 
         res.json({
@@ -413,4 +420,3 @@ router.post('/format-sources', async (req, res) => {
 });
 
 export default router;
-

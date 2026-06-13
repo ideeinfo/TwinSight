@@ -5,6 +5,7 @@
 
 import { query as dbQuery } from '../db/index.js';
 import openwebuiService from './openwebui-service.js';
+import { resolveKnowledgeBase } from './knowledge-base-service.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -22,7 +23,7 @@ let isSyncing = false;
  */
 async function getUnsyncedDocuments() {
     const result = await dbQuery(`
-        SELECT d.id, d.file_path, d.file_name, d.file_type, d.asset_code, d.space_code, d.spec_code
+        SELECT d.id, d.file_path, d.file_name, d.file_type, d.asset_code, d.space_code, d.spec_code, d.facility_id
         FROM documents d
         LEFT JOIN kb_documents kbd ON d.id = kbd.document_id
         WHERE kbd.id IS NULL
@@ -40,54 +41,57 @@ async function getUnsyncedDocuments() {
  */
 async function findKnowledgeBaseId(doc) {
     let fileId = null;
+    let facilityId = doc.facility_id || null;
 
     // 通过 assetCode 查找模型文件
     if (doc.asset_code) {
         const assetResult = await dbQuery(
-            'SELECT file_id FROM assets WHERE asset_code = $1 LIMIT 1',
+            `SELECT a.file_id, mf.facility_id
+             FROM assets a
+             LEFT JOIN model_files mf ON mf.id = a.file_id
+             WHERE a.asset_code = $1
+             LIMIT 1`,
             [doc.asset_code]
         );
         if (assetResult.rows.length > 0) {
             fileId = assetResult.rows[0].file_id;
+            facilityId = facilityId || assetResult.rows[0].facility_id;
         }
     }
 
     // 通过 spaceCode 查找模型文件
     if (!fileId && doc.space_code) {
         const spaceResult = await dbQuery(
-            'SELECT file_id FROM spaces WHERE space_code = $1 LIMIT 1',
+            `SELECT s.file_id, mf.facility_id
+             FROM spaces s
+             LEFT JOIN model_files mf ON mf.id = s.file_id
+             WHERE s.space_code = $1
+             LIMIT 1`,
             [doc.space_code]
         );
         if (spaceResult.rows.length > 0) {
             fileId = spaceResult.rows[0].file_id;
+            facilityId = facilityId || spaceResult.rows[0].facility_id;
         }
     }
 
     // 如果没有找到关联的模型文件，尝试使用当前激活的模型
     if (!fileId) {
         const activeResult = await dbQuery(
-            'SELECT id FROM model_files WHERE is_active = true LIMIT 1'
+            'SELECT id, facility_id FROM model_files WHERE is_active = true LIMIT 1'
         );
         if (activeResult.rows.length > 0) {
             fileId = activeResult.rows[0].id;
+            facilityId = facilityId || activeResult.rows[0].facility_id;
         }
     }
 
-    if (!fileId) {
+    if (!fileId && !facilityId) {
         return null;
     }
 
-    // 查找模型文件对应的知识库
-    const kbResult = await dbQuery(
-        'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-        [fileId]
-    );
-
-    if (kbResult.rows.length === 0) {
-        return null;
-    }
-
-    return kbResult.rows[0].openwebui_kb_id;
+    const kb = await resolveKnowledgeBase({ facilityId, fileId });
+    return kb?.openwebui_kb_id || null;
 }
 
 /**
@@ -110,6 +114,18 @@ async function syncDocument(doc, kbId) {
         // 上传到 Open WebUI，使用原始文件名
         const originalFileName = doc.file_name || path.basename(doc.file_path);
         const uploadResult = await openwebuiService.uploadDocument(kbId, filePath, originalFileName);
+
+        if (uploadResult.status === 'duplicate' || uploadResult.skipped) {
+            await dbQuery(
+                `INSERT INTO kb_documents (kb_id, document_id, openwebui_kb_id, sync_status, sync_error, synced_at)
+                 SELECT kb.id, $2::integer, $1::text, 'duplicate', $3::text, NOW()
+                 FROM knowledge_bases kb WHERE kb.openwebui_kb_id = $1::text
+                 ON CONFLICT (kb_id, document_id) DO UPDATE SET
+                 openwebui_kb_id = EXCLUDED.openwebui_kb_id, sync_status = 'duplicate', sync_error = EXCLUDED.sync_error, synced_at = NOW()`,
+                [kbId, doc.id, uploadResult.reason || 'duplicate_content']
+            );
+            return true;
+        }
 
         // 获取 Open WebUI 返回的文件 ID
         const openwebuiFileId = uploadResult.id || uploadResult.fileId || null;

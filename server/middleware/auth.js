@@ -4,7 +4,16 @@
  */
 import jwt from 'jsonwebtoken';
 import config from '../config/index.js';
-import { hasPermission, ROLES } from '../config/auth.js';
+import { getRolePermissions, ROLES } from '../config/auth.js';
+
+const buildPermissionsFromDecoded = (decoded) => {
+    const tokenPermissions = Array.isArray(decoded?.permissions) ? decoded.permissions : [];
+    const roles = Array.isArray(decoded?.roles)
+        ? decoded.roles
+        : decoded?.roles ? [decoded.roles] : [];
+    const rolePermissions = roles.flatMap((role) => getRolePermissions(role));
+    return [...new Set([...tokenPermissions, ...rolePermissions])];
+};
 
 /**
  * 验证 JWT Token
@@ -47,8 +56,8 @@ export const authenticate = async (req, res, next) => {
         const decoded = jwt.verify(token, config.jwt.secret);
         req.user = decoded;
 
-        // 获取用户权限（未来从数据库获取）
-        req.permissions = decoded.permissions || [];
+        // 兼容旧 token：如果 permissions 过旧，则根据 roles 动态补齐
+        req.permissions = buildPermissionsFromDecoded(decoded);
 
         next();
     } catch (error) {
@@ -115,7 +124,7 @@ export const optionalAuth = async (req, res, next) => {
     try {
         const decoded = jwt.verify(token, config.jwt.secret);
         req.user = decoded;
-        req.permissions = decoded.permissions || [];
+        req.permissions = buildPermissionsFromDecoded(decoded);
     } catch (error) {
         req.user = null;
         req.permissions = [];

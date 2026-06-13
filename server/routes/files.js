@@ -12,7 +12,12 @@ import modelFileModel from '../models/model-file.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
 import assetSpecModel from '../models/asset-spec.js';
-import { deleteKnowledgeBase } from '../services/openwebui-service.js';
+import { createKnowledgeBase, deleteKnowledgeBase } from '../services/openwebui-service.js';
+import {
+    ensureFacilityKnowledgeBase,
+    listKnowledgeBaseDocuments,
+    resolveKnowledgeBase,
+} from '../services/knowledge-base-service.js';
 import pg from 'pg';
 import config from '../config/index.js';
 import { authenticate, authorize } from '../middleware/auth.js';
@@ -59,64 +64,47 @@ async function createKnowledgeBaseForModel(modelFile) {
     console.log('\n========== 知识库创建钩子触发 ==========');
     console.log('🔍 模型文件信息:', JSON.stringify(modelFile, null, 2));
 
-    // 运行时读取环境变量（确保 dotenv 已加载）
-    const OPENWEBUI_URL = process.env.OPENWEBUI_URL || 'http://localhost:3080';
-    const OPENWEBUI_API_KEY = process.env.OPENWEBUI_API_KEY || '';
-
-    console.log('🔑 API Key 状态:', OPENWEBUI_API_KEY ? `已配置 (${OPENWEBUI_API_KEY.substring(0, 10)}...)` : '未配置');
-    console.log('🌐 Open WebUI URL:', OPENWEBUI_URL);
-
-    if (!OPENWEBUI_API_KEY) {
-        console.log('⚠️ 未配置 OPENWEBUI_API_KEY，跳过知识库创建');
-        return null;
-    }
-
     try {
+        if (modelFile.facility_id) {
+            console.log(`📚 为 Facility ${modelFile.facility_id} 创建/获取知识库...`);
+            const kb = await ensureFacilityKnowledgeBase(modelFile.facility_id, {
+                sourceFileId: modelFile.id,
+                preferredName: modelFile.title,
+                description: `知识库关联 Facility 模型: ${modelFile.title} (${modelFile.original_name})`,
+            });
+            console.log(`✅ Facility 知识库就绪: ${kb.openwebui_kb_id}`);
+            return kb;
+        }
+
         const kbName = `TwinSight-${modelFile.title}`;
         const kbDescription = `知识库关联模型文件: ${modelFile.title} (${modelFile.original_name})`;
+        console.log(`📚 为模型 ${modelFile.title} 创建兼容知识库...`);
+        const openwebuiKb = await createKnowledgeBase(kbName, kbDescription);
 
-        console.log(`📚 为模型 ${modelFile.title} 创建知识库...`);
-
-        const response = await fetch(`${OPENWEBUI_URL}/api/v1/knowledge/create`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENWEBUI_API_KEY}`,
-                'Content-Type': 'application/json; charset=utf-8',
-            },
-            body: JSON.stringify({ name: kbName, description: kbDescription }),
-        });
-
-        if (!response.ok) {
-            const text = await response.text();
-            console.error(`❌ 知识库创建失败: HTTP ${response.status}: ${text}`);
-            return null;
-        }
-
-        const kb = await response.json();
-        console.log(`✅ 知识库创建成功: ${kb.id}`);
-
-        // 保存映射关系到数据库
-        try {
-            console.log(`📝 准备写入 knowledge_bases 表: file_id=${modelFile.id}, kb_id=${kb.id}`);
-            const insertResult = await getDbPool().query(`
-                INSERT INTO knowledge_bases (file_id, openwebui_kb_id, kb_name)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (file_id) DO UPDATE SET
-                    openwebui_kb_id = EXCLUDED.openwebui_kb_id,
-                    kb_name = EXCLUDED.kb_name,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING *
-            `, [modelFile.id, kb.id, kbName]);
-            console.log(`💾 知识库映射已保存: ${modelFile.id} -> ${kb.id}, rowCount: ${insertResult.rowCount}`);
-        } catch (dbError) {
-            console.error(`❌ 数据库写入失败: ${dbError.message}`);
-            console.error(`   SQL 参数: file_id=${modelFile.id}, kb_id=${kb.id}, kb_name=${kbName}`);
-        }
-
-        return kb;
+        const insertResult = await getDbPool().query(`
+            INSERT INTO knowledge_bases (
+                file_id,
+                source_file_id,
+                openwebui_kb_id,
+                kb_name,
+                scope_type,
+                status
+            )
+            VALUES ($1, $1, $2, $3, 'file', 'active')
+            ON CONFLICT (file_id) DO UPDATE SET
+                source_file_id = EXCLUDED.source_file_id,
+                openwebui_kb_id = EXCLUDED.openwebui_kb_id,
+                kb_name = EXCLUDED.kb_name,
+                scope_type = 'file',
+                status = 'active',
+                updated_at = CURRENT_TIMESTAMP
+            RETURNING *
+        `, [modelFile.id, openwebuiKb.id, kbName]);
+        console.log(`💾 知识库映射已保存: ${modelFile.id} -> ${openwebuiKb.id}, rowCount: ${insertResult.rowCount}`);
+        return insertResult.rows[0];
     } catch (error) {
         console.error(`❌ 创建知识库异常: ${error.message}`);
-        return null;
+        throw error;
     }
 }
 
@@ -485,44 +473,55 @@ router.delete('/:id', authenticate, authorize(PERMISSIONS.MODEL_DELETE), async (
         if (deleteKB === 'true') {
             console.log('✅ 需要删除知识库');
 
-            // 检查环境变量配置状态
-            const openwebuiUrl = process.env.OPENWEBUI_URL || 'http://localhost:3080';
-            const openwebuiApiKey = process.env.OPENWEBUI_API_KEY || '';
-            console.log(`🔧 环境变量检查: OPENWEBUI_URL=${openwebuiUrl}`);
-            console.log(`🔧 环境变量检查: OPENWEBUI_API_KEY=${openwebuiApiKey ? `已配置(${openwebuiApiKey.substring(0, 10)}...)` : '未配置'}`);
-
-            if (!openwebuiApiKey) {
-                console.warn('⚠️ OPENWEBUI_API_KEY 未配置，无法删除 Open WebUI 知识库');
-            }
-
             try {
-                // 查询关联的知识库
-                const kbResult = await getDbPool().query(
-                    'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-                    [req.params.id]
-                );
+                const kb = await resolveKnowledgeBase({
+                    facilityId: file.facility_id,
+                    fileId: Number.parseInt(req.params.id, 10),
+                });
 
-                console.log(`📊 查询到 ${kbResult.rows.length} 个知识库记录`);
+                if (!kb?.openwebui_kb_id) {
+                    console.log('⚠️ 未找到关联的知识库记录');
+                } else {
+                    let shouldDeleteKb = true;
+                    if (kb.scope_type === 'facility' && kb.facility_id) {
+                        const siblingModels = await getDbPool().query(
+                            'SELECT COUNT(*)::int AS count FROM model_files WHERE facility_id = $1 AND id != $2',
+                            [kb.facility_id, req.params.id]
+                        );
+                        const siblingCount = siblingModels.rows[0]?.count || 0;
+                        if (siblingCount > 0) {
+                            shouldDeleteKb = false;
+                            console.log(`⏭️ 该知识库属于 Facility ${kb.facility_id}，仍有 ${siblingCount} 个模型，跳过删除知识库`);
+                        }
+                    }
 
-                if (kbResult.rows.length > 0) {
-                    const kbId = kbResult.rows[0].openwebui_kb_id;
-                    console.log(`📋 知识库 ID: ${kbId || '空'}`);
-
-                    if (kbId) {
-                        console.log(`🗑️ 开始删除 Open WebUI 知识库: ${kbId}`);
+                    if (shouldDeleteKb) {
+                        console.log(`🗑️ 开始删除 Open WebUI 知识库: ${kb.openwebui_kb_id}`);
                         try {
-                            await deleteKnowledgeBase(kbId);
-                            console.log(`✅ 知识库删除成功: ${kbId}`);
+                            await deleteKnowledgeBase(kb.openwebui_kb_id);
+                            console.log(`✅ 知识库删除成功: ${kb.openwebui_kb_id}`);
+
+                            const deleteDocsResult = await getDbPool().query(
+                                'DELETE FROM kb_documents WHERE kb_id = $1',
+                                [kb.id]
+                            );
+                            const deleteOrphansResult = await getDbPool().query(
+                                'DELETE FROM kb_documents WHERE openwebui_kb_id = $1',
+                                [kb.openwebui_kb_id]
+                            );
+                            console.log(`💾 已清理同步记录: ${deleteDocsResult.rowCount} 条关联记录, ${deleteOrphansResult.rowCount} 条孤儿记录`);
+
+                            await getDbPool().query(
+                                'DELETE FROM knowledge_bases WHERE id = $1',
+                                [kb.id]
+                            );
+                            console.log(`💾 knowledge_bases表记录已删除`);
                         } catch (deleteError) {
-                            console.error(`❌ 知识库删除失败: ${kbId}`);
+                            console.error(`❌ 知识库删除失败: ${kb.openwebui_kb_id}`);
                             console.error(`   错误详情: ${deleteError.message}`);
                             console.error(`   完整错误:`, deleteError);
                         }
-                    } else {
-                        console.log('⚠️ 知识库 ID 为空，跳过删除');
                     }
-                } else {
-                    console.log('⚠️ 未找到关联的知识库记录');
                 }
             } catch (kbError) {
                 console.error('❌ 查询/删除知识库时出错:', kbError.message);
@@ -583,9 +582,9 @@ router.post('/:id/extract', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD), a
             const zip = new AdmZip(zipPath);
             zip.extractAllTo(extractDir, true);
 
-            // 更新状态为就绪（路径必须与实际解压目录一致）
+            // 解压完成后仅表示模型可读取，还未完成资产数据导入
             const extractedPath = `/models/${file.file_code}`;
-            await modelFileModel.updateModelFileStatus(file.id, 'ready', extractedPath);
+            await modelFileModel.updateModelFileStatus(file.id, 'extracted', extractedPath);
 
             res.json({
                 success: true,
@@ -615,7 +614,7 @@ router.post('/:id/activate', authenticate, authorize(PERMISSIONS.MODEL_ACTIVATE)
         }
 
         if (file.status !== 'ready') {
-            return res.status(400).json({ success: false, error: '请先解压文件并提取数据' });
+            return res.status(400).json({ success: false, error: '请先提取并导入资产数据' });
         }
 
         const activatedFile = await modelFileModel.activateModelFile(file.id);
@@ -672,14 +671,14 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
         }
 
         // 检查是否已有知识库
-        const existingKb = await getDbPool().query(
-            'SELECT id, openwebui_kb_id, kb_name FROM knowledge_bases WHERE file_id = $1',
-            [file.id]
-        );
+        const existingKb = await resolveKnowledgeBase({
+            facilityId: file.facility_id,
+            fileId: file.id,
+        });
 
-        if (existingKb.rows.length > 0 && existingKb.rows[0].openwebui_kb_id) {
-            const kbId = existingKb.rows[0].openwebui_kb_id;
-            const kbName = existingKb.rows[0].kb_name;
+        if (existingKb?.openwebui_kb_id) {
+            const kbId = existingKb.openwebui_kb_id;
+            const kbName = existingKb.kb_name;
 
             // 如果已有知识库但未设置force参数，返回提示需要确认
             if (force !== 'true') {
@@ -732,7 +731,7 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
                 }
 
                 // 3. 显式清理本地数据库记录（即使有 CASCADE 也手动清理以确保万无一失）
-                const internalKbId = existingKb.rows[0].id;
+                const internalKbId = existingKb.id;
 
                 // 3.1 清理文档同步记录 (kb_documents)
                 // 按内部主键删除
@@ -766,13 +765,6 @@ router.post('/:id/create-kb', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
         // 创建新知识库
         const kb = await createKnowledgeBaseForModel(file);
 
-        if (!kb) {
-            return res.status(500).json({
-                success: false,
-                error: '知识库创建失败，请检查Open WebUI配置'
-            });
-        }
-
         res.json({
             success: true,
             data: kb,
@@ -797,36 +789,26 @@ router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
         }
 
         // 检查是否已有知识库
-        const kbResult = await getDbPool().query(
-            'SELECT id, openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-            [file.id]
-        );
+        const kb = await resolveKnowledgeBase({
+            facilityId: file.facility_id,
+            fileId: file.id,
+        });
 
-        if (kbResult.rows.length === 0 || !kbResult.rows[0].openwebui_kb_id) {
+        if (!kb?.openwebui_kb_id) {
             return res.status(400).json({
                 success: false,
                 error: '该模型尚未创建知识库，请先创建知识库'
             });
         }
 
-        const kb = kbResult.rows[0];
         console.log(`📝 开始同步模型 ${file.id} 的文档到知识库 ${kb.openwebui_kb_id}...`);
 
-        // 查询未同步的文档
-        const docsResult = await getDbPool().query(`
-            SELECT DISTINCT d.id, d.title, d.file_name as org_name, d.file_path as path, d.file_type, d.created_at
-            FROM documents d
-            LEFT JOIN assets a ON d.asset_code = a.asset_code AND a.file_id = $1
-            LEFT JOIN spaces s ON d.space_code = s.space_code AND s.file_id = $1
-            LEFT JOIN asset_specs sp ON d.spec_code = sp.spec_code AND sp.file_id = $1
-            LEFT JOIN kb_documents kd ON kd.document_id = d.id AND kd.kb_id = $2
-            WHERE (a.file_id = $1 OR s.file_id = $1 OR sp.file_id = $1)
-              AND d.file_path IS NOT NULL
-              AND (kd.id IS NULL OR kd.sync_status != 'synced')
-            ORDER BY d.created_at DESC
-        `, [file.id, kb.id]);
-
-        const documents = docsResult.rows;
+        const documents = await listKnowledgeBaseDocuments({
+            kbId: kb.id,
+            facilityId: kb.scope_type === 'facility' ? file.facility_id : null,
+            fileId: kb.scope_type === 'facility' ? null : file.id,
+            onlyUnsynced: true,
+        });
         console.log(`📄 找到 ${documents.length} 个待同步文档`);
 
         if (documents.length === 0) {
@@ -849,9 +831,9 @@ router.post('/:id/sync-docs', authenticate, authorize(PERMISSIONS.MODEL_UPLOAD),
                 total: documents.length,
                 synced: syncResult.success,
                 failed: syncResult.failed,
-                skipped: 0
+                skipped: syncResult.skipped || 0
             },
-            message: `成功同步 ${syncResult.success} 个文档${syncResult.failed > 0 ? `，${syncResult.failed} 个失败` : ''}`
+            message: `成功同步 ${syncResult.success} 个文档${syncResult.failed > 0 ? `，${syncResult.failed} 个失败` : ''}${(syncResult.skipped || 0) > 0 ? `，${syncResult.skipped} 个跳过` : ''}`
         });
 
     } catch (error) {

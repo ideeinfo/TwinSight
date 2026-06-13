@@ -414,7 +414,7 @@ async function openFacility(facilityId?: number) {
             }),
       },
     });
-    if (model) {
+    if (model?.status === 'ready') {
       await activateModelFile(model.id);
       modelsStore.setActiveModel(model.id);
     }

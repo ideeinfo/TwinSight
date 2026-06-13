@@ -58,6 +58,26 @@ export interface FacilityDetail extends FacilitySummary {
     models: FacilityModelSummary[];
 }
 
+export interface FacilityKnowledgeBaseSummary {
+    facilityId: number;
+    exists: boolean;
+    id?: string;
+    kbName?: string;
+    openwebuiKbId?: string;
+    scopeType?: string;
+    status?: string;
+    sourceFileId?: number | null;
+    totalDocuments: number;
+    pendingDocuments: number;
+    stats: {
+        synced: number;
+        failed: number;
+        duplicate: number;
+        pending: number;
+        total: number;
+    };
+}
+
 export interface FacilityPayload {
     facilityCode?: string;
     name: string;

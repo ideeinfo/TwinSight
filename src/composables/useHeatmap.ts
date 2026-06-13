@@ -272,20 +272,16 @@ export function useHeatmap(options: HeatmapOptions = {}) {
     /**
      * 恢复默认材质
      */
-    const restoreDefaultMaterial = (dbIds: number[], getMaterial: () => any) => {
-        if (!viewerInstance || !viewerInstance.model) return;
+    const restoreDefaultMaterial = (dbIds: number[], restoreStyle?: (dbIds: number[]) => void) => {
+        if (!viewerInstance) return;
 
-        const mat = getMaterial();
-        const fragList = viewerInstance.model.getFragmentList();
-        const tree = viewerInstance.model.getInstanceTree();
+        if (typeof restoreStyle === 'function') {
+            restoreStyle(dbIds);
+        }
 
-        dbIds.forEach(dbId => {
-            tree.enumNodeFragments(dbId, (fragId: number) => {
-                fragList.setMaterial(fragId, mat);
-            });
-        });
-
-        viewerInstance.impl.invalidate(true, true, true);
+        if (viewerInstance.impl) {
+            viewerInstance.impl.invalidate(true, true, true);
+        }
     };
 
     // ==================== 状态控制 ====================

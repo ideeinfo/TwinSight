@@ -4,6 +4,14 @@
     <div class="panel-header">
       <span class="title">{{ t('leftPanel.spaces') }}</span>
       <div class="actions">
+        <el-button
+          type="primary"
+          size="small"
+          @click="$emit('create-ticket')"
+          :disabled="!canCreateTicket"
+        >
+          {{ t('tickets.createTicket') }}
+        </el-button>
         <template v-if="selectedSpacesForDeletion.length > 0 && authStore.hasPermission('space:delete')">
           <span class="selection-count">{{ t('common.selected', { count: selectedSpacesForDeletion.length }) }}</span>
           <el-button 
@@ -32,6 +40,10 @@
         autocomplete="off"
         name="space-search"
       />
+    </div>
+
+    <div v-if="createTicketHint" class="ticket-hint">
+      {{ createTicketHint }}
     </div>
 
     <!-- 树形列表 (Virtual Scroll) -->
@@ -79,10 +91,12 @@ const { t } = useI18n();
 
 const props = defineProps({
   spaces: { type: Array, default: () => [] },
-  selectedDbIds: { type: Array, default: () => [] }
+  selectedDbIds: { type: Array, default: () => [] },
+  canCreateTicket: { type: Boolean, default: false },
+  createTicketHint: { type: String, default: '' }
 });
 
-const emit = defineEmits(['open-properties', 'spaces-selected', 'spaces-deleted']);
+const emit = defineEmits(['open-properties', 'spaces-selected', 'spaces-deleted', 'create-ticket']);
 
 // 搜索文本
 const searchText = ref('');
@@ -353,9 +367,22 @@ defineExpose({
 }
 
 .search-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 8px 12px 6px;
   flex-shrink: 0;
+}
+
+.ticket-hint {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  margin: 8px 12px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low, rgba(255, 255, 255, 0.03));
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--md-sys-color-on-surface-variant);
+  box-sizing: border-box;
 }
 
 .tree-content {

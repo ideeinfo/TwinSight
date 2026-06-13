@@ -6,6 +6,7 @@ import pool from '../db/index.js';
 import * as timeseriesService from './timeseries-service.js';
 import { chatWithRAG } from './openwebui-service.js';
 import { getConfig, getApiBaseUrl } from './config-service.js';
+import { resolveKnowledgeBase } from './knowledge-base-service.js';
 import { server, ai as aiConfig } from '../config/index.js';
 import { loadSkills, generateSkillPrompt } from '../skills/skill-registry.js';
 
@@ -22,6 +23,158 @@ function logToFile(...args) {
     } catch (e) {
         console.error('Failed to log to file', e);
     }
+}
+
+const NAVIGATION_TRIGGER_PATTERNS = [
+    '带我去',
+    '带我到',
+    '去看',
+    '跳到',
+    '切到',
+    '打开',
+    '前往',
+    '去',
+    '看看',
+    '看一下',
+    '定位到'
+];
+
+function normalizeNavigationText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[\s"'`“”‘’.,，。!！?？:：;；()（）\[\]【】\-_/\\]+/g, '')
+        .trim();
+}
+
+function extractNavigationQuery(message) {
+    const raw = String(message || '').trim();
+    if (!raw) return '';
+
+    let query = raw;
+    for (const pattern of NAVIGATION_TRIGGER_PATTERNS) {
+        if (query.includes(pattern)) {
+            query = query.split(pattern).pop() || query;
+            break;
+        }
+    }
+
+    return query
+        .replace(/^(带我|帮我|请|麻烦|想看一下|我想看一下|我想去|我想看)/, '')
+        .replace(/(这里|那里|这个地方|那个地方)$/g, '')
+        .trim();
+}
+
+function hasNavigationIntent(message) {
+    const text = String(message || '');
+    return NAVIGATION_TRIGGER_PATTERNS.some(pattern => text.includes(pattern));
+}
+
+function buildNavigationCandidates(viewRow) {
+    const navigation = viewRow.other_settings?.navigation || {};
+    const values = [
+        navigation.name,
+        viewRow.name,
+        ...(Array.isArray(navigation.aliases) ? navigation.aliases : [])
+    ];
+
+    return values
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .filter((value, index, list) => list.indexOf(value) === index);
+}
+
+function scoreNavigationMatch(message, viewRow) {
+    const navigation = viewRow.other_settings?.navigation || {};
+    if (navigation.enabled === false) return null;
+
+    const rawMessage = String(message || '').trim();
+    const extractedQuery = extractNavigationQuery(rawMessage);
+    const normalizedMessage = normalizeNavigationText(rawMessage);
+    const normalizedQuery = normalizeNavigationText(extractedQuery || rawMessage);
+    const intent = hasNavigationIntent(rawMessage);
+    const candidates = buildNavigationCandidates(viewRow);
+
+    let bestScore = -1;
+    let matchedText = '';
+
+    for (const candidate of candidates) {
+        const normalizedCandidate = normalizeNavigationText(candidate);
+        if (!normalizedCandidate) continue;
+
+        let score = -1;
+        if (normalizedQuery && normalizedQuery === normalizedCandidate) {
+            score = 120;
+        } else if (normalizedMessage === normalizedCandidate) {
+            score = 115;
+        } else if (normalizedQuery && normalizedQuery.includes(normalizedCandidate)) {
+            score = 100;
+        } else if (normalizedQuery && normalizedCandidate.includes(normalizedQuery) && normalizedQuery.length >= 2) {
+            score = 92;
+        } else if (intent && normalizedMessage.includes(normalizedCandidate)) {
+            score = 88;
+        } else if (intent && normalizedCandidate.includes(normalizedMessage) && normalizedMessage.length >= 2) {
+            score = 80;
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            matchedText = candidate;
+        }
+    }
+
+    if (bestScore < 0) return null;
+    return {
+        score: bestScore,
+        matchedText,
+        navigation
+    };
+}
+
+async function resolveNavigationView(message, fileId) {
+    if (!fileId || !message) return null;
+
+    const result = await pool.query(`
+        SELECT id, file_id, name, other_settings
+        FROM views
+        WHERE file_id = $1
+          AND COALESCE((other_settings->'navigation'->>'enabled')::boolean, false) = TRUE
+    `, [fileId]);
+
+    if (result.rows.length === 0) return null;
+
+    const scored = result.rows
+        .map(row => {
+            const match = scoreNavigationMatch(message, row);
+            return match ? { row, ...match } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score || a.row.id - b.row.id);
+
+    if (scored.length === 0) return null;
+
+    const [best] = scored;
+    const second = scored[1];
+    if (second && best.score === second.score && best.matchedText !== second.matchedText) {
+        return {
+            ambiguous: true,
+            options: scored.slice(0, 3).map(item => ({
+                id: item.row.id,
+                name: item.row.other_settings?.navigation?.name || item.row.name
+            }))
+        };
+    }
+
+    if (best.score < 88 && !hasNavigationIntent(message)) {
+        return null;
+    }
+
+    return {
+        ambiguous: false,
+        viewId: best.row.id,
+        fileId: best.row.file_id,
+        name: best.row.other_settings?.navigation?.name || best.row.name,
+        matchedText: best.matchedText
+    };
 }
 // Configuration - Most values now dynamically fetched from DB via getConfig
 const getAiConfig = async () => {
@@ -290,9 +443,9 @@ ${contextDocs && contextDocs.length > 0 ? contextDocs.map(d => `- ${d.file_name}
     if (fileId) {
         try {
             // Get KB ID
-            const kbResult = await pool.query(`SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1`, [fileId]);
-            if (kbResult.rows.length > 0) {
-                kbId = kbResult.rows[0].openwebui_kb_id;
+            const kb = await resolveKnowledgeBase({ fileId });
+            if (kb?.openwebui_kb_id) {
+                kbId = kb.openwebui_kb_id;
             }
 
             // Get Open WebUI File IDs
@@ -797,8 +950,8 @@ ${context.documents && context.documents.length > 0 ? context.documents.map(d =>
     let fileIds = [];
     if (fileId) {
         try {
-            const kbResult = await pool.query(`SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1`, [fileId]);
-            if (kbResult.rows.length > 0) kbId = kbResult.rows[0].openwebui_kb_id;
+            const kb = await resolveKnowledgeBase({ fileId });
+            if (kb?.openwebui_kb_id) kbId = kb.openwebui_kb_id;
 
             // Get File IDs from context documents that are synced
             const assetCodes = context.assets.map(a => a.asset_code).filter(c => c);
@@ -912,6 +1065,50 @@ function parseAIResponse(content) {
 async function processChat(params) {
     const { message, context, fileId } = params;
 
+    // 命名视点导览优先走结构化解析，避免大模型误判视图 ID
+    if (fileId && message) {
+        try {
+            const navigationResult = await resolveNavigationView(message, fileId);
+            if (navigationResult?.ambiguous) {
+                return {
+                    role: 'assistant',
+                    content: `我找到了多个可能的导览点：${navigationResult.options.map(option => option.name).join('、')}。请再说得更具体一点。`,
+                    sources: [],
+                    actions: navigationResult.options.map(option => ({
+                        action: 'navigate_to_view',
+                        label: `前往${option.name}`,
+                        autoExecute: false,
+                        params: {
+                            viewId: option.id,
+                            fileId,
+                            name: option.name
+                        }
+                    })),
+                    timestamp: Date.now()
+                };
+            }
+
+            if (navigationResult?.viewId) {
+                return {
+                    role: 'assistant',
+                    content: `正在带您前往“${navigationResult.name}”。`,
+                    sources: [],
+                    actions: [{
+                        action: 'navigate_to_view',
+                        params: {
+                            viewId: navigationResult.viewId,
+                            fileId: navigationResult.fileId,
+                            name: navigationResult.name
+                        }
+                    }],
+                    timestamp: Date.now()
+                };
+            }
+        } catch (error) {
+            console.warn('Navigation resolver failed:', error);
+        }
+    }
+
     // 1. Context Data Retrieval
     let contextData = { assets: [], documents: [] };
     let roomCode = '';
@@ -994,8 +1191,8 @@ ${contextData.documents && contextData.documents.length > 0 ? contextData.docume
 
     if (fileId) {
         try {
-            const kbResult = await pool.query('SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1', [fileId]);
-            if (kbResult.rows.length > 0) kbId = kbResult.rows[0].openwebui_kb_id;
+            const kb = await resolveKnowledgeBase({ fileId });
+            if (kb?.openwebui_kb_id) kbId = kb.openwebui_kb_id;
 
             // Resolve File IDs from Context Documents (documents that are synced)
             if (contextData.documents.length > 0) {

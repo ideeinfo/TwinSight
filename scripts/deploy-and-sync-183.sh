@@ -21,6 +21,7 @@ REMOTE_SSH_PORT="${REMOTE_SSH_PORT:-22}"
 REMOTE_SSH_USER="${REMOTE_SSH_USER:-root}"
 REMOTE_SSH_PASSWORD="${REMOTE_SSH_PASSWORD:-}"
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/home/diwei/antigravity/TwinSight}"
+REMOTE_APP_USER="${REMOTE_APP_USER:-diwei}"
 REMOTE_COMPOSE_FILE="${REMOTE_COMPOSE_FILE:-docker-compose.yml}"
 REMOTE_START_NODE_SERVICES="${REMOTE_START_NODE_SERVICES:-1}"
 REMOTE_BACKEND_CMD="${REMOTE_BACKEND_CMD:-cd server && npm install && npm start}"
@@ -43,6 +44,7 @@ usage() {
   REMOTE_SSH_USER       默认 root
   REMOTE_SSH_PASSWORD   SSH 密码；有 sshpass 时可实现基本无交互
   REMOTE_APP_DIR        默认 /home/diwei/antigravity/TwinSight
+  REMOTE_APP_USER       默认 diwei；用于 Git/Node 进程执行
   REMOTE_COMPOSE_FILE   默认 docker-compose.yml
   REMOTE_START_NODE_SERVICES  默认 1；1=启动前后端 Node 服务，0=跳过
   REMOTE_BACKEND_CMD    默认 cd server && npm install && npm start
@@ -118,6 +120,14 @@ remote_exec() {
   "${SSH_BASE[@]}" "$REMOTE_TARGET" "bash -lc $(quote "$cmd")"
 }
 
+remote_exec_as_app_user() {
+  local cmd="$1"
+  local q_user q_cmd
+  q_user="$(quote "$REMOTE_APP_USER")"
+  q_cmd="$(quote "$cmd")"
+  remote_exec "sudo -u $q_user bash -lc $q_cmd"
+}
+
 confirm_run() {
   if [[ "$ASSUME_YES" -eq 1 ]]; then
     return
@@ -158,10 +168,13 @@ deploy_remote_api() {
   q_compose_file="$(quote "$REMOTE_COMPOSE_FILE")"
 
   log "远端同步代码并重建服务..."
-  remote_exec "
+  remote_exec_as_app_user "
     cd $q_remote_dir &&
     git fetch origin &&
-    git reset --hard origin/main &&
+    git reset --hard origin/main
+  "
+  remote_exec "
+    cd $q_remote_dir &&
     if docker compose --env-file .env -f $q_compose_file config --services | grep -qx 'api'; then
       docker compose --env-file .env -f $q_compose_file up -d --build api
     else
@@ -177,13 +190,20 @@ start_remote_node_services() {
     return
   fi
 
+  if remote_exec "systemctl list-unit-files --type=service --no-legend 2>/dev/null | grep -q '^twinsight-backend.service' && systemctl list-unit-files --type=service --no-legend 2>/dev/null | grep -q '^twinsight-frontend.service'"; then
+    log "检测到 Twinsight systemd 服务，改用 systemctl 重启..."
+    remote_exec "systemctl restart twinsight-backend.service twinsight-frontend.service"
+    success "远端 Twinsight systemd 服务已重启"
+    return
+  fi
+
   local q_remote_dir q_backend_cmd q_frontend_cmd
   q_remote_dir="$(quote "$REMOTE_APP_DIR")"
   q_backend_cmd="$(quote "$REMOTE_BACKEND_CMD")"
   q_frontend_cmd="$(quote "$REMOTE_FRONTEND_CMD")"
 
   log "远端启动后端与前端 Node 服务..."
-  remote_exec "
+  remote_exec_as_app_user "
     set -e
     cd $q_remote_dir
 

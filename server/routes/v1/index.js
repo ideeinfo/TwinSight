@@ -12,6 +12,7 @@ import authRouter from './auth.js';
 import usersRouter from './users.js';
 import systemConfigRouter from './system-config.js';
 import facilitiesRouter from './facilities.js';
+import ticketsRouter from './tickets.js';
 // import propertiesRouter from './properties.js'; // 预留
 
 import { query } from '../../db/index.js';
@@ -53,6 +54,7 @@ router.use('/auth', authRouter);
 router.use('/users', usersRouter);
 router.use('/system-config', systemConfigRouter);
 router.use('/facilities', facilitiesRouter);
+router.use('/tickets', ticketsRouter);
 // router.use('/properties', propertiesRouter); // 预留
 
 export default router;

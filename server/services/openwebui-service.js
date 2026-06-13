@@ -32,6 +32,13 @@ const getBaseUrl = async () => await getConfig('OPENWEBUI_URL', openwebuiConfig.
 const getApiKey = async () => await getConfig('OPENWEBUI_API_KEY', openwebuiConfig.apiKey);
 const { endpoints, supportedFormats } = openwebuiConfig;
 
+function isDuplicateContentError(error) {
+    const detail = error?.response?.data?.detail;
+    return error?.response?.status === 400
+        && typeof detail === 'string'
+        && detail.toLowerCase().includes('duplicate content');
+}
+
 /**
  * 通用请求方法
  */
@@ -271,10 +278,23 @@ export async function uploadDocument(kbId, filePath, originalFileName = null) {
         });
         addResult = addResponse.data;
     } catch (error) {
+        if (isDuplicateContentError(error)) {
+            const detail = error.response?.data?.detail || 'Duplicate content detected';
+            console.warn(`⚠️ 文档内容重复，跳过加入知识库: ${detail}`);
+            return {
+                id: fileId,
+                fileId,
+                status: 'duplicate',
+                skipped: true,
+                reason: detail,
+            };
+        }
+
         const status = error.response ? error.response.status : 'Network Error';
         const errorText = error.response ? JSON.stringify(error.response.data) : error.message;
+        const detail = error.response?.data?.detail;
         console.error(`❌ 添加文件到知识库失败 [${status}]:`, errorText);
-        throw new Error(`添加文件到知识库失败: HTTP ${status}`);
+        throw new Error(`添加文件到知识库失败: ${detail || `HTTP ${status}`}`);
     }
     console.log(`✅ 文档已添加到知识库`);
     console.log(`🔍 addResult:`, JSON.stringify(addResult).substring(0, 200));  // 调试日志
@@ -374,6 +394,7 @@ export async function syncDocumentsToKB(kbId, documents) {
 
     let success = 0;
     let failed = 0;
+    let skipped = 0;
     const results = [];
 
     // 导入配置以获取数据路径
@@ -392,8 +413,13 @@ export async function syncDocumentsToKB(kbId, documents) {
             }
 
             const result = await uploadDocument(kbId, fullPath, doc.org_name || doc.title);
-            results.push({ id: doc.id, status: 'synced', openwebui_doc_id: result.id });
-            success++;
+            if (result.status === 'duplicate' || result.skipped) {
+                results.push({ id: doc.id, status: 'duplicate', reason: result.reason || 'duplicate_content' });
+                skipped++;
+            } else {
+                results.push({ id: doc.id, status: 'synced', openwebui_doc_id: result.id });
+                success++;
+            }
         } catch (error) {
             console.error(`❌ 同步文档失败 [${doc.id}]:`, error.message);
             results.push({ id: doc.id, status: 'failed', error: error.message });
@@ -401,8 +427,8 @@ export async function syncDocumentsToKB(kbId, documents) {
         }
     }
 
-    console.log(`📊 同步完成: 成功 ${success}, 失败 ${failed}`);
-    return { success, failed, results };
+    console.log(`📊 同步完成: 成功 ${success}, 失败 ${failed}, 跳过 ${skipped}`);
+    return { success, failed, skipped, results };
 }
 
 export default {

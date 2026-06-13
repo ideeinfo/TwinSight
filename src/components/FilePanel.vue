@@ -158,21 +158,6 @@
           </svg>
           {{ t('filePanel.extractData') }}
         </div>
-        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleCreateKB">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
-          {{ t('filePanel.createKB') }}
-        </div>
-        <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleSyncDocs">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-          {{ t('filePanel.syncKB') }}
-        </div>
         <div v-if="authStore.hasPermission('model:upload')" class="context-menu-item" @click="handleUploadRDS">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="14 2 14 8 20 8" />
@@ -244,16 +229,6 @@
       @confirm="dialogState.onConfirm"
       @cancel="dialogState.onCancel"
     >
-      <!-- 删除模型时显示知识库选项 -->
-      <template v-if="dialogState.showDeleteKBOption" #extra>
-        <div class="delete-kb-option">
-          <label class="checkbox-label">
-            <input v-model="deleteKnowledgeBase" type="checkbox" />
-            <span>{{ t('filePanel.deleteKnowledgeBase') }}</span>
-          </label>
-          <p class="option-hint">{{ t('filePanel.deleteKnowledgeBaseHint') }}</p>
-        </div>
-      </template>
     </ConfirmDialog>
   </div>
 </template>
@@ -304,8 +279,6 @@ const fileInput = ref(null);
 const excelInput = ref(null);  // RDS Excel 上传输入框
 const isEditDialogOpen = ref(false);
 const isSaving = ref(false);
-const deleteKnowledgeBase = ref(true);
-
 const uploadForm = ref({
   title: '',
   file: null
@@ -331,7 +304,6 @@ const dialogState = ref({
   message: '',
   danger: false,
   confirmText: '',
-  showDeleteKBOption: false,
   onConfirm: () => {},
   onCancel: () => {}
 });
@@ -347,7 +319,6 @@ const showDialog = (options) => {
       message: options.message || '',
       danger: options.danger || false,
       confirmText: options.confirmText || '',
-      showDeleteKBOption: options.showDeleteKBOption || false,
       onConfirm: () => {
         console.log('[FilePanel] onConfirm callback, resolving true');
         resolve(true);
@@ -388,6 +359,7 @@ const getStatusText = (status) => {
   const map = {
     uploaded: t('filePanel.statusUploaded'),
     extracting: t('filePanel.statusExtracting'),
+    extracted: t('filePanel.statusExtracted'),
     ready: t('filePanel.statusReady'),
     error: t('filePanel.statusError')
   };
@@ -409,9 +381,12 @@ const loadFiles = async () => {
     const data = await response.json();
     if (data.success) {
       files.value = data.data;
+      return data.data;
     }
+    return [];
   } catch (error) {
     console.error('加载文件列表失败:', error);
+    return [];
   } finally {
     isLoading.value = false;
   }
@@ -613,8 +588,8 @@ const handleExtract = async () => {
   hideContextMenu();
 
   // 检查是否已经提取过数据
-  if (file.status === 'ready') {
-    // 如果已就绪，直接打开导出面板，不再重复解压
+  if (file.status === 'ready' || file.status === 'extracted') {
+    // 如果模型已解压，直接打开导出面板，不再重复解压
     emit('open-data-export', file);
     return;
   }
@@ -631,9 +606,14 @@ const handleExtract = async () => {
     isExtracting.value = false;
     
     if (data.success) {
-      await loadFiles();
+      const refreshedFiles = await loadFiles();
+      const refreshedFile = refreshedFiles.find((item) => item.id === file.id) || {
+        ...file,
+        status: 'extracted',
+        extracted_path: data.extractedPath || file.extracted_path
+      };
       // 打开数据导出面板
-      emit('open-data-export', file);
+      emit('open-data-export', refreshedFile);
     } else {
       await showAlert(data.error);
     }
@@ -648,24 +628,18 @@ const handleDelete = async () => {
   const file = contextMenu.value.file;
   hideContextMenu();
   
-  // 重置删除知识库选项为默认值
-  deleteKnowledgeBase.value = true;
-
   const confirmed = await showDialog({
     type: 'confirm',
     title: t('filePanel.delete'),
     message: t('filePanel.confirmDelete', { title: file.title }),
     danger: true,
-    confirmText: t('filePanel.delete'),
-    showDeleteKBOption: true  // 显示删除知识库选项
+    confirmText: t('filePanel.delete')
   });
 
   if (!confirmed) return;
 
   try {
-    // 构建删除 URL，包含是否删除知识库的参数
-    const url = `${API_BASE}/api/files/${file.id}?deleteKB=${deleteKnowledgeBase.value}`;
-    const response = await fetch(url, { 
+    const response = await fetch(`${API_BASE}/api/files/${file.id}`, {
       method: 'DELETE',
       headers: getHeaders()
     });
@@ -740,97 +714,6 @@ const handlePanoCompare = () => {
   // 在新标签页打开全景比对视图
   const url = `/viewer?mode=pano-compare&fileId=${file.id}`;
   window.open(url, '_blank');
-};
-
-// 创建知识库
-const handleCreateKB = async () => {
-  const file = contextMenu.value.file;
-  hideContextMenu();
-
-  try {
-    // 第一次调用，不带force参数
-    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-
-    const data = await response.json();
-
-    // 检查是否返回 KB_EXISTS（已有知识库）
-    if (data.code === 'KB_EXISTS') {
-      // 显示确认对话框
-      const confirmed = await showDialog({
-        type: 'confirm',
-        title: t('filePanel.createKB'),
-        message: `该模型已关联知识库 "${data.data.kbName}"。\n\n删除现有知识库将丢失所有已上传的文件，是否继续？`,
-        danger: true,
-        confirmText: t('filePanel.confirmRecreateKB')
-      });
-
-      if (confirmed) {
-        // 用户确认，带force=true重新调用
-        await recreateKnowledgeBase(file);
-      }
-    } else if (data.success) {
-      await showAlert(t('filePanel.kbCreateSuccess'));
-
-    } else {
-      await showAlert(data.error || t('filePanel.kbCreateFailed'));
-    }
-  } catch (error) {
-    console.error('创建知识库错误:', error);
-    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
-  }
-};
-
-// 重建知识库（force=true）
-const recreateKnowledgeBase = async (file) => {
-  try {
-    const response = await fetch(`${API_BASE}/api/files/${file.id}/create-kb?force=true`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      await showAlert(t('filePanel.kbRecreateSuccess'));
-
-    } else {
-      await showAlert(data.error || t('filePanel.kbCreateFailed'));
-    }
-  } catch (error) {
-    console.error('重建知识库错误:', error);
-    await showAlert(t('filePanel.kbCreateFailed') + ': ' + error.message);
-  }
-};
-
-// 同步文档到知识库
-const handleSyncDocs = async () => {
-  const file = contextMenu.value.file;
-  hideContextMenu();
-
-  try {
-    const response = await fetch(`${API_BASE}/api/files/${file.id}/sync-docs`, {
-      method: 'POST',
-      headers: getHeaders()
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      await showAlert(data.error || t('filePanel.syncKBFailed'));
-      return;
-    }
-
-    if (data.success) {
-      await showAlert(data.message);
-      await loadFiles();
-    }
-  } catch (error) {
-    console.error('同步文档错误:', error);
-    await showAlert(t('filePanel.syncKBFailed') + ': ' + error.message);
-  }
 };
 
 onMounted(() => {
@@ -942,9 +825,4 @@ onUnmounted(() => {
 .list-content::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 5px; }
 .list-content::-webkit-scrollbar-thumb:hover { background: #4e4e52; }
 
-/* 删除知识库选项 */
-.delete-kb-option { margin-top: 16px; padding-top: 12px; border-top: 1px solid #3e3e42; }
-.checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ccc; font-size: 13px; }
-.checkbox-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #38ABDF; }
-.option-hint { margin: 6px 0 0 24px; font-size: 11px; color: #888; }
 </style>

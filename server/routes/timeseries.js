@@ -4,7 +4,6 @@
  */
 import { Router } from 'express';
 import crypto from 'crypto';
-import { getInfluxConfig } from '../models/influx-config.js';
 import { query } from '../db/index.js';
 import { getConfig } from '../services/config-service.js';
 
@@ -106,81 +105,68 @@ async function getGlobalInfluxConfig() {
 }
 
 /**
- * 获取当前激活模型的 InfluxDB 配置
+ * 获取当前激活模型 ID
+ */
+async function getActiveFileId() {
+    try {
+        const result = await query('SELECT id FROM model_files WHERE is_active = true LIMIT 1');
+        return result.rows[0]?.id ?? null;
+    } catch (error) {
+        console.error('获取激活模型 file_id 失败:', error);
+        return null;
+    }
+}
+
+/**
+ * 获取当前运行时 InfluxDB 配置
+ * 当前版本统一使用全局配置，后续如需按 Facility 绑定，可在这里继续收敛演进。
  */
 async function getActiveInfluxConfig() {
-    try {
-        // 查找当前激活的模型
-        const result = await query('SELECT id FROM model_files WHERE is_active = true LIMIT 1');
-        if (result.rows.length === 0) {
-            return await getGlobalInfluxConfig();
-        }
-        const fileId = result.rows[0].id;
-        const config = await getInfluxConfig(fileId);
-
-        if (!config) {
-            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
-            return await getGlobalInfluxConfig();
-        }
-
-        return config;
-    } catch (error) {
-        console.error('获取激活模型 InfluxDB 配置失败:', error);
-        return await getGlobalInfluxConfig();
-    }
+    return await getGlobalInfluxConfig();
 }
 
 /**
  * 从指定文件ID获取 InfluxDB 配置
+ * 当前 fileId 仅用于数据过滤，不再决定连接配置。
  */
-async function getInfluxConfigByFileId(fileId) {
-    try {
-        const config = await getInfluxConfig(fileId);
-        if (!config) {
-            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
-            return await getGlobalInfluxConfig();
-        }
-        return config;
-    } catch (error) {
-        console.error('获取 InfluxDB 配置失败:', error);
-        return await getGlobalInfluxConfig();
-    }
+async function getInfluxConfigByFileId(_fileId) {
+    return await getGlobalInfluxConfig();
 }
 
 /**
- * 根据 spaceCode 获取对应模型的 InfluxDB 配置
- * 如果 space 没有关联到模型，则回退到激活模型配置
+ * 根据 spaceCode 获取对应 InfluxDB 配置
+ * 当前统一使用全局配置。
  */
-async function getInfluxConfigBySpaceCode(spaceCode) {
+async function getInfluxConfigBySpaceCode(_spaceCode) {
+    return await getGlobalInfluxConfig();
+}
+
+/**
+ * 根据 spaceCode 解析 file_id
+ * 仅用于旧版 stream 路由的 API Key 校验和写入 tag。
+ */
+async function resolveFileIdBySpaceCode(spaceCode) {
     try {
-        // 通过 space_code 查找关联的 file_id
         const result = await query(
             'SELECT file_id FROM spaces WHERE space_code = $1',
             [spaceCode]
         );
         if (result.rows.length === 0) {
-            // 无法找到 space，回退到激活模型配置
             console.log(`⚠️ spaceCode "${spaceCode}" 未找到，使用激活模型配置`);
-            return await getActiveInfluxConfig();
+            return await getActiveFileId();
         }
+
         const fileId = result.rows[0].file_id;
         if (!fileId) {
-            // space 没有关联 file_id，回退到激活模型配置
             console.log(`⚠️ spaceCode "${spaceCode}" 未关联模型，使用激活模型配置`);
-            return await getActiveInfluxConfig();
-        }
-        console.log(`📊 spaceCode "${spaceCode}" 关联到模型 file_id=${fileId}`);
-        const config = await getInfluxConfig(fileId);
-
-        if (!config) {
-            console.log(`⚠️ 模型 file_id=${fileId} 未配置 InfluxDB，回退到全局配置`);
-            return await getGlobalInfluxConfig();
+            return await getActiveFileId();
         }
 
-        return config;
+        debugLog(`📊 spaceCode "${spaceCode}" 关联到模型 file_id=${fileId}`);
+        return fileId;
     } catch (error) {
-        console.error('根据 spaceCode 获取 InfluxDB 配置失败:', error);
-        return await getActiveInfluxConfig();
+        console.error('根据 spaceCode 解析 file_id 失败:', error);
+        return await getActiveFileId();
     }
 }
 
@@ -496,8 +482,16 @@ router.post('/streams/:spaceCode', async (req, res) => {
             });
         }
 
-        // 旧版路由：尝试通过 spaceCode 查找 file_id，然后验证 key
-        const config = await getInfluxConfigBySpaceCode(spaceCode);
+        const fileId = await resolveFileIdBySpaceCode(spaceCode);
+        if (!fileId) {
+            return res.status(404).json({
+                success: false,
+                error: 'Unable to resolve fileId for this space. Please use new URL format with fileId.'
+            });
+        }
+
+        // 旧版路由只保留 fileId 解析，InfluxDB 连接统一使用全局配置
+        const config = await getGlobalInfluxConfig();
         if (!config || !config.is_enabled) {
             return res.status(503).json({
                 success: false,
@@ -505,8 +499,6 @@ router.post('/streams/:spaceCode', async (req, res) => {
             });
         }
 
-        // 使用找到的 file_id 验证 key（向后兼容：也尝试旧版 key 验证）
-        const fileId = config.file_id;
         let keyValid = false;
         try {
             // 优先尝试新格式 key

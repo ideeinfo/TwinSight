@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { query } from '../../../db/index.js';
+import { resolveKnowledgeBase } from '../../../services/knowledge-base-service.js';
 import { chatWithRAG } from '../../../services/openwebui-service.js';
 
 const router = Router();
@@ -18,6 +18,7 @@ const router = Router();
  * Body: {
  *   query: string,          // 检索查询文本（必填）
  *   fileId?: number,        // 模型文件 ID（用于定位关联知识库）
+ *   facilityId?: number,    // Facility ID（优先于 fileId）
  *   kbId?: string,          // 知识库 ID（可选，直接指定，优先级最高）
  *   topK?: number           // 返回结果数量（兼容字段，暂未下沉到底层检索深度控制）
  * }
@@ -26,7 +27,7 @@ router.post('/rag-search', async (req, res) => {
     const startTime = Date.now();
 
     try {
-        const { query: searchQuery, fileId, kbId, topK = 5 } = req.body;
+        const { query: searchQuery, fileId, facilityId, kbId, topK = 5 } = req.body;
 
         if (!searchQuery) {
             return res.status(400).json({
@@ -49,37 +50,37 @@ router.post('/rag-search', async (req, res) => {
         } else {
             // 优先级2: 通过 fileId 查询 knowledge_bases 表
             const resolvedFileId = fileId || req.scope?.fileId;
+            const resolvedFacilityId = facilityId || req.scope?.facilityId;
 
-            if (!resolvedFileId) {
+            if (!resolvedFileId && !resolvedFacilityId) {
                 return res.status(400).json({
                     success: false,
                     error: {
                         code: 'INVALID_PARAMS',
-                        message: 'Either kbId or fileId is required. fileId can be provided via request body or X-File-Id header.',
+                        message: 'Either kbId, facilityId or fileId is required.',
                         request_id: req.tracing?.requestId
                     }
                 });
             }
 
-            // 查询 fileId -> openwebui_kb_id 映射
-            const kbResult = await query(
-                'SELECT openwebui_kb_id FROM knowledge_bases WHERE file_id = $1',
-                [resolvedFileId]
-            );
+            const kb = await resolveKnowledgeBase({
+                facilityId: resolvedFacilityId,
+                fileId: resolvedFileId,
+            });
 
-            if (kbResult.rows.length === 0 || !kbResult.rows[0].openwebui_kb_id) {
+            if (!kb?.openwebui_kb_id) {
                 return res.status(404).json({
                     success: false,
                     error: {
                         code: 'KNOWLEDGE_BASE_NOT_FOUND',
-                        message: `No knowledge base mapping found for fileId ${resolvedFileId}`,
+                        message: `No knowledge base mapping found for facilityId ${resolvedFacilityId || 'N/A'} / fileId ${resolvedFileId || 'N/A'}`,
                         request_id: req.tracing?.requestId
                     }
                 });
             }
 
-            resolvedKbId = kbResult.rows[0].openwebui_kb_id;
-            console.log(`📚 [rag-search] fileId=${resolvedFileId} -> kbId=${resolvedKbId}`);
+            resolvedKbId = kb.openwebui_kb_id;
+            console.log(`📚 [rag-search] facilityId=${resolvedFacilityId || 'N/A'}, fileId=${resolvedFileId || 'N/A'} -> kbId=${resolvedKbId}`);
         }
 
         // ========== 构建定向事实提取的 Prompt ==========

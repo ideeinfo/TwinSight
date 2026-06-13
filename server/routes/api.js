@@ -9,6 +9,7 @@ import classificationModel from '../models/classification.js';
 import assetSpecModel from '../models/asset-spec.js';
 import assetModel from '../models/asset.js';
 import spaceModel from '../models/space.js';
+import * as modelFileModel from '../models/model-file.js';
 import { getMappingConfig, saveMappingConfig } from '../models/mapping-config.js';
 import appConfig from '../config/index.js';
 
@@ -590,6 +591,10 @@ router.post('/import/model-data', async (req, res) => {
             } else {
                 await spaceModel.batchUpsertSpaces(spaceRecords);
             }
+        }
+
+        if (fileId) {
+            await modelFileModel.updateModelFileStatus(fileId, 'ready');
         }
 
         res.json({

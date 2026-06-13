@@ -98,6 +98,7 @@ const { t } = useI18n();
 // Props
 const props = defineProps({
   fileId: [String, Number],
+  initialAssetPropertyOptions: { type: Object, default: null },
   getFullAssetData: Function,
   getFullSpaceData: Function,
   getAssetPropertyList: Function,
@@ -144,7 +145,7 @@ const showConfirm = async (options) => {
 // 获取属性列表
 async function fetchProperties() {
   // 获取资产属性列表
-  if (props.getAssetPropertyList) {
+  if (props.getAssetPropertyList && Object.keys(assetPropertyOptions.value || {}).length === 0) {
     try {
       assetPropertyOptions.value = await props.getAssetPropertyList();
     } catch (e) {
@@ -333,6 +334,11 @@ async function extractAndExport() {
 // 组件挂载时检查连接并加载映射配置
 onMounted(async () => {
   checkConnection();
+
+  if (props.initialAssetPropertyOptions && Object.keys(props.initialAssetPropertyOptions).length > 0) {
+    assetPropertyOptions.value = props.initialAssetPropertyOptions;
+  }
+
   fetchProperties();
   
   // 从数据库加载映射配置（如果有 fileId）
