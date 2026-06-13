@@ -127,6 +127,22 @@ const parseLegacyPointCode = (pointCode) => {
     };
 };
 
+const buildLegacyFlux = ({ bucket, fileId, legacy, start, stop, aggregateClause = '', latest = false }) => {
+    const measurementFilter = legacy.pointType === 'humidity'
+        ? 'r._measurement == "humidity"'
+        : '(r._measurement == "room_temp" or r._measurement == "temperature")';
+    const stopClause = stop ? `, stop: ${stop}` : '';
+    const tailClause = latest
+        ? '|> group(columns: ["_measurement", "code", "room"])\n  |> last()'
+        : `${aggregateClause}\n  |> sort(columns: ["_time"])`;
+
+    return `from(bucket: "${bucket}")
+  |> range(start: ${start}${stopClause})
+  |> filter(fn: (r) => ${measurementFilter} and r._field == "value" and r["file_id"] == "${fileId}")
+  |> filter(fn: (r) => r["code"] == "${escapeTag(legacy.targetCode)}" or r["room"] == "${escapeTag(legacy.targetCode)}")
+  ${tailClause}`;
+};
+
 const writePointValue = async (influxConfig, point, value, timestamp) => {
     const headers = buildInfluxHeaders(influxConfig);
     if (!headers) {
@@ -337,20 +353,26 @@ router.get('/query/latest',
                 .filter((pointCode) => !data[pointCode]);
 
             if (missingLegacyCodes.length > 0) {
-                const legacyTargetCodes = [...new Set(legacyRequests.map(({ targetCode }) => targetCode))];
-                const codeSet = legacyTargetCodes.map((code) => `"${String(code).replace(/"/g, '\\"')}"`).join(', ');
-                const legacyFlux = `from(bucket: "${influxConfig.influx_bucket}")
+                for (const pointType of ['temperature', 'humidity']) {
+                    const legacyGroup = legacyRequests.filter((item) => item.pointType === pointType);
+                    if (legacyGroup.length === 0) continue;
+
+                    const legacyTargetCodes = [...new Set(legacyGroup.map(({ targetCode }) => targetCode))];
+                    const codeSet = legacyTargetCodes.map((code) => `"${String(code).replace(/"/g, '\\"')}"`).join(', ');
+                    const measurementFilter = pointType === 'humidity'
+                        ? 'r._measurement == "humidity"'
+                        : '(r._measurement == "room_temp" or r._measurement == "temperature")';
+                    const legacyFlux = `from(bucket: "${influxConfig.influx_bucket}")
   |> range(start: -3650d)
-  |> filter(fn: (r) => (r._measurement == "room_temp" or r._measurement == "temperature" or r._measurement == "humidity") and r._field == "value" and r["file_id"] == "${fileId}")
+  |> filter(fn: (r) => ${measurementFilter} and r._field == "value" and r["file_id"] == "${fileId}")
   |> filter(fn: (r) => contains(value: r["code"], set: [${codeSet}]) or contains(value: r["room"], set: [${codeSet}]))
   |> group(columns: ["_measurement", "code", "room"])
   |> last()`;
-                const legacyPoints = parsePointCsv(await queryInflux(influxConfig, legacyFlux));
-                for (const point of legacyPoints) {
-                    const targetCode = point.code || point.room;
-                    const pointType = point.measurement === 'humidity' ? 'humidity' : 'temperature';
-                    const pointCode = `legacy_${pointType}_${targetCode}`;
-                    if (missingLegacyCodes.includes(pointCode)) {
+                    const legacyPoints = parsePointCsv(await queryInflux(influxConfig, legacyFlux));
+                    for (const point of legacyPoints) {
+                        const targetCode = point.code || point.room;
+                        const pointCode = `legacy_${pointType}_${targetCode}`;
+                        if (!missingLegacyCodes.includes(pointCode)) continue;
                         data[pointCode] = { value: point.value, timestamp: point.timestamp };
                     }
                 }
@@ -385,7 +407,29 @@ router.get('/query/trend',
   |> filter(fn: (r) => r._measurement == "point_data" and r._field == "value" and r["file_id"] == "${fileId}" and r["point_code"] == "${escapeTag(pointCode)}")
   ${aggregateClause}
   |> sort(columns: ["_time"])`;
-            res.json({ success: true, data: parsePointCsv(await queryInflux(influxConfig, flux)) });
+            const pointData = parsePointCsv(await queryInflux(influxConfig, flux));
+            if (pointData.length > 0) {
+                return res.json({ success: true, data: pointData });
+            }
+
+            const legacy = parseLegacyPointCode(pointCode);
+            if (!legacy) {
+                return res.json({ success: true, data: [] });
+            }
+
+            const legacyFlux = buildLegacyFlux({
+                bucket: influxConfig.influx_bucket,
+                fileId,
+                legacy,
+                start: new Date(startMs).toISOString(),
+                stop: new Date(endMs).toISOString(),
+                aggregateClause,
+            });
+            const legacyData = parsePointCsv(await queryInflux(influxConfig, legacyFlux)).map((point) => ({
+                ...point,
+                pointCode,
+            }));
+            res.json({ success: true, data: legacyData });
         } catch (error) {
             next(error);
         }

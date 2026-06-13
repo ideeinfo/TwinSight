@@ -55,10 +55,10 @@
       </button>
     </div>
 
-    <div class="detail-panel">
+    <div v-if="editingPoint?.id" class="detail-panel">
       <div class="detail-header">
-        <span>{{ editingPoint?.id ? t('points.detailTitle') : t('points.newTitle') }}</span>
-        <el-button v-if="editingPoint?.id && canManage" text type="danger" size="small" :icon="Delete" @click="requestDelete">
+        <span>{{ t('points.detailTitle') }}</span>
+        <el-button v-if="canManage" text type="danger" size="small" :icon="Delete" @click="requestDelete">
           {{ t('common.delete') }}
         </el-button>
       </div>
@@ -133,7 +133,7 @@
 
       <div class="detail-actions">
         <el-button
-          v-if="editingPoint?.id && editingPoint.dataKind !== 'video'"
+          v-if="editingPoint.dataKind !== 'video'"
           :icon="Link"
           size="small"
           @click="$emit('copy-stream-url', editingPoint)"
@@ -145,6 +145,94 @@
         </el-button>
       </div>
     </div>
+
+    <div v-else class="detail-empty">
+      <strong>{{ t('points.detailTitle') }}</strong>
+      <span>选择列表中的点位后，可在这里查看并编辑详细信息。</span>
+    </div>
+
+    <el-dialog
+      v-model="createDialogVisible"
+      :title="t('points.newTitle')"
+      width="520px"
+      class="point-create-dialog"
+      destroy-on-close
+      append-to-body
+    >
+      <div class="dialog-form">
+        <div class="form-row">
+          <label>{{ t('points.codeLabel') }}</label>
+          <el-input v-model="form.pointCode" :disabled="!canManage" />
+        </div>
+        <div class="form-row">
+          <label>{{ t('points.nameLabel') }}</label>
+          <el-input v-model="form.name" :disabled="!canManage" />
+        </div>
+        <div class="form-row two-cols">
+          <div>
+            <label>{{ t('points.typeLabel') }}</label>
+            <el-select v-model="form.pointType" :disabled="!canManage" style="width: 100%;" @change="syncDataKind">
+              <el-option
+                v-for="type in pointTypes"
+                :key="type.value"
+                :label="type.label"
+                :value="type.value"
+              />
+            </el-select>
+          </div>
+          <div>
+            <label>{{ t('points.targetTypeLabel') }}</label>
+            <el-select v-model="form.targetType" :disabled="!canManage" style="width: 100%;" @change="form.targetCode = ''">
+              <el-option :label="t('points.spaceTarget')" value="space" />
+              <el-option :label="t('points.assetTarget')" value="asset" />
+            </el-select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>{{ t('points.targetLabel') }}</label>
+          <el-select v-model="form.targetCode" filterable :disabled="!canManage" style="width: 100%;">
+            <el-option
+              v-for="target in targetOptions"
+              :key="target.code"
+              :label="target.label"
+              :value="target.code"
+            />
+          </el-select>
+        </div>
+        <div class="form-row two-cols">
+          <div>
+            <label>{{ t('points.unitLabel') }}</label>
+            <el-input v-model="form.unit" :disabled="!canManage || form.dataKind === 'video'" />
+          </div>
+          <div>
+            <label>{{ t('points.multiplierLabel') }}</label>
+            <el-input-number v-model="form.multiplier" :disabled="!canManage || form.dataKind === 'video'" :min="0" :step="0.1" controls-position="right" />
+          </div>
+        </div>
+        <div v-if="form.dataKind === 'video'" class="form-row">
+          <label>{{ t('points.sourceUrlLabel') }}</label>
+          <el-input v-model="form.sourceUrl" :disabled="!canManage" placeholder="HLS / FLV / WebRTC URL" />
+        </div>
+        <div class="form-row two-cols">
+          <div>
+            <label>{{ t('points.minLabel') }}</label>
+            <el-input-number v-model="form.thresholdMin" :disabled="!canManage || form.dataKind === 'video'" controls-position="right" />
+          </div>
+          <div>
+            <label>{{ t('points.maxLabel') }}</label>
+            <el-input-number v-model="form.thresholdMax" :disabled="!canManage || form.dataKind === 'video'" controls-position="right" />
+          </div>
+        </div>
+        <div class="form-row switch-row">
+          <label>{{ t('points.enabledLabel') }}</label>
+          <el-switch v-model="form.isEnabled" :disabled="!canManage" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :disabled="!canManage || !canSubmit" @click="submit">{{ t('common.save') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -169,6 +257,7 @@ const authStore = useAuthStore();
 
 const canManage = computed(() => authStore.hasPermission('point:manage'));
 const editingPoint = ref(null);
+const createDialogVisible = ref(false);
 
 const filters = reactive({
   keyword: '',
@@ -275,6 +364,7 @@ const applyPoint = (point) => {
 const startCreate = () => {
   editingPoint.value = null;
   resetForm();
+  createDialogVisible.value = true;
 };
 
 const syncDataKind = () => {
@@ -325,6 +415,7 @@ const submit = () => {
     emit('update-point', editingPoint.value.id, payload);
   } else {
     emit('create-point', payload);
+    createDialogVisible.value = false;
   }
 };
 </script>
@@ -484,9 +575,41 @@ const submit = () => {
   border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
+.detail-empty {
+  flex: 0 0 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 12px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+}
+
+.detail-empty strong {
+  color: var(--md-sys-color-on-surface);
+  font-size: 13px;
+}
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 :deep(.el-input__wrapper),
 :deep(.el-select__wrapper),
 :deep(.el-input-number .el-input__wrapper) {
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--input-border) inset;
+  background: var(--input-bg);
+}
+
+:global(.point-create-dialog .el-input__wrapper),
+:global(.point-create-dialog .el-select__wrapper),
+:global(.point-create-dialog .el-input-number .el-input__wrapper) {
   border-radius: 2px;
   box-shadow: 0 0 0 1px var(--input-border) inset;
   background: var(--input-bg);
