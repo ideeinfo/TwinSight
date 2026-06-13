@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/auth';
 import { useModelsStore } from '@/stores/models';
 import { useControlChannel } from '@/composables/useControlChannel';
+import { API_BASE_URL } from '@/utils/apiBase';
 
 const { locale } = useI18n();
 
@@ -43,8 +44,7 @@ async function resolveFileId() {
 
   try {
     const token = authStore.token || localStorage.getItem('accessToken');
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const res = await fetch(`${baseUrl}/api/files/active`, {
+    const res = await fetch(`${API_BASE_URL}/api/files/active`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {

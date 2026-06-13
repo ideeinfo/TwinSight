@@ -4,8 +4,9 @@
  */
 
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 const STATUS_CACHE_TTL_MS = 10_000;
 
 type InfluxStatus = {

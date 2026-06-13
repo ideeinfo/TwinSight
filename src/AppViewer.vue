@@ -332,6 +332,7 @@ import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
 import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
 import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, updatePoint } from './services/points';
+import { API_BASE_URL } from './utils/apiBase';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
 import { triggerTemperatureAlert } from './services/ai-analysis';
@@ -708,11 +709,10 @@ const ticketToolbarHint = computed(() => {
 });
 
 const filesApiUrl = computed(() => {
-  const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
   if (requestedRouteFacilityId.value) {
-    return `${API_BASE}/api/files?facilityId=${requestedRouteFacilityId.value}`;
+    return `${API_BASE_URL}/api/files?facilityId=${requestedRouteFacilityId.value}`;
   }
-  return `${API_BASE}/api/files`;
+  return `${API_BASE_URL}/api/files`;
 });
 
 const pickRequestedOrActiveFile = (files) => {
@@ -1215,7 +1215,7 @@ const restoreRequestedRouteView = async (fileId) => {
   }
 
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const API_BASE = API_BASE_URL;
     const viewRes = await fetch(`${API_BASE}/api/views/${targetViewId}`, { headers: getHeaders() });
     const viewData = await viewRes.json();
     if (!viewData.success || !viewData.data || !mainViewRef.value?.restoreViewState) {
@@ -1515,7 +1515,7 @@ const onViewerReady = async () => {
       // 没有 pending 文件，加载当前激活的文件或默认模型
       console.log('🔍 [App] 开始获取文件列表...');
       try {
-        const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+        const API_BASE = API_BASE_URL;
         const filesRes = await fetch(filesApiUrl.value, { headers: getHeaders() });
         const filesData = await filesRes.json();
         
@@ -1801,7 +1801,7 @@ const handleAIAlert = (alert) => {
  */
 const handleAIChatMessage = async (payload, callback) => {
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const API_BASE = API_BASE_URL;
     const res = await fetch(`${API_BASE}/api/ai/chat`, {
       method: 'POST',
       headers: { ...getHeaders(), 'Content-Type': 'application/json' },
@@ -1846,7 +1846,7 @@ const executeAIAction = async (payload) => {
       if (!viewId) return;
 
       try {
-          const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+          const API_BASE = API_BASE_URL;
           const response = await fetch(`${API_BASE}/api/views/${viewId}`, { headers: getHeaders() });
           const data = await response.json();
 
@@ -1970,7 +1970,7 @@ const onOpenSource = async (source) => {
   
   console.log('📄 [AppViewer] 打开引用文档:', id);
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const API_BASE = API_BASE_URL;
     const res = await fetch(`${API_BASE}/api/documents/${id}`, { headers: getHeaders() });
     const data = await res.json();
     if (data.success) {
@@ -2106,7 +2106,7 @@ const reloadCurrentFileAssets = async () => {
     // 或者更干净的做法是提取加载逻辑。
     // 这里为了最快实现，直接调用 API 获取最新数据更新 assetList
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+      const API_BASE = API_BASE_URL;
       const assetsRes = await fetch(`${API_BASE}/api/files/${activeFileId.value}/assets`, { headers: getHeaders() });
       const assetsData = await assetsRes.json();
       
@@ -2147,7 +2147,7 @@ const reloadCurrentFileSpaces = async () => {
   if (activeFileId.value) {
     console.log('🔄 重新加载当前文件空间:', activeFileId.value);
     try {
-      const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+      const API_BASE = API_BASE_URL;
       const spacesRes = await fetch(`${API_BASE}/api/files/${activeFileId.value}/spaces`, { headers: getHeaders() });
       const spacesData = await spacesRes.json();
       
@@ -2185,7 +2185,7 @@ const onFileActivated = async (file) => {
   
   try {
     // 从数据库加载该文件的资产和空间
-    const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+    const API_BASE = API_BASE_URL;
     // 加载文件的资产和空间数据
     console.log('📂 [App.vue] onFileActivated called with file:', file);
     console.log('📂 [App.vue] file.id:', file.id);

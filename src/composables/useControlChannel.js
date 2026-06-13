@@ -10,6 +10,7 @@
 
 import { ref, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { API_BASE_URL } from '@/utils/apiBase';
 
 // 单例状态（跨组件共享）
 const isConnected = ref(false);
@@ -67,8 +68,7 @@ export function useControlChannel(options = {}) {
         }
 
         // 连接到 WebSocket 服务器
-        const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        socket = io(baseUrl, {
+        socket = io(API_BASE_URL, {
             path: '/ws/control',
             auth: {
                 token,

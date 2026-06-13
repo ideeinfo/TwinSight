@@ -4,7 +4,9 @@
  */
 
 // 生产环境使用同源 API（空字符串），开发环境使用 localhost
-const API_HOST = import.meta.env.VITE_API_URL || '';
+import { API_BASE_URL } from '../utils/apiBase';
+
+const API_HOST = API_BASE_URL;
 const API_BASE = `${API_HOST}/api`;
 
 import { useAuthStore } from '../stores/auth';

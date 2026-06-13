@@ -108,6 +108,7 @@ import { useDataExport } from '../composables/useDataExport';
 import { useViewState } from '../composables/useViewState';
 import { useThemeStore } from '../stores/theme';
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const { t, locale } = useI18n();
 const themeStore = useThemeStore();
@@ -197,7 +198,6 @@ const handleOpenSource = async (source) => {
   
   // 从 API 获取完整的文档信息（包括正确的 file_path）
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
     const response = await fetch(`${API_BASE_URL}/api/documents/${source.documentId}`, { headers: getHeaders() });
     const data = await response.json();
     

@@ -2,8 +2,9 @@
  * 认证 API 服务
  */
 import axios from 'axios';
+import { API_BASE_URL } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 export interface LoginResponse {
     success: boolean;

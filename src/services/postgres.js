@@ -3,13 +3,11 @@
  * 提供与后端 API 的通信功能
  */
 
-// 后端 API 基础 URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
+import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
 // API v1 路径
 const API_V1 = `${API_BASE_URL}/api/v1`;
-
-import { useAuthStore } from '../stores/auth';
 
 const getHeaders = (contentType = null) => {
     const authStore = useAuthStore();

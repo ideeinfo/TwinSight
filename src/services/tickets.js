@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 const API_V1 = `${API_BASE_URL}/api/v1`;
 
 const getHeaders = () => {

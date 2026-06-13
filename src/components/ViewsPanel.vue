@@ -221,10 +221,11 @@ import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import { Close, Plus, Search, MoreFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const authStore = useAuthStore();
 const { t } = useI18n();
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 // Helper to get auth headers
 const getHeaders = () => {

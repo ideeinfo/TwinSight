@@ -3,9 +3,10 @@
  * 
  * 提供 IEC 81346-12 工程数据管理相关接口封装
  */
+import { API_BASE_URL } from '@/utils/apiBase';
 
 // API 基础 URL
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 // 简单的请求封装
 const request = {
@@ -311,5 +312,4 @@ export default {
     getPowerGraph,
     tracePowerPath
 }
-
 

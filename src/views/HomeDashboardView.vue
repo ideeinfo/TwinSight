@@ -218,6 +218,7 @@ import { activateModelFile } from '@/services/api/models';
 import { useAuthStore } from '@/stores/auth';
 import { useModelsStore } from '@/stores/models';
 import type { FacilityDetail, FacilityModelSummary, FacilityModelView, FacilitySummary } from '@/types/facility';
+import { API_BASE_URL } from '@/utils/apiBase';
 import { loadRecentFacilityEntries, recordRecentFacilityVisit, sortFacilitiesByRecentVisits } from '@/utils/recentFacilities';
 
 const router = useRouter();
@@ -231,7 +232,7 @@ const facilities = ref<FacilitySummary[]>([]);
 const recentFacilityEntries = ref(loadRecentFacilityEntries(null));
 const selectedFacilityId = ref<number | null>(null);
 const selectedFacility = ref<FacilityDetail | null>(null);
-const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+const apiBase = API_BASE_URL;
 
 const recentOrderedFacilities = computed(() => sortFacilitiesByRecentVisits(facilities.value, recentFacilityEntries.value));
 const recentFacilities = computed(() => recentOrderedFacilities.value.slice(0, 4));

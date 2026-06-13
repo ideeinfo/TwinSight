@@ -136,11 +136,12 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
 
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 const props = defineProps({
   visible: Boolean,

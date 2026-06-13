@@ -243,6 +243,7 @@ import ConfirmDialog from './ConfirmDialog.vue';
 
 import { useAuthStore } from '../stores/auth';
 import { importExcelToDb } from '../api/rds';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const authStore = useAuthStore();
 const { t } = useI18n();
@@ -342,7 +343,7 @@ const showAlert = (message, title = '') => {
 };
 
 // API 基础 URL
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 // 计算属性
 const filteredFiles = computed(() => {

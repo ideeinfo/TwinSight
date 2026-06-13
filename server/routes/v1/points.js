@@ -10,7 +10,7 @@ import { getConfig } from '../../services/config-service.js';
 import pointModel, { POINT_TYPES } from '../../models/point.js';
 
 const router = Router();
-const INFLUX_TIMEOUT_MS = parseInt(process.env.INFLUX_TIMEOUT_MS || '3000', 10);
+const INFLUX_TIMEOUT_MS = parseInt(process.env.INFLUX_TIMEOUT_MS || '10000', 10);
 
 const escapeTag = (value) => String(value ?? '').replace(/[,= ]/g, '_');
 
@@ -129,7 +129,7 @@ const parseLegacyPointCode = (pointCode) => {
 
 const buildLegacyFlux = ({ bucket, fileId, legacy, start, stop, aggregateClause = '', latest = false }) => {
     const measurementFilter = legacy.pointType === 'humidity'
-        ? 'r._measurement == "humidity"'
+        ? '(r._measurement == "humidity" or r._measurement == "room_humi")'
         : '(r._measurement == "room_temp" or r._measurement == "temperature")';
     const stopClause = stop ? `, stop: ${stop}` : '';
     const tailClause = latest
@@ -360,7 +360,7 @@ router.get('/query/latest',
                     const legacyTargetCodes = [...new Set(legacyGroup.map(({ targetCode }) => targetCode))];
                     const codeSet = legacyTargetCodes.map((code) => `"${String(code).replace(/"/g, '\\"')}"`).join(', ');
                     const measurementFilter = pointType === 'humidity'
-                        ? 'r._measurement == "humidity"'
+                        ? '(r._measurement == "humidity" or r._measurement == "room_humi")'
                         : '(r._measurement == "room_temp" or r._measurement == "temperature")';
                     const legacyFlux = `from(bucket: "${influxConfig.influx_bucket}")
   |> range(start: -3650d)

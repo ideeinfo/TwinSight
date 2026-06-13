@@ -139,8 +139,9 @@
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
+import { API_BASE_URL } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

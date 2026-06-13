@@ -143,6 +143,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
+import { API_BASE_URL } from '../utils/apiBase';
 
 const authStore = useAuthStore();
 
@@ -154,7 +155,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
-const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+const API_BASE = API_BASE_URL;
 
 // 表单数据
 const form = ref({

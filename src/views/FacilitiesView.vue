@@ -509,6 +509,7 @@ import type {
   FacilityPayload,
   FacilitySummary,
 } from '@/types/facility';
+import { API_BASE_URL } from '@/utils/apiBase';
 import { recordRecentFacilityVisit } from '@/utils/recentFacilities';
 
 const FACILITY_CREATE_PERMISSION = 'facility:create';
@@ -539,7 +540,7 @@ const editDialogVisible = ref(false);
 const activeModelId = ref<number | null>(null);
 const editingFacilityId = ref<number | null>(null);
 const coverUploadRef = ref<UploadInstance | null>(null);
-const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
+const apiBase = API_BASE_URL;
 
 const facilityForm = reactive<FacilityPayload>({
   name: '',
