@@ -2,6 +2,27 @@
   <div class="chart-container">
     <!-- 图表头部 -->
     <ChartHeader :label-text="labelText || t('chartPanel.average')" :range="range" :fallback-start-ms="displayData.length?displayData[0].timestamp:0" :fallback-end-ms="displayData.length?displayData[displayData.length-1].timestamp:0">
+      <div v-if="timelineControls" class="timeline-controls">
+        <select class="range-select" :value="selectedRangeValue" @change="onRangeSelect">
+          <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+        <template v-if="selectedRangeValue === 'custom'">
+          <input class="date-input" type="datetime-local" v-model="customStart" />
+          <span class="date-separator">-</span>
+          <input class="date-input" type="datetime-local" v-model="customEnd" />
+          <button class="tool-btn" type="button" @click="applyCustomRange">应用</button>
+        </template>
+        <button class="tool-btn" type="button" @click="zoomRange(0.5)">-</button>
+        <button class="tool-btn" type="button" @click="zoomRange(2)">+</button>
+        <button class="tool-btn" type="button" :class="{ active: isPlaying }" @click="togglePlay">
+          {{ isPlaying ? '暂停' : '播放' }}
+        </button>
+        <button class="tool-btn" type="button" :class="{ active: isLooping }" @click="isLooping = !isLooping">循环</button>
+        <button class="tool-btn" type="button" @click="cycleSpeed">{{ playbackSpeed }}x</button>
+        <button class="tool-btn" type="button" @click="goLive">最新</button>
+      </div>
       <button class="close" @click="$emit('close')">×</button>
     </ChartHeader>
 
@@ -104,7 +125,7 @@
 </template>
 
 <script setup>
-import { ref, computed, toRefs, watch } from 'vue';
+import { ref, computed, toRefs, watch, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ChartHeader from './ChartHeader.vue';
 
@@ -119,10 +140,12 @@ const props = defineProps({
   maxY: { type: Number, default: 40 },
   highThreshold: { type: Number, default: 28 },
   lowThreshold: { type: Number, default: 10 },
-  cursorTime: { type: Number, default: null }
+  cursorTime: { type: Number, default: null },
+  staleToleranceMs: { type: Number, default: Infinity },
+  timelineControls: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['close','hover-sync']);
+const emit = defineEmits(['close','hover-sync','range-change','cursor-change']);
 
 const { data: displayData } = toRefs(props);
 
@@ -134,6 +157,24 @@ const hoverValue = ref('--');
 const hoverTime = ref('--');
 const tooltipPxX = ref(0);
 const tooltipPxY = ref(0);
+const selectedRangeValue = ref('24h');
+const customStart = ref('');
+const customEnd = ref('');
+const isPlaying = ref(false);
+const isLooping = ref(false);
+const playbackSpeed = ref(1);
+let playbackFrame = null;
+
+const rangeOptions = [
+  { label: '1小时', value: '1h', ms: 36e5 },
+  { label: '3小时', value: '3h', ms: 3 * 36e5 },
+  { label: '6小时', value: '6h', ms: 6 * 36e5 },
+  { label: '24小时', value: '24h', ms: 24 * 36e5 },
+  { label: '3天', value: '3d', ms: 3 * 24 * 36e5 },
+  { label: '7天', value: '7d', ms: 7 * 24 * 36e5 },
+  { label: '30天', value: '30d', ms: 30 * 24 * 36e5 },
+  { label: '自定义', value: 'custom' }
+];
 
 // === 计算属性 ===
 const minY = computed(() => Number.isFinite(props.minY) ? props.minY : -20);
@@ -167,6 +208,110 @@ const yLabels = computed(() => {
 const getRangeStart = () => props.range?.startMs || displayData.value[0]?.timestamp || 0;
 const getRangeEnd = () => props.range?.endMs || displayData.value[displayData.value.length - 1]?.timestamp || 0;
 
+const toLocalInputValue = (ms) => {
+  if (!Number.isFinite(Number(ms))) return '';
+  const date = new Date(Number(ms));
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const emitCursor = (time) => {
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (!start || !end || end <= start || !Number.isFinite(Number(time))) return;
+  const cursorTime = Math.max(start, Math.min(end, Number(time)));
+  emit('cursor-change', { time: cursorTime, percent: (cursorTime - start) / (end - start) });
+};
+
+const emitRange = (startMs, endMs) => {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+  const windowMs = Math.max(60_000, Math.round((endMs - startMs) / 300));
+  emit('range-change', { startMs, endMs, windowMs });
+  emit('cursor-change', { time: endMs, percent: 1 });
+};
+
+const onRangeSelect = (event) => {
+  selectedRangeValue.value = event.target.value;
+  if (selectedRangeValue.value === 'custom') {
+    customStart.value = toLocalInputValue(getRangeStart());
+    customEnd.value = toLocalInputValue(getRangeEnd());
+    return;
+  }
+  const option = rangeOptions.find((item) => item.value === selectedRangeValue.value);
+  if (!option?.ms) return;
+  const endMs = Date.now();
+  emitRange(endMs - option.ms, endMs);
+};
+
+const applyCustomRange = () => {
+  const startMs = new Date(customStart.value).getTime();
+  const endMs = new Date(customEnd.value).getTime();
+  emitRange(startMs, endMs);
+};
+
+const zoomRange = (factor) => {
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (!start || !end || end <= start) return;
+  const cursor = Number.isFinite(Number(props.cursorTime)) ? Number(props.cursorTime) : end;
+  const span = (end - start) * factor;
+  const ratio = Math.max(0, Math.min(1, (cursor - start) / (end - start)));
+  const nextStart = cursor - span * ratio;
+  const nextEnd = nextStart + span;
+  selectedRangeValue.value = 'custom';
+  emitRange(nextStart, nextEnd);
+};
+
+const cycleSpeed = () => {
+  const speeds = [1, 2, 4, 8];
+  playbackSpeed.value = speeds[(speeds.indexOf(playbackSpeed.value) + 1) % speeds.length];
+};
+
+const stopPlayback = () => {
+  isPlaying.value = false;
+  if (playbackFrame) {
+    cancelAnimationFrame(playbackFrame);
+    playbackFrame = null;
+  }
+};
+
+const playbackStep = () => {
+  if (!isPlaying.value) return;
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (!start || !end || end <= start) {
+    stopPlayback();
+    return;
+  }
+  const current = Number.isFinite(Number(props.cursorTime)) ? Number(props.cursorTime) : start;
+  const step = ((end - start) / 1200) * playbackSpeed.value;
+  let nextTime = current + step;
+  if (nextTime >= end) {
+    if (isLooping.value) nextTime = start;
+    else {
+      nextTime = end;
+      stopPlayback();
+    }
+  }
+  emitCursor(nextTime);
+  playbackFrame = requestAnimationFrame(playbackStep);
+};
+
+const togglePlay = () => {
+  if (isPlaying.value) {
+    stopPlayback();
+    return;
+  }
+  isPlaying.value = true;
+  playbackFrame = requestAnimationFrame(playbackStep);
+};
+
+const goLive = () => {
+  stopPlayback();
+  const end = getRangeEnd();
+  if (end) emitCursor(end);
+};
+
 const getPointX = (point, index, len) => {
   const start = getRangeStart();
   const end = getRangeEnd();
@@ -195,7 +340,10 @@ const linePath = computed(() => {
 
 const areaPath = computed(() => {
   if (!linePath.value) return '';
-  return `${linePath.value} L 1000 100 L 0 100 Z`;
+  const len = displayData.value.length;
+  const firstX = getPointX(displayData.value[0], 0, len);
+  const lastX = getPointX(displayData.value[len - 1], len - 1, len);
+  return `${linePath.value} L ${lastX.toFixed(1)} 100 L ${firstX.toFixed(1)} 100 Z`;
 });
 
 const highAlertCount = computed(() => {
@@ -220,12 +368,16 @@ const overSegments = computed(() => {
 });
 
 const isAlertValue = (value) => (
-  (hasHighThreshold.value && value >= highThreshold.value) ||
-  (hasLowThreshold.value && value <= lowThreshold.value)
+  Number.isFinite(Number(value)) &&
+  (
+    (hasHighThreshold.value && value >= highThreshold.value) ||
+    (hasLowThreshold.value && value <= lowThreshold.value)
+  )
 );
 
 // 获取点的颜色
 const getPointColor = (value) => {
+  if (!Number.isFinite(Number(value))) return '#8A8F98';
   if (hasHighThreshold.value && value >= highThreshold.value) return '#ff4d4d';
   if (hasLowThreshold.value && value <= lowThreshold.value) return '#00bcd4';
   return '#00b0ff';
@@ -233,6 +385,7 @@ const getPointColor = (value) => {
 
 // 获取值的样式类
 const getValueClass = (value) => {
+  if (!Number.isFinite(Number(value))) return 'empty-val';
   if (hasHighThreshold.value && value >= highThreshold.value) return 'alert-val-high';
   if (hasLowThreshold.value && value <= lowThreshold.value) return 'alert-val-low';
   return '';
@@ -257,14 +410,18 @@ const xLabels = computed(() => {
 });
 
 // === 交互 ===
-const findNearestPointIndex = (targetTime) => {
+const findNearestPointIndex = (targetTime, enforceTolerance = false) => {
   if (!displayData.value.length) return -1;
   if (!targetTime) return displayData.value.length - 1;
-  return displayData.value.reduce((bestIndex, point, currentIndex) => {
+  const bestIndex = displayData.value.reduce((bestIndex, point, currentIndex) => {
     const currentDelta = Math.abs(point.timestamp - targetTime);
     const bestDelta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
     return currentDelta < bestDelta ? currentIndex : bestIndex;
   }, 0);
+  if (!enforceTolerance) return bestIndex;
+  const delta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
+  const tolerance = Number(props.staleToleranceMs);
+  return !Number.isFinite(tolerance) || delta <= tolerance ? bestIndex : -1;
 };
 
 const getTimePercent = (time, fallbackPercent = 0.5) => {
@@ -293,17 +450,35 @@ const setMarkerFromPoint = (point, index, rect = null, anchorTime = null) => {
   tooltipPxY.value = (rect?.height || chartRef.value?.clientHeight || 0) * (1 - ratio);
 };
 
+const setEmptyMarkerFromTime = (time, rect = null) => {
+  const anchorPercent = getTimePercent(time, 0.5);
+  hoverX.value = anchorPercent * 1000;
+  hoverY.value = 50;
+  hoverValue.value = 'N/A';
+  hoverTime.value = new Date(Number(time)).toLocaleString();
+  tooltipPxX.value = rect ? anchorPercent * rect.width : anchorPercent * (chartRef.value?.clientWidth || 0);
+  tooltipPxY.value = (rect?.height || chartRef.value?.clientHeight || 0) * 0.5;
+};
+
 const setMarkerFromTime = (time) => {
-  if (!displayData.value.length || !Number.isFinite(Number(time))) {
+  if (!Number.isFinite(Number(time))) {
     hoverX.value = -1;
     return;
   }
-  const index = findNearestPointIndex(time);
+  if (!displayData.value.length) {
+    setEmptyMarkerFromTime(time);
+    return;
+  }
+  const index = findNearestPointIndex(time, true);
+  if (index < 0) {
+    setEmptyMarkerFromTime(time);
+    return;
+  }
   setMarkerFromPoint(displayData.value[index], index, null, time);
 };
 
 const onMouseMove = (e) => {
-  if (!chartRef.value || !displayData.value.length) return;
+  if (!chartRef.value) return;
   const rect = chartRef.value.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const svgX = (mouseX / rect.width) * 1000;
@@ -311,9 +486,21 @@ const onMouseMove = (e) => {
   const start = getRangeStart();
   const end = getRangeEnd();
   const targetTime = start && end && end > start ? start + percent * (end - start) : null;
+  if (!displayData.value.length && targetTime) {
+    setEmptyMarkerFromTime(targetTime, rect);
+    emit('hover-sync', { time: targetTime, percent });
+    emit('cursor-change', { time: targetTime, percent });
+    return;
+  }
   const index = targetTime
-    ? findNearestPointIndex(targetTime)
+    ? findNearestPointIndex(targetTime, true)
     : Math.round(percent * (displayData.value.length - 1));
+  if (index < 0) {
+    setEmptyMarkerFromTime(targetTime, rect);
+    emit('hover-sync', { time: targetTime, percent });
+    emit('cursor-change', { time: targetTime, percent });
+    return;
+  }
   const point = displayData.value[index];
   setMarkerFromPoint(point, index, rect);
 
@@ -321,6 +508,7 @@ const onMouseMove = (e) => {
     ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
     : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
   emit('hover-sync', { time: point.timestamp, percent: anchorPercent });
+  emit('cursor-change', { time: point.timestamp, percent: anchorPercent });
 };
 
 const onMouseLeave = () => {
@@ -343,6 +531,17 @@ watch(
   () => setMarkerFromTime(props.cursorTime),
   { immediate: true }
 );
+
+watch(
+  () => props.range,
+  () => {
+    customStart.value = toLocalInputValue(getRangeStart());
+    customEnd.value = toLocalInputValue(getRangeEnd());
+  },
+  { immediate: true, deep: true }
+);
+
+onUnmounted(() => stopPlayback());
 
 const tooltipLeft = computed(() => {
   if (chartRef.value) {
@@ -384,6 +583,54 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
 
 .close:hover {
   color: #f48771;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.range-select,
+.date-input,
+.tool-btn {
+  height: 24px;
+  color: #d8dde2;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  font-size: 11px;
+  outline: none;
+}
+
+.range-select {
+  min-width: 72px;
+  padding: 0 22px 0 8px;
+}
+
+.date-input {
+  width: 142px;
+  padding: 0 6px;
+}
+
+.date-separator {
+  color: #8f969d;
+}
+
+.tool-btn {
+  min-width: 28px;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.tool-btn:hover,
+.tool-btn.active {
+  color: #101820;
+  background: #87d8f2;
+  border-color: #87d8f2;
 }
 
 .chart-main {
@@ -573,5 +820,9 @@ const tooltipTop = computed(() => (tooltipPxY.value - 50) + 'px');
 
 .alert-val-low {
   color: #00bcd4;
+}
+
+.empty-val {
+  color: #8A8F98;
 }
 </style>

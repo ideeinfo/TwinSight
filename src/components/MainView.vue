@@ -1,47 +1,5 @@
 <template>
   <div class="viewport-container">
-    <!-- 时间线控制组件 -->
-    <TimelineControl
-      :is-open="isTimelineOpen"
-      :is-live="isLive"
-      :is-playing="isPlaying"
-      :is-looping="isLooping"
-      :playback-speed="playbackSpeed"
-      :current-date-str="currentDateStr"
-      :current-time-str="currentTimeStr"
-      :selected-time-range="selectedTimeRange.value"
-      :selected-time-range-label="selectedTimeRangeLabel"
-      :time-options="timeOptions"
-      :progress="progress"
-      :ticks="generatedTicks"
-      :area-path="miniAreaPath"
-      :line-path="miniLinePath"
-      :overlay-paths="miniOverlayPaths"
-      @open="openTimeline"
-      @close="closeTimeline"
-      @go-live="goLive"
-      @toggle-play="togglePlay"
-      @toggle-loop="isLooping = !isLooping"
-      @zoom-in="zoomIn"
-      @zoom-out="zoomOut"
-      @pan="panTimeline"
-      @cycle-speed="cycleSpeed"
-      @select-time-range="selectTimeRange"
-      @open-custom-modal="openCustomRangeModal"
-      @update:progress="onProgressUpdate"
-      @scrub-start="onScrubStart"
-      @scrub-end="onScrubEnd"
-    />
-    
-    <!-- Custom Range Modal -->
-    <DateRangePicker
-      v-model="dateRange"
-      :visible="isCustomModalOpen"
-      @update:visible="isCustomModalOpen = $event"
-      @apply="onDateRangeApply"
-    />
-
-
     <!-- 3D 画布区域 -->
     <div class="canvas-3d">
       <div id="forgeViewer" ref="viewerContainer"></div>
@@ -101,14 +59,14 @@ import TicketOverlayTags from './viewer/TicketOverlayTags.vue';
 import PointOverlayTags from './viewer/PointOverlayTags.vue';
 import AIAnalysisModal from './viewer/AIAnalysisModal.vue';
 import DocumentPreview from './DocumentPreview.vue';
-import TimelineControl from './viewer/TimelineControl.vue';
-import DateRangePicker from './DateRangePicker.vue';
+import { ElMessage } from 'element-plus';
 import { useHeatmap } from '../composables/useHeatmap';
 import { useDataExport } from '../composables/useDataExport';
 import { useViewState } from '../composables/useViewState';
 import { useThemeStore } from '../stores/theme';
 import { useAuthStore } from '../stores/auth';
 import { API_BASE_URL } from '../utils/apiBase';
+import { findNearestSeriesPoint, interpolateThemeColor } from '../constants/pointHeatmapThemes';
 
 const { t, locale } = useI18n();
 const themeStore = useThemeStore();
@@ -135,7 +93,10 @@ const props = defineProps({
   isPointOverlayVisible: { type: Boolean, default: false },
   selectedPointId: { type: Number, default: null },
   timelineData: { type: Array, default: null },
-  pointSeriesMap: { type: Object, default: () => ({}) }
+  pointSeriesMap: { type: Object, default: () => ({}) },
+  pointCursorTime: { type: Number, default: null },
+  activePointType: { type: String, default: '' },
+  heatmapTheme: { type: Object, default: null }
 });
 
 // 定义事件发射
@@ -547,7 +508,7 @@ watch(currentTemp, () => setTagTempsAtCurrentTime());
 watch(progress, () => setTagTempsAtCurrentTime());
 
 watch(
-  () => props.pointSeriesMap,
+  () => [props.pointSeriesMap, props.pointCursorTime, props.activePointType, props.heatmapTheme],
   () => {
     if (isHeatmapEnabled.value && props.currentView === 'connect') {
       applyHeatmapStyle();
@@ -564,7 +525,12 @@ watch(
 // isLive 放在这里，确保 progress 已定义
 const isLive = computed(() => progress.value > 99.5);
 
-const currentDisplayDate = computed(() => new Date(startDate.value.getTime() + (progress.value/100)*(endDate.value-startDate.value)));
+const currentDisplayDate = computed(() => {
+  if (props.currentView === 'connect' && Number.isFinite(Number(props.pointCursorTime))) {
+    return new Date(Number(props.pointCursorTime));
+  }
+  return new Date(startDate.value.getTime() + (progress.value/100)*(endDate.value-startDate.value));
+});
 const currentDateStr = computed(() => {
   const localeCode = locale.value === 'zh' ? 'zh-CN' : 'en-US';
   return currentDisplayDate.value.toLocaleDateString(localeCode, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -1178,15 +1144,17 @@ const restoreRoomMaterials = (dbIds = getAllRoomDbIds()) => {
   });
 };
 
-const getHeatmapMaterial = (value) => {
+const getHeatmapMaterial = (value, theme = props.heatmapTheme) => {
   if (!viewer || !window.THREE) return null;
   const normalizedValue = Math.round(Number(value) * 10) / 10;
-  const cacheKey = `heatmap-${normalizedValue}`;
+  const cacheKey = `heatmap-${theme?.label || 'default'}-${theme?.lowColor || 'low'}-${theme?.highColor || 'high'}-${normalizedValue}`;
   if (heatmapMaterialCache.has(cacheKey)) {
     return heatmapMaterialCache.get(cacheKey);
   }
 
-  const { r, g, b } = heatmap.getColorForValue(normalizedValue);
+  const { r, g, b } = theme
+    ? interpolateThemeColor(normalizedValue, theme)
+    : heatmap.getColorForValue(normalizedValue);
   const color = (r << 16) + (g << 8) + b;
   const material = new window.THREE.MeshBasicMaterial({
     color,
@@ -1211,8 +1179,8 @@ const applyHeatmapMaterials = (items) => {
   const fragList = viewer.model.getFragmentList();
   if (!tree || !fragList) return;
 
-  items.forEach(({ dbId, value }) => {
-    const material = getHeatmapMaterial(value);
+  items.forEach(({ dbId, value, theme }) => {
+    const material = getHeatmapMaterial(value, theme);
     if (!material) return;
 
     tree.enumNodeFragments(dbId, (fragId) => {
@@ -1811,26 +1779,28 @@ const getSeriesValueAtTime = (series, timeMs) => {
 };
 
 const getPointHeatmapValue = (point) => {
-  const seriesValue = getSeriesValueAtTime(
+  const seriesPoint = findNearestSeriesPoint(
     props.pointSeriesMap?.[point.pointCode],
-    currentDisplayDate.value.getTime()
+    currentDisplayDate.value.getTime(),
+    props.heatmapTheme?.staleToleranceMs ?? Infinity
   );
-  return seriesValue ?? normalizeHeatmapValue(point.latestValue);
+  return normalizeHeatmapValue(seriesPoint?.value ?? point.cursorValue);
 };
 
 const buildPointHeatmapData = () => {
-  if (!props.isPointOverlayVisible || props.currentView !== 'connect') return [];
+  if (!props.isPointOverlayVisible || props.currentView !== 'connect' || !props.activePointType || !props.heatmapTheme) return [];
 
   const byDbId = new Map();
   const points = (props.pointMarkers || [])
     .filter(point => point?.isEnabled !== false && point?.targetDbId)
-    .filter(point => point.pointType === 'temperature')
+    .filter(point => point.pointType === props.activePointType)
     .map(point => ({
       dbId: Number(point.targetDbId),
       value: getPointHeatmapValue(point),
       code: point.pointCode,
       name: point.name || point.targetName,
-      targetType: point.targetType
+      targetType: point.targetType,
+      theme: props.heatmapTheme
     }))
     .filter(item => Number.isFinite(item.dbId) && item.value !== null);
 
@@ -1861,6 +1831,10 @@ const buildRoomHeatmapData = () => {
 };
 
 const getHeatmapData = () => {
+  if (props.currentView === 'connect') {
+    const pointData = buildPointHeatmapData();
+    return { source: 'point', data: pointData };
+  }
   const pointData = buildPointHeatmapData();
   if (pointData.length > 0) {
     return { source: 'point', data: pointData };
@@ -1879,6 +1853,10 @@ const toggleHeatmap = () => {
     activeHeatmapDbIds.value = [];
     activeHeatmapMaterialDbIds.value = [];
   } else {
+    if (props.currentView === 'connect' && (!props.activePointType || !props.heatmapTheme)) {
+      ElMessage.warning('请先选择点位类型');
+      return;
+    }
     heatmap.enable([]);
     applyHeatmapStyle();
   }

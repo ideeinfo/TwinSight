@@ -133,6 +133,9 @@
               :selected-point-id="selectedPointId"
               :timeline-data="isPointView ? pointChartData : null"
               :point-series-map="pointTimelineSeriesMap"
+              :point-cursor-time="timelineCursorTime"
+              :active-point-type="activePointType"
+              :heatmap-theme="activeHeatmapTheme"
               @rooms-loaded="onRoomsLoaded"
               @assets-loaded="onAssetsLoaded"
               @viewer-ready="onViewerReady"
@@ -177,8 +180,12 @@
               :low-threshold="pointChartConfig.lowThreshold"
               :high-threshold="pointChartConfig.highThreshold"
               :cursor-time="timelineCursorTime"
+              :stale-tolerance-ms="activeHeatmapTheme?.staleToleranceMs"
+              :timeline-controls="true"
               @close="closeChartPanel"
               @hover-sync="onHoverSync"
+              @range-change="onChartRangeChange"
+              @cursor-change="onChartCursorChange"
             />
             <template v-else-if="isPointView"></template>
             <template v-else-if="selectedRoomSeries.length">
@@ -355,6 +362,7 @@ import { copyTextToClipboard } from './utils/clipboard';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
 import { usePropertySelection } from './composables/usePropertySelection';
 import { triggerTemperatureAlert } from './services/ai-analysis';
+import { findNearestSeriesPoint, getPointHeatmapTheme } from './constants/pointHeatmapThemes';
 
 const { getPropertiesFromSelection, formatAssetProperties, formatSpaceProperties } = usePropertySelection();
 
@@ -482,9 +490,17 @@ const rightPanelViewMode = computed(() => {
 const selectedRoomSeries = ref([]);
 const selectedPointSeries = ref([]);
 const pointTimelineSeriesMap = ref({});
-const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
-const pointDisplayRange = ref(null);
-const timelineCursorTime = ref(null);
+const createDefaultRange = () => {
+  const endMs = Date.now();
+  const startMs = endMs - 24 * 60 * 60 * 1000;
+  return {
+    startMs,
+    endMs,
+    windowMs: Math.max(60_000, Math.round((endMs - startMs) / 300))
+  };
+};
+const currentRange = ref(createDefaultRange());
+const timelineCursorTime = ref(currentRange.value.endMs);
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
 const savedSpaceSelections = ref([]);
@@ -554,6 +570,11 @@ const pointTypeMeta = {
   gas: { label: '燃气', unit: 'm³' }
 };
 const filteredPointType = computed(() => pointFilters.value?.pointType || '');
+const activePointType = computed(() => {
+  const type = selectedPoint.value?.pointType || filteredPointType.value || '';
+  return type && type !== 'video' ? type : '';
+});
+const activeHeatmapTheme = computed(() => getPointHeatmapTheme(activePointType.value));
 const hasPointChartSource = computed(() => (
   Boolean(selectedPoint.value && selectedPoint.value.dataKind !== 'video')
   || Boolean(filteredPointType.value && filteredPointType.value !== 'video')
@@ -577,9 +598,7 @@ const pointChartData = computed(() => (
     : pointAverageSeries.value
 ));
 const pointChartRange = computed(() => (
-  isPointView.value && pointDisplayRange.value
-    ? pointDisplayRange.value
-    : currentRange.value
+  currentRange.value
 ));
 const pointChartConfig = computed(() => {
   const point = selectedPoint.value;
@@ -616,10 +635,20 @@ const pointMarkers = computed(() => (
     .filter((point) => point.isEnabled && point.targetDbId)
     .map((point) => {
       const latest = pointLatestValues.value?.[point.pointCode];
+      const theme = getPointHeatmapTheme(point.pointType);
+      const pointAtCursor = activePointType.value && point.pointType === activePointType.value
+        ? findNearestSeriesPoint(
+            pointTimelineSeriesMap.value?.[point.pointCode],
+            timelineCursorTime.value,
+            theme?.staleToleranceMs ?? Infinity
+          )
+        : null;
       return {
         ...point,
-        latestValue: latest?.value ?? null,
-        latestTimestamp: latest?.timestamp ?? null
+        latestValue: pointAtCursor?.value ?? (!activePointType.value ? latest?.value ?? null : null),
+        latestTimestamp: pointAtCursor?.timestamp ?? (!activePointType.value ? latest?.timestamp ?? null : null),
+        cursorValue: pointAtCursor?.value ?? null,
+        cursorTimestamp: pointAtCursor?.timestamp ?? null
       };
     })
 ));
@@ -956,48 +985,13 @@ const getActiveTimeRange = () => {
   };
 };
 
-const getSeriesRange = (series) => {
-  const timestamps = (series || [])
-    .map((item) => Number(item?.timestamp))
-    .filter(Number.isFinite);
-  if (timestamps.length === 0) return null;
-  let startMs = Math.min(...timestamps);
-  let endMs = Math.max(...timestamps);
-  if (endMs <= startMs) {
-    startMs -= 30 * 60 * 1000;
-    endMs += 30 * 60 * 1000;
-  }
-  return { startMs, endMs, windowMs: 0 };
-};
-
-const syncPointDisplayRange = (series, queryRange) => {
-  const displayRange = getSeriesRange(series) || queryRange;
-  pointDisplayRange.value = displayRange;
-  const cursorTime = Math.min(
-    displayRange.endMs,
-    Math.max(displayRange.startMs, timelineCursorTime.value || displayRange.endMs)
-  );
-  timelineCursorTime.value = cursorTime;
-  if (mainViewRef.value?.setTimeRange) {
-    mainViewRef.value.setTimeRange(displayRange, { cursorTime });
-  }
-  return displayRange;
-};
-
 const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
   if (!activeFileId.value || !isPointView.value || !range?.startMs || !range?.endMs) {
     pointTimelineSeriesMap.value = {};
     return;
   }
 
-  if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
-    pointTimelineSeriesMap.value = {
-      [selectedPoint.value.pointCode]: selectedPointSeries.value
-    };
-    return;
-  }
-
-  const pointType = filteredPointType.value;
+  const pointType = activePointType.value;
   if (!pointType || pointType === 'video') {
     pointTimelineSeriesMap.value = {};
     return;
@@ -1020,7 +1014,12 @@ const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
       .catch(() => [point.pointCode, []])
   )));
 
-  pointTimelineSeriesMap.value = Object.fromEntries(entries);
+  pointTimelineSeriesMap.value = {
+    ...Object.fromEntries(entries),
+    ...(selectedPoint.value?.pointCode
+      ? { [selectedPoint.value.pointCode]: selectedPointSeries.value }
+      : {})
+  };
 };
 
 const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
@@ -1071,7 +1070,6 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!isPointView.value) return;
   if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
     await refreshSelectedPointSeries(range);
-    syncPointDisplayRange(selectedPointSeries.value, range);
     await refreshPointTimelineSeriesMap(range);
     return;
   }
@@ -1079,11 +1077,9 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!filteredPointType.value || filteredPointType.value === 'video') {
     pointAverageSeries.value = [];
     pointTimelineSeriesMap.value = {};
-    pointDisplayRange.value = null;
     return;
   }
   await refreshPointAverageSeries(range);
-  syncPointDisplayRange(pointAverageSeries.value, range);
   await refreshPointTimelineSeriesMap(range);
 };
 
@@ -3147,9 +3143,35 @@ const stopResize = () => {
 };
 
 const onHoverSync = ({ time, percent }) => {
-  if (mainViewRef.value && typeof mainViewRef.value.syncTimelineHover === 'function') {
+  onChartCursorChange({ time, percent });
+  if (!isPointView.value && mainViewRef.value && typeof mainViewRef.value.syncTimelineHover === 'function') {
     mainViewRef.value.syncTimelineHover(time, percent);
   }
+};
+
+const onChartCursorChange = ({ time, percent }) => {
+  if (Number.isFinite(time)) {
+    timelineCursorTime.value = time;
+    return;
+  }
+  if (Number.isFinite(percent) && currentRange.value.endMs > currentRange.value.startMs) {
+    timelineCursorTime.value = currentRange.value.startMs + percent * (currentRange.value.endMs - currentRange.value.startMs);
+  }
+};
+
+const onChartRangeChange = async ({ startMs, endMs, windowMs }) => {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+  currentRange.value = {
+    startMs,
+    endMs,
+    windowMs: windowMs || Math.max(60_000, Math.round((endMs - startMs) / 300))
+  };
+  timelineCursorTime.value = endMs;
+  if (isPointView.value) {
+    await refreshPointChartSeries(currentRange.value);
+    return;
+  }
+  onTimeRangeChanged({ ...currentRange.value, cursorTime: endMs, progress: 100 });
 };
 
 const onTimeRangeChanged = ({ startMs, endMs, windowMs, cursorTime, progress }) => {
