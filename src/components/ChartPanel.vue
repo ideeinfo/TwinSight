@@ -1,7 +1,7 @@
 <template>
   <div class="chart-container">
     <!-- 图表头部 -->
-    <ChartHeader :label-text="labelText || t('chartPanel.average')" :range="range" :fallback-start-ms="displayData.length?displayData[0].timestamp:0" :fallback-end-ms="displayData.length?displayData[displayData.length-1].timestamp:0">
+    <ChartHeader :label-text="labelText || t('chartPanel.average')" :range="range" :fallback-start-ms="renderData.length?renderData[0].timestamp:0" :fallback-end-ms="renderData.length?renderData[renderData.length-1].timestamp:0">
       <div v-if="timelineControls" class="timeline-controls">
         <select class="range-select" :value="selectedRangeValue" @change="onRangeSelect">
           <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
@@ -77,8 +77,8 @@
             <circle
               v-for="i in overSegments"
               :key="'m'+i"
-              :cx="getPointX(displayData[i], i, displayData.length)"
-              :cy="getPointY(displayData[i].value)"
+              :cx="getPointX(renderData[i], i, renderData.length)"
+              :cy="getPointY(renderData[i].value)"
               r="3"
               fill="#ff4d4d"
               stroke="#fff"
@@ -103,7 +103,7 @@
           <div class="time">{{ hoverTime }}</div>
         </div>
 
-        <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></div>
+        <div class="interaction-layer" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @click="onChartClick"></div>
       </div>
     </div>
 
@@ -207,6 +207,24 @@ const yLabels = computed(() => {
 
 const getRangeStart = () => props.range?.startMs || displayData.value[0]?.timestamp || 0;
 const getRangeEnd = () => props.range?.endMs || displayData.value[displayData.value.length - 1]?.timestamp || 0;
+const getRangeSpan = () => Math.max(0, getRangeEnd() - getRangeStart());
+
+const renderData = computed(() => {
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  return (displayData.value || [])
+    .map((point) => ({
+      ...point,
+      timestamp: Number(point?.timestamp),
+      value: Number(point?.value)
+    }))
+    .filter((point) => (
+      Number.isFinite(point.timestamp) &&
+      Number.isFinite(point.value) &&
+      (!start || point.timestamp >= start) &&
+      (!end || point.timestamp <= end)
+    ));
+});
 
 const toLocalInputValue = (ms) => {
   if (!Number.isFinite(Number(ms))) return '';
@@ -228,6 +246,13 @@ const emitRange = (startMs, endMs) => {
   const windowMs = Math.max(60_000, Math.round((endMs - startMs) / 300));
   emit('range-change', { startMs, endMs, windowMs });
   emit('cursor-change', { time: endMs, percent: 1 });
+};
+
+const inferRangeValue = () => {
+  const span = getRangeSpan();
+  if (!span) return selectedRangeValue.value;
+  const matched = rangeOptions.find((option) => option.ms && Math.abs(option.ms - span) <= Math.max(60_000, option.ms * 0.02));
+  return matched?.value || 'custom';
 };
 
 const onRangeSelect = (event) => {
@@ -327,9 +352,9 @@ const getPointY = (value) => {
 };
 
 const linePath = computed(() => {
-  if (!displayData.value.length) return '';
-  const len = displayData.value.length;
-  return displayData.value.map((point, index) => {
+  if (!renderData.value.length) return '';
+  const len = renderData.value.length;
+  return renderData.value.map((point, index) => {
     const x = getPointX(point, index, len);
     const y = getPointY(point.value);
     const safeX = isNaN(x) ? 0 : x;
@@ -340,28 +365,28 @@ const linePath = computed(() => {
 
 const areaPath = computed(() => {
   if (!linePath.value) return '';
-  const len = displayData.value.length;
-  const firstX = getPointX(displayData.value[0], 0, len);
-  const lastX = getPointX(displayData.value[len - 1], len - 1, len);
+  const len = renderData.value.length;
+  const firstX = getPointX(renderData.value[0], 0, len);
+  const lastX = getPointX(renderData.value[len - 1], len - 1, len);
   return `${linePath.value} L ${lastX.toFixed(1)} 100 L ${firstX.toFixed(1)} 100 Z`;
 });
 
 const highAlertCount = computed(() => {
-  if (!displayData.value.length || !hasHighThreshold.value) return 0;
-  return displayData.value.filter(p => p.value >= highThreshold.value).length;
+  if (!renderData.value.length || !hasHighThreshold.value) return 0;
+  return renderData.value.filter(p => p.value >= highThreshold.value).length;
 });
 
 const lowAlertCount = computed(() => {
-  if (!displayData.value.length || !hasLowThreshold.value) return 0;
-  return displayData.value.filter(p => p.value <= lowThreshold.value).length;
+  if (!renderData.value.length || !hasLowThreshold.value) return 0;
+  return renderData.value.filter(p => p.value <= lowThreshold.value).length;
 });
 
 const overSegments = computed(() => {
   const res = [];
-  if (!displayData.value.length) return res;
-  for (let i = 1; i < displayData.value.length; i++) {
-    const prev = displayData.value[i-1];
-    const cur = displayData.value[i];
+  if (!renderData.value.length) return res;
+  for (let i = 1; i < renderData.value.length; i++) {
+    const prev = renderData.value[i-1];
+    const cur = renderData.value[i];
     if (hasHighThreshold.value && prev.value < highThreshold.value && cur.value >= highThreshold.value) res.push(i);
   }
   return res;
@@ -397,10 +422,11 @@ const xLabels = computed(() => {
   const end = getRangeEnd();
   if (!start || !end) return [];
   const labels = [];
-  const count = 7;
+  const span = end - start;
+  const count = span > 7 * 24 * 60 * 60 * 1000 ? 8 : span > 36 * 60 * 60 * 1000 ? 7 : 6;
   for (let i=0; i<count; i++) {
     const dt = new Date(start + ((end - start) * i / (count - 1)));
-    const showDate = end - start > 36 * 60 * 60 * 1000;
+    const showDate = span > 36 * 60 * 60 * 1000;
     labels.push(showDate
       ? `${dt.getMonth() + 1}/${dt.getDate()}`
       : `${dt.getHours()}:${dt.getMinutes().toString().padStart(2,'0')}`
@@ -411,15 +437,15 @@ const xLabels = computed(() => {
 
 // === 交互 ===
 const findNearestPointIndex = (targetTime, enforceTolerance = false) => {
-  if (!displayData.value.length) return -1;
-  if (!targetTime) return displayData.value.length - 1;
-  const bestIndex = displayData.value.reduce((bestIndex, point, currentIndex) => {
+  if (!renderData.value.length) return -1;
+  if (!targetTime) return renderData.value.length - 1;
+  const bestIndex = renderData.value.reduce((bestIndex, point, currentIndex) => {
     const currentDelta = Math.abs(point.timestamp - targetTime);
-    const bestDelta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
+    const bestDelta = Math.abs(renderData.value[bestIndex].timestamp - targetTime);
     return currentDelta < bestDelta ? currentIndex : bestIndex;
   }, 0);
   if (!enforceTolerance) return bestIndex;
-  const delta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
+  const delta = Math.abs(renderData.value[bestIndex].timestamp - targetTime);
   const tolerance = Number(props.staleToleranceMs);
   return !Number.isFinite(tolerance) || delta <= tolerance ? bestIndex : -1;
 };
@@ -438,7 +464,7 @@ const setMarkerFromPoint = (point, index, rect = null, anchorTime = null) => {
     hoverX.value = -1;
     return;
   }
-  const fallbackPercent = displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5;
+  const fallbackPercent = renderData.value.length > 1 ? index / (renderData.value.length - 1) : 0.5;
   const anchorPercent = getTimePercent(anchorTime ?? point.timestamp, fallbackPercent);
   const ratio = (Number(point.value) - minY.value) / ySpan.value;
 
@@ -465,7 +491,7 @@ const setMarkerFromTime = (time) => {
     hoverX.value = -1;
     return;
   }
-  if (!displayData.value.length) {
+  if (!renderData.value.length) {
     setEmptyMarkerFromTime(time);
     return;
   }
@@ -474,7 +500,7 @@ const setMarkerFromTime = (time) => {
     setEmptyMarkerFromTime(time);
     return;
   }
-  setMarkerFromPoint(displayData.value[index], index, null, time);
+  setMarkerFromPoint(renderData.value[index], index, null, time);
 };
 
 const onMouseMove = (e) => {
@@ -486,29 +512,39 @@ const onMouseMove = (e) => {
   const start = getRangeStart();
   const end = getRangeEnd();
   const targetTime = start && end && end > start ? start + percent * (end - start) : null;
-  if (!displayData.value.length && targetTime) {
+  if (!renderData.value.length && targetTime) {
     setEmptyMarkerFromTime(targetTime, rect);
     emit('hover-sync', { time: targetTime, percent });
-    emit('cursor-change', { time: targetTime, percent });
     return;
   }
   const index = targetTime
     ? findNearestPointIndex(targetTime, true)
-    : Math.round(percent * (displayData.value.length - 1));
+    : Math.round(percent * (renderData.value.length - 1));
   if (index < 0) {
     setEmptyMarkerFromTime(targetTime, rect);
     emit('hover-sync', { time: targetTime, percent });
-    emit('cursor-change', { time: targetTime, percent });
     return;
   }
-  const point = displayData.value[index];
+  const point = renderData.value[index];
   setMarkerFromPoint(point, index, rect);
 
   const anchorPercent = start && end && end > start
     ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
-    : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
+    : (renderData.value.length > 1 ? index / (renderData.value.length - 1) : 0.5);
   emit('hover-sync', { time: point.timestamp, percent: anchorPercent });
-  emit('cursor-change', { time: point.timestamp, percent: anchorPercent });
+};
+
+const onChartClick = (e) => {
+  if (!chartRef.value) return;
+  const rect = chartRef.value.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const percent = Math.max(0, Math.min(1, mouseX / rect.width));
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (!start || !end || end <= start) return;
+  const targetTime = start + percent * (end - start);
+  setMarkerFromTime(targetTime);
+  emit('cursor-change', { time: targetTime, percent });
 };
 
 const onMouseLeave = () => {
@@ -524,9 +560,9 @@ watch(
     props.cursorTime,
     props.range?.startMs,
     props.range?.endMs,
-    displayData.value.length,
-    displayData.value[0]?.timestamp,
-    displayData.value[displayData.value.length - 1]?.timestamp
+    renderData.value.length,
+    renderData.value[0]?.timestamp,
+    renderData.value[renderData.value.length - 1]?.timestamp
   ],
   () => setMarkerFromTime(props.cursorTime),
   { immediate: true }
@@ -535,6 +571,7 @@ watch(
 watch(
   () => props.range,
   () => {
+    selectedRangeValue.value = inferRangeValue();
     customStart.value = toLocalInputValue(getRangeStart());
     customEnd.value = toLocalInputValue(getRangeEnd());
   },

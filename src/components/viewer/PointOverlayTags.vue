@@ -23,12 +23,11 @@ import { computed } from 'vue';
 
 const props = defineProps({
   points: { type: Array, default: () => [] },
-  selectedPointId: { type: Number, default: null }
+  selectedPointId: { type: Number, default: null },
+  showNoData: { type: Boolean, default: false }
 });
 
 defineEmits(['point-click']);
-
-const visiblePoints = computed(() => props.points.filter((point) => point.visible));
 
 const isAlert = (point) => {
   if (point.latestValue === null || point.latestValue === undefined) return false;
@@ -42,6 +41,10 @@ const hasValidValue = (point) => {
   if (point.latestValue === null || point.latestValue === undefined) return false;
   return Number.isFinite(Number(point.latestValue));
 };
+
+const visiblePoints = computed(() => props.points.filter((point) => (
+  point.visible && (props.showNoData || hasValidValue(point))
+)));
 
 const formatPoint = (point) => {
   if (point.dataKind === 'video') return point.name || 'Video';

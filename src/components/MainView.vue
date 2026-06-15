@@ -19,6 +19,7 @@
       <PointOverlayTags
         :points="pointOverlayMarkers"
         :selected-point-id="selectedPointId"
+        :show-no-data="showNoDataPointTags"
         @point-click="emit('point-marker-click', $event)"
       />
 
@@ -117,6 +118,7 @@ const roomTags = ref([]); // 存储所有房间标签对象
 const ticketOverlayMarkers = ref([]);
 const pointOverlayMarkers = ref([]);
 const areTagsVisible = ref(false); // 温度标签显示状态，默认不显示
+const showNoDataPointTags = ref(false);
 const isSettingsPanelOpen = ref(false); // 设置面板打开状态
 let foundRoomDbIds = [];
 let roomFragData = {}; // 材质缓存 {fragId: material}
@@ -705,15 +707,14 @@ const initViewer = () => {
       if (iotTempLabelBtn) {
         if (isConnectView) {
           iotTempLabelBtn.container.classList.remove('adsk-button-disabled');
-          // 恢复当前状态
-          if (areTagsVisible.value) {
+          if (showNoDataPointTags.value) {
             iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
           } else {
             iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
           }
         } else {
           // 非连接页面：取消激活并禁用
-          areTagsVisible.value = false;
+          showNoDataPointTags.value = false;
           iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.DISABLED);
           iotTempLabelBtn.container.classList.add('adsk-button-disabled');
         }
@@ -747,14 +748,14 @@ const initViewer = () => {
       
       // 温度标签按钮
       iotTempLabelBtn = new window.Autodesk.Viewing.UI.Button('temp-labels-btn');
-      iotTempLabelBtn.setToolTip(t('header.temperatureLabel'));
+      iotTempLabelBtn.setToolTip('显示/隐藏无数据点位标签');
       iotTempLabelBtn.onClick = () => {
         // 只在连接页面响应点击
         if (props.currentView !== 'connect') return;
         
-        toggleTemperatureLabels();
+        toggleNoDataPointTags();
         // 更新按钮状态
-        if (areTagsVisible.value) {
+        if (showNoDataPointTags.value) {
           iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.ACTIVE);
         } else {
           iotTempLabelBtn.setState(window.Autodesk.Viewing.UI.Button.State.INACTIVE);
@@ -1879,6 +1880,13 @@ const toggleTemperatureLabels = () => {
       updateAllTagPositions();
     });
   }
+};
+
+const toggleNoDataPointTags = () => {
+  showNoDataPointTags.value = !showNoDataPointTags.value;
+  nextTick(() => {
+    updatePointMarkerPositions();
+  });
 };
 
 onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null; } });

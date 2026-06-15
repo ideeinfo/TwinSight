@@ -500,6 +500,7 @@ const createDefaultRange = () => {
   };
 };
 const currentRange = ref(createDefaultRange());
+const pointStreamRange = ref({ ...currentRange.value });
 const timelineCursorTime = ref(currentRange.value.endMs);
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
@@ -598,7 +599,7 @@ const pointChartData = computed(() => (
     : pointAverageSeries.value
 ));
 const pointChartRange = computed(() => (
-  currentRange.value
+  pointStreamRange.value
 ));
 const pointChartConfig = computed(() => {
   const point = selectedPoint.value;
@@ -970,6 +971,9 @@ const loadPointLatestValues = async () => {
 };
 
 const getActiveTimeRange = () => {
+  if (isPointView.value && pointStreamRange.value?.startMs && pointStreamRange.value?.endMs) {
+    return pointStreamRange.value;
+  }
   if (currentRange.value?.startMs && currentRange.value?.endMs) {
     return currentRange.value;
   }
@@ -985,7 +989,7 @@ const getActiveTimeRange = () => {
   };
 };
 
-const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
+const refreshPointTimelineSeriesMap = async (range = pointStreamRange.value) => {
   if (!activeFileId.value || !isPointView.value || !range?.startMs || !range?.endMs) {
     pointTimelineSeriesMap.value = {};
     return;
@@ -1029,7 +1033,7 @@ const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
     return;
   }
 
-  currentRange.value = range;
+  pointStreamRange.value = range;
   try {
     selectedPointSeries.value = await queryPointTrend({
       fileId: activeFileId.value,
@@ -1051,7 +1055,7 @@ const refreshPointAverageSeries = async (range = getActiveTimeRange()) => {
     return;
   }
 
-  currentRange.value = range;
+  pointStreamRange.value = range;
   try {
     pointAverageSeries.value = await queryPointAverageTrend({
       fileId: activeFileId.value,
@@ -1997,6 +2001,9 @@ const onAssetsLoaded = (inputAssets) => {
 };
 
 const onChartDataUpdate = async (data) => {
+  if (isPointView.value) {
+    return;
+  }
   chartData.value = data;
   if (mainViewRef.value?.getTimeRange) {
     currentRange.value = mainViewRef.value.getTimeRange();
@@ -3143,38 +3150,43 @@ const stopResize = () => {
 };
 
 const onHoverSync = ({ time, percent }) => {
-  onChartCursorChange({ time, percent });
   if (!isPointView.value && mainViewRef.value && typeof mainViewRef.value.syncTimelineHover === 'function') {
     mainViewRef.value.syncTimelineHover(time, percent);
   }
 };
 
 const onChartCursorChange = ({ time, percent }) => {
+  const range = isPointView.value ? pointStreamRange.value : currentRange.value;
   if (Number.isFinite(time)) {
     timelineCursorTime.value = time;
     return;
   }
-  if (Number.isFinite(percent) && currentRange.value.endMs > currentRange.value.startMs) {
-    timelineCursorTime.value = currentRange.value.startMs + percent * (currentRange.value.endMs - currentRange.value.startMs);
+  if (Number.isFinite(percent) && range.endMs > range.startMs) {
+    timelineCursorTime.value = range.startMs + percent * (range.endMs - range.startMs);
   }
 };
 
 const onChartRangeChange = async ({ startMs, endMs, windowMs }) => {
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
-  currentRange.value = {
+  const nextRange = {
     startMs,
     endMs,
     windowMs: windowMs || Math.max(60_000, Math.round((endMs - startMs) / 300))
   };
   timelineCursorTime.value = endMs;
   if (isPointView.value) {
-    await refreshPointChartSeries(currentRange.value);
+    pointStreamRange.value = nextRange;
+    await refreshPointChartSeries(nextRange);
     return;
   }
+  currentRange.value = nextRange;
   onTimeRangeChanged({ ...currentRange.value, cursorTime: endMs, progress: 100 });
 };
 
 const onTimeRangeChanged = ({ startMs, endMs, windowMs, cursorTime, progress }) => {
+  if (isPointView.value) {
+    return;
+  }
   const previousRange = currentRange.value || {};
   const normalizedWindowMs = windowMs || 0;
   const rangeChanged = (
@@ -3192,12 +3204,6 @@ const onTimeRangeChanged = ({ startMs, endMs, windowMs, cursorTime, progress }) 
     timelineCursorTime.value = endMs;
   }
 
-  if (isPointView.value) {
-    if (rangeChanged) {
-      refreshPointChartSeries(currentRange.value);
-    }
-    return;
-  }
   if (!selectedRoomSeries.value.length) return;
   if (!rangeChanged) return;
   const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name, fileId: s.fileId }));
