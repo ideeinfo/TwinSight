@@ -591,7 +591,7 @@ const showLeftResizer = computed(() => currentView.value !== 'documents');
 const showRightResizer = computed(() => showRightSidePanel.value);
 
 const currentRightPanelWidth = computed(() => (
-  (isTicketView.value || isPointView.value) ? ticketDetailWidth.value : rightWidth.value
+  isTicketView.value ? ticketDetailWidth.value : rightWidth.value
 ));
 
 const getTicketAvailableWidth = () => {
@@ -2967,7 +2967,7 @@ const onMouseMove = (event) => {
       }
     } else if (currentResizeSide === 'right') {
       const newWidth = startWidth - dx;
-      if (isTicketView.value || isPointView.value) {
+      if (isTicketView.value) {
         if (newWidth > MIN_TICKET_DETAIL_WIDTH && newWidth < MAX_TICKET_DETAIL_WIDTH) {
           ticketDetailWidth.value = newWidth;
         }
