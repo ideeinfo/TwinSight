@@ -1917,15 +1917,8 @@ const applyHeatmapStyle = () => {
     return;
   }
 
-  const materialData = roomsData.filter(item => source === 'room' || item.targetType !== 'asset');
-  const themingData = roomsData.filter(item => source === 'point' && item.targetType === 'asset');
-
-  activeHeatmapMaterialDbIds.value = materialData.map(item => item.dbId);
-  applyHeatmapMaterials(materialData);
-
-  if (themingData.length > 0) {
-    heatmap.applyHeatmapStyle(themingData);
-  }
+  activeHeatmapMaterialDbIds.value = roomsData.map(item => item.dbId);
+  applyHeatmapMaterials(roomsData);
 };
 
 // 11. 获取房间属性

@@ -950,36 +950,6 @@ const getActiveTimeRange = () => {
   };
 };
 
-const getSeriesRange = (series) => {
-  const timestamps = (series || [])
-    .map((item) => Number(item?.timestamp))
-    .filter(Number.isFinite);
-  if (timestamps.length === 0) return null;
-  let startMs = Math.min(...timestamps);
-  let endMs = Math.max(...timestamps);
-  if (endMs <= startMs) {
-    startMs -= 30 * 60 * 1000;
-    endMs += 30 * 60 * 1000;
-  }
-  return { startMs, endMs, windowMs: 0 };
-};
-
-const syncPointTimelineRange = (series, fallbackRange) => {
-  const dataRange = getSeriesRange(series);
-  if (!dataRange) return fallbackRange;
-
-  currentRange.value = dataRange;
-  const cursorTime = Math.min(
-    dataRange.endMs,
-    Math.max(dataRange.startMs, timelineCursorTime.value || dataRange.endMs)
-  );
-  timelineCursorTime.value = cursorTime;
-  if (mainViewRef.value?.setTimeRange) {
-    mainViewRef.value.setTimeRange(dataRange, { cursorTime });
-  }
-  return dataRange;
-};
-
 const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
   if (!activeFileId.value || !isPointView.value || !range?.startMs || !range?.endMs) {
     pointTimelineSeriesMap.value = {};
@@ -1067,8 +1037,7 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!isPointView.value) return;
   if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
     await refreshSelectedPointSeries(range);
-    const fittedRange = syncPointTimelineRange(selectedPointSeries.value, range);
-    await refreshPointTimelineSeriesMap(fittedRange);
+    await refreshPointTimelineSeriesMap(range);
     return;
   }
   selectedPointSeries.value = [];
@@ -1078,8 +1047,7 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
     return;
   }
   await refreshPointAverageSeries(range);
-  const fittedRange = syncPointTimelineRange(pointAverageSeries.value, range);
-  await refreshPointTimelineSeriesMap(fittedRange);
+  await refreshPointTimelineSeriesMap(range);
 };
 
 const refreshPointData = async () => {

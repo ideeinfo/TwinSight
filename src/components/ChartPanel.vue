@@ -267,16 +267,22 @@ const findNearestPointIndex = (targetTime) => {
   }, 0);
 };
 
-const setMarkerFromPoint = (point, index, rect = null) => {
+const getTimePercent = (time, fallbackPercent = 0.5) => {
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  if (start && end && end > start && Number.isFinite(Number(time))) {
+    return Math.max(0, Math.min(1, (Number(time) - start) / (end - start)));
+  }
+  return fallbackPercent;
+};
+
+const setMarkerFromPoint = (point, index, rect = null, anchorTime = null) => {
   if (!point) {
     hoverX.value = -1;
     return;
   }
-  const start = getRangeStart();
-  const end = getRangeEnd();
-  const anchorPercent = start && end && end > start
-    ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
-    : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
+  const fallbackPercent = displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5;
+  const anchorPercent = getTimePercent(anchorTime ?? point.timestamp, fallbackPercent);
   const ratio = (Number(point.value) - minY.value) / ySpan.value;
 
   hoverX.value = anchorPercent * 1000;
@@ -293,7 +299,7 @@ const setMarkerFromTime = (time) => {
     return;
   }
   const index = findNearestPointIndex(time);
-  setMarkerFromPoint(displayData.value[index], index);
+  setMarkerFromPoint(displayData.value[index], index, null, time);
 };
 
 const onMouseMove = (e) => {
