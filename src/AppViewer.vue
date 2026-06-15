@@ -131,6 +131,8 @@
               :point-markers="pointMarkers"
               :is-point-overlay-visible="currentView === 'connect'"
               :selected-point-id="selectedPointId"
+              :timeline-data="isPointView ? pointChartData : null"
+              :point-series-map="pointTimelineSeriesMap"
               @rooms-loaded="onRoomsLoaded"
               @assets-loaded="onAssetsLoaded"
               @viewer-ready="onViewerReady"
@@ -174,15 +176,18 @@
               :max-y="pointChartConfig.maxY"
               :low-threshold="pointChartConfig.lowThreshold"
               :high-threshold="pointChartConfig.highThreshold"
+              :cursor-time="timelineCursorTime"
               @close="closeChartPanel"
               @hover-sync="onHoverSync"
             />
+            <template v-else-if="isPointView"></template>
             <template v-else-if="selectedRoomSeries.length">
               <ChartPanel
                 v-if="selectedRoomSeries.length === 1"
                 :data="selectedRoomSeries[0].points"
                 :range="currentRange"
                 :label-text="$t('chartPanel.individual')"
+                :cursor-time="timelineCursorTime"
                 @hover-sync="onHoverSync"
                 @close="closeChartPanel"
               />
@@ -194,7 +199,7 @@
                 @close="closeChartPanel"
               />
             </template>
-            <ChartPanel v-else :data="chartData" :range="currentRange" :label-text="$t('chartPanel.average')" @close="closeChartPanel" @hover-sync="onHoverSync" />
+            <ChartPanel v-else :data="chartData" :range="currentRange" :label-text="$t('chartPanel.average')" :cursor-time="timelineCursorTime" @close="closeChartPanel" @hover-sync="onHoverSync" />
           </div>
         </div>
 
@@ -476,7 +481,9 @@ const rightPanelViewMode = computed(() => {
 });
 const selectedRoomSeries = ref([]);
 const selectedPointSeries = ref([]);
+const pointTimelineSeriesMap = ref({});
 const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
+const timelineCursorTime = ref(null);
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
 const savedSpaceSelections = ref([]);
@@ -534,22 +541,44 @@ const selectedPoint = computed(() => (
   pointList.value.find((point) => point.id === selectedPointId.value) || null
 ));
 const pointAverageSeries = ref([]);
+const pointTypeMeta = {
+  temperature: { label: '温度', unit: '°C' },
+  humidity: { label: '湿度', unit: '%' },
+  illuminance: { label: '照度', unit: 'lx' },
+  displacement: { label: '位移', unit: 'mm' },
+  vibration: { label: '震动', unit: 'mm/s' },
+  energy: { label: '能耗', unit: 'kWh' },
+  electricity: { label: '电量', unit: 'kWh' },
+  water: { label: '用水', unit: 'm³' },
+  gas: { label: '燃气', unit: 'm³' }
+};
+const filteredPointType = computed(() => pointFilters.value?.pointType || '');
+const hasPointChartSource = computed(() => (
+  Boolean(selectedPoint.value && selectedPoint.value.dataKind !== 'video')
+  || Boolean(filteredPointType.value && filteredPointType.value !== 'video')
+));
 const activePointChart = computed(() => (
-  isPointView.value
+  isPointView.value && hasPointChartSource.value
 ));
 const pointChartLabel = computed(() => {
-  if (!selectedPoint.value) return '温度点位平均趋势';
+  if (!hasPointChartSource.value) return '';
+  if (!selectedPoint.value) {
+    const label = pointTypeMeta[filteredPointType.value]?.label || filteredPointType.value;
+    return `${label}点位平均趋势`;
+  }
   return `${selectedPoint.value.name || selectedPoint.value.pointCode} · ${selectedPoint.value.pointType}`;
 });
 const pointChartData = computed(() => (
-  selectedPoint.value && selectedPoint.value.dataKind !== 'video'
+  !hasPointChartSource.value
+    ? []
+    : selectedPoint.value && selectedPoint.value.dataKind !== 'video'
     ? selectedPointSeries.value
     : pointAverageSeries.value
 ));
 const pointChartConfig = computed(() => {
   const point = selectedPoint.value;
-  const pointType = point?.pointType || 'temperature';
-  const unit = point?.unit || (pointType === 'temperature' ? '°C' : '');
+  const pointType = point?.pointType || filteredPointType.value || 'temperature';
+  const unit = point?.unit || pointTypeMeta[pointType]?.unit || '';
   const low = Number(point?.thresholdMin);
   const high = Number(point?.thresholdMax);
   const hasLow = Number.isFinite(low);
@@ -921,9 +950,79 @@ const getActiveTimeRange = () => {
   };
 };
 
+const getSeriesRange = (series) => {
+  const timestamps = (series || [])
+    .map((item) => Number(item?.timestamp))
+    .filter(Number.isFinite);
+  if (timestamps.length === 0) return null;
+  let startMs = Math.min(...timestamps);
+  let endMs = Math.max(...timestamps);
+  if (endMs <= startMs) {
+    startMs -= 30 * 60 * 1000;
+    endMs += 30 * 60 * 1000;
+  }
+  return { startMs, endMs, windowMs: 0 };
+};
+
+const syncPointTimelineRange = (series, fallbackRange) => {
+  const dataRange = getSeriesRange(series);
+  if (!dataRange) return fallbackRange;
+
+  currentRange.value = dataRange;
+  const cursorTime = Math.min(
+    dataRange.endMs,
+    Math.max(dataRange.startMs, timelineCursorTime.value || dataRange.endMs)
+  );
+  timelineCursorTime.value = cursorTime;
+  if (mainViewRef.value?.setTimeRange) {
+    mainViewRef.value.setTimeRange(dataRange, { cursorTime });
+  }
+  return dataRange;
+};
+
+const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
+  if (!activeFileId.value || !isPointView.value || !range?.startMs || !range?.endMs) {
+    pointTimelineSeriesMap.value = {};
+    return;
+  }
+
+  if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
+    pointTimelineSeriesMap.value = {
+      [selectedPoint.value.pointCode]: selectedPointSeries.value
+    };
+    return;
+  }
+
+  const pointType = filteredPointType.value;
+  if (!pointType || pointType === 'video') {
+    pointTimelineSeriesMap.value = {};
+    return;
+  }
+
+  const targetPoints = pointList.value
+    .filter((point) => point.dataKind !== 'video' && point.pointType === pointType && point.targetDbId)
+    .slice(0, 200);
+
+  const windowMs = range.windowMs || Math.max(60_000, Math.round((range.endMs - range.startMs) / 300));
+  const entries = await Promise.all(targetPoints.map((point) => (
+    queryPointTrend({
+      fileId: activeFileId.value,
+      pointCode: point.pointCode,
+      startMs: range.startMs,
+      endMs: range.endMs,
+      windowMs
+    })
+      .then((series) => [point.pointCode, series || []])
+      .catch(() => [point.pointCode, []])
+  )));
+
+  pointTimelineSeriesMap.value = Object.fromEntries(entries);
+};
+
 const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
   if (!selectedPoint.value || selectedPoint.value.dataKind === 'video' || !activeFileId.value) {
     selectedPointSeries.value = [];
+    pointTimelineSeriesMap.value = {};
     return;
   }
 
@@ -943,7 +1042,8 @@ const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
 };
 
 const refreshPointAverageSeries = async (range = getActiveTimeRange()) => {
-  if (!activeFileId.value) {
+  const pointType = filteredPointType.value;
+  if (!activeFileId.value || !pointType || pointType === 'video') {
     pointAverageSeries.value = [];
     return;
   }
@@ -952,7 +1052,7 @@ const refreshPointAverageSeries = async (range = getActiveTimeRange()) => {
   try {
     pointAverageSeries.value = await queryPointAverageTrend({
       fileId: activeFileId.value,
-      pointType: 'temperature',
+      pointType,
       startMs: range.startMs,
       endMs: range.endMs,
       windowMs: range.windowMs || Math.max(60_000, Math.round((range.endMs - range.startMs) / 300))
@@ -967,16 +1067,25 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!isPointView.value) return;
   if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
     await refreshSelectedPointSeries(range);
+    const fittedRange = syncPointTimelineRange(selectedPointSeries.value, range);
+    await refreshPointTimelineSeriesMap(fittedRange);
     return;
   }
   selectedPointSeries.value = [];
+  if (!filteredPointType.value || filteredPointType.value === 'video') {
+    pointAverageSeries.value = [];
+    pointTimelineSeriesMap.value = {};
+    return;
+  }
   await refreshPointAverageSeries(range);
+  const fittedRange = syncPointTimelineRange(pointAverageSeries.value, range);
+  await refreshPointTimelineSeriesMap(fittedRange);
 };
 
 const refreshPointData = async () => {
   await loadPointList();
   await loadPointLatestValues();
-  if (isChartPanelOpen.value && isPointView.value) {
+  if (isPointView.value) {
     await refreshPointChartSeries();
   }
 };
@@ -1220,9 +1329,7 @@ const handlePointLocate = (point) => {
   selectedPointId.value = point.id;
   selectedRoomSeries.value = [];
   locatePointTarget(point);
-  if (isChartPanelOpen.value) {
-    refreshPointChartSeries();
-  }
+  refreshPointChartSeries();
 };
 
 const buildPointPayload = (payload) => ({
@@ -3040,13 +3147,32 @@ const onHoverSync = ({ time, percent }) => {
   }
 };
 
-const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
-  currentRange.value = { startMs, endMs, windowMs };
+const onTimeRangeChanged = ({ startMs, endMs, windowMs, cursorTime, progress }) => {
+  const previousRange = currentRange.value || {};
+  const normalizedWindowMs = windowMs || 0;
+  const rangeChanged = (
+    previousRange.startMs !== startMs ||
+    previousRange.endMs !== endMs ||
+    (previousRange.windowMs || 0) !== normalizedWindowMs
+  );
+
+  currentRange.value = { startMs, endMs, windowMs: normalizedWindowMs };
+  if (Number.isFinite(cursorTime)) {
+    timelineCursorTime.value = cursorTime;
+  } else if (Number.isFinite(progress) && endMs > startMs) {
+    timelineCursorTime.value = startMs + ((progress / 100) * (endMs - startMs));
+  } else if (!timelineCursorTime.value) {
+    timelineCursorTime.value = endMs;
+  }
+
   if (isPointView.value) {
-    refreshPointChartSeries(currentRange.value);
+    if (rangeChanged) {
+      refreshPointChartSeries(currentRange.value);
+    }
     return;
   }
   if (!selectedRoomSeries.value.length) return;
+  if (!rangeChanged) return;
   const rooms = selectedRoomSeries.value.map(s => ({ room: s.room, name: s.name, fileId: s.fileId }));
   console.log('🔄 [App] 时间范围变化，更新图表:', { range: { startMs, endMs }, rooms: rooms.map(r => ({ code: r.room, fileId: r.fileId })) });
   if (mainViewRef.value?.setSelectedRooms) {

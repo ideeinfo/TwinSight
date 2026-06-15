@@ -133,7 +133,9 @@ const props = defineProps({
   isTicketOverlayVisible: { type: Boolean, default: false },
   pointMarkers: { type: Array, default: () => [] },
   isPointOverlayVisible: { type: Boolean, default: false },
-  selectedPointId: { type: Number, default: null }
+  selectedPointId: { type: Number, default: null },
+  timelineData: { type: Array, default: null },
+  pointSeriesMap: { type: Object, default: () => ({}) }
 });
 
 // 定义事件发射
@@ -167,6 +169,8 @@ const heatmap = useHeatmap({ opacity: 0.8, changeThreshold: 0.3, debounceDelay: 
 const isHeatmapEnabled = heatmap.isEnabled; // 保持向后兼容
 const activeHeatmapDbIds = ref([]);
 const activeHeatmapSource = ref('room');
+const activeHeatmapMaterialDbIds = ref([]);
+const heatmapMaterialCache = new Map();
 
 // AI 分析弹窗状态
 const showAIAnalysisModal = ref(false);
@@ -368,6 +372,11 @@ let roomSeriesCache = {};
 
 // 从 InfluxDB 加载图表数据
 const loadChartData = async () => {
+  if (props.currentView === 'connect') {
+    chartData.value = Array.isArray(props.timelineData) ? props.timelineData : [];
+    return;
+  }
+
   const start = startDate.value.getTime();
   const end = endDate.value.getTime();
   const windowMs = 0; // 不聚合，显示原始数据点
@@ -423,6 +432,16 @@ const currentTemp = computed(() => {
 watch(chartData, (newData) => {
   emit('chart-data-update', newData);
 }, { immediate: true });
+
+watch(
+  () => [props.currentView, props.timelineData],
+  () => {
+    if (props.currentView === 'connect') {
+      chartData.value = Array.isArray(props.timelineData) ? props.timelineData : [];
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 const setTagTempsAtCurrentTime = () => {
   if (!roomTags.value.length) return;
@@ -526,6 +545,16 @@ const setTagTempsAtCurrentTime = () => {
 watch(currentTemp, () => setTagTempsAtCurrentTime());
 
 watch(progress, () => setTagTempsAtCurrentTime());
+
+watch(
+  () => props.pointSeriesMap,
+  () => {
+    if (isHeatmapEnabled.value && props.currentView === 'connect') {
+      applyHeatmapStyle();
+    }
+  },
+  { deep: true }
+);
 
 // 【已移除】原自动孤立逻辑 - 现在模型加载后保持默认状态
 // 如果存在默认视图，由 App.vue 负责在 onViewerReady 后恢复
@@ -1141,6 +1170,54 @@ const restoreRoomMaterials = (dbIds = getAllRoomDbIds()) => {
   });
 };
 
+const getHeatmapMaterial = (value) => {
+  if (!viewer || !window.THREE) return null;
+  const normalizedValue = Math.round(Number(value) * 10) / 10;
+  const cacheKey = `heatmap-${normalizedValue}`;
+  if (heatmapMaterialCache.has(cacheKey)) {
+    return heatmapMaterialCache.get(cacheKey);
+  }
+
+  const { r, g, b } = heatmap.getColorForValue(normalizedValue);
+  const color = (r << 16) + (g << 8) + b;
+  const material = new window.THREE.MeshBasicMaterial({
+    color,
+    opacity: 0.72,
+    transparent: true,
+    side: window.THREE.FrontSide,
+    depthWrite: true,
+    depthTest: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
+  viewer.impl.matman().addMaterial(cacheKey, material, true);
+  heatmapMaterialCache.set(cacheKey, material);
+  return material;
+};
+
+const applyHeatmapMaterials = (items) => {
+  if (!viewer || !viewer.model || !items?.length) return;
+
+  const tree = viewer.model.getInstanceTree();
+  const fragList = viewer.model.getFragmentList();
+  if (!tree || !fragList) return;
+
+  items.forEach(({ dbId, value }) => {
+    const material = getHeatmapMaterial(value);
+    if (!material) return;
+
+    tree.enumNodeFragments(dbId, (fragId) => {
+      if (roomFragData[fragId] === undefined) {
+        roomFragData[fragId] = fragList.getMaterial(fragId);
+      }
+      fragList.setMaterial(fragId, material);
+    });
+  });
+
+  viewer.impl.invalidate(true, true, true);
+};
+
 const restoreDefaultRoomVisualState = () => {
   restoreRoomMaterials();
 
@@ -1612,45 +1689,14 @@ const isolateAndFocusRooms = (dbIds) => {
   // 根据热力图状态应用不同颜色
   if (isHeatmapEnabled.value) {
     restoreRoomMaterials();
-
-    // 热力图模式：使用 setThemingColor
-    dbIds.forEach(dbId => {
+    const heatmapItems = dbIds.map(dbId => {
       const tag = roomTags.value.find(t => t.dbId === dbId);
-      const temperature = tag ? parseFloat(tag.currentTemp) : 28; // 确保是数字
-
-      // 计算热力图颜色
-      const minT = 25, maxT = 35;
-      let t = (temperature - minT) / (maxT - minT);
-      t = Math.max(0, Math.min(1, t));
-      let hue = 200 - (t * 200);
-
-      const hslToRgb = (h, s, l) => {
-        h = h / 360; s = s / 100; l = l / 100;
-        let r, g, b;
-        if (s === 0) {
-          r = g = b = l;
-        } else {
-          const hue2rgb = (p, q, t) => {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-          };
-          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-          const p = 2 * l - q;
-          r = hue2rgb(p, q, h + 1/3);
-          g = hue2rgb(p, q, h);
-          b = hue2rgb(p, q, h - 1/3);
-        }
-        return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+      return {
+        dbId,
+        value: normalizeHeatmapValue(tag?.currentTemp) ?? 28
       };
-
-      const [r, g, b] = hslToRgb(hue, 100, 50);
-      const color = new window.THREE.Vector4(r / 255, g / 255, b / 255, 0.8);
-      viewer.setThemingColor(dbId, color);
     });
+    applyHeatmapMaterials(heatmapItems);
   } else {
     restoreRoomMaterials();
     applyRoomMaterial(dbIds);
@@ -1739,6 +1785,31 @@ const normalizeHeatmapValue = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const getSeriesValueAtTime = (series, timeMs) => {
+  if (!Array.isArray(series) || series.length === 0 || !timeMs) return null;
+  let best = null;
+  let bestDelta = Infinity;
+  series.forEach(point => {
+    const timestamp = Number(point?.timestamp);
+    const value = normalizeHeatmapValue(point?.value);
+    if (!Number.isFinite(timestamp) || value === null) return;
+    const delta = Math.abs(timestamp - timeMs);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = value;
+    }
+  });
+  return best;
+};
+
+const getPointHeatmapValue = (point) => {
+  const seriesValue = getSeriesValueAtTime(
+    props.pointSeriesMap?.[point.pointCode],
+    currentDisplayDate.value.getTime()
+  );
+  return seriesValue ?? normalizeHeatmapValue(point.latestValue);
+};
+
 const buildPointHeatmapData = () => {
   if (!props.isPointOverlayVisible || props.currentView !== 'connect') return [];
 
@@ -1748,9 +1819,10 @@ const buildPointHeatmapData = () => {
     .filter(point => point.pointType === 'temperature')
     .map(point => ({
       dbId: Number(point.targetDbId),
-      value: normalizeHeatmapValue(point.latestValue),
+      value: getPointHeatmapValue(point),
       code: point.pointCode,
-      name: point.name || point.targetName
+      name: point.name || point.targetName,
+      targetType: point.targetType
     }))
     .filter(item => Number.isFinite(item.dbId) && item.value !== null);
 
@@ -1773,7 +1845,8 @@ const buildRoomHeatmapData = () => {
         dbId,
         value: value ?? 28,
         code: tag?.code,
-        name: tag?.name
+        name: tag?.name,
+        targetType: 'space'
       };
     })
     .filter(item => Number.isFinite(Number(item.dbId)));
@@ -1789,21 +1862,17 @@ const getHeatmapData = () => {
 
 // 9. 切换热力图
 const toggleHeatmap = () => {
-  const { source, data: roomsData } = getHeatmapData();
-  activeHeatmapSource.value = source;
-  activeHeatmapDbIds.value = roomsData.map(item => item.dbId);
-
-  // 使用 composable 切换热力图
-  const enabled = heatmap.toggle(roomsData);
-
-  if (!enabled) {
-    // 关闭热力图时，恢复原材质；如果仍是房间孤立态，再仅对孤立房间换蓝色材质
-    if (activeHeatmapSource.value === 'room') {
-      heatmap.restoreDefaultMaterial(activeHeatmapDbIds.value, restoreDefaultRoomVisualState);
-    } else if (viewer?.impl) {
-      viewer.impl.invalidate(true, true, true);
+  if (isHeatmapEnabled.value) {
+    heatmap.disable();
+    if (activeHeatmapMaterialDbIds.value.length > 0) {
+      restoreRoomMaterials(activeHeatmapMaterialDbIds.value);
+      viewer?.impl?.invalidate?.(true, true, true);
     }
     activeHeatmapDbIds.value = [];
+    activeHeatmapMaterialDbIds.value = [];
+  } else {
+    heatmap.enable([]);
+    applyHeatmapStyle();
   }
 
   // 显示所有温度标签
@@ -1832,12 +1901,31 @@ onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null
 const applyHeatmapStyle = () => {
   if (!isHeatmapEnabled.value) return;
 
-  // 使用 composable 应用热力图
   const { source, data: roomsData } = getHeatmapData();
   activeHeatmapSource.value = source;
   activeHeatmapDbIds.value = roomsData.map(item => item.dbId);
-  if (roomsData.length === 0) return;
-  heatmap.applyHeatmapStyle(roomsData);
+
+  if (activeHeatmapMaterialDbIds.value.length > 0) {
+    restoreRoomMaterials(activeHeatmapMaterialDbIds.value);
+  }
+  heatmap.clearHeatmap();
+
+  if (roomsData.length === 0) {
+    activeHeatmapDbIds.value = [];
+    activeHeatmapMaterialDbIds.value = [];
+    viewer?.impl?.invalidate?.(true, true, true);
+    return;
+  }
+
+  const materialData = roomsData.filter(item => source === 'room' || item.targetType !== 'asset');
+  const themingData = roomsData.filter(item => source === 'point' && item.targetType === 'asset');
+
+  activeHeatmapMaterialDbIds.value = materialData.map(item => item.dbId);
+  applyHeatmapMaterials(materialData);
+
+  if (themingData.length > 0) {
+    heatmap.applyHeatmapStyle(themingData);
+  }
 };
 
 // 11. 获取房间属性
@@ -2125,9 +2213,19 @@ const getSpacePropertyList = () => dataExport.getSpacePropertyList();
 
 // ================== 4. 辅助逻辑 (Timeline/Chart/Event) ==================
 
-const emitRangeChanged = () => { const s = startDate.value.getTime(), e = endDate.value.getTime(); const w = 0; /* 不聚合 */ emit('time-range-changed', { startMs: s, endMs: e, windowMs: w }); };
+const emitRangeChanged = () => {
+  const s = startDate.value.getTime(), e = endDate.value.getTime();
+  const w = 0; /* 不聚合 */
+  emit('time-range-changed', {
+    startMs: s,
+    endMs: e,
+    windowMs: w,
+    cursorTime: currentDisplayDate.value.getTime(),
+    progress: progress.value
+  });
+};
 const panTimeline = (d) => { const s = startDate.value.getTime(), e = endDate.value.getTime(), off = d * ((e - s) / 3); startDate.value = new Date(s + off); endDate.value = new Date(e + off); emitRangeChanged(); };
-function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; } }
+function syncTimelineHover(time, percent) { const s = startDate.value.getTime(), e = endDate.value.getTime(); if (typeof percent === 'number') { progress.value = Math.max(0, Math.min(100, percent * 100)); emitRangeChanged(); return; } if (time && e > s) { const p = Math.max(0, Math.min(100, ((time - s) / (e - s)) * 100)); progress.value = p; emitRangeChanged(); } }
 const selectTimeRange = (o) => { selectedTimeRange.value = o; isTimeRangeMenuOpen.value = false; const now = new Date(); let ms = { '1h': 36e5, '3h': 3*36e5, '6h': 6*36e5, '24h': 864e5, '3d': 3*864e5, '7d': 7*864e5, '30d': 30*864e5 }[o.value] || 0; endDate.value = now; startDate.value = new Date(now - ms); progress.value = 100; emitRangeChanged(); refreshRoomSeriesCache().catch(() => {}); };
 // DateRangePicker 事件处理
 const openCustomRangeModal = () => { 
@@ -2151,6 +2249,24 @@ const animate = () => { if(!isPlaying.value) return; const step=0.05*playbackSpe
 const togglePlay = async () => { isPlaying.value=!isPlaying.value; if(isPlaying.value) { if(progress.value>=100) progress.value=0; await refreshRoomSeriesCache(selectedRoomCodes.value).catch(()=>{}); animate(); } else cancelAnimationFrame(fId); };
 const cycleSpeed = () => { const s=[1,2,4,8]; playbackSpeed.value=s[(s.indexOf(playbackSpeed.value)+1)%4]; };
 const goLive = () => { progress.value=100; isPlaying.value=false; };
+
+const setTimeRange = (range, options = {}) => {
+  const startMs = Number(range?.startMs);
+  const endMs = Number(range?.endMs);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+  suppressRangeWatchLoad.value = true;
+  startDate.value = new Date(startMs);
+  endDate.value = new Date(endMs);
+  if (Number.isFinite(options.progress)) {
+    progress.value = Math.max(0, Math.min(100, options.progress));
+  } else if (Number.isFinite(options.cursorTime)) {
+    progress.value = Math.max(0, Math.min(100, ((options.cursorTime - startMs) / (endMs - startMs)) * 100));
+  } else {
+    progress.value = 100;
+  }
+  suppressRangeWatchLoad.value = false;
+  if (options.emit) emitRangeChanged();
+};
 
 // 时间轴拖拽事件处理
 const onProgressUpdate = (newProgress) => { progress.value = newProgress; emitRangeChanged(); };
@@ -2199,6 +2315,9 @@ const startAutoRefresh = () => {
       endDate.value = now;
       startDate.value = new Date(now.getTime() - duration);
       suppressRangeWatchLoad.value = false;
+      if (props.currentView === 'connect') {
+        emitRangeChanged();
+      }
       
       // 刷新图表数据
       await loadChartData();
@@ -2840,6 +2959,7 @@ defineExpose({
   focusModelOverview,
   isolateAndFocusAssets,
   isolateAndFocusRooms,
+  setTimeRange,
   getAssetProperties,
   getRoomProperties,
   showPowerTraceOverlay,

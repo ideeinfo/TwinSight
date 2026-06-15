@@ -104,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, computed, toRefs } from 'vue';
+import { ref, computed, toRefs, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ChartHeader from './ChartHeader.vue';
 
@@ -118,7 +118,8 @@ const props = defineProps({
   minY: { type: Number, default: -20 },
   maxY: { type: Number, default: 40 },
   highThreshold: { type: Number, default: 28 },
-  lowThreshold: { type: Number, default: 10 }
+  lowThreshold: { type: Number, default: 10 },
+  cursorTime: { type: Number, default: null }
 });
 
 const emit = defineEmits(['close','hover-sync']);
@@ -256,6 +257,45 @@ const xLabels = computed(() => {
 });
 
 // === 交互 ===
+const findNearestPointIndex = (targetTime) => {
+  if (!displayData.value.length) return -1;
+  if (!targetTime) return displayData.value.length - 1;
+  return displayData.value.reduce((bestIndex, point, currentIndex) => {
+    const currentDelta = Math.abs(point.timestamp - targetTime);
+    const bestDelta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
+    return currentDelta < bestDelta ? currentIndex : bestIndex;
+  }, 0);
+};
+
+const setMarkerFromPoint = (point, index, rect = null) => {
+  if (!point) {
+    hoverX.value = -1;
+    return;
+  }
+  const start = getRangeStart();
+  const end = getRangeEnd();
+  const anchorPercent = start && end && end > start
+    ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
+    : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
+  const ratio = (Number(point.value) - minY.value) / ySpan.value;
+
+  hoverX.value = anchorPercent * 1000;
+  hoverY.value = getPointY(point.value);
+  hoverValue.value = Number(point.value).toFixed(1);
+  hoverTime.value = new Date(point.timestamp).toLocaleString();
+  tooltipPxX.value = rect ? anchorPercent * rect.width : anchorPercent * (chartRef.value?.clientWidth || 0);
+  tooltipPxY.value = (rect?.height || chartRef.value?.clientHeight || 0) * (1 - ratio);
+};
+
+const setMarkerFromTime = (time) => {
+  if (!displayData.value.length || !Number.isFinite(Number(time))) {
+    hoverX.value = -1;
+    return;
+  }
+  const index = findNearestPointIndex(time);
+  setMarkerFromPoint(displayData.value[index], index);
+};
+
 const onMouseMove = (e) => {
   if (!chartRef.value || !displayData.value.length) return;
   const rect = chartRef.value.getBoundingClientRect();
@@ -266,34 +306,37 @@ const onMouseMove = (e) => {
   const end = getRangeEnd();
   const targetTime = start && end && end > start ? start + percent * (end - start) : null;
   const index = targetTime
-    ? displayData.value.reduce((bestIndex, point, currentIndex) => {
-        const currentDelta = Math.abs(point.timestamp - targetTime);
-        const bestDelta = Math.abs(displayData.value[bestIndex].timestamp - targetTime);
-        return currentDelta < bestDelta ? currentIndex : bestIndex;
-      }, 0)
+    ? findNearestPointIndex(targetTime)
     : Math.round(percent * (displayData.value.length - 1));
   const point = displayData.value[index];
-
-  const ratio = (Number(point.value) - minY.value) / ySpan.value;
-  const svgY = getPointY(point.value);
+  setMarkerFromPoint(point, index, rect);
 
   const anchorPercent = start && end && end > start
     ? Math.max(0, Math.min(1, (point.timestamp - start) / (end - start)))
     : (displayData.value.length > 1 ? index / (displayData.value.length - 1) : 0.5);
-  hoverX.value = anchorPercent * 1000;
-  hoverY.value = svgY;
-
-  hoverValue.value = Number(point.value).toFixed(1);
-
-  hoverTime.value = new Date(point.timestamp).toLocaleString();
-
-  tooltipPxX.value = mouseX;
-  tooltipPxY.value = rect.height * (1 - ratio);
-
   emit('hover-sync', { time: point.timestamp, percent: anchorPercent });
 };
 
-const onMouseLeave = () => { hoverX.value = -1; };
+const onMouseLeave = () => {
+  if (props.cursorTime) {
+    setMarkerFromTime(props.cursorTime);
+    return;
+  }
+  hoverX.value = -1;
+};
+
+watch(
+  () => [
+    props.cursorTime,
+    props.range?.startMs,
+    props.range?.endMs,
+    displayData.value.length,
+    displayData.value[0]?.timestamp,
+    displayData.value[displayData.value.length - 1]?.timestamp
+  ],
+  () => setMarkerFromTime(props.cursorTime),
+  { immediate: true }
+);
 
 const tooltipLeft = computed(() => {
   if (chartRef.value) {
