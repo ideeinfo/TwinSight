@@ -165,6 +165,8 @@ const DEFAULT_ROOM_OPACITY = 0.35;
 // 初始化热力图 Composable
 const heatmap = useHeatmap({ opacity: 0.8, changeThreshold: 0.3, debounceDelay: 400 });
 const isHeatmapEnabled = heatmap.isEnabled; // 保持向后兼容
+const activeHeatmapDbIds = ref([]);
+const activeHeatmapSource = ref('room');
 
 // AI 分析弹窗状态
 const showAIAnalysisModal = ref(false);
@@ -1578,6 +1580,9 @@ watch(
   () => {
     nextTick(() => {
       updatePointMarkerPositions();
+      if (isHeatmapEnabled.value) {
+        applyHeatmapStyle();
+      }
     });
   },
   { deep: true }
@@ -1729,25 +1734,76 @@ const showAllRooms = () => {
   // 注意：移除了 animateToDefaultView() 调用，以保持用户的相机视角
 };
 
+const normalizeHeatmapValue = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const buildPointHeatmapData = () => {
+  if (!props.isPointOverlayVisible || props.currentView !== 'connect') return [];
+
+  const byDbId = new Map();
+  const points = (props.pointMarkers || [])
+    .filter(point => point?.isEnabled !== false && point?.targetDbId)
+    .filter(point => point.pointType === 'temperature')
+    .map(point => ({
+      dbId: Number(point.targetDbId),
+      value: normalizeHeatmapValue(point.latestValue),
+      code: point.pointCode,
+      name: point.name || point.targetName
+    }))
+    .filter(item => Number.isFinite(item.dbId) && item.value !== null);
+
+  points.forEach(point => {
+    const existing = byDbId.get(point.dbId);
+    if (!existing || String(point.code || '').localeCompare(String(existing.code || '')) < 0) {
+      byDbId.set(point.dbId, point);
+    }
+  });
+
+  return Array.from(byDbId.values());
+};
+
+const buildRoomHeatmapData = () => {
+  return foundRoomDbIds
+    .map(dbId => {
+      const tag = roomTags.value.find(t => t.dbId === dbId);
+      const value = normalizeHeatmapValue(tag?.currentTemp);
+      return {
+        dbId,
+        value: value ?? 28,
+        code: tag?.code,
+        name: tag?.name
+      };
+    })
+    .filter(item => Number.isFinite(Number(item.dbId)));
+};
+
+const getHeatmapData = () => {
+  const pointData = buildPointHeatmapData();
+  if (pointData.length > 0) {
+    return { source: 'point', data: pointData };
+  }
+  return { source: 'room', data: buildRoomHeatmapData() };
+};
+
 // 9. 切换热力图
 const toggleHeatmap = () => {
-  // 准备房间热力图数据
-  const roomsData = foundRoomDbIds.map(dbId => {
-    const tag = roomTags.value.find(t => t.dbId === dbId);
-    return {
-      dbId,
-      value: tag ? parseFloat(tag.currentTemp) : 28,
-      code: tag?.code,
-      name: tag?.name
-    };
-  });
+  const { source, data: roomsData } = getHeatmapData();
+  activeHeatmapSource.value = source;
+  activeHeatmapDbIds.value = roomsData.map(item => item.dbId);
 
   // 使用 composable 切换热力图
   const enabled = heatmap.toggle(roomsData);
 
   if (!enabled) {
     // 关闭热力图时，恢复原材质；如果仍是房间孤立态，再仅对孤立房间换蓝色材质
-    heatmap.restoreDefaultMaterial(foundRoomDbIds, restoreDefaultRoomVisualState);
+    if (activeHeatmapSource.value === 'room') {
+      heatmap.restoreDefaultMaterial(activeHeatmapDbIds.value, restoreDefaultRoomVisualState);
+    } else if (viewer?.impl) {
+      viewer.impl.invalidate(true, true, true);
+    }
+    activeHeatmapDbIds.value = [];
   }
 
   // 显示所有温度标签
@@ -1774,20 +1830,13 @@ onUnmounted(() => { if (uiObserver) { uiObserver.disconnect(); uiObserver = null
 
 // 10. 应用热力图样式 (使用 composable)
 const applyHeatmapStyle = () => {
-  if (foundRoomDbIds.length === 0 || !isHeatmapEnabled.value) return;
-
-  // 准备房间热力图数据
-  const roomsData = foundRoomDbIds.map(dbId => {
-    const tag = roomTags.value.find(t => t.dbId === dbId);
-    return {
-      dbId,
-      value: tag ? parseFloat(tag.currentTemp) : 28,
-      code: tag?.code,
-      name: tag?.name
-    };
-  });
+  if (!isHeatmapEnabled.value) return;
 
   // 使用 composable 应用热力图
+  const { source, data: roomsData } = getHeatmapData();
+  activeHeatmapSource.value = source;
+  activeHeatmapDbIds.value = roomsData.map(item => item.dbId);
+  if (roomsData.length === 0) return;
   heatmap.applyHeatmapStyle(roomsData);
 };
 
@@ -2384,6 +2433,7 @@ const getComponentBounds = (dbId) => {
   
   const fragList = viewer.model.getFragmentList();
   const instanceTree = viewer.model.getInstanceTree();
+  if (!fragList || !instanceTree) return null;
   
   const bounds = new window.THREE.Box3();
   
