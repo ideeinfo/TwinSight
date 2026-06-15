@@ -169,7 +169,7 @@
             <ChartPanel
               v-if="activePointChart"
               :data="pointChartData"
-              :range="currentRange"
+              :range="pointChartRange"
               :label-text="pointChartLabel"
               :unit="pointChartConfig.unit"
               :min-y="pointChartConfig.minY"
@@ -483,6 +483,7 @@ const selectedRoomSeries = ref([]);
 const selectedPointSeries = ref([]);
 const pointTimelineSeriesMap = ref({});
 const currentRange = ref({ startMs: 0, endMs: 0, windowMs: 0 });
+const pointDisplayRange = ref(null);
 const timelineCursorTime = ref(null);
 const savedRoomSelections = ref([]);
 const savedAssetSelections = ref([]);
@@ -574,6 +575,11 @@ const pointChartData = computed(() => (
     : selectedPoint.value && selectedPoint.value.dataKind !== 'video'
     ? selectedPointSeries.value
     : pointAverageSeries.value
+));
+const pointChartRange = computed(() => (
+  isPointView.value && pointDisplayRange.value
+    ? pointDisplayRange.value
+    : currentRange.value
 ));
 const pointChartConfig = computed(() => {
   const point = selectedPoint.value;
@@ -935,11 +941,11 @@ const loadPointLatestValues = async () => {
 };
 
 const getActiveTimeRange = () => {
-  if (mainViewRef.value?.getTimeRange) {
-    return mainViewRef.value.getTimeRange();
-  }
   if (currentRange.value?.startMs && currentRange.value?.endMs) {
     return currentRange.value;
+  }
+  if (mainViewRef.value?.getTimeRange) {
+    return mainViewRef.value.getTimeRange();
   }
   const endMs = Date.now();
   const startMs = endMs - 24 * 60 * 60 * 1000;
@@ -948,6 +954,34 @@ const getActiveTimeRange = () => {
     endMs,
     windowMs: Math.max(60_000, Math.round((endMs - startMs) / 300))
   };
+};
+
+const getSeriesRange = (series) => {
+  const timestamps = (series || [])
+    .map((item) => Number(item?.timestamp))
+    .filter(Number.isFinite);
+  if (timestamps.length === 0) return null;
+  let startMs = Math.min(...timestamps);
+  let endMs = Math.max(...timestamps);
+  if (endMs <= startMs) {
+    startMs -= 30 * 60 * 1000;
+    endMs += 30 * 60 * 1000;
+  }
+  return { startMs, endMs, windowMs: 0 };
+};
+
+const syncPointDisplayRange = (series, queryRange) => {
+  const displayRange = getSeriesRange(series) || queryRange;
+  pointDisplayRange.value = displayRange;
+  const cursorTime = Math.min(
+    displayRange.endMs,
+    Math.max(displayRange.startMs, timelineCursorTime.value || displayRange.endMs)
+  );
+  timelineCursorTime.value = cursorTime;
+  if (mainViewRef.value?.setTimeRange) {
+    mainViewRef.value.setTimeRange(displayRange, { cursorTime });
+  }
+  return displayRange;
 };
 
 const refreshPointTimelineSeriesMap = async (range = currentRange.value) => {
@@ -1037,6 +1071,7 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!isPointView.value) return;
   if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
     await refreshSelectedPointSeries(range);
+    syncPointDisplayRange(selectedPointSeries.value, range);
     await refreshPointTimelineSeriesMap(range);
     return;
   }
@@ -1044,9 +1079,11 @@ const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
   if (!filteredPointType.value || filteredPointType.value === 'video') {
     pointAverageSeries.value = [];
     pointTimelineSeriesMap.value = {};
+    pointDisplayRange.value = null;
     return;
   }
   await refreshPointAverageSeries(range);
+  syncPointDisplayRange(pointAverageSeries.value, range);
   await refreshPointTimelineSeriesMap(range);
 };
 

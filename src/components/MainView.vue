@@ -612,10 +612,14 @@ const currentTimeStr = computed(() => {
 
 const miniLinePath = computed(() => {
   if (!chartData.value.length) return '';
-  const len = chartData.value.length;
   const MIN_Y = -20, MAX_Y = 40, RANGE = MAX_Y - MIN_Y; // 60度范围
+  const start = startDate.value.getTime();
+  const end = endDate.value.getTime();
+  const span = end - start;
   return chartData.value.map((p, i) => {
-    const x = len > 1 ? (i / (len - 1)) * 1000 : 500; // 单点时放中间
+    const x = span > 0 && Number.isFinite(Number(p.timestamp))
+      ? ((Number(p.timestamp) - start) / span) * 1000
+      : 500;
     const y = 100 - ((p.value - MIN_Y) / RANGE) * 100;
     return `${i === 0 ? 'M' : 'L'} ${isNaN(x) ? 0 : x} ${isNaN(y) ? 50 : y}`;
   }).join(' ');
@@ -625,9 +629,13 @@ const miniOverlayPaths = computed(() => {
   const MIN_Y = -20, MAX_Y = 40, RANGE = MAX_Y - MIN_Y;
   return overlaySeries.value.map(series => {
     if (!series.length) return '';
-    const len = series.length;
+    const start = startDate.value.getTime();
+    const end = endDate.value.getTime();
+    const span = end - start;
     return series.map((p, i) => {
-      const x = len > 1 ? (i / (len - 1)) * 1000 : 500;
+      const x = span > 0 && Number.isFinite(Number(p.timestamp))
+        ? ((Number(p.timestamp) - start) / span) * 1000
+        : 500;
       const y = 100 - ((p.value - MIN_Y) / RANGE) * 100;
       return `${i === 0 ? 'M' : 'L'} ${isNaN(x) ? 0 : x} ${isNaN(y) ? 50 : y}`;
     }).join(' ');
