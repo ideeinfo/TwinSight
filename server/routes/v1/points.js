@@ -436,4 +436,44 @@ router.get('/query/trend',
     }
 );
 
+router.get('/query/average',
+    authenticate,
+    authorize(PERMISSIONS.POINT_READ),
+    validateQuery('fileId').isInt().toInt(),
+    validateQuery('startMs').isInt().toInt(),
+    validateQuery('endMs').isInt().toInt(),
+    validateQuery('windowMs').optional().isInt().toInt(),
+    validateQuery('pointType').optional().isIn(POINT_TYPES),
+    validateQuery('pointCodes').optional().trim(),
+    validateRequest,
+    async (req, res, next) => {
+        try {
+            const { fileId, startMs, endMs, windowMs, pointType = 'temperature', pointCodes } = req.query;
+            const influxConfig = await getInfluxConfigByFileId(fileId);
+            if (!influxConfig?.is_enabled) return res.json({ success: true, data: [] });
+
+            const aggregateWindow = windowMs
+                ? Math.max(Number(windowMs), 1000)
+                : 60000;
+            const codeList = pointCodes
+                ? String(pointCodes).split(',').map((code) => escapeTag(code)).filter(Boolean)
+                : [];
+            const codeFilter = codeList.length > 0
+                ? `\n  |> filter(fn: (r) => contains(value: r["point_code"], set: [${codeList.map((code) => `"${String(code).replace(/"/g, '\\"')}"`).join(', ')}]))`
+                : '';
+            const flux = `from(bucket: "${influxConfig.influx_bucket}")
+  |> range(start: ${new Date(startMs).toISOString()}, stop: ${new Date(endMs).toISOString()})
+  |> filter(fn: (r) => r._measurement == "point_data" and r._field == "value" and r["file_id"] == "${fileId}" and r["point_type"] == "${escapeTag(pointType)}")${codeFilter}
+  |> aggregateWindow(every: ${aggregateWindow}ms, fn: mean, createEmpty: false)
+  |> group(columns: ["_time"])
+  |> mean()
+  |> sort(columns: ["_time"])`;
+            const data = parsePointCsv(await queryInflux(influxConfig, flux));
+            res.json({ success: true, data });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
 export default router;

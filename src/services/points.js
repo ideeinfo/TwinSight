@@ -87,11 +87,19 @@ export async function queryPointTrend(params = {}) {
   return parseResponse(response, '获取点位趋势失败');
 }
 
+export async function queryPointAverageTrend(params = {}) {
+  const response = await fetch(buildUrl('/points/query/average', params), {
+    headers: getHeaders()
+  });
+  return parseResponse(response, '获取点位平均趋势失败');
+}
+
 export default {
   createPoint,
   deletePoint,
   getPointStreamUrl,
   listPoints,
+  queryPointAverageTrend,
   queryLatestPoints,
   queryPointTrend,
   updatePoint

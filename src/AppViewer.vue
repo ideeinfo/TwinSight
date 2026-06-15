@@ -166,7 +166,7 @@
           <div v-if="isChartPanelOpen" class="bottom-chart-wrapper" :style="{ height: chartPanelHeight + 'px' }">
             <ChartPanel
               v-if="activePointChart"
-              :data="selectedPointSeries"
+              :data="pointChartData"
               :range="currentRange"
               :label-text="pointChartLabel"
               :unit="pointChartConfig.unit"
@@ -344,7 +344,7 @@ import { queryRoomSeries } from './services/influx';
 import PanoCompareView from './components/PanoCompareView.vue';
 import { checkApiHealth, getAssets, getSpaces, getAssetDetailByDbId } from './services/postgres.js';
 import { createTicket, deleteTicket, listTicketAssignees, listTicketMarkers, listTickets, updateTicket } from './services/tickets';
-import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, queryPointTrend, updatePoint } from './services/points';
+import { createPoint, deletePoint, getPointStreamUrl, listPoints, queryLatestPoints, queryPointAverageTrend, queryPointTrend, updatePoint } from './services/points';
 import { API_BASE_URL } from './utils/apiBase';
 import { copyTextToClipboard } from './utils/clipboard';
 import { resolveAssetSpace } from './utils/ticketAssetSpace';
@@ -533,21 +533,28 @@ const selectedPointId = ref(null);
 const selectedPoint = computed(() => (
   pointList.value.find((point) => point.id === selectedPointId.value) || null
 ));
+const pointAverageSeries = ref([]);
 const activePointChart = computed(() => (
-  isPointView.value && selectedPoint.value && selectedPoint.value.dataKind !== 'video'
+  isPointView.value
 ));
 const pointChartLabel = computed(() => {
-  if (!selectedPoint.value) return '点位趋势';
+  if (!selectedPoint.value) return '温度点位平均趋势';
   return `${selectedPoint.value.name || selectedPoint.value.pointCode} · ${selectedPoint.value.pointType}`;
 });
+const pointChartData = computed(() => (
+  selectedPoint.value && selectedPoint.value.dataKind !== 'video'
+    ? selectedPointSeries.value
+    : pointAverageSeries.value
+));
 const pointChartConfig = computed(() => {
   const point = selectedPoint.value;
-  const unit = point?.unit || '';
+  const pointType = point?.pointType || 'temperature';
+  const unit = point?.unit || (pointType === 'temperature' ? '°C' : '');
   const low = Number(point?.thresholdMin);
   const high = Number(point?.thresholdMax);
   const hasLow = Number.isFinite(low);
   const hasHigh = Number.isFinite(high);
-  const values = selectedPointSeries.value.map((item) => Number(item.value)).filter(Number.isFinite);
+  const values = pointChartData.value.map((item) => Number(item.value)).filter(Number.isFinite);
   const typeDefaults = {
     humidity: { minY: 0, maxY: 100, lowThreshold: hasLow ? low : 30, highThreshold: hasHigh ? high : 70 },
     temperature: { minY: -20, maxY: 40, lowThreshold: hasLow ? low : 10, highThreshold: hasHigh ? high : 28 },
@@ -561,7 +568,7 @@ const pointChartConfig = computed(() => {
   const fallbackPad = Math.max(1, (fallbackMax - fallbackMin) * 0.2);
   return {
     unit,
-    ...(typeDefaults[point?.pointType] || {
+    ...(typeDefaults[pointType] || {
       minY: Math.floor(fallbackMin - fallbackPad),
       maxY: Math.ceil(fallbackMax + fallbackPad),
       lowThreshold: hasLow ? low : NaN,
@@ -935,11 +942,42 @@ const refreshSelectedPointSeries = async (range = getActiveTimeRange()) => {
   }
 };
 
+const refreshPointAverageSeries = async (range = getActiveTimeRange()) => {
+  if (!activeFileId.value) {
+    pointAverageSeries.value = [];
+    return;
+  }
+
+  currentRange.value = range;
+  try {
+    pointAverageSeries.value = await queryPointAverageTrend({
+      fileId: activeFileId.value,
+      pointType: 'temperature',
+      startMs: range.startMs,
+      endMs: range.endMs,
+      windowMs: range.windowMs || Math.max(60_000, Math.round((range.endMs - range.startMs) / 300))
+    });
+  } catch (error) {
+    console.error('加载点位平均趋势失败:', error);
+    pointAverageSeries.value = [];
+  }
+};
+
+const refreshPointChartSeries = async (range = getActiveTimeRange()) => {
+  if (!isPointView.value) return;
+  if (selectedPoint.value && selectedPoint.value.dataKind !== 'video') {
+    await refreshSelectedPointSeries(range);
+    return;
+  }
+  selectedPointSeries.value = [];
+  await refreshPointAverageSeries(range);
+};
+
 const refreshPointData = async () => {
   await loadPointList();
   await loadPointLatestValues();
-  if (activePointChart.value) {
-    await refreshSelectedPointSeries();
+  if (isChartPanelOpen.value && isPointView.value) {
+    await refreshPointChartSeries();
   }
 };
 
@@ -1183,7 +1221,7 @@ const handlePointLocate = (point) => {
   selectedRoomSeries.value = [];
   locatePointTarget(point);
   if (isChartPanelOpen.value) {
-    refreshSelectedPointSeries();
+    refreshPointChartSeries();
   }
 };
 
@@ -2853,8 +2891,8 @@ const openRightPanel = () => {
 const toggleChartPanel = (isOpen) => {
   // 如果没有传参数，则切换状态；否则使用传入的值
   isChartPanelOpen.value = isOpen !== undefined ? isOpen : !isChartPanelOpen.value;
-  if (isChartPanelOpen.value && activePointChart.value) {
-    refreshSelectedPointSeries();
+  if (isChartPanelOpen.value && isPointView.value) {
+    refreshPointChartSeries();
   }
   // 使用 nextTick 确保 DOM 更新后再 resize
   nextTick(() => {
@@ -3004,8 +3042,8 @@ const onHoverSync = ({ time, percent }) => {
 
 const onTimeRangeChanged = ({ startMs, endMs, windowMs }) => {
   currentRange.value = { startMs, endMs, windowMs };
-  if (activePointChart.value) {
-    refreshSelectedPointSeries(currentRange.value);
+  if (isPointView.value) {
+    refreshPointChartSeries(currentRange.value);
     return;
   }
   if (!selectedRoomSeries.value.length) return;
